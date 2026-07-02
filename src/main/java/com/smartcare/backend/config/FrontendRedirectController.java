@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class FrontendRedirectController {
 
-    @GetMapping("/text")
-    public String redirectToTextIndex() {
-        return "forward:/text/index.html";
+    @GetMapping("/form")
+    public String redirectToFormIndex() {
+        return "forward:/form/index.html";
     }
 
-    @GetMapping("/text/")
-    public String redirectToTextIndexWithSlash() {
-        return "forward:/text/index.html";
+    @GetMapping("/form/")
+    public String redirectToFormIndexWithSlash() {
+        return "forward:/form/index.html";
     }
 
     // 未来新增示例：

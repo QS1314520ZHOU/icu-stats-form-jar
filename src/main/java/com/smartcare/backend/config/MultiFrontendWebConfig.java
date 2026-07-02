@@ -25,7 +25,7 @@ public class MultiFrontendWebConfig implements WebMvcConfigurer {
      * value: classpath:/static/ 下的子目录名（如 "text"）
      */
     private static final Map<String, String> FRONTEND_MAPPINGS = Map.of(
-            "text", "text"
+            "form", "form"
             // 未来新增示例：
             // "demo2", "demo2"
             // "admin", "admin-panel"
