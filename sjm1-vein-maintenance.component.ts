@@ -16,6 +16,7 @@
  * - 用 patient.id 查询 tubeExe：pid == patient.id 且 type == '中心静脉导管'。
  * - 表格行数据来自该 tubeExe.tubeRecordList 中 valid === true 的记录。
  * - 置管时间/置入位置来自 tubeExe 层级；其余列来自每条 tubeRecordList。
+ * - 编辑字段（CVC/院内置管/院外带入/其他）持久化到 MongoDB。
  *
  * 排版规范
  * ------------------------------------------------------------------
@@ -341,6 +342,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	/* 配置项 */
 	private readonly API_TUBEEXE = '/api/v1/icu/tube-exe/listByPid';
 	private readonly API_HOSPITAL = '/api/v1/config/hospital';
+	private readonly API_VEIN_EXTRA = '/api/v1/icu/vein-maintenance-extra';
 
 	/* 组件状态 */
 	loading = true;
@@ -372,18 +374,26 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		this.loadHospitalName();
 		// 订阅宿主推送的患者信息
 		this.hostPatient.patient$.subscribe((p) => {
-			this.patient = p || null;
-			this.age = this.calcAge(p?.birthday);
-			this.diagnosisDisplay = this.formatDiagnosis(p?.clinicalDiagnosis);
+			if (!p) return;
+			this.patient = p;
+			this.age = this.calcAge(p.birthday);
+			this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
 			const pid = this.hostPatient.getPid();
 			if (!pid) {
 				this.loading = false;
-				this.errorMsg = '请在系统中选择病人';
+				this.errorMsg = '未获取到病人ID';
 				return;
 			}
 			this.pid = pid;
 			this.loadTube(pid);
 		});
+		// 超时提示
+		setTimeout(() => {
+			if (!this.patient) {
+				this.loading = false;
+				this.errorMsg = '请在系统中选择病人';
+			}
+		}, 1500);
 	}
 
 	ngAfterViewInit(): void {
@@ -404,6 +414,11 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		});
 	}
 
+	/* 获取 tubeId */
+	private tubeId(): string {
+		return this.tube?.id || this.tube?._id || '';
+	}
+
 	/* 加载置管数据 */
 	private loadTube(pid: string): void {
 		this.loading = true;
@@ -417,8 +432,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 					const tubes = list.filter((t) => t?.type === '中心静脉导管');
 					this.tube = tubes[0] || null;
 					this.applyTube();
-					this.loading = false;
-					this.recomputePagination();
 				},
 				error: () => {
 					this.loading = false;
@@ -447,64 +460,64 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			this.isOutHospital = false;
 		}
 
-		// 从 localStorage 恢复持久化值
-		this.loadFromLocalStorage();
-		this.paginate();
+		// 从 MongoDB 恢复持久化值
+		this.loadExtra();
 	}
 
-	/* localStorage 持久化 */
-	private getStorageKey(): string {
-		const tubeId = this.tube?.id || this.tube?._id || this.pid;
-		return `sjm1:${this.pid}:${tubeId}`;
+	/* 从 MongoDB 加载编辑字段 */
+	private loadExtra(): void {
+		this.http.get<any>(this.API_VEIN_EXTRA, {
+			params: { pid: this.pid, tubeId: this.tubeId() }
+		}).subscribe({
+			next: (d) => {
+				if (d) {
+					if (d.cvcChecked != null) this.cvcChecked = d.cvcChecked;
+					if (d.isInHospital != null) this.isInHospital = d.isInHospital;
+					if (d.isOutHospital != null) this.isOutHospital = d.isOutHospital;
+					if (d.otherText != null) this.otherText = d.otherText;
+				}
+				this.loading = false;
+				this.paginate();
+			},
+			error: () => {
+				this.loading = false;
+				this.paginate();
+			},
+		});
 	}
 
-	private loadFromLocalStorage(): void {
-		try {
-			const key = this.getStorageKey();
-			const saved = localStorage.getItem(key);
-			if (saved) {
-				const data = JSON.parse(saved);
-				if (data.cvcChecked !== undefined) this.cvcChecked = data.cvcChecked;
-				if (data.isInHospital !== undefined) this.isInHospital = data.isInHospital;
-				if (data.isOutHospital !== undefined) this.isOutHospital = data.isOutHospital;
-				if (data.otherText !== undefined) this.otherText = data.otherText;
-			}
-		} catch (e) {
-			// 忽略解析错误
-		}
-	}
-
-	private saveToLocalStorage(): void {
-		try {
-			const key = this.getStorageKey();
-			const data = {
-				cvcChecked: this.cvcChecked,
-				isInHospital: this.isInHospital,
-				isOutHospital: this.isOutHospital,
-				otherText: this.otherText,
-			};
-			localStorage.setItem(key, JSON.stringify(data));
-		} catch (e) {
-			// 忽略存储错误
-		}
+	/* 保存编辑字段到 MongoDB */
+	private saveExtra(): void {
+		const body = {
+			pid: this.pid,
+			tubeId: this.tubeId(),
+			cvcChecked: this.cvcChecked,
+			isInHospital: this.isInHospital,
+			isOutHospital: this.isOutHospital,
+			otherText: this.otherText,
+		};
+		this.http.post(this.API_VEIN_EXTRA, body).subscribe({
+			next: () => {},
+			error: () => {},
+		});
 	}
 
 	onFieldChange(): void {
-		this.saveToLocalStorage();
+		this.saveExtra();
 	}
 
 	onInHospitalChange(): void {
 		if (this.isInHospital) {
 			this.isOutHospital = false;
 		}
-		this.saveToLocalStorage();
+		this.saveExtra();
 	}
 
 	onOutHospitalChange(): void {
 		if (this.isOutHospital) {
 			this.isInHospital = false;
 		}
-		this.saveToLocalStorage();
+		this.saveExtra();
 	}
 
 	/* 诊断字段处理：取第一个分号前的内容 */
@@ -547,10 +560,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	}
 
 	/**
-	 * A4 横向自动计算每页行数：
-	 * 297mm 宽、210mm 高；可用高度 = 210 - 上15 - 下10 = 185mm
-	 * 固定高度：标题约40px + 页眉信息约80px + 表头约60px + 页脚约30px = 210px ≈ 55mm
-	 * 可用行高 = 185 - 55 = 130mm；行高30px ≈ 8mm；每页约 130/8 ≈ 16 行
+	 * A4 横向自动计算每页行数
 	 */
 	private recomputePagination(): void {
 		const PX_PER_MM = 96 / 25.4;
