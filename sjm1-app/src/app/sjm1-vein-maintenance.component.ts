@@ -12,6 +12,7 @@
  *
  * 数据逻辑
  * ------------------------------------------------------------------
+ * - 通过 postMessage 从宿主窗口获取患者信息（HostPatientService）。
  * - 用 patient.id 查询 tubeExe：pid == patient.id 且 type == '中心静脉导管'。
  * - 表格行数据来自该 tubeExe.tubeRecordList 中 valid === true 的记录。
  * - 置管时间/置入位置来自 tubeExe 层级；其余列来自每条 tubeRecordList。
@@ -34,7 +35,7 @@ import {
 	OnInit,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { HostPatientService } from './host-patient.service';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -63,17 +64,6 @@ interface TubeExe {
 	startTime?: string;
 	tubeRecordList?: TubeRecord[];
 	valid?: boolean;
-}
-
-interface Patient {
-	id?: string;
-	dept?: string;
-	hisBed?: string;
-	name?: string;
-	gender?: string;
-	birthday?: string;
-	mrn?: string;
-	clinicalDiagnosis?: string;
 }
 
 interface RenderPage {
@@ -350,13 +340,12 @@ interface RenderPage {
 export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	/* 配置项 */
 	private readonly API_TUBEEXE = '/api/v1/icu/tube-exe/listByPid';
-	private readonly API_PATIENT = '/api/v1/icu/patients';
 	private readonly API_HOSPITAL = '/api/v1/config/hospital';
 
 	/* 组件状态 */
 	loading = true;
 	errorMsg = '';
-	patient: Patient | null = null;
+	patient: any = null; // 从 HostPatientService 获取
 	tube: TubeExe | null = null;
 	validRecords: TubeRecord[] = [];
 	pages: RenderPage[] = [];
@@ -375,22 +364,26 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 
 	constructor(
 		private http: HttpClient,
-		private route: ActivatedRoute,
+		private hostPatient: HostPatientService,
 		private cdr: ChangeDetectorRef,
 	) {}
 
 	ngOnInit(): void {
-		this.pid =
-			this.route.snapshot.queryParamMap.get('pid') ||
-			this.route.snapshot.queryParamMap.get('patientId') ||
-			'';
-		if (!this.pid) {
-			this.loading = false;
-			this.errorMsg = '缺少患者ID（pid）参数';
-			return;
-		}
 		this.loadHospitalName();
-		this.loadData(this.pid);
+		// 订阅宿主推送的患者信息
+		this.hostPatient.patient$.subscribe((p) => {
+			this.patient = p || null;
+			this.age = this.calcAge(p?.birthday);
+			this.diagnosisDisplay = this.formatDiagnosis(p?.clinicalDiagnosis);
+			const pid = this.hostPatient.getPid();
+			if (!pid) {
+				this.loading = false;
+				this.errorMsg = '请在系统中选择病人';
+				return;
+			}
+			this.pid = pid;
+			this.loadTube(pid);
+		});
 	}
 
 	ngAfterViewInit(): void {
@@ -411,25 +404,9 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		});
 	}
 
-	/* 数据加载 */
-	private loadData(pid: string): void {
-		this.loading = true;
-		this.http
-			.get<Patient>(this.API_PATIENT, { params: { id: pid } })
-			.subscribe({
-				next: (p) => {
-					this.patient = p || null;
-					this.age = this.calcAge(p?.birthday);
-					this.diagnosisDisplay = this.formatDiagnosis(p?.clinicalDiagnosis);
-					this.loadTube(pid);
-				},
-				error: () => {
-					this.loadTube(pid);
-				},
-			});
-	}
-
+	/* 加载置管数据 */
 	private loadTube(pid: string): void {
+		this.loading = true;
 		this.http
 			.get<TubeExe | TubeExe[]>(this.API_TUBEEXE, {
 				params: { pid, type: '中心静脉导管' },
