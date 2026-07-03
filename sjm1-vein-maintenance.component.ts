@@ -36,6 +36,7 @@ import {
 	OnInit,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { finalize } from 'rxjs/operators';
 import { HostPatientService } from './host-patient.service';
 
 /* ----------------------------- 数据模型 ----------------------------- */
@@ -368,6 +369,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	selectedPage: number | null = null;
 	private rowsPerPage = 18;
 	private pid = '';
+	private lastPid = '';
 
 	constructor(
 		private http: HttpClient,
@@ -384,26 +386,24 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			this.age = this.calcAge(p.birthday);
 			this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
 			const pid = this.hostPatient.getPid();
-			if (pid) {
-				// 有 patient.id 直接使用
-				this.pid = pid;
-				this.loadTube(pid);
-			} else {
-				// 没有 patient.id，尝试用 mrn 查询
-				const mrn = this.hostPatient.getMrn();
-				if (!mrn) {
-					this.loading = false;
-					this.errorMsg = '未获取到病人ID或住院号';
-					return;
-				}
-				this.loadPatientByMrn(mrn);
+			if (!pid) {
+				this.loading = false;
+				this.errorMsg = '未获取到病人ID';
+				this.cdr.detectChanges();
+				return;
 			}
+			// 同一病人不重复加载
+			if (pid === this.lastPid) return;
+			this.lastPid = pid;
+			this.pid = pid;
+			this.loadTube(pid);
 		});
 		// 超时提示
 		setTimeout(() => {
 			if (!this.patient) {
 				this.loading = false;
 				this.errorMsg = '请在系统中选择病人';
+				this.cdr.detectChanges();
 			}
 		}, 1500);
 	}
@@ -465,6 +465,10 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			.get<TubeExe | TubeExe[]>(this.API_TUBEEXE, {
 				params: { pid, type: '中心静脉导管' },
 			})
+			.pipe(finalize(() => {
+				this.loading = false;
+				this.cdr.detectChanges();
+			}))
 			.subscribe({
 				next: (res) => {
 					const list = Array.isArray(res) ? res : res ? [res] : [];
@@ -473,7 +477,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 					this.applyTube();
 				},
 				error: () => {
-					this.loading = false;
 					this.errorMsg = '置管数据加载失败';
 				},
 			});
@@ -507,7 +510,10 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	private loadExtra(): void {
 		this.http.get<any>(this.API_VEIN_EXTRA, {
 			params: { pid: this.pid, tubeId: this.tubeId() }
-		}).subscribe({
+		}).pipe(finalize(() => {
+			this.paginate();
+			this.cdr.detectChanges();
+		})).subscribe({
 			next: (d) => {
 				if (d) {
 					if (d.cvcChecked != null) this.cvcChecked = d.cvcChecked;
@@ -515,13 +521,8 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 					if (d.isOutHospital != null) this.isOutHospital = d.isOutHospital;
 					if (d.otherText != null) this.otherText = d.otherText;
 				}
-				this.loading = false;
-				this.paginate();
 			},
-			error: () => {
-				this.loading = false;
-				this.paginate();
-			},
+			error: () => {},
 		});
 	}
 
