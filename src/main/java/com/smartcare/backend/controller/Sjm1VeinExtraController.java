@@ -3,6 +3,7 @@ package com.smartcare.backend.controller;
 import com.smartcare.backend.entity.Sjm1VeinExtra;
 import com.smartcare.backend.repository.Sjm1VeinExtraRepository;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,13 +25,17 @@ public class Sjm1VeinExtraController {
     @GetMapping
     public Sjm1VeinExtra get(@RequestParam String pid,
                              @RequestParam(required = false, defaultValue = "") String tubeId) {
-        return this.repo.findByPidAndTubeId(pid, tubeId).orElse(null);
+        List<Sjm1VeinExtra> list = this.repo.findByPidAndTubeId(pid, tubeId);
+        return list.isEmpty() ? null : list.get(0);
     }
 
     @PostMapping
     public Sjm1VeinExtra save(@RequestBody Sjm1VeinExtra body) {
-        this.repo.findByPidAndTubeId(body.getPid(), body.getTubeId() == null ? "" : body.getTubeId())
-                .ifPresent(e -> body.setId(e.getId())); // 按 pid+tubeId upsert
+        String tubeId = body.getTubeId() == null ? "" : body.getTubeId();
+        List<Sjm1VeinExtra> existing = this.repo.findByPidAndTubeId(body.getPid(), tubeId);
+        if (!existing.isEmpty()) {
+            body.setId(existing.get(0).getId()); // 按 pid+tubeId upsert
+        }
         body.setUpdateTime(LocalDateTime.now().toString());
         return this.repo.save(body);
     }

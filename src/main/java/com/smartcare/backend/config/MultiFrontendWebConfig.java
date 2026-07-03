@@ -1,5 +1,7 @@
 package com.smartcare.backend.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -49,8 +51,10 @@ public class MultiFrontendWebConfig implements WebMvcConfigurer {
      * 实现单页应用的深链刷新支持：
      * 1. 如果请求的资源真实存在，直接返回
      * 2. 如果资源不存在，回退到该前端界面的 index.html
+     * 3. 如果 index.html 也不存在，返回 null（404 而非 500）
      */
     private static class SpaPathResourceResolver extends PathResourceResolver {
+        private static final Logger log = LoggerFactory.getLogger(SpaPathResourceResolver.class);
         private final String frontendDir;
 
         public SpaPathResourceResolver(String frontendDir) {
@@ -59,9 +63,10 @@ public class MultiFrontendWebConfig implements WebMvcConfigurer {
 
         @Override
         protected Resource getResource(String resourcePath, Resource location) throws IOException {
-            // 如果路径为空（访问目录），直接返回 index.html
+            // 如果路径为空（访问目录），返回 index.html
             if (resourcePath == null || resourcePath.isEmpty()) {
-                return location.createRelative("index.html");
+                Resource idx = location.createRelative("index.html");
+                return (idx.exists() && idx.isReadable()) ? idx : null;
             }
 
             // 尝试获取请求的资源
@@ -72,8 +77,15 @@ public class MultiFrontendWebConfig implements WebMvcConfigurer {
                 return resource;
             }
 
-            // 资源不存在，回退到 index.html（SPA路由接管）
-            return location.createRelative("index.html");
+            // 深链回退 index.html，但必须真实存在才返回
+            Resource idx = location.createRelative("index.html");
+            if (idx.exists() && idx.isReadable()) {
+                return idx;
+            }
+
+            // index.html 也不存在，返回 null（404 而非 500）
+            log.warn("SPA index.html missing under {}, path={}", location, resourcePath);
+            return null;
         }
     }
 }
