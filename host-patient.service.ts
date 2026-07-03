@@ -32,6 +32,11 @@ export class HostPatientService {
       data.patient ?? data.data?.patient ??
       (this.looksLikePatient(data) ? data : null);
     const account = data.account ?? data.data?.account ?? null;
+    // 过滤无效病人数据
+    if (patient && patient.status === 'invalid') {
+      console.log('[form] 忽略无效病人数据:', patient);
+      return;
+    }
     if (patient) this.patientSubject.next(patient);
     if (account != null) this.accountSubject.next(String(account));
   }
