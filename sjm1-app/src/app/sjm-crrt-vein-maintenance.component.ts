@@ -101,11 +101,11 @@ interface RenderPage {
 						<label class="cb"><input type="checkbox" [(ngModel)]="dialysisChecked" [disabled]="!hasData" />透析导管</label>
 					</div>
 					<div class="info-row">
-						<span class="info-item"><b>科室：</b>{{patient?.dept || '—'}}</span>
-						<span class="info-item"><b>姓名：</b>{{patient?.name || '—'}}</span>
-						<span class="info-item"><b>床号：</b>{{patient?.hisBed || '—'}}</span>
-						<span class="info-item"><b>住院号：</b>{{patient?.mrn || '—'}}</span>
-						<span class="info-item"><b>年龄：</b>{{age ?? '—'}}</span>
+						<span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
+						<span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
+						<span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
+						<span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
+						<span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
 						<span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
 					</div>
 					<div class="info-row">
@@ -115,7 +115,7 @@ interface RenderPage {
 						<label class="cb"><input type="checkbox" [(ngModel)]="isInHospital" (ngModelChange)="onInHospitalChange()" [disabled]="!hasData" />院内置管</label>
 						<span class="info-item"><b>置管时间：</b>{{fmtDateTime(tube?.startTime)}}</span>
 						<label class="cb"><input type="checkbox" [(ngModel)]="isOutHospital" (ngModelChange)="onOutHospitalChange()" [disabled]="!hasData" />院外带入</label>
-						<span class="info-item"><b>置入位置：</b>{{tube?.body || '—'}}</span>
+						<span class="info-item"><b>置入位置：</b>{{tube?.body || ''}}</span>
 					</div>
 				</div>
 
