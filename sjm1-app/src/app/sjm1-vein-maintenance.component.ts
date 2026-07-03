@@ -2,28 +2,18 @@
  * 深静脉维护记录单（CVC 维护记录）—— Angular 独立组件
  * 访问路径：/form/sjm1
  *
- * 说明
- * ------------------------------------------------------------------
- * - 本文件是一个自包含的 Angular standalone 组件（内联模板 + 内联样式），
- *   可直接拷贝进现有 Angular 源码工程，并在路由中登记：
- *   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent }
- * - 该应用最终以 <base href="/form/"> 部署，构建产物输出到后端 static/form/。
- * - 数据接口地址使用以 '/' 开头的绝对路径。
- *
  * 数据逻辑
  * ------------------------------------------------------------------
- * - 通过 postMessage 从宿主窗口获取患者信息（HostPatientService）。
+ * - 通过 HostPatientService（根单例）获取患者信息。
  * - 用 patient.id 查询 tubeExe：pid == patient.id 且 type == '中心静脉导管'。
  * - 表格行数据来自该 tubeExe.tubeRecordList 中 valid === true 的记录。
- * - 置管时间/置入位置来自 tubeExe 层级；其余列来自每条 tubeRecordList。
  * - 编辑字段（CVC/院内置管/院外带入/其他）持久化到 MongoDB。
  *
  * 排版规范
  * ------------------------------------------------------------------
  * - 医院名称+标题：黑体加粗 二号(22pt≈29px)，单行居中。
  * - 页眉基本信息：标签 宋体加粗 小四(12pt≈16px)；内容 宋体 小四。
- * - 页脚"第 X 页 共 Y 页"：居中 宋体 小四。
- * - 页边距：上15mm 左10mm 右10mm 下10mm（见 @media print @page）。
+ * - 页脚：备注左下，页码居中。
  * - A4 横向：宽297mm，min-height 210mm。
  */
 
@@ -34,12 +24,13 @@ import {
 	ChangeDetectorRef,
 	Component,
 	ElementRef,
-	NgZone,
+	OnDestroy,
 	OnInit,
 } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
-import { HostPatientService } from './host-patient.service';
+import { HostPatientService } from './services/host-patient.service';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -106,7 +97,7 @@ interface RenderPage {
 				*ngFor="let page of pages"
 				[class.print-hidden]="selectedPage !== null && selectedPage !== page.index"
 			>
-				<!-- 单行标题：{医院名称}深静脉维护记录单（一） -->
+				<!-- 单行标题 -->
 				<header class="sheet-head">
 					<div class="title-line">{{hospitalName}}深静脉维护记录单（一）</div>
 				</header>
@@ -177,14 +168,13 @@ interface RenderPage {
 						</tr>
 					</tbody>
 				</table>
+
 				<!-- 备注 + 页码 -->
-				<div class="sheet-foot-wrap">
-					<div class="sheet-remark">
-						备注：1.执行相应操作后请在栏内打"√"；透明敷料无异常7天更换，纱布敷料2天更换。<br>
-						2.置入长度根据实际情况记录。3.维护情况标注"有/无"；每班评估管道情况，每天至少记录一次。不涉及项目标注"/"。
-					</div>
-					<div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
+				<div class="sheet-remark">
+					备注：1.执行相应操作后请在栏内打"√"；透明敷料无异常7天更换，纱布敷料2天更换。<br>
+					2.置入长度根据实际情况记录。3.维护情况标注"有/无"；每班评估管道情况，每天至少记录一次。不涉及项目标注"/"。
 				</div>
+				<div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
 			</section>
 		</div>
 	`,
@@ -223,13 +213,7 @@ interface RenderPage {
 			border-radius: 4px;
 			cursor: pointer;
 		}
-		.loading,
-		.error {
-			padding: 16px;
-		}
-		.error {
-			color: #d4380d;
-		}
+		.loading { padding: 16px; }
 
 		/* A4 横向 */
 		.sheet {
@@ -237,7 +221,7 @@ interface RenderPage {
 			width: 297mm;
 			min-height: 210mm;
 			margin: 16px auto;
-			padding: 15mm 10mm 10mm 10mm;
+			padding: 12mm 10mm 10mm;
 			background: #fff;
 			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 			position: relative;
@@ -266,22 +250,11 @@ interface RenderPage {
 			gap: 6px 24px;
 			padding: 3px 0;
 		}
-		.info-item {
-			white-space: nowrap;
-		}
-		.info-item.wide {
-			flex: 1 1 100%;
-			white-space: normal;
-		}
-		.info-item b {
-			font-weight: 700;
-		}
-		.cb {
-			margin-right: 16px;
-		}
+		.info-item { white-space: nowrap; }
+		.info-item b { font-weight: 700; }
+		.cb { margin-right: 16px; }
 		.other-input {
 			border: none;
-			border-bottom: 1px solid #000;
 			font-size: var(--fz-xs4);
 			min-width: 160px;
 		}
@@ -310,26 +283,24 @@ interface RenderPage {
 			font-weight: 700;
 		}
 
-		.sheet-foot-wrap {
+		.sheet-remark {
 			position: absolute;
 			left: 10mm;
-			right: 10mm;
 			bottom: 6mm;
-			display: flex;
-			justify-content: space-between;
-			align-items: flex-end;
-			font-family: var(--font-song);
-		}
-		.sheet-remark {
-			flex: 1;
+			width: 62%;
 			text-align: left;
 			font-size: 12px;
 			line-height: 1.6;
+			font-family: var(--font-song);
 		}
 		.sheet-pageno {
-			white-space: nowrap;
-			margin-left: 16px;
+			position: absolute;
+			left: 0;
+			right: 0;
+			bottom: 6mm;
+			text-align: center;
 			font-size: var(--fz-xs4);
+			font-family: var(--font-song);
 		}
 
 		@media screen {
@@ -338,51 +309,27 @@ interface RenderPage {
 
 		/* 打印样式 */
 		@media print {
-			@page {
-				size: A4 landscape;
-				margin: 15mm 10mm 10mm 10mm;
-			}
-			:host {
-				background: #fff;
-			}
-			.no-print {
-				display: none !important;
-			}
-			.sheet {
-				width: auto;
-				min-height: auto;
-				margin: 0;
-				padding: 0;
-				box-shadow: none;
-				page-break-after: always;
-			}
-			.sheet:last-of-type {
-				page-break-after: auto;
-			}
-			.print-hidden {
-				display: none !important;
-			}
+			.no-print { display: none !important; }
+			.print-hidden { display: none !important; }
 		}
 	`],
 })
-export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
+export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDestroy {
 	/* 配置项 */
 	private readonly API_TUBEEXE = '/api/v1/icu/tube-exe/listByPid';
 	private readonly API_HOSPITAL = '/api/v1/config/hospital';
 	private readonly API_VEIN_EXTRA = '/api/v1/icu/vein-maintenance-extra';
-	private readonly API_PATIENT_BY_MRN = '/api/v1/icu/patients/by-mrn';
 
 	/* 组件状态 */
 	loading = true;
-	errorMsg = '';
-	patient: any = null; // 从 HostPatientService 获取
+	patient: any = null;
 	tube: TubeExe | null = null;
 	validRecords: TubeRecord[] = [];
 	pages: RenderPage[] = [];
 
-	hospitalName = '重钢总医院'; // 兜底默认值
+	hospitalName = '重钢总医院';
 	age: number | null = null;
-	diagnosisDisplay = ''; // 处理后的诊断显示
+	diagnosisDisplay = '';
 	cvcChecked = true;
 	otherText = '';
 	isInHospital = false;
@@ -391,100 +338,55 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	selectedPage: number | null = null;
 	private rowsPerPage = 18;
 	private pid = '';
-	private lastReloadAt = 0;
-	private io?: IntersectionObserver;
+	private sub = new Subscription();
 	private ro?: ResizeObserver;
-
-	// 事件回调（bound methods，便于 add/remove）
-	private onVisible = () => { if (document.visibilityState === 'visible') this.reloadIfVisible(); };
-	private onFocus = () => this.reloadIfVisible();
-	private onPageShow = () => this.reloadIfVisible(true); // bfcache 返回强制刷新
 
 	constructor(
 		private http: HttpClient,
 		private hostPatient: HostPatientService,
 		private cdr: ChangeDetectorRef,
-		private ngZone: NgZone,
 		private host: ElementRef,
 	) {}
 
 	ngOnInit(): void {
 		this.loadHospitalName();
-		// 订阅宿主推送的患者信息
-		this.hostPatient.patient$.subscribe((p) => {
-			if (!p) return;
-			this.patient = p;
-			this.age = this.calcAge(p.birthday);
-			this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
-			const pid = this.hostPatient.getPid();
-			if (!pid) {
-				this.loading = false;
-				this.errorMsg = '未获取到病人ID';
-				this.cdr.detectChanges();
-				return;
-			}
-			this.pid = pid;
-			this.loadTube(pid);
-		});
-	}
-
-	/** 重新可见/需要刷新时调用；同一 300ms 内的重复调用忽略，避免抖动 */
-	private reloadIfVisible(force = false): void {
-		if (!this.pid) return;
-		const now = Date.now();
-		if (!force && now - this.lastReloadAt < 300) return;
-		this.lastReloadAt = now;
-		this.ngZone.run(() => this.loadTube(this.pid));
-	}
-
-	/* 通过 mrn 查询 patient */
-	private loadPatientByMrn(mrn: string): void {
-		this.http.get<any>(this.API_PATIENT_BY_MRN, { params: { mrn } }).subscribe({
-			next: (p) => {
-				if (p?.id) {
-					this.patient = { ...this.patient, ...p };
-					this.age = this.calcAge(p.birthday);
-					this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
-					this.pid = p.id;
-					this.loadTube(p.id);
-				} else {
-					this.loading = false;
-					this.errorMsg = '未找到住院号对应的病人';
-				}
-			},
-			error: () => {
-				this.loading = false;
-				this.errorMsg = '查询病人信息失败';
-			},
-		});
+		// 订阅患者信息（BehaviorSubject 会重放最后病人 → 切回/重建自动重拉）
+		this.sub.add(
+			this.hostPatient.patient$.subscribe((p) => {
+				if (!p) return;
+				this.patient = p;
+				this.age = this.calcAge(p.birthday);
+				this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
+				const pid = this.hostPatient.getPid();
+				if (!pid) return;
+				this.pid = pid;
+				this.loadFromServer();
+			})
+		);
 	}
 
 	ngAfterViewInit(): void {
 		setTimeout(() => this.recomputePagination(), 0);
-
-		// a) 浏览器标签级可见（切浏览器 tab / 最小化恢复）
-		document.addEventListener('visibilitychange', this.onVisible);
-		// b) 窗口重新获得焦点
-		window.addEventListener('focus', this.onFocus);
-		// c) 前进/后退 bfcache、iframe 重新展示
-		window.addEventListener('pageshow', this.onPageShow);
-		// d) 关键：SmartCare 内部 tab 隐藏/显示 iframe —— 观察根元素由不可见变可见
-		this.io = new IntersectionObserver((entries) => {
-			for (const e of entries) {
-				if (e.isIntersecting && e.intersectionRatio > 0) this.reloadIfVisible();
-			}
-		}, { threshold: 0 });
-		this.io.observe(this.host.nativeElement);
-
-		// e) 屏幕预览按宽度自适应缩放
+		// 屏幕预览自适应缩放
 		this.fitScale();
 		this.ro = new ResizeObserver(() => this.fitScale());
 		this.ro.observe(this.host.nativeElement);
 	}
 
-	/* 屏幕预览缩放：让 297mm 宽的 .sheet 适配可用宽度 */
+	ngOnDestroy(): void {
+		this.sub.unsubscribe();
+		this.ro?.disconnect();
+	}
+
+	/* 从服务器加载数据 */
+	private loadFromServer(): void {
+		if (!this.pid) return;
+		this.loadTube(this.pid);
+	}
+
+	/* 屏幕预览缩放 */
 	private fitScale(): void {
-		const SHEET_W = 297 * (96 / 25.4); // 297mm 换算 px
+		const SHEET_W = 297 * (96 / 25.4);
 		const avail = this.host.nativeElement.clientWidth - 32;
 		const scale = Math.min(1, avail / SHEET_W);
 		this.host.nativeElement.style.setProperty('--sheet-scale', String(scale));
@@ -493,18 +395,12 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	/* 加载医院名称 */
 	private loadHospitalName(): void {
 		this.http.get<{ hospitalName: string }>(this.API_HOSPITAL).subscribe({
-			next: (res) => {
-				if (res?.hospitalName) {
-					this.hospitalName = res.hospitalName;
-				}
-			},
-			error: () => {
-				// 使用兜底默认值
-			},
+			next: (res) => { if (res?.hospitalName) this.hospitalName = res.hospitalName; },
+			error: () => {},
 		});
 	}
 
-	/* 是否有置管数据（有数据才可编辑） */
+	/* 是否有置管数据 */
 	get hasData(): boolean {
 		return !!this.tube;
 	}
@@ -532,9 +428,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 					this.tube = tubes[0] || null;
 					this.applyTube();
 				},
-				error: () => {
-					this.errorMsg = '置管数据加载失败';
-				},
+				error: () => {},
 			});
 	}
 
@@ -545,7 +439,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			.filter((r) => r && r.valid === true)
 			.sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
-		// 置管来源默认值
 		const loc = (this.tube?.tubeLocation || '').trim();
 		if (!loc) {
 			this.isInHospital = false;
@@ -557,8 +450,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			this.isInHospital = true;
 			this.isOutHospital = false;
 		}
-
-		// 从 MongoDB 恢复持久化值
 		this.loadExtra();
 	}
 
@@ -584,6 +475,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 
 	/* 保存编辑字段到 MongoDB */
 	private saveExtra(): void {
+		if (!this.hasData) return;
 		const body = {
 			pid: this.pid,
 			tubeId: this.tubeId(),
@@ -598,24 +490,15 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		});
 	}
 
-	onFieldChange(): void {
-		if (!this.hasData) return;
-		this.saveExtra();
-	}
+	onFieldChange(): void { this.saveExtra(); }
 
 	onInHospitalChange(): void {
-		if (!this.hasData) return;
-		if (this.isInHospital) {
-			this.isOutHospital = false;
-		}
+		if (this.isInHospital) this.isOutHospital = false;
 		this.saveExtra();
 	}
 
 	onOutHospitalChange(): void {
-		if (!this.hasData) return;
-		if (this.isOutHospital) {
-			this.isInHospital = false;
-		}
+		if (this.isOutHospital) this.isInHospital = false;
 		this.saveExtra();
 	}
 
@@ -626,7 +509,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		return g || '';
 	}
 
-	/* 诊断字段处理：取第一个分号前的内容 */
+	/* 诊断字段处理 */
 	private formatDiagnosis(diagnosis?: string): string {
 		if (!diagnosis) return '';
 		const semicolonIndex = diagnosis.indexOf(';');
@@ -665,15 +548,12 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		}
 	}
 
-	/**
-	 * A4 横向自动计算每页行数
-	 */
 	private recomputePagination(): void {
 		const PX_PER_MM = 96 / 25.4;
-		const usableH = (210 - 22) * PX_PER_MM; // 减上下 padding(12mm+10mm)
-		const fixedH = 280; // 标题+页眉+表头+备注+页脚固定区块(px)
-		const tableHeaderH = 60; // 两行表头
-		const rowH = 30; // 与 .record-table td height 一致
+		const usableH = (210 - 22) * PX_PER_MM;
+		const fixedH = 260;
+		const tableHeaderH = 60;
+		const rowH = 30;
 		const rows = Math.floor((usableH - fixedH - tableHeaderH) / rowH);
 		const next = Math.max(5, rows);
 		if (next !== this.rowsPerPage) {
@@ -704,7 +584,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			c.querySelectorAll('input[type=text]').forEach(el => {
 				const sp = document.createElement('span');
 				sp.textContent = (el as HTMLInputElement).value || '';
-				sp.style.cssText = 'display:inline-block;min-width:160px;border-bottom:1px solid #000;';
+				sp.style.cssText = 'display:inline-block;min-width:160px;';
 				el.replaceWith(sp);
 			});
 			c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
@@ -724,9 +604,8 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			.record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
 			.record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
 			.record-table th{background:transparent;font-weight:700;}
-			.sheet-foot-wrap{position:absolute;left:10mm;right:10mm;bottom:6mm;display:flex;justify-content:space-between;align-items:flex-end;}
-			.sheet-remark{flex:1;text-align:left;font-size:12px;line-height:1.6;}
-			.sheet-pageno{white-space:nowrap;margin-left:16px;font-size:16px;}
+			.sheet-remark{position:absolute;left:10mm;bottom:6mm;width:62%;text-align:left;font-size:12px;line-height:1.6;}
+			.sheet-pageno{position:absolute;left:0;right:0;bottom:6mm;text-align:center;font-size:16px;}
 		`;
 		const win = window.open('', '_blank', 'width=1200,height=800');
 		if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
@@ -753,21 +632,11 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		const d = new Date(v);
 		if (isNaN(d.getTime())) return v;
 		const p = (n: number) => `${n}`.padStart(2, '0');
-		return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(
-			d.getHours(),
-		)}:${p(d.getMinutes())}`;
+		return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 	}
 
 	private ts(v?: string): number {
 		const t = v ? new Date(v).getTime() : 0;
 		return isNaN(t) ? 0 : t;
-	}
-
-	ngOnDestroy(): void {
-		document.removeEventListener('visibilitychange', this.onVisible);
-		window.removeEventListener('focus', this.onFocus);
-		window.removeEventListener('pageshow', this.onPageShow);
-		this.io?.disconnect();
-		this.ro?.disconnect();
 	}
 }

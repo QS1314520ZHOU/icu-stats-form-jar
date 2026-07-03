@@ -7,11 +7,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <script>
-    // 缓存宿主消息，解决首次加载时 Angular 未 bootstrap 的竞态问题
-    window.__HOST_MSGS__ = [];
+    // 早期监听：缓存 Angular 启动前到达的 SmartCare 消息
+    window.__lastSmartCareMsg = null;
     window.addEventListener('message', function(e) {
-      if (e?.data && e.data.type !== 'SmartCare-form-ready') {
-        window.__HOST_MSGS__.push(e.data);
+      if (e?.data && e.data.type === 'SmartCare') {
+        window.__lastSmartCareMsg = e.data;
       }
     });
   </script>
