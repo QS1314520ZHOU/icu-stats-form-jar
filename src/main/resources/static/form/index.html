@@ -6,8 +6,17 @@
   <base href="/form/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <script>
+    // 缓存宿主消息，解决首次加载时 Angular 未 bootstrap 的竞态问题
+    window.__HOST_MSGS__ = [];
+    window.addEventListener('message', function(e) {
+      if (e?.data && e.data.type !== 'SmartCare-form-ready') {
+        window.__HOST_MSGS__.push(e.data);
+      }
+    });
+  </script>
 <link rel="stylesheet" href="styles-5INURTSO.css"></head>
 <body>
   <app-root></app-root>
-<script src="main-DLXOQHHC.js" type="module"></script></body>
+<script src="main-EZJF5YVY.js" type="module"></script></body>
 </html>
