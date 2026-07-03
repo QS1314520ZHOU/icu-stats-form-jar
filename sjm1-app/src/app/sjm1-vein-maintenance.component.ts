@@ -284,20 +284,14 @@ interface RenderPage {
 		}
 
 		.sheet-remark {
-			position: absolute;
-			left: 10mm;
-			bottom: 6mm;
-			width: 62%;
+			margin-top: 6px;
 			text-align: left;
 			font-size: 12px;
 			line-height: 1.6;
 			font-family: var(--font-song);
 		}
 		.sheet-pageno {
-			position: absolute;
-			left: 0;
-			right: 0;
-			bottom: 6mm;
+			margin-top: 4px;
 			text-align: center;
 			font-size: var(--fz-xs4);
 			font-family: var(--font-song);
@@ -551,7 +545,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	private recomputePagination(): void {
 		const PX_PER_MM = 96 / 25.4;
 		const usableH = (210 - 22) * PX_PER_MM;
-		const fixedH = 260;
+		const fixedH = 280;
 		const tableHeaderH = 60;
 		const rowH = 30;
 		const rows = Math.floor((usableH - fixedH - tableHeaderH) / rowH);
@@ -604,8 +598,8 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 			.record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
 			.record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
 			.record-table th{background:transparent;font-weight:700;}
-			.sheet-remark{position:absolute;left:10mm;bottom:6mm;width:62%;text-align:left;font-size:12px;line-height:1.6;}
-			.sheet-pageno{position:absolute;left:0;right:0;bottom:6mm;text-align:center;font-size:16px;}
+			.sheet-remark{margin-top:6px;text-align:left;font-size:12px;line-height:1.6;}
+			.sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
 		`;
 		const win = window.open('', '_blank', 'width=1200,height=800');
 		if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
