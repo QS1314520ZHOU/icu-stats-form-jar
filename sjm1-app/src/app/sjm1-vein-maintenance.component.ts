@@ -343,6 +343,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	private readonly API_TUBEEXE = '/api/v1/icu/tube-exe/listByPid';
 	private readonly API_HOSPITAL = '/api/v1/config/hospital';
 	private readonly API_VEIN_EXTRA = '/api/v1/icu/vein-maintenance-extra';
+	private readonly API_PATIENT_BY_MRN = '/api/v1/icu/patients/by-mrn';
 
 	/* 组件状态 */
 	loading = true;
@@ -379,13 +380,20 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			this.age = this.calcAge(p.birthday);
 			this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
 			const pid = this.hostPatient.getPid();
-			if (!pid) {
-				this.loading = false;
-				this.errorMsg = '未获取到病人ID';
-				return;
+			if (pid) {
+				// 有 patient.id 直接使用
+				this.pid = pid;
+				this.loadTube(pid);
+			} else {
+				// 没有 patient.id，尝试用 mrn 查询
+				const mrn = this.hostPatient.getMrn();
+				if (!mrn) {
+					this.loading = false;
+					this.errorMsg = '未获取到病人ID或住院号';
+					return;
+				}
+				this.loadPatientByMrn(mrn);
 			}
-			this.pid = pid;
-			this.loadTube(pid);
 		});
 		// 超时提示
 		setTimeout(() => {
@@ -394,6 +402,28 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 				this.errorMsg = '请在系统中选择病人';
 			}
 		}, 1500);
+	}
+
+	/* 通过 mrn 查询 patient */
+	private loadPatientByMrn(mrn: string): void {
+		this.http.get<any>(this.API_PATIENT_BY_MRN, { params: { mrn } }).subscribe({
+			next: (p) => {
+				if (p?.id) {
+					this.patient = { ...this.patient, ...p };
+					this.age = this.calcAge(p.birthday);
+					this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
+					this.pid = p.id;
+					this.loadTube(p.id);
+				} else {
+					this.loading = false;
+					this.errorMsg = '未找到住院号对应的病人';
+				}
+			},
+			error: () => {
+				this.loading = false;
+				this.errorMsg = '查询病人信息失败';
+			},
+		});
 	}
 
 	ngAfterViewInit(): void {

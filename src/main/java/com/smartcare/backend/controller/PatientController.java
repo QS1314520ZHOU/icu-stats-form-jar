@@ -27,4 +27,11 @@ public class PatientController {
         Patient patient = this.mongoTemplate.findOne(query, Patient.class, "patient");
         return (patient != null) ? ResponseEntity.ok(patient) : ResponseEntity.notFound().build();
     }
+
+    @GetMapping({"/by-mrn"})
+    public ResponseEntity<Patient> getByMrn(@RequestParam String mrn) {
+        Query query = new Query(Criteria.where("mrn").is(mrn));
+        Patient patient = this.mongoTemplate.findOne(query, Patient.class, "patient");
+        return (patient != null) ? ResponseEntity.ok(patient) : ResponseEntity.notFound().build();
+    }
 }

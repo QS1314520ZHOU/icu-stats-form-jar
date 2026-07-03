@@ -11,9 +11,17 @@ export class HostPatientService {
   getPatientSnapshot() { return this.patientSubject.getValue(); }
   getPid(): string | null {
     const p = this.patientSubject.getValue();
-    const id = p?.id ?? p?.pid;
+    const id = p?.id;
     if (id == null) return null;
     const s = String(id).trim();
+    return s.length ? s : null;
+  }
+
+  getMrn(): string | null {
+    const p = this.patientSubject.getValue();
+    const mrn = p?.mrn;
+    if (mrn == null) return null;
+    const s = String(mrn).trim();
     return s.length ? s : null;
   }
 
