@@ -85,7 +85,7 @@ interface RenderPage {
 			<div class="toolbar-left"></div>
 			<div class="toolbar-right">
 				<label class="page-select">
-					页码：
+					页码选择：
 					<select [(ngModel)]="selectedPage">
 						<option [ngValue]="null">全部</option>
 						<option *ngFor="let p of pages" [ngValue]="p.index">
@@ -98,7 +98,6 @@ interface RenderPage {
 		</div>
 
 		<div class="loading no-print" *ngIf="loading">加载中…</div>
-		<div class="error no-print" *ngIf="errorMsg">{{errorMsg}}</div>
 
 		<!-- 打印/展示区域：逐页渲染 -->
 		<div class="print-root" *ngIf="!loading">
@@ -118,16 +117,16 @@ interface RenderPage {
 						<span class="info-item"><b>病区：</b>{{patient?.dept || '—'}}</span>
 						<span class="info-item"><b>床号：</b>{{patient?.hisBed || '—'}}</span>
 						<span class="info-item"><b>姓名：</b>{{patient?.name || '—'}}</span>
-						<span class="info-item"><b>性别：</b>{{patient?.gender || '—'}}</span>
+						<span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
 						<span class="info-item"><b>年龄：</b>{{age ?? '—'}}</span>
 						<span class="info-item"><b>住院号：</b>{{patient?.mrn || '—'}}</span>
-						<span class="info-item wide"><b>诊断：</b>{{diagnosisDisplay}}</span>
+						<span class="info-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
 					</div>
 					<div class="info-row">
 						<span class="info-item">
 							<label class="cb"><input type="checkbox" [(ngModel)]="cvcChecked" (ngModelChange)="onFieldChange()" [disabled]="!hasData" />CVC</label>
 						</span>
-						<span class="info-item wide">
+						<span class="info-item">
 							<b>其他：</b><input class="other-input" type="text" [(ngModel)]="otherText" (ngModelChange)="onFieldChange()" [disabled]="!hasData" />
 						</span>
 						<span class="info-item">
@@ -310,7 +309,7 @@ interface RenderPage {
 			position: absolute;
 			left: 0;
 			right: 0;
-			bottom: 6mm;
+			bottom: 5mm;
 			text-align: center;
 			font-family: var(--font-song);
 			font-size: var(--fz-xs4);
@@ -405,14 +404,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			this.pid = pid;
 			this.loadTube(pid);
 		});
-		// 超时提示
-		setTimeout(() => {
-			if (!this.patient) {
-				this.loading = false;
-				this.errorMsg = '请在系统中选择病人';
-				this.cdr.detectChanges();
-			}
-		}, 1500);
 	}
 
 	/** 重新可见/需要刷新时调用；同一 300ms 内的重复调用忽略，避免抖动 */
@@ -593,9 +584,16 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		this.saveExtra();
 	}
 
+	/* 性别显示转换 */
+	genderText(g?: string): string {
+		if (g === 'Male' || g === 'M' || g === '男') return '男';
+		if (g === 'Female' || g === 'F' || g === '女') return '女';
+		return g || '';
+	}
+
 	/* 诊断字段处理：取第一个分号前的内容 */
 	private formatDiagnosis(diagnosis?: string): string {
-		if (!diagnosis) return '—';
+		if (!diagnosis) return '';
 		const semicolonIndex = diagnosis.indexOf(';');
 		const semicolonIndex2 = diagnosis.indexOf('；');
 		let index = -1;
@@ -607,9 +605,9 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			index = semicolonIndex2;
 		}
 		if (index >= 0) {
-			return diagnosis.substring(0, index).trim() || '—';
+			return diagnosis.substring(0, index).trim() || '';
 		}
-		return diagnosis.trim() || '—';
+		return diagnosis.trim() || '';
 	}
 
 	/* 分页 */
@@ -657,9 +655,58 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		return rows;
 	}
 
-	/* 打印 */
+	/* 打印：用独立窗口渲染，解决 iframe 内 @page 横向不生效的问题 */
 	onPrint(): void {
-		window.print();
+		const sheets = this.host.nativeElement.querySelectorAll('.sheet');
+		if (!sheets.length) return;
+
+		// 把表单控件在打印副本里转成静态符号
+		let body = '';
+		sheets.forEach((s: HTMLElement) => {
+			const clone = s.cloneNode(true) as HTMLElement;
+			clone.querySelectorAll('input[type=checkbox]').forEach((el) => {
+				const span = document.createElement('span');
+				span.textContent = (el as HTMLInputElement).checked ? '☑' : '☐';
+				el.replaceWith(span);
+			});
+			clone.querySelectorAll('input[type=text]').forEach((el) => {
+				const span = document.createElement('span');
+				span.textContent = (el as HTMLInputElement).value || '';
+				span.style.borderBottom = '1px solid #000';
+				span.style.minWidth = '160px';
+				span.style.display = 'inline-block';
+				el.replaceWith(span);
+			});
+			clone.querySelectorAll('.no-print, .toolbar').forEach((el) => el.remove());
+			body += clone.outerHTML;
+		});
+
+		const css = `
+			@page { size: A4 landscape; margin: 15mm 10mm 10mm 10mm; }
+			body { margin:0; color:#000; font-family:'SimSun','宋体',serif; }
+			.sheet { width:auto; min-height:auto; margin:0 0 8mm; padding:0; box-shadow:none; page-break-after:always; }
+			.sheet:last-of-type { page-break-after:auto; }
+			.sheet-head { text-align:center; }
+			.title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:29px; line-height:1.4; }
+			.patient-info { font-size:16px; margin:8px 0 6px; }
+			.info-row { display:flex; flex-wrap:wrap; gap:6px 24px; padding:3px 0; }
+			.info-item { white-space:nowrap; } .info-item.wide { flex:1 1 100%; }
+			.record-table { width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+			.record-table th,.record-table td { border:1px solid #000; text-align:center; padding:4px 2px; height:30px; word-break:break-all; }
+			.record-table th { background:#f5f5f5; font-weight:700; }
+			.sheet-foot { text-align:center; font-size:16px; margin-top:6px; }
+		`;
+
+		const win = window.open('', '_blank', 'width=1200,height=800');
+		if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
+		win.document.write(
+			`<!doctype html><html><head><meta charset="utf-8">` +
+			`<title>深静脉维护记录单</title><style>${css}</style></head>` +
+			`<body>${body}</body></html>`
+		);
+		win.document.close();
+		win.focus();
+		setTimeout(() => { win.print(); win.close(); }, 300);
 	}
 
 	/* 工具方法 */
