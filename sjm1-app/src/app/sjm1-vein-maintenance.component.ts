@@ -122,14 +122,14 @@ interface RenderPage {
 					</div>
 					<div class="info-row">
 						<span class="info-item">
-							<label class="cb"><input type="checkbox" [(ngModel)]="cvcChecked" (ngModelChange)="onFieldChange()" />CVC</label>
+							<label class="cb"><input type="checkbox" [(ngModel)]="cvcChecked" (ngModelChange)="onFieldChange()" [disabled]="!hasData" />CVC</label>
 						</span>
 						<span class="info-item wide">
-							<b>其他：</b><input class="other-input" type="text" [(ngModel)]="otherText" (ngModelChange)="onFieldChange()" />
+							<b>其他：</b><input class="other-input" type="text" [(ngModel)]="otherText" (ngModelChange)="onFieldChange()" [disabled]="!hasData" />
 						</span>
 						<span class="info-item">
-							<label class="cb"><input type="checkbox" [(ngModel)]="isInHospital" (ngModelChange)="onInHospitalChange()" />院内置管</label>
-							<label class="cb"><input type="checkbox" [(ngModel)]="isOutHospital" (ngModelChange)="onOutHospitalChange()" />院外带入</label>
+							<label class="cb"><input type="checkbox" [(ngModel)]="isInHospital" (ngModelChange)="onInHospitalChange()" [disabled]="!hasData" />院内置管</label>
+							<label class="cb"><input type="checkbox" [(ngModel)]="isOutHospital" (ngModelChange)="onOutHospitalChange()" [disabled]="!hasData" />院外带入</label>
 						</span>
 					</div>
 				</div>
@@ -277,6 +277,10 @@ interface RenderPage {
 			border-bottom: 1px solid #000;
 			font-size: var(--fz-xs4);
 			min-width: 160px;
+		}
+		input:disabled, select:disabled {
+			cursor: not-allowed;
+			opacity: .6;
 		}
 
 		.record-table {
@@ -444,6 +448,11 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		});
 	}
 
+	/* 是否有置管数据（有数据才可编辑） */
+	get hasData(): boolean {
+		return !!this.tube;
+	}
+
 	/* 获取 tubeId */
 	private tubeId(): string {
 		return this.tube?.id || this.tube?._id || '';
@@ -533,10 +542,12 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	}
 
 	onFieldChange(): void {
+		if (!this.hasData) return;
 		this.saveExtra();
 	}
 
 	onInHospitalChange(): void {
+		if (!this.hasData) return;
 		if (this.isInHospital) {
 			this.isOutHospital = false;
 		}
@@ -544,6 +555,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	}
 
 	onOutHospitalChange(): void {
+		if (!this.hasData) return;
 		if (this.isOutHospital) {
 			this.isInHospital = false;
 		}
