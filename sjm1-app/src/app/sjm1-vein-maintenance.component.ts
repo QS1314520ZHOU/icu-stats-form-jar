@@ -177,9 +177,14 @@ interface RenderPage {
 						</tr>
 					</tbody>
 				</table>
-
-				<!-- 页脚 -->
-				<footer class="sheet-foot">第 {{page.index}} 页 共 {{pages.length}} 页</footer>
+				<!-- 备注 + 页码 -->
+				<div class="sheet-foot-wrap">
+					<div class="sheet-remark">
+						备注：1.执行相应操作后请在栏内打"√"；透明敷料无异常7天更换，纱布敷料2天更换。<br>
+						2.置入长度根据实际情况记录。3.维护情况标注"有/无"；每班评估管道情况，每天至少记录一次。不涉及项目标注"/"。
+					</div>
+					<div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
+				</div>
 			</section>
 		</div>
 	`,
@@ -301,18 +306,34 @@ interface RenderPage {
 			height: 30px;
 		}
 		.record-table th {
-			background: #f5f5f5;
+			background: transparent;
 			font-weight: 700;
 		}
 
-		.sheet-foot {
+		.sheet-foot-wrap {
 			position: absolute;
-			left: 0;
-			right: 0;
-			bottom: 5mm;
-			text-align: center;
+			left: 10mm;
+			right: 10mm;
+			bottom: 6mm;
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-end;
 			font-family: var(--font-song);
+		}
+		.sheet-remark {
+			flex: 1;
+			text-align: left;
+			font-size: 12px;
+			line-height: 1.6;
+		}
+		.sheet-pageno {
+			white-space: nowrap;
+			margin-left: 16px;
 			font-size: var(--fz-xs4);
+		}
+
+		@media screen {
+			.sheet { zoom: var(--sheet-scale, 1); }
 		}
 
 		/* 打印样式 */
@@ -372,6 +393,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	private pid = '';
 	private lastReloadAt = 0;
 	private io?: IntersectionObserver;
+	private ro?: ResizeObserver;
 
 	// 事件回调（bound methods，便于 add/remove）
 	private onVisible = () => { if (document.visibilityState === 'visible') this.reloadIfVisible(); };
@@ -453,6 +475,19 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 			}
 		}, { threshold: 0 });
 		this.io.observe(this.host.nativeElement);
+
+		// e) 屏幕预览按宽度自适应缩放
+		this.fitScale();
+		this.ro = new ResizeObserver(() => this.fitScale());
+		this.ro.observe(this.host.nativeElement);
+	}
+
+	/* 屏幕预览缩放：让 297mm 宽的 .sheet 适配可用宽度 */
+	private fitScale(): void {
+		const SHEET_W = 297 * (96 / 25.4); // 297mm 换算 px
+		const avail = this.host.nativeElement.clientWidth - 32;
+		const scale = Math.min(1, avail / SHEET_W);
+		this.host.nativeElement.style.setProperty('--sheet-scale', String(scale));
 	}
 
 	/* 加载医院名称 */
@@ -635,9 +670,8 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	 */
 	private recomputePagination(): void {
 		const PX_PER_MM = 96 / 25.4;
-		const pageH = 210 * PX_PER_MM; // A4 横向高度
 		const usableH = (210 - 22) * PX_PER_MM; // 减上下 padding(12mm+10mm)
-		const fixedH = 210; // 标题+页眉+表头+页脚固定区块(px)
+		const fixedH = 280; // 标题+页眉+表头+备注+页脚固定区块(px)
 		const tableHeaderH = 60; // 两行表头
 		const rowH = 30; // 与 .record-table td height 一致
 		const rows = Math.floor((usableH - fixedH - tableHeaderH) / rowH);
@@ -655,61 +689,48 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		return rows;
 	}
 
-	/* 打印：用独立窗口渲染，解决 iframe 内 @page 横向不生效的问题 */
+	/* 打印：独立窗口 + 横向 + 去页眉页脚 */
 	onPrint(): void {
 		const sheets = this.host.nativeElement.querySelectorAll('.sheet');
 		if (!sheets.length) return;
-
-		// 把表单控件在打印副本里转成静态符号
 		let body = '';
 		sheets.forEach((s: HTMLElement) => {
-			const clone = s.cloneNode(true) as HTMLElement;
-			clone.querySelectorAll('input[type=checkbox]').forEach((el) => {
-				const span = document.createElement('span');
-				span.textContent = (el as HTMLInputElement).checked ? '☑' : '☐';
-				el.replaceWith(span);
+			const c = s.cloneNode(true) as HTMLElement;
+			c.querySelectorAll('input[type=checkbox]').forEach(el => {
+				const sp = document.createElement('span');
+				sp.textContent = (el as HTMLInputElement).checked ? '☑' : '☐';
+				el.replaceWith(sp);
 			});
-			clone.querySelectorAll('input[type=text]').forEach((el) => {
-				const span = document.createElement('span');
-				span.textContent = (el as HTMLInputElement).value || '';
-				span.style.borderBottom = '1px solid #000';
-				span.style.minWidth = '160px';
-				span.style.display = 'inline-block';
-				el.replaceWith(span);
+			c.querySelectorAll('input[type=text]').forEach(el => {
+				const sp = document.createElement('span');
+				sp.textContent = (el as HTMLInputElement).value || '';
+				sp.style.cssText = 'display:inline-block;min-width:160px;border-bottom:1px solid #000;';
+				el.replaceWith(sp);
 			});
-			clone.querySelectorAll('.no-print, .toolbar').forEach((el) => el.remove());
-			body += clone.outerHTML;
+			c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
+			c.style.zoom = '1';
+			body += c.outerHTML;
 		});
-
 		const css = `
 			@page { size: A4 landscape; margin: 0; }
-			html, body { margin: 0; padding: 0; }
-			body { color:#000; font-family:'SimSun','宋体',serif; }
-			.sheet {
-				box-sizing: border-box;
-				width: 297mm; height: 210mm;
-				padding: 12mm 10mm 10mm 10mm;
-				margin: 0; box-shadow: none; overflow: hidden;
-				position: relative; page-break-after: always;
-			}
-			.sheet:last-of-type { page-break-after: auto; }
-			.sheet-head { text-align:center; }
-			.title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:29px; line-height:1.4; }
-			.patient-info { font-size:16px; margin:8px 0 6px; }
-			.info-row { display:flex; flex-wrap:wrap; gap:6px 24px; padding:3px 0; }
-			.info-item { white-space:nowrap; } .info-item.wide { flex:1 1 100%; }
-			.record-table { width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
-			.record-table th,.record-table td { border:1px solid #000; text-align:center; padding:4px 2px; height:30px; word-break:break-all; }
-			.record-table th { background:#f5f5f5; font-weight:700; }
-			.sheet-foot { position:absolute; left:0; right:0; bottom:6mm; text-align:center; font-size:16px; }
+			html,body{margin:0;padding:0;}
+			body{color:#000;font-family:'SimSun','宋体',serif;}
+			.sheet{box-sizing:border-box;width:297mm;height:210mm;padding:12mm 10mm 10mm;margin:0;overflow:hidden;position:relative;page-break-after:always;box-shadow:none;}
+			.sheet:last-of-type{page-break-after:auto;}
+			.sheet-head{text-align:center;}
+			.title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:29px;line-height:1.4;}
+			.patient-info{font-size:16px;margin:8px 0 6px;}
+			.info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
+			.record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+			.record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
+			.record-table th{background:transparent;font-weight:700;}
+			.sheet-foot-wrap{position:absolute;left:10mm;right:10mm;bottom:6mm;display:flex;justify-content:space-between;align-items:flex-end;}
+			.sheet-remark{flex:1;text-align:left;font-size:12px;line-height:1.6;}
+			.sheet-pageno{white-space:nowrap;margin-left:16px;font-size:16px;}
 		`;
-
 		const win = window.open('', '_blank', 'width=1200,height=800');
 		if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
-		win.document.write(
-			`<!doctype html><html><head><meta charset="utf-8"><title></title>` +
-			`<style>${css}</style></head><body>${body}</body></html>`
-		);
+		win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title></title><style>${css}</style></head><body>${body}</body></html>`);
 		win.document.close();
 		win.focus();
 		setTimeout(() => { win.print(); win.close(); }, 300);
@@ -747,5 +768,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 		window.removeEventListener('focus', this.onFocus);
 		window.removeEventListener('pageshow', this.onPageShow);
 		this.io?.disconnect();
+		this.ro?.disconnect();
 	}
 }

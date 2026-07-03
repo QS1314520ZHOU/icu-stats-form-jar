@@ -1,0 +1,343 @@
+/* You can add global styles to this file, and also import other style files */
+@import "~ng-zorro-antd/ng-zorro-antd.min.css";
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: #f0f2f5;
+}
+
+app-root {
+  display: block;
+  height: 100%;
+}
+
+/* ICU 表单 A4 分页：隐藏测量块（与各页同结构，用于计算 tbody 可容纳行数）
+ * 必须用双类选择器：下方 .a4-landscape-container 写了 position:relative，
+ * 若测量块同时带 a4-landscape-container，会覆盖掉单独的 .a4-page-measure { position:fixed }，
+ * 变成 relative 后整块 297mm 仍在文档流占位，Chrome 下会把下方正式 A4 整体顶下去。 */
+.a4-landscape-container.a4-page-measure {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  z-index: -1;
+  visibility: hidden;
+  pointer-events: none;
+  width: 210mm;
+  height: 297mm;
+  min-height: 297mm;
+  max-height: 297mm;
+  margin: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 多页预览时页与页之间的分页线（非测量块） */
+.a4-landscape-container:not(.a4-page-measure) {
+  break-after: page;
+  page-break-after: always;
+}
+.a4-landscape-container:not(.a4-page-measure):last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+
+.a4-landscape-container {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 20px auto;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  padding: 12mm;
+  box-sizing: border-box;
+  position: relative;
+  font-family: "STSong", "Songti SC", "SimSun", "Noto Serif SC", serif;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  color: #1f1f1f;
+  line-height: 1.6;
+}
+
+@media screen {
+  /* 正式预览页：边距与缩放。测量块 .a4-page-measure 也带 a4-landscape-container，若一并写 margin 会覆盖其 margin:0，导致整块 A4 被顶下去或出现多余空白 */
+  .a4-landscape-container:not(.a4-page-measure) {
+    zoom: 1.32;
+    margin-top: 8px;
+    margin-bottom: 24px;
+  }
+
+  /* 与正式页同比例，用于行数计算；不占版面、不参与外边距 */
+  .a4-landscape-container.a4-page-measure {
+    zoom: 1.32;
+    margin: 0 !important;
+    position: fixed;
+  }
+
+  .form-header h1 {
+    font-size: 26px;
+  }
+
+  .form-header h2 {
+    font-size: 19px;
+  }
+
+  .patient-info {
+    font-size: 14px;
+  }
+
+  .medical-table .ant-table-thead > tr > th {
+    font-size: 12.5px;
+    padding: 8px 5px;
+  }
+
+  .medical-table .ant-table-tbody > tr > td {
+    font-size: 12.5px;
+    padding: 8px 5px;
+  }
+}
+
+.form-header {
+  text-align: center;
+  margin-bottom: 14px;
+  border-bottom: 2px solid #222;
+  padding-bottom: 10px;
+}
+
+.form-header h1 {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 4px;
+  letter-spacing: 3px;
+  color: #111;
+  line-height: 1.2;
+}
+
+.form-header h2 {
+  font-size: 17px;
+  font-weight: bold;
+  margin-bottom: 0;
+  color: #1a1a1a;
+  letter-spacing: 1px;
+}
+
+.patient-info {
+  margin-bottom: 12px;
+  padding: 6px 8px;
+  border: 1px solid #555;
+  background: #fcfcfc;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.patient-info .info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.patient-info .info-row:last-child {
+  margin-bottom: 0;
+}
+
+.patient-info span {
+  margin-right: 15px;
+}
+
+/* 覆盖 nz-table 的一些默认样式以适应打印/单据风格 */
+.medical-table .ant-table-thead > tr > th {
+  background-color: #c8c8c8;
+  font-weight: bold;
+  text-align: center;
+  padding: 7px 3px;
+  font-size: 11px;
+  border-color: #222;
+  color: #111;
+  line-height: 1.25;
+}
+
+.medical-table .ant-table-tbody > tr > td {
+  text-align: center;
+  padding: 6px 3px;
+  font-size: 11px;
+  border-color: #222;
+  color: #222;
+  line-height: 1.25;
+}
+
+.medical-table.ant-table-bordered .ant-table-container {
+  border: 1.5px solid #222;
+}
+
+.medical-table.ant-table-bordered .ant-table-container > .ant-table-content > table > thead > tr > th, 
+.medical-table.ant-table-bordered .ant-table-container > .ant-table-content > table > tbody > tr > td {
+  border-right-color: #222;
+}
+
+.medical-table .ant-table-tbody > tr:not(:last-child) > td {
+  border-bottom-color: #222;
+}
+
+.medical-table .ant-table {
+  font-family: "STSong", "Songti SC", "SimSun", "Noto Serif SC", serif;
+}
+
+/*
+ * CRRT 主表：列宽由 nz-table 的 nzWidthConfig 生成 <col style="width:…">（见 crrt-table-widths.ts），
+ * 打印 outerHTML 会带上这些内联宽度，与 Electron 排版一致。
+ * 此处仅保留不换行等辅助样式。
+ */
+.a4-landscape-container.crrt-sheet .medical-table .ant-table-container > .ant-table-content > table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* 时间列：Ant 对 th/td 为 text-align:left；内层块级元素强制水平居中（比只设 td 更稳） */
+.a4-landscape-container.crrt-sheet .medical-table th.col-time,
+.a4-landscape-container.crrt-sheet .medical-table td.col-time {
+  vertical-align: middle;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.a4-landscape-container.crrt-sheet .medical-table .crrt-time-cell-inner {
+  display: block;
+  width: 100%;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.a4-landscape-container.crrt-sheet .medical-table .col-pressure {
+  text-align: center;
+}
+
+.a4-landscape-container.crrt-sheet .medical-table th,
+.a4-landscape-container.crrt-sheet .medical-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/*
+ * CVC 主表：列宽由 nzWidthConfig 的 <col style="width:…"> 决定。
+ * 必须用全局选择器 + .cvc-sheet（与 CRRT 的 .crrt-sheet 同理），否则仅组件内 ::ng-deep 在「打印用 iframe / outerHTML」里可能不生效，列宽与分页都会乱。
+ */
+.a4-landscape-container.cvc-sheet .medical-table .ant-table-container > .ant-table-content > table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.a4-landscape-container.cvc-sheet .medical-table th,
+.a4-landscape-container.cvc-sheet .medical-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* RM 主表：列宽由 nzWidthConfig 的 <col style="width:…"> 决定 */
+.a4-landscape-container.rm-sheet .medical-table .ant-table-container > .ant-table-content > table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.a4-landscape-container.rm-sheet .medical-table th,
+.a4-landscape-container.rm-sheet .medical-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* PE 主表：列宽由 nzWidthConfig 的 <col style="width:…"> 决定 */
+.a4-landscape-container.pe-sheet .medical-table .ant-table-container > .ant-table-content > table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.a4-landscape-container.pe-sheet .medical-table th,
+.a4-landscape-container.pe-sheet .medical-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Protein-A 主表：列宽由 nzWidthConfig 的 <col style="width:…"> 决定 */
+.a4-landscape-container.protein-a-sheet .medical-table .ant-table-container > .ant-table-content > table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.a4-landscape-container.protein-a-sheet .medical-table th,
+.a4-landscape-container.protein-a-sheet .medical-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.guidelines-box {
+  background: #f9f9f9;
+  border: 1px dashed #ccc;
+  padding: 15px;
+  margin-bottom: 20px;
+  font-size: 12px;
+}
+
+.guidelines-box h3 {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.page-footer-number {
+  position: absolute;
+  bottom: 5mm;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  color: #333;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .a4-landscape-container.a4-page-measure {
+    display: none !important;
+  }
+
+  .a4-landscape-container {
+    zoom: 1.32 !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    min-height: auto !important;
+    height: auto !important;
+    padding: 12mm !important;
+  }
+
+  .a4-landscape-container .form-header h1 {
+    font-size: 26px !important;
+  }
+  .a4-landscape-container .form-header h2 {
+    font-size: 19px !important;
+  }
+  .a4-landscape-container .patient-info {
+    font-size: 14px !important;
+  }
+  .a4-landscape-container .medical-table .ant-table-thead > tr > th,
+  .a4-landscape-container .medical-table .ant-table-tbody > tr > td {
+    font-size: 12.5px !important;
+    padding: 8px 5px !important;
+    line-height: 1.25 !important;
+  }
+
+  /* 去掉 Ant Design 表头/单元格左侧伪元素线，避免与边框叠加成双线或错位 */
+  .medical-table .ant-table-cell::before,
+  .medical-table .ant-table-thead > tr > th.ant-table-cell::before {
+    display: none !important;
+  }
+}

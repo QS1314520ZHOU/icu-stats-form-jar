@@ -1,0 +1,271 @@
+<div class="a4-landscape-container a4-page-measure protein-a-sheet" *ngIf="records.length">
+  <ng-container *ngTemplateOutlet="proteinAPage; context: { $implicit: measureSample, pageIndex: 0, pageTotal: 1 }"></ng-container>
+</div>
+
+<ng-container *ngFor="let page of pagedRecords; let i = index">
+  <div class="a4-landscape-container protein-a-sheet">
+    <ng-container *ngTemplateOutlet="proteinAPage; context: { $implicit: page, pageIndex: i, pageTotal: pagedRecords.length }"></ng-container>
+  </div>
+</ng-container>
+
+<ng-template #proteinAPage let-page let-pageIndex="pageIndex" let-pageTotal="pageTotal">
+  <div class="form-header">
+    <h1>{{ hostPatient.hospitalName$ | async }}</h1>
+    <h2>蛋白A免疫吸附治疗记录单</h2>
+  </div>
+
+  <div class="patient-info">
+    <app-patient-demographics-row>
+      <span><strong>血管通路：</strong>{{ docInfo.vascularAccess }}</span>
+      <span><strong>吸附柱型号：</strong>{{ docInfo.adsorberType }}</span>
+      <span><strong>日期：</strong>{{ currentDate | date:'yyyy-MM-dd' }}</span>
+    </app-patient-demographics-row>
+  </div>
+
+  <nz-table
+    [nzData]="page"
+    nzBordered
+    nzSize="small"
+    class="medical-table"
+    nzTableLayout="fixed"
+    [nzShowPagination]="false"
+    [nzFrontPagination]="false"
+    [nzWidthConfig]="proteinAWidthConfig"
+  >
+    <thead>
+      <tr>
+        <th rowspan="2">时间</th>
+        <th colspan="2">生命体征</th>
+        <th colspan="3">治疗参数</th>
+        <th colspan="3">压力监测 (mmHg)</th>
+        <th rowspan="2">抗凝剂<br>剂量</th>
+        <th rowspan="2">血浆置换液<br>补充量(ml)</th>
+        <th rowspan="2">不良反应</th>
+        <th rowspan="2">护士<br>签名</th>
+      </tr>
+      <tr>
+        <th>血压(mmHg)</th>
+        <th>心率(bpm)</th>
+        <th>血流速(ml/min)</th>
+        <th>血浆流速(ml/min)</th>
+        <th>累计处理血浆(ml)</th>
+        <th>动脉压(PA)</th>
+        <th>静脉压(PV)</th>
+        <th>跨膜压(TMP)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let data of page">
+        <td>{{ data.time | date:'HH:mm' }}</td>
+        <td>{{ data.bp }}</td>
+        <td>{{ data.hr }}</td>
+        <td>{{ data.bloodFlow }}</td>
+        <td>{{ data.plasmaFlow }}</td>
+        <td>{{ data.totalPlasma }}</td>
+        <td>{{ data.pa }}</td>
+        <td>{{ data.pv }}</td>
+        <td>{{ data.tmp }}</td>
+        <td>{{ data.anticoagulant }}</td>
+        <td>{{ data.replacementFluid }}</td>
+        <td>{{ data.adverseReactions }}</td>
+        <td>{{ data.nurseSignature }}</td>
+      </tr>
+    </tbody>
+  </nz-table>
+
+  <div class="page-footer-number" *ngIf="pageTotal > 1">
+    第 {{ pageIndex + 1 }} 页 / 共 {{ pageTotal }} 页
+  </div>
+</ng-template>
+
+<!-- 规范与帮助弹窗 -->
+<nz-modal [(nzVisible)]="isGuidelinesVisible" nzTitle="蛋白A免疫吸附治疗规范" (nzOnCancel)="handleGuidelinesCancel()" [nzFooter]="null">
+  <ng-container *nzModalContent>
+    <div class="guidelines-content">
+      <p><strong>1. 适应症：</strong>系统性红斑狼疮、类风湿关节炎、重症肌无力、天疱疮等自身免疫性疾病。</p>
+      <p><strong>2. 治疗原理：</strong>利用葡萄球菌蛋白A(SPA)对人类IgG的特异性结合能力，清除患者血浆中的致病性自身抗体和免疫复合物。</p>
+      <p><strong>3. 监测要点：</strong>密切监测血压变化，预防低血压；观察有无过敏反应（皮疹、发热、寒战）；注意观察吸附柱有无凝血及跨膜压变化。</p>
+    </div>
+  </ng-container>
+</nz-modal>
+
+<!-- 历史记录弹窗 -->
+<nz-modal [(nzVisible)]="isHistoryVisible" nzTitle="蛋白A免疫吸附 历史记录" (nzOnCancel)="handleHistoryCancel()" [nzFooter]="null" nzWidth="900px">
+  <ng-container *nzModalContent>
+    <nz-table #historyTable [nzData]="records" nzBordered nzSize="small" [nzFrontPagination]="false">
+      <thead>
+        <tr>
+          <th>时间</th>
+          <th>血压</th>
+          <th>血浆流速</th>
+          <th>累计处理血浆</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let data of historyTable.data">
+          <td>{{ data.time | date:'yyyy-MM-dd HH:mm' }}</td>
+          <td>{{ data.bp }}</td>
+          <td>{{ data.plasmaFlow }}</td>
+          <td>{{ data.totalPlasma }}</td>
+          <td>
+            <a (click)="editRecord(data)">编辑</a>
+            <nz-divider nzType="vertical"></nz-divider>
+            <a (click)="deleteRecord(data)" style="color: red;">删除</a>
+          </td>
+        </tr>
+      </tbody>
+    </nz-table>
+  </ng-container>
+</nz-modal>
+
+<!-- 添加/编辑弹窗 -->
+<nz-modal [(nzVisible)]="isModalVisible" [nzTitle]="isEdit ? '编辑免疫吸附记录' : '添加免疫吸附记录'" (nzOnCancel)="handleCancel()" (nzOnOk)="handleOk()" nzWidth="800px">
+  <ng-container *nzModalContent>
+    <form nz-form [formGroup]="recordForm">
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="12">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">血管通路</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="vascularAccess" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="12">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">吸附柱型号</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="adsorberType" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">记录时间</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-time-picker formControlName="time" nzFormat="HH:mm"></nz-time-picker>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">血压 BP (mmHg)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="bp" placeholder="如 120/80" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">心率 HR (bpm)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="hr" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">血流速 (ml/min)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="bloodFlow" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">血浆流速 (ml/min)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="plasmaFlow" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">累计处理血浆量 (ml)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="totalPlasma" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">动脉压 PA (mmHg)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="pa" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">静脉压 PV (mmHg)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="pv" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">跨膜压 TMP (mmHg)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="tmp" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">抗凝剂剂量</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="anticoagulant" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">血浆置换液补充量(ml)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="replacementFluid" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">不良反应</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="adverseReactions">
+                <nz-option nzValue="无" nzLabel="无"></nz-option>
+                <nz-option nzValue="低血压" nzLabel="低血压"></nz-option>
+                <nz-option nzValue="寒战" nzLabel="寒战"></nz-option>
+                <nz-option nzValue="皮疹" nzLabel="皮疹"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+      
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">护士签名</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="nurseAccountId" nzShowSearch nzPlaceHolder="选择护士" nzAllowClear [nzFilterOption]="hostPatient.pinyinFilterOption">
+                <nz-option *ngFor="let acc of (hostPatient.accounts$ | async)" [nzValue]="acc.accountId" [nzLabel]="acc.accountName"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+    </form>
+  </ng-container>
+</nz-modal>

@@ -1,0 +1,276 @@
+<div class="a4-landscape-container a4-page-measure" *ngIf="records.length">
+  <ng-container *ngTemplateOutlet="iabpPage; context: { $implicit: measureSample, pageIndex: 0, pageTotal: 1 }"></ng-container>
+</div>
+
+<ng-container *ngFor="let page of pagedRecords; let i = index">
+  <div class="a4-landscape-container">
+    <ng-container *ngTemplateOutlet="iabpPage; context: { $implicit: page, pageIndex: i, pageTotal: pagedRecords.length }"></ng-container>
+  </div>
+</ng-container>
+
+<ng-template #iabpPage let-page let-pageIndex="pageIndex" let-pageTotal="pageTotal">
+  <div class="form-header">
+    <h1>{{ hostPatient.hospitalName$ | async }}</h1>
+    <h2>主动脉内球囊反搏 (IABP) 监测记录单</h2>
+  </div>
+
+  <div class="patient-info">
+    <app-patient-demographics-row>
+      <span><strong>置入部位：</strong>{{ docInfo.insertionSite }}</span>
+      <span><strong>气囊容量：</strong>{{ docInfo.balloonVolume }}</span>
+      <span><strong>日期：</strong>{{ currentDate | date:'yyyy-MM-dd' }}</span>
+    </app-patient-demographics-row>
+  </div>
+
+  <nz-table [nzData]="page" nzBordered nzSize="small" class="medical-table" [nzShowPagination]="false" [nzFrontPagination]="false">
+    <thead>
+      <tr>
+        <th rowspan="2">时间</th>
+        <th rowspan="2">心率<br>(bpm)</th>
+        <th colspan="2">自身血压 (mmHg)</th>
+        <th rowspan="2">反搏压<br>(mmHg)</th>
+        <th rowspan="2">舒张末压<br>(mmHg)</th>
+        <th rowspan="2">触发<br>模式</th>
+        <th rowspan="2">辅助<br>比例</th>
+        <th rowspan="2">气囊<br>状态</th>
+        <th rowspan="2">穿刺点<br>情况</th>
+        <th rowspan="2">足背动脉<br>搏动</th>
+        <th rowspan="2">下肢皮温</th>
+        <th rowspan="2">护士<br>签名</th>
+      </tr>
+      <tr>
+        <th>收缩压</th>
+        <th>舒张压</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let data of page">
+        <td>{{ data.time | date:'HH:mm' }}</td>
+        <td>{{ data.hr }}</td>
+        <td>{{ data.sysBp }}</td>
+        <td>{{ data.diaBp }}</td>
+        <td>{{ data.augPressure }}</td>
+        <td>{{ data.endDiaPressure }}</td>
+        <td>{{ data.triggerMode }}</td>
+        <td>{{ data.ratio }}</td>
+        <td>{{ data.balloonStatus }}</td>
+        <td>{{ data.punctureSite }}</td>
+        <td>{{ data.pedalPulse }}</td>
+        <td>{{ data.skinTemp }}</td>
+        <td>{{ data.nurseSignature }}</td>
+      </tr>
+    </tbody>
+  </nz-table>
+
+  <div class="page-footer-number" *ngIf="pageTotal > 1">
+    第 {{ pageIndex + 1 }} 页 / 共 {{ pageTotal }} 页
+  </div>
+</ng-template>
+
+<!-- 规范与帮助弹窗 -->
+<nz-modal [(nzVisible)]="isGuidelinesVisible" nzTitle="IABP 护理与监测要点" (nzOnCancel)="handleGuidelinesCancel()" [nzFooter]="null">
+  <ng-container *nzModalContent>
+    <div class="guidelines-content">
+      <p><strong>1. 气囊状态：</strong>观察氦气瓶压力，确保气囊充放气时机正确（心脏舒张早期充气，等容收缩期放气）。</p>
+      <p><strong>2. 穿刺点与肢体血运：</strong>密切观察穿刺侧足背动脉搏动、皮温、颜色及感觉，预防下肢缺血。</p>
+      <p><strong>3. 卧位要求：</strong>患者平卧或半卧位，穿刺侧下肢伸直，避免屈曲大于30度。</p>
+    </div>
+  </ng-container>
+</nz-modal>
+
+<!-- 历史记录弹窗 -->
+<nz-modal [(nzVisible)]="isHistoryVisible" nzTitle="IABP 历史记录" (nzOnCancel)="handleHistoryCancel()" [nzFooter]="null" nzWidth="900px">
+  <ng-container *nzModalContent>
+    <nz-table #historyTable [nzData]="records" nzBordered nzSize="small" [nzFrontPagination]="false">
+      <thead>
+        <tr>
+          <th>时间</th>
+          <th>心率</th>
+          <th>自身血压</th>
+          <th>反搏压</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let data of historyTable.data">
+          <td>{{ data.time | date:'yyyy-MM-dd HH:mm' }}</td>
+          <td>{{ data.hr }}</td>
+          <td>{{ data.sysBp }}/{{ data.diaBp }}</td>
+          <td>{{ data.augPressure }}</td>
+          <td>
+            <a (click)="editRecord(data)">编辑</a>
+            <nz-divider nzType="vertical"></nz-divider>
+            <a (click)="deleteRecord(data)" style="color: red;">删除</a>
+          </td>
+        </tr>
+      </tbody>
+    </nz-table>
+  </ng-container>
+</nz-modal>
+
+<!-- 添加/编辑弹窗 -->
+<nz-modal [(nzVisible)]="isModalVisible" [nzTitle]="isEdit ? '编辑IABP记录' : '添加IABP记录'" (nzOnCancel)="handleCancel()" (nzOnOk)="handleOk()" nzWidth="800px">
+  <ng-container *nzModalContent>
+    <form nz-form [formGroup]="recordForm">
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="12">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">置入部位（穿刺侧）</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="insertionSite" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="12">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">气囊容量</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="balloonVolume" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">记录时间</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-time-picker formControlName="time" nzFormat="HH:mm"></nz-time-picker>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">心率 HR (bpm)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="hr" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">反搏压 (mmHg)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="augPressure" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">自身收缩压 (mmHg)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="sysBp" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">自身舒张压 (mmHg)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="diaBp" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">舒张末压 (mmHg)</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <input nz-input formControlName="endDiaPressure" type="number" />
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">触发模式</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="triggerMode">
+                <nz-option nzValue="ECG" nzLabel="ECG"></nz-option>
+                <nz-option nzValue="Pressure" nzLabel="Pressure"></nz-option>
+                <nz-option nzValue="Internal" nzLabel="Internal"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">辅助比例</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="ratio">
+                <nz-option nzValue="1:1" nzLabel="1:1"></nz-option>
+                <nz-option nzValue="1:2" nzLabel="1:2"></nz-option>
+                <nz-option nzValue="1:3" nzLabel="1:3"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="8">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">气囊状态</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="balloonStatus">
+                <nz-option nzValue="正常充放" nzLabel="正常充放"></nz-option>
+                <nz-option nzValue="漏气报警" nzLabel="漏气报警"></nz-option>
+                <nz-option nzValue="导管打折" nzLabel="导管打折"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+
+      <div nz-row [nzGutter]="16">
+        <div nz-col nzSpan="6">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">穿刺点情况</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="punctureSite">
+                <nz-option nzValue="干燥" nzLabel="干燥"></nz-option>
+                <nz-option nzValue="渗血" nzLabel="渗血"></nz-option>
+                <nz-option nzValue="血肿" nzLabel="血肿"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="6">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">足背动脉搏动</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="pedalPulse">
+                <nz-option nzValue="有力" nzLabel="有力"></nz-option>
+                <nz-option nzValue="减弱" nzLabel="减弱"></nz-option>
+                <nz-option nzValue="消失" nzLabel="消失"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="6">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">下肢皮温</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="skinTemp">
+                <nz-option nzValue="正常" nzLabel="正常"></nz-option>
+                <nz-option nzValue="发凉" nzLabel="发凉"></nz-option>
+                <nz-option nzValue="冰冷" nzLabel="冰冷"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+        <div nz-col nzSpan="6">
+          <nz-form-item>
+            <nz-form-label [nzSpan]="24">护士签名</nz-form-label>
+            <nz-form-control [nzSpan]="24">
+              <nz-select formControlName="nurseAccountId" nzShowSearch nzPlaceHolder="选择护士" nzAllowClear [nzFilterOption]="hostPatient.pinyinFilterOption">
+                <nz-option *ngFor="let acc of (hostPatient.accounts$ | async)" [nzValue]="acc.accountId" [nzLabel]="acc.accountName"></nz-option>
+              </nz-select>
+            </nz-form-control>
+          </nz-form-item>
+        </div>
+      </div>
+    </form>
+  </ng-container>
+</nz-modal>
