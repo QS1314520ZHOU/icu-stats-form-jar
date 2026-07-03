@@ -8,4 +8,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface Sjm1VeinExtraRepository extends MongoRepository<Sjm1VeinExtra, String> {
     List<Sjm1VeinExtra> findByPidAndTubeId(String pid, String tubeId);
+    List<Sjm1VeinExtra> findByPidAndTubeIdAndType(String pid, String tubeId, String type);
 }

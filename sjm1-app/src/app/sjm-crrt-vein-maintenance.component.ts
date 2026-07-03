@@ -424,7 +424,7 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 
 	private loadExtra(): void {
 		this.http.get<any>(this.API_VEIN_EXTRA, {
-			params: { pid: this.pid, tubeId: this.tubeId() }
+			params: { pid: this.pid, tubeId: this.tubeId(), type: '透析管' }
 		}).pipe(finalize(() => {
 			this.paginate();
 			this.cdr.detectChanges();
@@ -445,6 +445,7 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 		const body = {
 			pid: this.pid,
 			tubeId: this.tubeId(),
+			type: '透析管',
 			cvcChecked: this.dialysisChecked,
 			isInHospital: this.isInHospital,
 			isOutHospital: this.isOutHospital,

@@ -450,7 +450,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	/* 从 MongoDB 加载编辑字段 */
 	private loadExtra(): void {
 		this.http.get<any>(this.API_VEIN_EXTRA, {
-			params: { pid: this.pid, tubeId: this.tubeId() }
+			params: { pid: this.pid, tubeId: this.tubeId(), type: '中心静脉导管' }
 		}).pipe(finalize(() => {
 			this.paginate();
 			this.cdr.detectChanges();
@@ -473,6 +473,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 		const body = {
 			pid: this.pid,
 			tubeId: this.tubeId(),
+			type: '中心静脉导管',
 			cvcChecked: this.cvcChecked,
 			isInHospital: this.isInHospital,
 			isOutHospital: this.isOutHospital,

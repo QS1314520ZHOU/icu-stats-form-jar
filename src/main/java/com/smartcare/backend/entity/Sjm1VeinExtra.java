@@ -9,6 +9,7 @@ public class Sjm1VeinExtra {
     private String id;
     private String pid;
     private String tubeId;
+    private String type;
     private Boolean cvcChecked;
     private Boolean isInHospital;
     private Boolean isOutHospital;
@@ -21,6 +22,8 @@ public class Sjm1VeinExtra {
     public void setPid(String pid) { this.pid = pid; }
     public String getTubeId() { return tubeId; }
     public void setTubeId(String tubeId) { this.tubeId = tubeId; }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
     public Boolean getCvcChecked() { return cvcChecked; }
     public void setCvcChecked(Boolean cvcChecked) { this.cvcChecked = cvcChecked; }
     public Boolean getIsInHospital() { return isInHospital; }

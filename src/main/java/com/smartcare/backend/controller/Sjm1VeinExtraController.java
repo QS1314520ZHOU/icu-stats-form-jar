@@ -24,17 +24,29 @@ public class Sjm1VeinExtraController {
 
     @GetMapping
     public Sjm1VeinExtra get(@RequestParam String pid,
-                             @RequestParam(required = false, defaultValue = "") String tubeId) {
-        List<Sjm1VeinExtra> list = this.repo.findByPidAndTubeId(pid, tubeId);
+                             @RequestParam(required = false, defaultValue = "") String tubeId,
+                             @RequestParam(required = false, defaultValue = "") String type) {
+        List<Sjm1VeinExtra> list;
+        if (type != null && !type.isEmpty()) {
+            list = this.repo.findByPidAndTubeIdAndType(pid, tubeId, type);
+        } else {
+            list = this.repo.findByPidAndTubeId(pid, tubeId);
+        }
         return list.isEmpty() ? null : list.get(0);
     }
 
     @PostMapping
     public Sjm1VeinExtra save(@RequestBody Sjm1VeinExtra body) {
         String tubeId = body.getTubeId() == null ? "" : body.getTubeId();
-        List<Sjm1VeinExtra> existing = this.repo.findByPidAndTubeId(body.getPid(), tubeId);
+        String type = body.getType() == null ? "" : body.getType();
+        List<Sjm1VeinExtra> existing;
+        if (!type.isEmpty()) {
+            existing = this.repo.findByPidAndTubeIdAndType(body.getPid(), tubeId, type);
+        } else {
+            existing = this.repo.findByPidAndTubeId(body.getPid(), tubeId);
+        }
         if (!existing.isEmpty()) {
-            body.setId(existing.get(0).getId()); // 按 pid+tubeId upsert
+            body.setId(existing.get(0).getId()); // 按 pid+tubeId+type upsert
         }
         body.setUpdateTime(LocalDateTime.now().toString());
         return this.repo.save(body);
