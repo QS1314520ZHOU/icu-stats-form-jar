@@ -33,6 +33,8 @@ import {
 	AfterViewInit,
 	ChangeDetectorRef,
 	Component,
+	ElementRef,
+	NgZone,
 	OnInit,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -369,12 +371,20 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	selectedPage: number | null = null;
 	private rowsPerPage = 18;
 	private pid = '';
-	private lastPid = '';
+	private lastReloadAt = 0;
+	private io?: IntersectionObserver;
+
+	// 事件回调（bound methods，便于 add/remove）
+	private onVisible = () => { if (document.visibilityState === 'visible') this.reloadIfVisible(); };
+	private onFocus = () => this.reloadIfVisible();
+	private onPageShow = () => this.reloadIfVisible(true); // bfcache 返回强制刷新
 
 	constructor(
 		private http: HttpClient,
 		private hostPatient: HostPatientService,
 		private cdr: ChangeDetectorRef,
+		private ngZone: NgZone,
+		private host: ElementRef,
 	) {}
 
 	ngOnInit(): void {
@@ -392,9 +402,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 				this.cdr.detectChanges();
 				return;
 			}
-			// 同一病人不重复加载
-			if (pid === this.lastPid) return;
-			this.lastPid = pid;
 			this.pid = pid;
 			this.loadTube(pid);
 		});
@@ -406,6 +413,15 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 				this.cdr.detectChanges();
 			}
 		}, 1500);
+	}
+
+	/** 重新可见/需要刷新时调用；同一 300ms 内的重复调用忽略，避免抖动 */
+	private reloadIfVisible(force = false): void {
+		if (!this.pid) return;
+		const now = Date.now();
+		if (!force && now - this.lastReloadAt < 300) return;
+		this.lastReloadAt = now;
+		this.ngZone.run(() => this.loadTube(this.pid));
 	}
 
 	/* 通过 mrn 查询 patient */
@@ -432,6 +448,20 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 
 	ngAfterViewInit(): void {
 		setTimeout(() => this.recomputePagination(), 0);
+
+		// a) 浏览器标签级可见（切浏览器 tab / 最小化恢复）
+		document.addEventListener('visibilitychange', this.onVisible);
+		// b) 窗口重新获得焦点
+		window.addEventListener('focus', this.onFocus);
+		// c) 前进/后退 bfcache、iframe 重新展示
+		window.addEventListener('pageshow', this.onPageShow);
+		// d) 关键：SmartCare 内部 tab 隐藏/显示 iframe —— 观察根元素由不可见变可见
+		this.io = new IntersectionObserver((entries) => {
+			for (const e of entries) {
+				if (e.isIntersecting && e.intersectionRatio > 0) this.reloadIfVisible();
+			}
+		}, { threshold: 0 });
+		this.io.observe(this.host.nativeElement);
 	}
 
 	/* 加载医院名称 */
@@ -657,5 +687,12 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit {
 	private ts(v?: string): number {
 		const t = v ? new Date(v).getTime() : 0;
 		return isNaN(t) ? 0 : t;
+	}
+
+	ngOnDestroy(): void {
+		document.removeEventListener('visibilitychange', this.onVisible);
+		window.removeEventListener('focus', this.onFocus);
+		window.removeEventListener('pageshow', this.onPageShow);
+		this.io?.disconnect();
 	}
 }
