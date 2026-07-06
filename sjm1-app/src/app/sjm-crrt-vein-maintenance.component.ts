@@ -81,7 +81,7 @@ interface RenderPage {
 			</div>
 		</div>
 
-		<div class="loading no-print" *ngIf="loading">加载中…</div>
+		<div class="loading no-print" *ngIf="loading">加载中,可以切换患者快速加载…</div>
 
 		<!-- 打印/展示区域：逐页渲染 -->
 		<div class="print-root" *ngIf="!loading">
