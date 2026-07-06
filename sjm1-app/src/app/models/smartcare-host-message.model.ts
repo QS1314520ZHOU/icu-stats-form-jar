@@ -1,16 +1,11 @@
 /** 嵌入页 postMessage 约定 */
 export interface SmartCareHostMessage {
   type: 'SmartCare';
-  patient?: any;
-  account?: string;
+  patient: { id: string; [k: string]: any };
+  account?: { id: string; trueName?: string; [k: string]: any };
   token?: string;
-  [key: string]: unknown;
 }
 
-export function isSmartCareHostMessage(data: unknown): data is SmartCareHostMessage {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    (data as SmartCareHostMessage).type === 'SmartCare'
-  );
+export function isSmartCareHostMessage(raw: any): raw is SmartCareHostMessage {
+  return !!raw && raw.type === 'SmartCare' && !!raw.patient && !!raw.patient.id;
 }

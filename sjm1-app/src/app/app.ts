@@ -1,4 +1,4 @@
-import { Component, NgZone, OnDestroy } from '@angular/core';
+import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { HostPatientService } from './services/host-patient.service';
 import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
@@ -9,43 +9,50 @@ import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
-export class App implements OnDestroy {
-  private readonly onWindowMessage = (event: MessageEvent): void => {
-    if (event.data == null) {
-      return;
-    }
-    if (!isSmartCareHostMessage(event.data)) {
-      return;
-    }
-    console.log('[sjm1] message from host =>', event.origin, event.data);
-    this.ngZone.run(() => {
-      this.hostPatient.handleHostMessage(event.data);
-    });
+export class App implements OnInit, OnDestroy {
+  private onMsg = (e: MessageEvent) => {
+    if (!isSmartCareHostMessage(e.data)) return;
+    console.log('[form] message from host =>', e.origin, e.data);
+    this.ngZone.run(() => this.hostPatient.handleHostMessage(e.data));
+  };
+
+  private onVisible = () => {
+    if (document.visibilityState === 'visible') this.requestPatient();
   };
 
   constructor(
     private readonly hostPatient: HostPatientService,
     private readonly ngZone: NgZone,
-  ) {
-    // 1. 注册 message 监听（最早时机）
+  ) {}
+
+  ngOnInit(): void {
+    // 监听在 zone 外注册，避免每条消息触发多余变更检测
     this.ngZone.runOutsideAngular(() => {
-      window.addEventListener('message', this.onWindowMessage);
+      window.addEventListener('message', this.onMsg);
+      document.addEventListener('visibilitychange', this.onVisible);
+      window.addEventListener('focus', this.onVisible);
+      window.addEventListener('pageshow', this.onVisible);
     });
 
-    // 2. 回放缓存的消息（index.html 内联脚本暂存的）
-    const cached = (window as any).__lastSmartCareMsg;
-    if (cached) {
-      console.log('[sjm1] replay cached message', cached);
-      this.hostPatient.handleHostMessage(cached);
+    // 补投：Angular 启动前 index.html 已缓存的那一条（专治"第一次进丢消息"）
+    const buffered = (window as any).__scMsg;
+    if (buffered) {
+      console.log('[form] replay buffered message', buffered);
+      this.ngZone.run(() => this.hostPatient.handleHostMessage(buffered));
     }
 
-    // 3. 通知宿主：子应用已就绪
-    try {
-      window.parent?.postMessage({ type: 'SmartCare-form-ready', form: 'sjm1' }, '*');
-    } catch {}
+    // 启动后再向宿主要一次
+    this.requestPatient();
+  }
+
+  private requestPatient(): void {
+    try { parent.postMessage({ type: 'SmartCareReady' }, '*'); } catch (_) {}
   }
 
   ngOnDestroy(): void {
-    window.removeEventListener('message', this.onWindowMessage);
+    window.removeEventListener('message', this.onMsg);
+    document.removeEventListener('visibilitychange', this.onVisible);
+    window.removeEventListener('focus', this.onVisible);
+    window.removeEventListener('pageshow', this.onVisible);
   }
 }

@@ -7,16 +7,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <script>
-    // 早期监听：缓存 Angular 启动前到达的 SmartCare 消息
-    window.__lastSmartCareMsg = null;
-    window.addEventListener('message', function(e) {
-      if (e?.data && e.data.type === 'SmartCare') {
-        window.__lastSmartCareMsg = e.data;
-      }
+    // 启动前就接住宿主消息，缓存最后一条
+    window.__scMsg = null;
+    window.addEventListener('message', function (e) {
+      var d = e && e.data;
+      if (d && d.type === 'SmartCare' && d.patient) { window.__scMsg = d; }
     });
+    // 告诉宿主：iframe 已就绪，请把当前病人发过来（补发握手）
+    function __scReady() { try { parent.postMessage({ type: 'SmartCareReady' }, '*'); } catch (e) {} }
+    __scReady();
+    window.addEventListener('load', __scReady);
   </script>
 <link rel="stylesheet" href="styles-5INURTSO.css"></head>
 <body>
   <app-root></app-root>
-<script src="main-BLIT2O4T.js" type="module"></script></body>
+<script src="main-B4P6XHHI.js" type="module"></script></body>
 </html>

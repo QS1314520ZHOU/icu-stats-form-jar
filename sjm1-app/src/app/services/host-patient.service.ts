@@ -7,37 +7,26 @@ export class HostPatientService {
   private readonly patientSubject = new BehaviorSubject<any | null>(null);
   readonly patient$ = this.patientSubject.asObservable();
 
-  private readonly accountSubject = new BehaviorSubject<string | null>(null);
+  private readonly accountSubject = new BehaviorSubject<any | null>(null);
   readonly account$ = this.accountSubject.asObservable();
 
-  getPatientSnapshot(): any | null {
-    return this.patientSubject.getValue();
+  handleHostMessage(raw: any): void {
+    if (!isSmartCareHostMessage(raw)) return;
+    this.patientSubject.next(raw.patient);
+    if (raw.account) this.accountSubject.next(raw.account);
   }
 
-  /** 取 Patient 文档 id */
   getPid(): string | null {
-    const p = this.patientSubject.getValue();
-    if (!p?.id) {
-      return null;
-    }
-    const s = String(p.id).trim();
-    return s.length ? s : null;
+    const p = this.patientSubject.value;
+    const id = p && p.id != null ? String(p.id).trim() : '';
+    return id || null;
   }
 
-  getAccountSnapshot(): string | null {
-    return this.accountSubject.getValue();
+  getPatient(): any | null {
+    return this.patientSubject.value;
   }
 
-  handleHostMessage(raw: unknown): void {
-    if (!isSmartCareHostMessage(raw)) {
-      return;
-    }
-    const data = raw as any;
-    if (data.patient != null) {
-      this.patientSubject.next(data.patient);
-    }
-    if (data.account !== undefined && data.account !== null) {
-      this.accountSubject.next(String(data.account));
-    }
+  getAccount(): any | null {
+    return this.accountSubject.value;
   }
 }
