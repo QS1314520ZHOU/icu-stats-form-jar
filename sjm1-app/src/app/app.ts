@@ -17,7 +17,21 @@ export class App implements OnInit, OnDestroy {
   };
 
   private onVisible = () => {
-    if (document.visibilityState === 'visible') this.requestPatient();
+    if (document.visibilityState === 'visible' && !this.hostPatient.getPid()) {
+      this.requestPatient();
+    }
+  };
+
+  private onFocus = () => {
+    if (!this.hostPatient.getPid()) {
+      this.requestPatient();
+    }
+  };
+
+  private onPageShow = () => {
+    if (!this.hostPatient.getPid()) {
+      this.requestPatient();
+    }
   };
 
   constructor(
@@ -30,11 +44,11 @@ export class App implements OnInit, OnDestroy {
     this.ngZone.runOutsideAngular(() => {
       window.addEventListener('message', this.onMsg);
       document.addEventListener('visibilitychange', this.onVisible);
-      window.addEventListener('focus', this.onVisible);
-      window.addEventListener('pageshow', this.onVisible);
+      window.addEventListener('focus', this.onFocus);
+      window.addEventListener('pageshow', this.onPageShow);
     });
 
-    // 补投：Angular 启动前 index.html 已缓存的那一条（专治"第一次进丢消息"）
+    // 补投：Angular 启动前 index.html/main.ts 已缓存的那一条
     const buffered = (window as any).__scMsg;
     if (buffered) {
       console.log('[form] replay buffered message', buffered);
@@ -52,7 +66,7 @@ export class App implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     window.removeEventListener('message', this.onMsg);
     document.removeEventListener('visibilitychange', this.onVisible);
-    window.removeEventListener('focus', this.onVisible);
-    window.removeEventListener('pageshow', this.onVisible);
+    window.removeEventListener('focus', this.onFocus);
+    window.removeEventListener('pageshow', this.onPageShow);
   }
 }
