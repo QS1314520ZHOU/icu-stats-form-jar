@@ -1,30 +1,55 @@
-<!DOCTYPE html><html lang="en"><head>
+<!DOCTYPE html><html lang="zh"><head>
   <meta charset="utf-8">
   <title>Sjm1App</title>
   <base href="/form/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <script>
-    (function () {
-      window.__scMsg = window.__scMsg || null;
-      function isHostMsg(d){ return d && d.type === 'SmartCare' && d.patient && d.patient.id; }
-      window.addEventListener('message', function (e) {
-        var d = e && e.data;
-        if (isHostMsg(d)) {
-          window.__scMsg = d;
-          try { console.log('[form inline] cached host msg', d); } catch (_) {}
-        }
-      });
-      // 宿主靠 onload 重发：iframe 一 load 就主动告知 parent 我已就绪
-      try { window.parent && window.parent.postMessage({ type: 'SmartCareReady' }, '*'); } catch (_) {}
-      window.addEventListener('load', function () {
-        try { window.parent && window.parent.postMessage({ type: 'SmartCareReady' }, '*'); } catch (_) {}
-      });
-    })();
+  (function () {
+    // === 精简日志器 ===
+    window.__scT0 = window.__scT0 || ((performance && performance.now) ? performance.now() : Date.now());
+    window.__scAsk = 0;
+    window.__scHostSeen = false;
+    window.__scPid = '-';
+    window.__scShortPid = function (id) { return id ? ('…' + String(id).slice(-6)) : '-'; };
+    window.__scLog = function (msg) {
+      try {
+        var rel = Math.round(((performance && performance.now) ? performance.now() : Date.now()) - window.__scT0);
+        console.log('%c[SC +' + rel + 'ms]', 'color:#c026d3;font-weight:bold', msg);
+      } catch (e) {}
+    };
+
+    // ① 启动行
+    try {
+      var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+      var navType = nav.type || (performance.navigation && performance.navigation.type);
+      window.__scLog('START nav=' + (navType||'?') + ' path=' + location.pathname + ' ref=' + document.referrer);
+    } catch (e) {}
+
+    // 缓冲逻辑
+    window.__scMsg = window.__scMsg || null;
+    function isHostMsg(d){ return d && d.type === 'SmartCare' && d.patient && d.patient.id; }
+    window.addEventListener('message', function (e) {
+      var d = e && e.data;
+      if (isHostMsg(d)) {
+        window.__scMsg = d;
+        // ③ 宿主消息行（最早捕获处）
+        window.__scHostSeen = true;
+        var prev = window.__scPid; window.__scPid = d.patient.id;
+        window.__scLog('HOST MSG pid=' + window.__scShortPid(d.patient.id) + ' name=' + (d.patient.name||'') + ' prevPid=' + window.__scShortPid(prev==='-'?null:prev) + ' origin=' + e.origin);
+      }
+    });
+
+    // SmartCareReady（只计数）
+    try { window.parent && window.parent.postMessage({ type: 'SmartCareReady' }, '*'); window.__scAsk++; } catch (e) {}
+    window.addEventListener('load', function () {
+      try { window.parent && window.parent.postMessage({ type: 'SmartCareReady' }, '*'); window.__scAsk++; } catch (e) {}
+    });
+  })();
   </script>
 <link rel="stylesheet" href="styles.31d6cfe0d16ae931b73c.css"></head>
 <body>
   <app-root></app-root>
-<script src="runtime-es2017.1b625a168fe2548d3429.js" type="module"></script><script src="runtime-es5.1b625a168fe2548d3429.js" nomodule defer></script><script src="polyfills-es5.b25f2e230fc318869b8c.js" nomodule defer></script><script src="polyfills-es2017.74cb0970831047bb4747.js" type="module"></script><script src="main-es2017.eecd9e5de2a988b78c26.js" type="module"></script><script src="main-es5.eecd9e5de2a988b78c26.js" nomodule defer></script>
+<script src="runtime-es2017.1b625a168fe2548d3429.js" type="module"></script><script src="runtime-es5.1b625a168fe2548d3429.js" nomodule defer></script><script src="polyfills-es5.b25f2e230fc318869b8c.js" nomodule defer></script><script src="polyfills-es2017.74cb0970831047bb4747.js" type="module"></script><script src="main-es2017.0d96ef3f434cfd6206ba.js" type="module"></script><script src="main-es5.0d96ef3f434cfd6206ba.js" nomodule defer></script>
 
 </body></html>

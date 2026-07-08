@@ -8,7 +8,6 @@ window.addEventListener('message', (e: MessageEvent) => {
   const d: any = e.data;
   if (d && d.type === 'SmartCare' && d.patient && d.patient.id) {
     (window as any).__scMsg = d;
-    console.log('[form main] cached host msg', d);
   }
 });
 // ===============================================

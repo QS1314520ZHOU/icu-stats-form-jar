@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh">
 <head>
   <meta charset="utf-8">
   <title>Sjm1App</title>
@@ -7,22 +7,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <script>
-    (function () {
-      window.__scMsg = window.__scMsg || null;
-      function isHostMsg(d){ return d && d.type === 'SmartCare' && d.patient && d.patient.id; }
-      window.addEventListener('message', function (e) {
-        var d = e && e.data;
-        if (isHostMsg(d)) {
-          window.__scMsg = d;
-          try { console.log('[form inline] cached host msg', d); } catch (_) {}
-        }
-      });
-      // 宿主靠 onload 重发：iframe 一 load 就主动告知 parent 我已就绪
-      try { window.parent && window.parent.postMessage({ type: 'SmartCareReady' }, '*'); } catch (_) {}
-      window.addEventListener('load', function () {
-        try { window.parent && window.parent.postMessage({ type: 'SmartCareReady' }, '*'); } catch (_) {}
-      });
-    })();
+  (function () {
+    // === 精简日志器 ===
+    window.__scT0 = window.__scT0 || ((performance && performance.now) ? performance.now() : Date.now());
+    window.__scAsk = 0;
+    window.__scHostSeen = false;
+    window.__scPid = '-';
+    window.__scShortPid = function (id) { return id ? ('…' + String(id).slice(-6)) : '-'; };
+    window.__scLog = function (msg) {
+      try {
+        var rel = Math.round(((performance && performance.now) ? performance.now() : Date.now()) - window.__scT0);
+        console.log('%c[SC +' + rel + 'ms]', 'color:#c026d3;font-weight:bold', msg);
+      } catch (e) {}
+    };
+
+    // ① 启动行
+    try {
+      var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+      var navType = nav.type || (performance.navigation && performance.navigation.type);
+      window.__scLog('START nav=' + (navType||'?') + ' path=' + location.pathname + ' ref=' + document.referrer);
+    } catch (e) {}
+
+    // 缓冲逻辑
+    window.__scMsg = window.__scMsg || null;
+    function isHostMsg(d){ return d && d.type === 'SmartCare' && d.patient && d.patient.id; }
+    window.addEventListener('message', function (e) {
+      var d = e && e.data;
+      if (isHostMsg(d)) {
+        window.__scMsg = d;
+        // ③ 宿主消息行（最早捕获处）
+        window.__scHostSeen = true;
+        var prev = window.__scPid; window.__scPid = d.patient.id;
+        window.__scLog('HOST MSG pid=' + window.__scShortPid(d.patient.id) + ' name=' + (d.patient.name||'') + ' prevPid=' + window.__scShortPid(prev==='-'?null:prev) + ' origin=' + e.origin);
+      }
+    });
+
+    // SmartCareReady（只计数）
+    try { window.parent && window.parent.postMessage({ type: 'SmartCareReady' }, '*'); window.__scAsk++; } catch (e) {}
+    window.addEventListener('load', function () {
+      try { window.parent && window.parent.postMessage({ type: 'SmartCareReady' }, '*'); window.__scAsk++; } catch (e) {}
+    });
+  })();
   </script>
 </head>
 <body>

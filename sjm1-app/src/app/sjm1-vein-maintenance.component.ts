@@ -331,6 +331,8 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	private destroy$ = new Subject<void>();
 	private ro?: ResizeObserver;
 
+	private __lastPid: string | null = null;
+
 	constructor(
 		private http: HttpClient,
 		private hostPatient: HostPatientService,
@@ -345,13 +347,17 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 			filter(p => !!p),
 			map(p => ({ p, pid: String(p.id || '').trim() })),
 			filter(({ pid }) => !!pid),
+			// ⑤ 去重丢弃诊断
+			tap(({ pid }) => {
+				if (pid && pid === this.__lastPid) { (window as any).__scLog?.('SKIP duplicate pid=' + (window as any).__scShortPid(pid)); }
+				else { this.__lastPid = pid; }
+			}),
 			distinctUntilChanged((a, b) => a.pid === b.pid),
 			tap(({ p, pid }) => {
 				this.patient = p;
 				this.pid = pid;
 				this.age = this.calcAge(p.birthday);
 				this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
-				console.log('[sjm1] patient changed, pid:', pid);
 			}),
 			switchMap(({ pid }) => this.loadFromServer(pid)),
 			takeUntil(this.destroy$),
@@ -360,7 +366,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 
 	ngAfterViewInit(): void {
 		setTimeout(() => this.recomputePagination(), 0);
-		// 屏幕预览自适应缩放
 		this.fitScale();
 		this.ro = new ResizeObserver(() => this.fitScale());
 		this.ro.observe(this.host.nativeElement);
@@ -374,6 +379,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 
 	/* 从服务器加载数据（返回 Observable，供 switchMap 自动取消） */
 	private loadFromServer(pid: string) {
+		(window as any).__scLog?.('LOAD start pid=' + (window as any).__scShortPid(pid));
 		this.loading = true;
 		return this.http
 			.get<TubeExe | TubeExe[]>(this.API_TUBEEXE, {
@@ -381,12 +387,14 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 			})
 			.pipe(
 				tap((res) => {
+					(window as any).__scLog?.('LOAD done pid=' + (window as any).__scShortPid(pid) + ' count=' + (Array.isArray(res) ? res.length : (res ? 1 : 0)));
 					const list = Array.isArray(res) ? res : res ? [res] : [];
 					const tubes = list.filter((t) => t?.type === '中心静脉导管');
 					this.tube = tubes[0] || null;
 					this.applyTube();
 				}),
 				finalize(() => {
+					(window as any).__scLog?.('sjm1: loadFromServer DONE', { pid });
 					this.loading = false;
 					this.cdr.detectChanges();
 				}),

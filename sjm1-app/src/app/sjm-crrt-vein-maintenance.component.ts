@@ -378,6 +378,7 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 	}
 
 	private loadTube(pid: string): void {
+		(window as any).__scLog?.('LOAD start pid=' + (window as any).__scShortPid(pid));
 		this.loading = true;
 		this.http
 			.get<TubeExe | TubeExe[]>(this.API_TUBEEXE, {
@@ -389,6 +390,7 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 			}))
 			.subscribe({
 				next: (res) => {
+					(window as any).__scLog?.('LOAD done pid=' + (window as any).__scShortPid(pid) + ' count=' + (Array.isArray(res) ? res.length : (res ? 1 : 0)));
 					const list = Array.isArray(res) ? res : res ? [res] : [];
 					const tubes = list.filter((t) => t?.type === this.TUBE_TYPE);
 					this.tube = tubes[0] || null;
