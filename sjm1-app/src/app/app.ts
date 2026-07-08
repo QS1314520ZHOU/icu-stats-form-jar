@@ -1,19 +1,19 @@
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { Subject } from 'rxjs';
+import { filter, take, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
 
 @Component({
   selector: 'app-root',
-  template: `
-    <!-- 缓存患者安全提示条 -->
-    <div *ngIf="hostPatient.fromCache$ | async" style="background:#fef3c7;color:#92400e;padding:6px 12px;font-size:13px;">
-      ⚠ 当前为刷新前缓存的患者，请核对姓名：{{ (hostPatient.patient$ | async)?.name }}
-    </div>
-    <router-outlet></router-outlet>
-  `,
+  template: '<router-outlet></router-outlet>',
   styleUrls: ['./app.css'],
 })
 export class App implements OnInit, OnDestroy {
+  private readyTimer: any = null;
+  private patientReceived = false;
+  private destroy$ = new Subject<void>();
+
   private onMsg = (e: MessageEvent) => {
     if (!isSmartCareHostMessage(e.data)) return;
     this.ngZone.run(() => this.hostPatient.handleHostMessage(e.data));
@@ -21,16 +21,14 @@ export class App implements OnInit, OnDestroy {
 
   private onVisible = () => {
     if (document.visibilityState === 'visible') {
-      this.requestPatient();
+      this.patientReceived = false;
+      this.startReadyHandshake();
     }
   };
 
-  private onFocus = () => {
-    this.requestPatient();
-  };
-
   private onPageShow = () => {
-    this.requestPatient();
+    this.patientReceived = false;
+    this.startReadyHandshake();
   };
 
   constructor(
@@ -39,10 +37,10 @@ export class App implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    // 1) 先挂 message 监听
     this.ngZone.runOutsideAngular(() => {
       window.addEventListener('message', this.onMsg);
       document.addEventListener('visibilitychange', this.onVisible);
-      window.addEventListener('focus', this.onFocus);
       window.addEventListener('pageshow', this.onPageShow);
     });
 
@@ -55,31 +53,43 @@ export class App implements OnInit, OnDestroy {
       this.ngZone.run(() => this.hostPatient.handleHostMessage(buffered));
     }
 
-    // 启动后向宿主要一次
-    this.requestPatient();
+    // 2) 订阅患者流，收到第一个有效患者时停止重试
+    this.hostPatient.patient$.pipe(
+      filter(p => !!p && !!p.id),
+      take(1),
+      takeUntil(this.destroy$),
+    ).subscribe(() => {
+      this.patientReceived = true;
+      if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
+    });
 
-    // ④ 宿主超时告警 + 回填
-    setTimeout(() => {
-      if (!(window as any).__scHostSeen) {
-        (window as any).__scLog('⚠ NO HOST MSG after 1500ms (asked ' + (window as any).__scAsk + 'x) — seeding cache');
-        this.hostPatient.seedFromCacheIfIdle();
-      }
-    }, 1500);
-    setTimeout(() => {
-      if (!(window as any).__scHostSeen) {
-        (window as any).__scLog('⚠ NO HOST MSG after 5000ms (asked ' + (window as any).__scAsk + 'x) — host not sending');
-      }
-    }, 5000);
+    // 3) 开始重试握手
+    this.startReadyHandshake();
   }
 
-  private requestPatient(): void {
-    try { parent.postMessage({ type: 'SmartCareReady' }, '*'); (window as any).__scAsk = ((window as any).__scAsk || 0) + 1; } catch (_) {}
+  private startReadyHandshake(): void {
+    if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
+    let attempts = 0;
+    const maxAttempts = 20; // 最多约 10 秒
+    const send = () => {
+      if (this.patientReceived || attempts >= maxAttempts) {
+        if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
+        return;
+      }
+      attempts++;
+      try { parent.postMessage({ type: 'SmartCareReady' }, '*'); } catch (e) {}
+      (window as any).__scLog?.('SmartCareReady sent #' + attempts);
+    };
+    send(); // 立即发一次
+    this.readyTimer = setInterval(send, 500);
   }
 
   ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
     window.removeEventListener('message', this.onMsg);
     document.removeEventListener('visibilitychange', this.onVisible);
-    window.removeEventListener('focus', this.onFocus);
     window.removeEventListener('pageshow', this.onPageShow);
   }
 }
