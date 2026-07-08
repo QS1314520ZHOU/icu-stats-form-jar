@@ -27,9 +27,9 @@ import {
 	OnDestroy,
 	OnInit,
 } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { EMPTY, Subject } from 'rxjs';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 
 /* ----------------------------- 数据模型 ----------------------------- */
@@ -332,7 +332,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	selectedPage: number | null = null;
 	private rowsPerPage = 18;
 	private pid = '';
-	private sub = new Subscription();
+	private destroy$ = new Subject<void>();
 	private ro?: ResizeObserver;
 
 	constructor(
@@ -344,19 +344,22 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 
 	ngOnInit(): void {
 		this.loadHospitalName();
-		// 订阅患者信息（BehaviorSubject 会重放最后病人 → 切回/重建自动重拉）
-		this.sub.add(
-			this.hostPatient.patient$.subscribe((p) => {
-				if (!p) return;
+		// 响应式订阅：pid 变化自动重载，switchMap 取消旧请求，distinctUntilChanged 去重
+		this.hostPatient.patient$.pipe(
+			filter(p => !!p),
+			map(p => ({ p, pid: String(p.id || '').trim() })),
+			filter(({ pid }) => !!pid),
+			distinctUntilChanged((a, b) => a.pid === b.pid),
+			tap(({ p, pid }) => {
 				this.patient = p;
+				this.pid = pid;
 				this.age = this.calcAge(p.birthday);
 				this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
-				const pid = this.hostPatient.getPid();
-				if (!pid) return;
-				this.pid = pid;
-				this.loadFromServer();
-			})
-		);
+				console.log('[sjm1] patient changed, pid:', pid);
+			}),
+			switchMap(({ pid }) => this.loadFromServer(pid)),
+			takeUntil(this.destroy$),
+		).subscribe();
 	}
 
 	ngAfterViewInit(): void {
@@ -368,14 +371,30 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	}
 
 	ngOnDestroy(): void {
-		this.sub.unsubscribe();
+		this.destroy$.next();
+		this.destroy$.complete();
 		this.ro?.disconnect();
 	}
 
-	/* 从服务器加载数据 */
-	private loadFromServer(): void {
-		if (!this.pid) return;
-		this.loadTube(this.pid);
+	/* 从服务器加载数据（返回 Observable，供 switchMap 自动取消） */
+	private loadFromServer(pid: string) {
+		this.loading = true;
+		return this.http
+			.get<TubeExe | TubeExe[]>(this.API_TUBEEXE, {
+				params: { pid, type: '中心静脉导管' },
+			})
+			.pipe(
+				tap((res) => {
+					const list = Array.isArray(res) ? res : res ? [res] : [];
+					const tubes = list.filter((t) => t?.type === '中心静脉导管');
+					this.tube = tubes[0] || null;
+					this.applyTube();
+				}),
+				finalize(() => {
+					this.loading = false;
+					this.cdr.detectChanges();
+				}),
+			);
 	}
 
 	/* 屏幕预览缩放 */
@@ -402,28 +421,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	/* 获取 tubeId */
 	private tubeId(): string {
 		return this.tube?.id || this.tube?._id || '';
-	}
-
-	/* 加载置管数据 */
-	private loadTube(pid: string): void {
-		this.loading = true;
-		this.http
-			.get<TubeExe | TubeExe[]>(this.API_TUBEEXE, {
-				params: { pid, type: '中心静脉导管' },
-			})
-			.pipe(finalize(() => {
-				this.loading = false;
-				this.cdr.detectChanges();
-			}))
-			.subscribe({
-				next: (res) => {
-					const list = Array.isArray(res) ? res : res ? [res] : [];
-					const tubes = list.filter((t) => t?.type === '中心静脉导管');
-					this.tube = tubes[0] || null;
-					this.applyTube();
-				},
-				error: () => {},
-			});
 	}
 
 	/* 基于 tube 计算派生状态 */

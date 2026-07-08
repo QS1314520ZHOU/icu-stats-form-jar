@@ -12,26 +12,22 @@ import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
 export class App implements OnInit, OnDestroy {
   private onMsg = (e: MessageEvent) => {
     if (!isSmartCareHostMessage(e.data)) return;
-    console.log('[form] message from host =>', e.origin, e.data);
+    console.log('[sjm1] message from host =>', e.origin, e.data);
     this.ngZone.run(() => this.hostPatient.handleHostMessage(e.data));
   };
 
   private onVisible = () => {
-    if (document.visibilityState === 'visible' && !this.hostPatient.getPid()) {
+    if (document.visibilityState === 'visible') {
       this.requestPatient();
     }
   };
 
   private onFocus = () => {
-    if (!this.hostPatient.getPid()) {
-      this.requestPatient();
-    }
+    this.requestPatient();
   };
 
   private onPageShow = () => {
-    if (!this.hostPatient.getPid()) {
-      this.requestPatient();
-    }
+    this.requestPatient();
   };
 
   constructor(
@@ -40,7 +36,6 @@ export class App implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // 监听在 zone 外注册，避免每条消息触发多余变更检测
     this.ngZone.runOutsideAngular(() => {
       window.addEventListener('message', this.onMsg);
       document.addEventListener('visibilitychange', this.onVisible);
@@ -48,14 +43,14 @@ export class App implements OnInit, OnDestroy {
       window.addEventListener('pageshow', this.onPageShow);
     });
 
-    // 补投：Angular 启动前 index.html/main.ts 已缓存的那一条
+    // 补投：Angular 启动前已缓存的消息
     const buffered = (window as any).__scMsg;
     if (buffered) {
-      console.log('[form] replay buffered message', buffered);
+      console.log('[sjm1] replay buffered message', buffered);
       this.ngZone.run(() => this.hostPatient.handleHostMessage(buffered));
     }
 
-    // 启动后再向宿主要一次
+    // 启动后向宿主要一次
     this.requestPatient();
   }
 
