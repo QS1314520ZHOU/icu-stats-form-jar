@@ -1,13 +1,11 @@
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
 import { HostPatientService } from './services/host-patient.service';
 import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrls: ['./app.css'],
 })
 export class App implements OnInit, OnDestroy {
   private onMsg = (e: MessageEvent) => {

@@ -17,7 +17,6 @@
  * - A4 横向：宽297mm，min-height 210mm。
  */
 
-import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import {
 	AfterViewInit,
@@ -27,8 +26,7 @@ import {
 	OnDestroy,
 	OnInit,
 } from '@angular/core';
-import { EMPTY, Subject } from 'rxjs';
-import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 
@@ -68,8 +66,6 @@ interface RenderPage {
 
 @Component({
 	selector: 'app-sjm1-vein-maintenance',
-	standalone: true,
-	imports: [CommonModule, FormsModule],
 	template: `
 		<!-- 顶部工具栏（打印时隐藏） -->
 		<div class="toolbar no-print">

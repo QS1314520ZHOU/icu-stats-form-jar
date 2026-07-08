@@ -1,8 +1,8 @@
-import { bootstrapApplication } from '@angular/platform-browser';
-import { appConfig } from './app/app.config';
-import { App } from './app/app';
+import { enableProdMode } from '@angular/core';
+import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+import { AppModule } from './app/app.module';
 
-// 在 bootstrapApplication 之前，再注册一层（防 index.html 内联被改写而失效）
+// ===== 保留：bootstrap 之前缓存宿主消息（勿删）=====
 (window as any).__scMsg = (window as any).__scMsg || null;
 window.addEventListener('message', (e: MessageEvent) => {
   const d: any = e.data;
@@ -11,6 +11,10 @@ window.addEventListener('message', (e: MessageEvent) => {
     console.log('[form main] cached host msg', d);
   }
 });
+// ===============================================
 
-bootstrapApplication(App, appConfig)
+enableProdMode();
+
+platformBrowserDynamic()
+  .bootstrapModule(AppModule)
   .catch((err) => console.error(err));

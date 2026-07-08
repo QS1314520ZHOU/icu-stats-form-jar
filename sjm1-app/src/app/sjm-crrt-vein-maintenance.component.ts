@@ -10,7 +10,6 @@
  * - 编辑字段持久化到 MongoDB。
  */
 
-import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import {
 	AfterViewInit,
@@ -21,7 +20,6 @@ import {
 	OnInit,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 
@@ -61,8 +59,6 @@ interface RenderPage {
 
 @Component({
 	selector: 'app-sjm-crrt-vein-maintenance',
-	standalone: true,
-	imports: [CommonModule, FormsModule],
 	template: `
 		<!-- 顶部工具栏（打印时隐藏） -->
 		<div class="toolbar no-print">
