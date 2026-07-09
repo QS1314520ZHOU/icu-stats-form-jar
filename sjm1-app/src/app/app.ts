@@ -1,6 +1,6 @@
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { Subject } from 'rxjs';
-import { filter, take, takeUntil } from 'rxjs/operators';
+import { takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
 
@@ -11,24 +11,26 @@ import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
 })
 export class App implements OnInit, OnDestroy {
   private readyTimer: any = null;
-  private patientReceived = false;
+  private liveReceived = false;
   private destroy$ = new Subject<void>();
 
   private onMsg = (e: MessageEvent) => {
     if (!isSmartCareHostMessage(e.data)) return;
+    this.liveReceived = true;
+    if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
     this.ngZone.run(() => this.hostPatient.handleHostMessage(e.data));
   };
 
   private onVisible = () => {
-    if (document.visibilityState === 'visible') {
-      this.patientReceived = false;
+    if (document.visibilityState === 'visible' && !this.liveReceived) {
       this.startReadyHandshake();
     }
   };
 
   private onPageShow = () => {
-    this.patientReceived = false;
-    this.startReadyHandshake();
+    if (!this.liveReceived) {
+      this.startReadyHandshake();
+    }
   };
 
   constructor(
@@ -53,26 +55,17 @@ export class App implements OnInit, OnDestroy {
       this.ngZone.run(() => this.hostPatient.handleHostMessage(buffered));
     }
 
-    // 2) 订阅患者流，收到第一个有效患者时停止重试
-    this.hostPatient.patient$.pipe(
-      filter(p => !!p && !!p.id),
-      take(1),
-      takeUntil(this.destroy$),
-    ).subscribe(() => {
-      this.patientReceived = true;
-      if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
-    });
-
-    // 3) 开始重试握手
+    // 2) 开始重试握手
     this.startReadyHandshake();
   }
 
   private startReadyHandshake(): void {
+    if (this.liveReceived) return; // 已收到宿主回应，不再握手
     if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
     let attempts = 0;
-    const maxAttempts = 20; // 最多约 10 秒
+    const maxAttempts = 10; // 最多约 5 秒兜底
     const send = () => {
-      if (this.patientReceived || attempts >= maxAttempts) {
+      if (this.liveReceived || attempts >= maxAttempts) {
         if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
         return;
       }
