@@ -211,7 +211,6 @@ interface RenderPage {
 		}
 		.loading { padding: 16px; }
 
-		/* A4 横向 */
 		.sheet {
 			box-sizing: border-box;
 			width: 297mm;
@@ -505,23 +504,17 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 		return g || '';
 	}
 
-	/* 诊断字段处理 */
+	/* 诊断字段处理：分隔符截断 */
 	private formatDiagnosis(diagnosis?: string): string {
 		if (!diagnosis) return '';
-		const semicolonIndex = diagnosis.indexOf(';');
-		const semicolonIndex2 = diagnosis.indexOf('；');
 		let index = -1;
-		if (semicolonIndex >= 0 && semicolonIndex2 >= 0) {
-			index = Math.min(semicolonIndex, semicolonIndex2);
-		} else if (semicolonIndex >= 0) {
-			index = semicolonIndex;
-		} else if (semicolonIndex2 >= 0) {
-			index = semicolonIndex2;
+		const seps = [';', '；', ',', '，'];
+		for (const s of seps) {
+			const i = diagnosis.indexOf(s);
+			if (i >= 0 && (index < 0 || i < index)) index = i;
 		}
-		if (index >= 0) {
-			return diagnosis.substring(0, index).trim() || '';
-		}
-		return diagnosis.trim() || '';
+		if (index >= 0) return diagnosis.substring(0, index).trim();
+		return diagnosis.trim();
 	}
 
 	/* 分页 */
@@ -596,7 +589,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 			.sheet-head{text-align:center;}
 			.title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:29px;line-height:1.4;}
 			.patient-info{font-size:16px;margin:8px 0 6px;}
-			.info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
+			.info-row-main{flex-wrap:nowrap;align-items:center;}.diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
 			.record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
 			.record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
 			.record-table th{background:transparent;font-weight:700;}

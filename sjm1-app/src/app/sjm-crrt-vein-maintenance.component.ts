@@ -478,20 +478,15 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 
 	private formatDiagnosis(diagnosis?: string): string {
 		if (!diagnosis) return '';
-		const semicolonIndex = diagnosis.indexOf(';');
-		const semicolonIndex2 = diagnosis.indexOf('；');
-		let index = -1;
-		if (semicolonIndex >= 0 && semicolonIndex2 >= 0) {
-			index = Math.min(semicolonIndex, semicolonIndex2);
-		} else if (semicolonIndex >= 0) {
-			index = semicolonIndex;
-		} else if (semicolonIndex2 >= 0) {
-			index = semicolonIndex2;
-		}
-		if (index >= 0) {
-			return diagnosis.substring(0, index).trim() || '';
-		}
-		return diagnosis.trim() || '';
+			if (!diagnosis) return '';
+			let index = -1;
+			const seps = [';', '；', ',', '，'];
+			for (const s of seps) {
+				const i = diagnosis.indexOf(s);
+				if (i >= 0 && (index < 0 || i < index)) index = i;
+			}
+			if (index >= 0) return diagnosis.substring(0, index).trim();
+			return diagnosis.trim();
 	}
 
 	private paginate(): void {

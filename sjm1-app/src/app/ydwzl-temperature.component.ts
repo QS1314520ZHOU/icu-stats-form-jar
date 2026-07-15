@@ -89,7 +89,7 @@ const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_
           <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
           <span class="info-item date-item">
             <!-- <b>日期：</b> -->
-            <input type="date" class="date-input" [(ngModel)]="recordDate" (change)="onFieldChange()" />
+            <input type="date" class="date-input" [(ngModel)]="recordDate" (click)="openNativePicker($event)" (change)="onFieldChange()" />
           </span>
         </div>
 
@@ -178,7 +178,7 @@ const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_
     .info-item b { font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
     .date-item { flex:0 0 auto; margin-left:auto; }
-    .date-input { font-size:14px; }
+    .date-input { font-size:14px; cursor:pointer; }
 
     /* 表格 */
     .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:13px; table-layout:fixed; }
@@ -389,6 +389,19 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
 
   onFieldChange(): void { this.saveExtra(); }
 
+  openNativePicker(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    try {
+      if (typeof (input as any).showPicker === 'function') {
+        (input as any).showPicker();
+      } else {
+        input.focus();
+      }
+    } catch {
+      input.focus();
+    }
+  }
+
   genderText(g?: string): string {
     if (g === 'Male' || g === 'M' || g === '男') return '男';
     if (g === 'Female' || g === 'F' || g === '女') return '女';
@@ -397,13 +410,15 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
 
   private formatDiagnosis(diagnosis?: string): string {
     if (!diagnosis) return '';
-    const a = diagnosis.indexOf(';');
-    const b = diagnosis.indexOf('；');
-    let idx = -1;
-    if (a >= 0 && b >= 0) idx = Math.min(a, b);
-    else if (a >= 0) idx = a;
-    else if (b >= 0) idx = b;
-    return (idx >= 0 ? diagnosis.substring(0, idx) : diagnosis).trim();
+		if (!diagnosis) return '';
+		let index = -1;
+		const seps = [';', '；', ',', '，'];
+		for (const s of seps) {
+			const i = diagnosis.indexOf(s);
+			if (i >= 0 && (index < 0 || i < index)) index = i;
+		}
+		if (index >= 0) return diagnosis.substring(0, index).trim();
+		return diagnosis.trim();
   }
 
   private paginate(): void {
