@@ -2,8 +2,7 @@
  * 亚低温治疗体温记录单 —— Angular 组件
  * 访问路径：/form/ydwzlForm
  *
- * 数据源：bedside 集合 valid===true 记录，按 pid 查询
- * 以 time 为 key 聚合成列（行=参数，列=时间点）
+ * A4 横向，转置矩阵表（行=参数，列=时间点）
  * 仅有体温(param_T)的时间点不成列
  */
 
@@ -38,7 +37,8 @@ interface TimeColumn {
   water?: string;
   cool?: string;
   warm?: string;
-  sign?: string;  // param_Yishi → account.trueName
+  signUserId?: string;
+  signName?: string;
 }
 
 interface RenderPage {
@@ -46,22 +46,13 @@ interface RenderPage {
   cols: TimeColumn[];
 }
 
-interface MonitorMode {
-  key: string;
-  label: string;
-  checked: boolean;
-}
-
 const CODE_T = 'param_T';
 const CODE_BODY = 'param_亚低温体温设置';
 const CODE_WATER = 'param_亚低温水温设置';
 const CODE_COOL = 'param_降温措施';
 const CODE_WARM = 'param_升温措施';
-const CODE_SIGN = 'param_Yishi';
-const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_SIGN];
-
-/** 除体温外有数据的 code 集合（用于"不成列"判断） */
-const NON_T_CODES = new Set([CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_SIGN]);
+const CODE_YISHI = 'param_Yishi';
+const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_YISHI];
 
 @Component({
   selector: 'app-ydwzl-temperature',
@@ -88,45 +79,42 @@ const NON_T_CODES = new Set([CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_S
           <div class="title-line">{{hospitalName}}重症医学科患者亚低温治疗体温记录单</div>
         </div>
 
-        <!-- 患者信息 + 日期同排 -->
-        <div class="patient-info">
-          <div class="info-row">
-            <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
-            <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
-            <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-            <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
-            <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
-            <span class="info-item"><b>日期：</b><input class="date-input" type="date" [(ngModel)]="recordDate" (change)="onFieldChange()" /></span>
-          </div>
-          <div class="info-row">
-            <span class="info-item wide"><b>诊断：</b>{{diagnosisDisplay}}</span>
-          </div>
+        <!-- 患者信息：全部在同一排 -->
+        <div class="patient-info-row">
+          <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
+          <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
+          <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
+          <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
+          <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
+          <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+          <span class="info-item date-item">
+            <b>日期：</b>
+            <input type="date" class="date-input" [(ngModel)]="recordDate" (change)="onFieldChange()" />
+          </span>
         </div>
 
         <!-- 记录表格 -->
         <table class="record-table">
           <colgroup>
             <col class="label-col" />
-            <col *ngFor="let c of pagePaddedCols(page)" />
+            <col *ngFor="let c of pagePaddedCols(page)" class="data-col" />
           </colgroup>
           <tbody>
-            <!-- 体温监测方式行（跨全部列） -->
+            <!-- 体温监测方式 -->
             <tr>
               <th class="row-label">体温监测方式</th>
-              <td *ngFor="let c of pagePaddedCols(page); let first = first" [attr.colspan]="first ? pagePaddedCols(page).length : null">
-                <label class="cb-inline" *ngFor="let m of monitorModes">
-                  <input type="checkbox" [(ngModel)]="m.checked" (change)="onFieldChange()" /> {{m.label}}
-                </label>
-                <!-- 第一列显示复选框后隐藏其余列 -->
-                <span *ngIf="!first" style="display: none"></span>
+              <td class="monitor-cell" [attr.colspan]="colsPerPage">
+                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.anal" (change)="onFieldChange()" /> 肛温</label>
+                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.bladder" (change)="onFieldChange()" /> 膀胱温</label>
+                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.blood" (change)="onFieldChange()" /> 血温</label>
+                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.axillary" (change)="onFieldChange()" /> 腋温</label>
               </td>
             </tr>
-            <!-- 日期时间行 -->
+            <!-- 数据行 -->
             <tr>
               <th class="row-label">日期时间</th>
               <td *ngFor="let c of pagePaddedCols(page)">{{ c ? fmtDateTime(c.time) : '' }}</td>
             </tr>
-            <!-- 数据行 -->
             <tr>
               <th class="row-label">体温（℃）</th>
               <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.T || '') : '' }}</td>
@@ -149,25 +137,24 @@ const NON_T_CODES = new Set([CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_S
             </tr>
             <tr>
               <th class="row-label">护士签名</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.sign || '') : '' }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.signName || '') : '' }}</td>
             </tr>
-            <!-- 备注行（跨全部列） -->
+            <!-- 备注 -->
             <tr>
-              <td class="remark-cell" *ngFor="let c of pagePaddedCols(page); let first = first" [attr.colspan]="first ? pagePaddedCols(page).length : null">
-                <div class="sheet-remark" *ngIf="first">
-                  <div>备注：</div>
-                  <div>1、目标温度：33℃-35℃。</div>
-                  <div>2、降温措施：每小时降温＜1℃，达到目标温度前每15分钟测量记录核心温度一次；达到目标温度后每1小时测量核心温度，维持治疗期间每2小时记录核心温度一次；降温措施：①头部冰帽、背部冰毯；②前额、颈部、腋窝及腹股沟区放置冰袋；③降低室温；④血管内降温；⑤冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="coolOther" (change)="onFieldChange()" /></div>
-                  <div>3、复温：患者意识恢复或治疗结束后复温，每小时记录核心温度一次；缓慢复温，每小时复温≤0.5℃，复温时间≥5小时，12-24小时恢复核心温度36℃-37℃：①复温毯、复温帽；②棉被/毛毯保暖；③提升室温；④血管内复温；⑤停用冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="warmOther" (change)="onFieldChange()" /></div>
-                  <div>4、注意事项：亚低温治疗期间每2小时翻身、检查皮肤、记录呼吸、心率、血压；密切观察患者有无皮肤冻伤或压力性损伤、电解质紊乱、凝血功能障碍以及血氧失常等并发症。</div>
+              <td class="remark-cell" [attr.colspan]="colsPerPage + 1">
+                <div class="remark-text">
+                  备注：<br>
+                  1、目标温度：33℃-35℃。<br>
+                  2、降温措施：每小时降温＜1℃，达到目标温度前每15分钟测量记录核心温度一次；达到目标温度后每1小时测量核心温度，维持治疗期间每2小时记录核心温度一次；降温措施：①头部冰帽、背部冰毯；②前额、颈部、腋窝及腹股沟区放置冰袋；③降低室温；④血管内降温；⑤冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="coolOther" (change)="onFieldChange()" />。<br>
+                  3、复温：患者意识恢复或治疗结束后复温，每小时记录核心温度一次；缓慢复温，每小时复温≤0.5℃，复温时间≥5小时，12-24小时恢复核心温度36℃-37℃：①复温毯、复温帽；②棉被/毛毯保暖；③提升室温；④血管内复温；⑤停用冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="warmOther" (change)="onFieldChange()" />。<br>
+                  4、注意事项：亚低温治疗期间每2小时翻身、检查皮肤、记录呼吸、心率、血压；密切观察患者有无皮肤冻伤或压力性损伤、电解质紊乱、凝血功能障碍以及心率失常等并发症。
                 </div>
-                <span *ngIf="!first" style="display: none"></span>
               </td>
             </tr>
           </tbody>
         </table>
 
-        <!-- 页脚 -->
+        <!-- 页码 -->
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
       </div>
     </div>
@@ -180,31 +167,39 @@ const NON_T_CODES = new Set([CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_S
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
     .loading { padding:16px; font-family:var(--font-song); }
 
-    .sheet { box-sizing:border-box; width:297mm; min-height:210mm; margin:16px auto; padding:12mm 10mm 10mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
+    /* A4 横向 */
+    .sheet { box-sizing:border-box; width:297mm; height:210mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); overflow:hidden; position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
     .title-line { font-family:var(--font-hei); font-weight:700; font-size:var(--fz-h2); line-height:1.4; }
 
-    .patient-info { font-family:var(--font-song); font-size:var(--fz-xs4); margin:8px 0 6px; }
-    .info-row { display:flex; flex-wrap:wrap; gap:6px 24px; padding:3px 0; }
-    .info-item { white-space:nowrap; }
-    .info-item.wide { flex:1 1 100%; white-space:normal; }
+    /* 患者信息：一排 */
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:18px; font-family:var(--font-song); font-size:var(--fz-xs4); white-space:nowrap; margin:6px 0; }
+    .info-item { flex:0 0 auto; white-space:nowrap; }
     .info-item b { font-weight:700; }
+    .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    .date-item { flex:0 0 auto; margin-left:auto; }
     .date-input { font-size:14px; }
-    .cb-inline { margin-right:16px; white-space:nowrap; }
-    .other-input { border:none; border-bottom:1px solid #000; min-width:120px; font-size:12px; }
-    input:disabled,select:disabled { cursor:not-allowed; opacity:.6; }
 
+    /* 表格 */
     .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:13px; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:4px 2px; word-break:break-all; height:34px; }
     .record-table th { background:transparent; font-weight:700; }
     .row-label { width:130px; }
     .label-col { width:130px; }
-    .remark-cell { text-align:left !important; padding:6px; }
+    .data-col { width:auto; }
 
-    .sheet-remark { text-align:left; font-size:12px; line-height:1.6; font-family:var(--font-song); }
-    .sheet-remark > div { margin:2px 0; }
+    /* 体温监测方式 */
+    .monitor-cell { box-sizing:border-box; text-align:left !important; padding:5px 12px !important; white-space:nowrap; overflow:hidden; }
+    .monitor-option { display:inline-flex; align-items:center; margin-right:26px; white-space:nowrap; }
+
+    /* 备注 */
+    .remark-cell { box-sizing:border-box; width:100%; text-align:left !important; vertical-align:top; padding:5px 8px !important; font-size:12px; line-height:1.45; white-space:normal; word-break:break-word; }
+    .remark-text { text-align:left; line-height:1.5; }
+
+    .other-input { border:none; border-bottom:1px solid #000; min-width:120px; font-size:12px; }
+    input:disabled,select:disabled { cursor:not-allowed; opacity:.6; }
+
     .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
-
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print { .no-print { display:none !important; } .print-hidden { display:none !important; } }
   `],
@@ -228,15 +223,10 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   recordDate = '';
   coolOther = '';
   warmOther = '';
-  monitorModes: MonitorMode[] = [
-    { key: 'anal', label: '肛温', checked: false },
-    { key: 'bladder', label: '膀胱温', checked: false },
-    { key: 'blood', label: '血温', checked: false },
-    { key: 'axillary', label: '腋温', checked: false },
-  ];
+  monitorModes = { anal: false, bladder: false, blood: false, axillary: false };
 
   selectedPage: number | null = null;
-  private colsPerPage = 10;
+  readonly colsPerPage = 16;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -269,7 +259,6 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   ngAfterViewInit(): void {
-    setTimeout(() => this.recomputePagination(), 0);
     this.fitScale();
     this.ro = new ResizeObserver(() => this.fitScale());
     this.ro.observe(this.host.nativeElement);
@@ -295,10 +284,9 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       );
   }
 
-  /** 聚合 + 签名反查 */
+  /** 聚合 + 只有体温不成列 + 签名批量查询 */
   private buildColumns(): void {
     const map = new Map<string, TimeColumn>();
-
     for (const r of this.records) {
       const t = r.time;
       if (!t) continue;
@@ -312,21 +300,15 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
         case CODE_WATER: col.water = v; break;
         case CODE_COOL: col.cool = v; break;
         case CODE_WARM: col.warm = v; break;
-        case CODE_SIGN: col.sign = r.editUser || v; break; // 先用 editUser 占位，后面替换
+        case CODE_YISHI: col.signUserId = r.editUser || v; break;
       }
     }
+    // 只有体温不成列
+    const kept = [...map.values()].filter(col => !!(col.body || col.water || col.cool || col.warm || col.signUserId));
+    this.columns = kept.sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
-    // 只有体温不成列：若某时间点仅有 T（无其它 code 数据），删除该列
-    for (const [key, col] of map) {
-      if (!col.body && !col.water && !col.cool && !col.warm && !col.sign) {
-        map.delete(key);
-      }
-    }
-
-    this.columns = [...map.values()].sort((a, b) => this.ts(a.time) - this.ts(b.time));
-
-    // 查询签名用户名称
-    const userIds = [...new Set(this.columns.map(c => c.sign).filter(Boolean))];
+    // 护士签名批量查询
+    const userIds = [...new Set(this.columns.map(c => c.signUserId).filter(Boolean))];
     if (userIds.length) {
       this.http.get<any[]>(this.API_ACCOUNT, { params: { ids: userIds.join(',') } }).subscribe({
         next: (accounts) => {
@@ -338,19 +320,15 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
             }
           }
           for (const col of this.columns) {
-            if (col.sign && nameMap.has(col.sign)) {
-              col.sign = nameMap.get(col.sign) || col.sign;
+            if (col.signUserId && nameMap.has(col.signUserId)) {
+              col.signName = nameMap.get(col.signUserId) || '';
             }
           }
           this.loadExtra();
           this.paginate();
           this.cdr.detectChanges();
         },
-        error: () => {
-          this.loadExtra();
-          this.paginate();
-          this.cdr.detectChanges();
-        },
+        error: () => { this.loadExtra(); this.paginate(); this.cdr.detectChanges(); },
       });
     } else {
       this.loadExtra();
@@ -381,11 +359,11 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
         if (d.recordDate) this.recordDate = d.recordDate;
         if (d.coolOther != null) this.coolOther = d.coolOther;
         if (d.warmOther != null) this.warmOther = d.warmOther;
-        if (Array.isArray(d.monitorModes)) {
-          for (const m of this.monitorModes) {
-            const hit = d.monitorModes.find((x: any) => x.key === m.key);
-            if (hit) m.checked = !!hit.checked;
-          }
+        if (d.monitorModes) {
+          if (d.monitorModes.anal != null) this.monitorModes.anal = d.monitorModes.anal;
+          if (d.monitorModes.bladder != null) this.monitorModes.bladder = d.monitorModes.bladder;
+          if (d.monitorModes.blood != null) this.monitorModes.blood = d.monitorModes.blood;
+          if (d.monitorModes.axillary != null) this.monitorModes.axillary = d.monitorModes.axillary;
         }
       },
       error: () => {},
@@ -394,14 +372,13 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
 
   private saveExtra(): void {
     if (!this.pid) return;
-    const body = {
+    this.http.post(this.API_EXTRA, {
       pid: this.pid,
       recordDate: this.recordDate,
       coolOther: this.coolOther,
       warmOther: this.warmOther,
-      monitorModes: this.monitorModes.map(m => ({ key: m.key, checked: m.checked })),
-    };
-    this.http.post(this.API_EXTRA, body).subscribe({ next: () => {}, error: () => {} });
+      monitorModes: { ...this.monitorModes },
+    }).subscribe({ next: () => {}, error: () => {} });
   }
 
   onFieldChange(): void { this.saveExtra(); }
@@ -416,17 +393,17 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     if (!diagnosis) return '';
     const a = diagnosis.indexOf(';');
     const b = diagnosis.indexOf('；');
-    let index = -1;
-    if (a >= 0 && b >= 0) index = Math.min(a, b);
-    else if (a >= 0) index = a;
-    else if (b >= 0) index = b;
-    return (index >= 0 ? diagnosis.substring(0, index) : diagnosis).trim();
+    let idx = -1;
+    if (a >= 0 && b >= 0) idx = Math.min(a, b);
+    else if (a >= 0) idx = a;
+    else if (b >= 0) idx = b;
+    return (idx >= 0 ? diagnosis.substring(0, idx) : diagnosis).trim();
   }
 
   private paginate(): void {
-    const per = Math.max(1, this.colsPerPage);
+    const per = this.colsPerPage;
     const pages: RenderPage[] = [];
-    if (this.columns.length === 0) {
+    if (!this.columns.length) {
       pages.push({ index: 1, cols: [] });
     } else {
       for (let i = 0; i < this.columns.length; i += per) {
@@ -439,24 +416,11 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     }
   }
 
-  private recomputePagination(): void {
-    const PX_PER_MM = 96 / 25.4;
-    const usableW = (297 - 20) * PX_PER_MM;
-    const labelW = 130;
-    const colW = 54;
-    const cols = Math.floor((usableW - labelW) / colW);
-    const next = Math.max(6, cols);
-    if (next !== this.colsPerPage) {
-      this.colsPerPage = next;
-      this.paginate();
-      this.cdr.detectChanges();
-    }
-  }
-
+  /** 返回恰好 colsPerPage 项的数组 */
   pagePaddedCols(page: RenderPage): (TimeColumn | null)[] {
-    const cols: (TimeColumn | null)[] = [...page.cols];
-    while (cols.length < this.colsPerPage) cols.push(null);
-    return cols;
+    const result: (TimeColumn | null)[] = page.cols.slice(0, this.colsPerPage);
+    while (result.length < this.colsPerPage) result.push(null);
+    return result;
   }
 
   onPrint(): void {
@@ -473,7 +437,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       c.querySelectorAll('input[type=text],input[type=date]').forEach(el => {
         const sp = document.createElement('span');
         sp.textContent = (el as HTMLInputElement).value || '';
-        sp.style.cssText = 'display:inline-block;min-width:100px;border-bottom:1px solid #000;';
+        sp.style.cssText = 'display:inline-block;min-width:100px;';
         el.replaceWith(sp);
       });
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
@@ -484,21 +448,22 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       @page { size: A4 landscape; margin:0; }
       html,body{margin:0;padding:0;}
       body{color:#000;font-family:'SimSun','宋体',serif;}
-      .sheet{box-sizing:border-box;width:297mm;height:210mm;padding:12mm 10mm 10mm;margin:0;overflow:hidden;position:relative;page-break-after:always;box-shadow:none;}
+      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:10mm 12mm;overflow:hidden;page-break-after:always;box-shadow:none;}
       .sheet:last-of-type{page-break-after:auto;}
-      .sheet-head{text-align:center;}
+      .sheet-head{text-align:center;padding-bottom:6px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:29px;line-height:1.4;}
-      .patient-info{font-size:16px;margin:8px 0 6px;}
-      .info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
-      .info-item.wide{flex:1 1 100%;}
-      .cb-inline{margin-right:16px;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:16px;white-space:nowrap;margin:6px 0;}
+      .info-item{flex:0 0 auto;white-space:nowrap;}
+      .info-item b{font-weight:700;}
+      .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+      .date-item{flex:0 0 auto;margin-left:auto;}
       .record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:34px;word-break:break-all;}
       .record-table th{background:transparent;font-weight:700;}
       .row-label{width:130px;}
-      .remark-cell{text-align:left !important;padding:6px;}
-      .sheet-remark{text-align:left;font-size:12px;line-height:1.6;}
-      .sheet-remark > div{margin:2px 0;}
+      .monitor-cell{box-sizing:border-box;text-align:left !important;padding:5px 12px !important;white-space:nowrap;overflow:hidden;}
+      .monitor-option{display:inline-flex;align-items:center;margin-right:26px;white-space:nowrap;}
+      .remark-cell{box-sizing:border-box;width:100%;text-align:left !important;vertical-align:top;padding:5px 8px !important;font-size:12px;line-height:1.45;white-space:normal;word-break:break-word;}
       .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
