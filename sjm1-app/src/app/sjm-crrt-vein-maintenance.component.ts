@@ -88,7 +88,8 @@ interface RenderPage {
 			>
 				<!-- 单行标题 -->
 				<header class="sheet-head">
-					<div class="title-line">{{hospitalName}}深静脉维护记录单（三）</div>
+					<div class="institution-name">{{hospitalName}}</div>
+					<div class="document-subtitle">深静脉维护记录单（三）</div>
 				</header>
 
 				<!-- 页眉基本信息 -->
@@ -205,7 +206,7 @@ interface RenderPage {
 			width: 297mm;
 			min-height: 210mm;
 			margin: 16px auto;
-			padding: 12mm 10mm 10mm;
+			padding: 15mm 10mm 10mm 10mm;
 			background: #fff;
 			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 			position: relative;
@@ -216,7 +217,7 @@ interface RenderPage {
 			text-align: center;
 			padding-bottom: 6px;
 		}
-		.title-line {
+		.institution-name {
 			font-family: var(--font-hei);
 			font-weight: 700;
 			font-size: var(--fz-h2);
@@ -512,7 +513,7 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 
 	private recomputePagination(): void {
 		const PX_PER_MM = 96 / 25.4;
-		const usableH = (210 - 22) * PX_PER_MM;
+		const usableH = (210 - 25) * PX_PER_MM;
 		const fixedH = 280;
 		const tableHeaderH = 60;
 		const rowH = 30;
