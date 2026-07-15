@@ -95,8 +95,10 @@ interface RenderPage {
 			>
 				<!-- 单行标题 -->
 				<header class="sheet-head">
-					<div class="institution-name">{{hospitalName}}</div>
-					<div class="document-subtitle">深静脉维护记录单（一）</div>
+					<div class="document-title">
+					<span class="institution-name">{{hospitalName}}</span>
+					<span class="document-name">深静脉维护记录单（一）</span>
+				</div>
 				</header>
 
 				<!-- 页眉基本信息 -->
@@ -229,17 +231,25 @@ interface RenderPage {
 			text-align: center;
 			padding-bottom: 6px;
 		}
-		.institution-name {
-			font-family: var(--font-hei);
-			font-weight: 700;
-			font-size: var(--fz-h2);
-			line-height: 1.25;
+		.document-title {
+			display: flex;
+			justify-content: center;
+			align-items: baseline;
+			flex-wrap: nowrap;
+			white-space: nowrap;
+			gap: 8px;
+			line-height: 1.3;
+			margin: 4px 0 8px;
 		}
-		.document-subtitle {
-			font-family: var(--font-fangsong);
-			font-weight: 700;
+		.document-title .institution-name {
+			font-family: var(--font-hei);
 			font-size: var(--fz-h2);
-			line-height: 1.25;
+			font-weight: 700;
+		}
+		.document-title .document-name {
+			font-family: var(--font-fangsong);
+			font-size: var(--fz-h2);
+			font-weight: 700;
 		}
 
 		.patient-info {

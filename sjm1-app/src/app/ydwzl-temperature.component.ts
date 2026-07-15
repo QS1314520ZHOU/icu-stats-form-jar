@@ -88,7 +88,7 @@ const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
           <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
           <span class="info-item date-item">
-            <b>日期：</b>
+            <!-- <b>日期：</b> -->
             <input type="date" class="date-input" [(ngModel)]="recordDate" (change)="onFieldChange()" />
           </span>
         </div>
