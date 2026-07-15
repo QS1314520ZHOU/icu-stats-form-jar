@@ -1,6 +1,5 @@
 package com.smartcare.backend.entity;
 
-import java.util.List;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -11,7 +10,7 @@ public class YdwzlFormExtra {
     private String formCode;
     private String pid;
     private String recordDate;
-    private List<MonitorMode> monitorModes;
+    private MonitorModes monitorModes;
     private String coolOther;
     private String warmOther;
     private Boolean valid;
@@ -28,8 +27,8 @@ public class YdwzlFormExtra {
     public void setPid(String pid) { this.pid = pid; }
     public String getRecordDate() { return recordDate; }
     public void setRecordDate(String recordDate) { this.recordDate = recordDate; }
-    public List<MonitorMode> getMonitorModes() { return monitorModes; }
-    public void setMonitorModes(List<MonitorMode> monitorModes) { this.monitorModes = monitorModes; }
+    public MonitorModes getMonitorModes() { return monitorModes; }
+    public void setMonitorModes(MonitorModes monitorModes) { this.monitorModes = monitorModes; }
     public String getCoolOther() { return coolOther; }
     public void setCoolOther(String coolOther) { this.coolOther = coolOther; }
     public String getWarmOther() { return warmOther; }
@@ -45,12 +44,19 @@ public class YdwzlFormExtra {
     public String getEditTime() { return editTime; }
     public void setEditTime(String editTime) { this.editTime = editTime; }
 
-    public static class MonitorMode {
-        private String key;
-        private Boolean checked;
-        public String getKey() { return key; }
-        public void setKey(String key) { this.key = key; }
-        public Boolean getChecked() { return checked; }
-        public void setChecked(Boolean checked) { this.checked = checked; }
+    /** 体温监测方式（强类型对象，与 Angular 前端结构一致） */
+    public static class MonitorModes {
+        private Boolean anal;
+        private Boolean bladder;
+        private Boolean blood;
+        private Boolean axillary;
+        public Boolean getAnal() { return anal; }
+        public void setAnal(Boolean anal) { this.anal = anal; }
+        public Boolean getBladder() { return bladder; }
+        public void setBladder(Boolean bladder) { this.bladder = bladder; }
+        public Boolean getBlood() { return blood; }
+        public void setBlood(Boolean blood) { this.blood = blood; }
+        public Boolean getAxillary() { return axillary; }
+        public void setAxillary(Boolean axillary) { this.axillary = axillary; }
     }
 }

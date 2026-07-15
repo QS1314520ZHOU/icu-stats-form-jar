@@ -62,8 +62,8 @@ const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_
         <span class="page-select">
           页码选择：
           <select [(ngModel)]="selectedPage">
-            <option [ngValue]="null">全部</option>
-            <option *ngFor="let p of pages" [ngValue]="p.index">第 {{p.index}} 页</option>
+            <option [value]="null">全部</option>
+            <option *ngFor="let p of pages" [value]="p.index">第 {{p.index}} 页</option>
           </select>
         </span>
         <button class="btn" (click)="onPrint()">打印</button>
@@ -207,7 +207,9 @@ const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_
 export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly API_BEDSIDE = '/api/v1/icu/bedside/listByPid';
   private readonly API_HOSPITAL = '/api/v1/config/hospital';
-  private readonly API_EXTRA = '/api/v1/icu/ydwzl-extra';
+  private readonly API_EXTRA_LATEST = '/api/v1/icu/ydwzl-extra/latest';
+  private readonly API_EXTRA_DETAIL = '/api/v1/icu/ydwzl-extra/detail';
+  private readonly API_EXTRA_SAVE = '/api/v1/icu/ydwzl-extra/save';
   private readonly API_ACCOUNT = '/api/v1/icu/accounts/listByIds';
 
   loading = true;
@@ -353,7 +355,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   get hasData(): boolean { return this.columns.length > 0; }
 
   private loadExtra(): void {
-    this.http.get<any>(this.API_EXTRA, { params: { pid: this.pid } }).subscribe({
+    this.http.get<any>(this.API_EXTRA_LATEST, { params: { pid: this.pid } }).subscribe({
       next: (d) => {
         if (!d) return;
         if (d.recordDate) this.recordDate = d.recordDate;
@@ -366,19 +368,23 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
           if (d.monitorModes.axillary != null) this.monitorModes.axillary = d.monitorModes.axillary;
         }
       },
-      error: () => {},
+      error: () => { console.error('[ydwzl] loadExtra failed'); },
     });
   }
 
   private saveExtra(): void {
     if (!this.pid) return;
-    this.http.post(this.API_EXTRA, {
+    const body = {
       pid: this.pid,
       recordDate: this.recordDate,
       coolOther: this.coolOther,
       warmOther: this.warmOther,
-      monitorModes: { ...this.monitorModes },
-    }).subscribe({ next: () => {}, error: () => {} });
+      monitorModes: { anal: this.monitorModes.anal, bladder: this.monitorModes.bladder, blood: this.monitorModes.blood, axillary: this.monitorModes.axillary },
+    };
+    this.http.post(this.API_EXTRA_SAVE, body).subscribe({
+      next: () => {},
+      error: (err) => { console.error('[ydwzl] saveExtra failed', err); },
+    });
   }
 
   onFieldChange(): void { this.saveExtra(); }

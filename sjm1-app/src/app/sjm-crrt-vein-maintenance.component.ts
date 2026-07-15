@@ -88,7 +88,7 @@ interface RenderPage {
 			>
 				<!-- 单行标题 -->
 				<header class="sheet-head">
-					<div class="document-title">
+					<div class="title-line">
 					<span class="institution-name">{{hospitalName}}</span>
 					<span class="document-name">深静脉维护记录单（三）</span>
 				</div>
@@ -219,21 +219,7 @@ interface RenderPage {
 			text-align: center;
 			padding-bottom: 6px;
 		}
-		.document-title {
-			display: flex;
-			justify-content: center;
-			align-items: baseline;
-			flex-wrap: nowrap;
-			white-space: nowrap;
-			gap: 8px;
-			line-height: 1.3;
-			margin: 4px 0 8px;
-		}
-		.document-title .institution-name {
-			font-family: var(--font-hei);
-			font-size: var(--fz-h2);
-			font-weight: 700;
-		}
+		.title-line { font-family: var(--font-hei); font-weight: 700; font-size: var(--fz-h2); line-height: 1.4; }
 		.document-title .document-name {
 			font-family: var(--font-fangsong);
 			font-size: var(--fz-h2);
