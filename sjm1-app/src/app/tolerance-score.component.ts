@@ -149,7 +149,10 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
               <th class="score-col">分值</th>
               <th class="item-col">项目</th>
               <th class="desc-col">症状/评估时间</th>
-              <th *ngFor="let c of pagePaddedCols(page)">{{ c ? fmtDateTime(c.time) : '' }}</th>
+              <th *ngFor="let c of pagePaddedCols(page)">
+                <div class="dt-date">{{ c ? fmtDate(c.time) : '' }}</div>
+                <div class="dt-time">{{ c ? fmtTime(c.time) : '' }}</div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -178,10 +181,8 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
             </tr>
             <!-- 备注行：在 table 内，跨所有列 -->
             <tr>
-              <td class="remark-cell" [attr.colspan]="colsPerPage + 3">
-                <div class="fn-line"><span class="fn-body">总分：0-2分：继续肠内营养，维持原速度或增加速度，对症治疗，每班评估一次</span></div>
-                <div class="fn-line"><span class="fn-body">3-4分：继续肠内营养，减慢速度，2h后新评估</span></div>
-                <div class="fn-line"><span class="fn-body">≥5分：暂停肠内营养，重新评估或更换输入途径</span></div>
+              <td class="footnote-cell" [attr.colspan]="colsPerPage + 3">
+                <div class="fn">总分：0-2分：继续肠内营养，维持原速度或增加速度，对症治疗，每班评估一次<br>3-4分：继续肠内营养，减慢速度，2h后新评估<br>≥5分：暂停肠内营养，重新评估或更换输入途径</div>
               </td>
             </tr>
           </tbody>
@@ -218,19 +219,11 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .sum-label, .measure-label { text-align:left; padding-left:6px; font-weight:700; }
 
     /* 表格内的备注行 */
-    .remark-cell {
-      border:1px solid #000;
-      text-align:left;
-      padding:6px 8px;
-      font-family:var(--font-song);
-      font-size:12px;
-      line-height:1.5;
-      font-weight:normal;
-      word-break:break-all;
-    }
-    .fn-line { display:flex; align-items:flex-start; margin:1px 0; }
-    .fn-label { flex:0 0 auto; white-space:nowrap; }
-    .fn-body { flex:1 1 auto; min-width:0; text-indent:2em; }
+    .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
+
+    /* 表格内的备注行 */
+    .footnote-cell{border:1px solid #000;text-align:left;vertical-align:top;padding:6px 8px;font-family:var(--font-song);font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
+    .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
 
     .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
@@ -469,10 +462,9 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
       .record-table th{background:transparent;font-weight:700;}
       .score-col{width:58px;} .item-col{width:78px;} .desc-col,.desc-cell{width:300px;text-align:left;padding-left:6px;}
       .sum-label,.measure-label{text-align:left;padding-left:6px;font-weight:700;}
-      .remark-cell{border:1px solid #000;text-align:left;padding:6px 8px;font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
-      .fn-line{display:flex;align-items:flex-start;margin:1px 0;}
-      .fn-label{flex:0 0 auto;white-space:nowrap;}
-      .fn-body{flex:1 1 auto;min-width:0;text-indent:2em;}
+      .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
+      .footnote-cell{border:1px solid #000;text-align:left;vertical-align:top;padding:6px 8px;font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
+      .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
       .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
@@ -483,6 +475,20 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
     setTimeout(() => { win.print(); win.close(); }, 300);
   }
 
+  fmtDate(v?: string): string {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return v;
+    const p = (n: number) => `${n}`.padStart(2, '0');
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  fmtTime(v?: string): string {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    const p = (n: number) => `${n}`.padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
   fmtDateTime(v?: string): string {
     if (!v) return '';
     const d = new Date(v);

@@ -121,7 +121,10 @@ const MARK_OTHER = '⑥';
             <!-- 数据行 -->
             <tr>
               <th class="row-label">日期时间</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? fmtDateTime(c.time) : '' }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)">
+                <div class="dt-date">{{ c ? fmtDate(c.time) : '' }}</div>
+                <div class="dt-time">{{ c ? fmtTime(c.time) : '' }}</div>
+              </td>
             </tr>
             <tr>
               <th class="row-label">体温（℃）</th>
@@ -212,6 +215,8 @@ const MARK_OTHER = '⑥';
 
     .other-input { border:none; border-bottom:1px solid #000; min-width:120px; font-size:12px; }
     input:disabled,select:disabled { cursor:not-allowed; opacity:.6; }
+
+    .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
 
     .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
@@ -529,6 +534,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       .monitor-cell{box-sizing:border-box;text-align:left !important;padding:5px 12px !important;white-space:nowrap;overflow:hidden;}
       .monitor-option{display:inline-flex;align-items:center;margin-right:26px;white-space:nowrap;}
       .remark-cell{box-sizing:border-box;width:100%;text-align:left !important;vertical-align:top;padding:5px 8px !important;font-size:12px;line-height:1.45;white-space:normal;word-break:break-word;}
+      .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
       .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
@@ -550,6 +556,20 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     return age >= 0 ? age : null;
   }
 
+  fmtDate(v?: string): string {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return v;
+    const p = (n: number) => `${n}`.padStart(2, '0');
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+  fmtTime(v?: string): string {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    const p = (n: number) => `${n}`.padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
   fmtDateTime(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
