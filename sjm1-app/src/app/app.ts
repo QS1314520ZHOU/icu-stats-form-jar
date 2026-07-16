@@ -4,6 +4,7 @@ import { HostPatientService } from './services/host-patient.service';
 import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
 
 @Component({
+  standalone: false,
   selector: 'app-root',
   template: '<router-outlet></router-outlet>',
   styleUrls: ['./app.css'],

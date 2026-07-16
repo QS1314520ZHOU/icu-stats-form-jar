@@ -58,7 +58,8 @@ interface RenderPage {
 }
 
 @Component({
-	selector: 'app-sjm-crrt-vein-maintenance',
+	standalone: false,
+		selector: 'app-sjm-crrt-vein-maintenance',
 	template: `
 		<!-- 顶部工具栏（打印时隐藏） -->
 		<div class="toolbar no-print">

@@ -1,4 +1,3 @@
-import { enableProdMode } from '@angular/core';
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 import { AppModule } from './app/app.module';
 
@@ -12,7 +11,7 @@ window.addEventListener('message', (e: MessageEvent) => {
 });
 // ===============================================
 
-enableProdMode();
+// enableProdMode() removed — Angular CLI handles prod mode automatically via build configuration
 
 platformBrowserDynamic()
   .bootstrapModule(AppModule)

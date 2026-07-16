@@ -55,6 +55,7 @@ const CODE_YISHI = 'param_Yishi';
 const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_YISHI];
 
 @Component({
+  standalone: false,
   selector: 'app-ydwzl-temperature',
   template: `
     <div class="toolbar no-print">

@@ -20,15 +20,21 @@
       "prefix": "app",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular-devkit/build-angular:application",
           "options": {
-            "outputPath": "dist/sjm1-app",
+            "outputPath": {
+              "base": "dist/sjm1-app"
+            },
             "index": "src/index.html",
-            "main": "src/main.ts",
-            "polyfills": "src/polyfills.ts",
+            "browser": "src/main.ts",
+            "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
-            "aot": true,
-            "assets": ["src/favicon.ico"],
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
+            ],
             "styles": ["src/styles.css"],
             "scripts": []
           },
@@ -38,16 +44,11 @@
                 { "type": "initial", "maximumWarning": "2mb", "maximumError": "5mb" },
                 { "type": "anyComponentStyle", "maximumWarning": "20kb", "maximumError": "100kb" }
               ],
-              "fileReplacements": [],
               "outputHashing": "all"
             },
             "development": {
-              "buildOptimizer": false,
               "optimization": false,
-              "vendorChunk": true,
-              "extractLicenses": false,
-              "sourceMap": true,
-              "namedChunks": true
+              "sourceMap": true
             }
           },
           "defaultConfiguration": "production"
@@ -55,8 +56,8 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
-            "production": { "browserTarget": "sjm1-app:build:production" },
-            "development": { "browserTarget": "sjm1-app:build:development" }
+            "production": { "buildTarget": "sjm1-app:build:production" },
+            "development": { "buildTarget": "sjm1-app:build:development" }
           },
           "defaultConfiguration": "development"
         }
