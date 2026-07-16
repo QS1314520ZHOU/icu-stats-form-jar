@@ -257,6 +257,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       tap(({ pid }) => { if (pid !== this.__lastPid) this.__lastPid = pid; }),
       distinctUntilChanged((a, b) => a.pid === b.pid),
       tap(({ p, pid }) => {
+        this.resetForm();
         this.patient = p;
         this.pid = pid;
         this.age = this.calcAge(p.birthday);
@@ -277,6 +278,18 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     this.destroy$.next();
     this.destroy$.complete();
     this.ro?.disconnect();
+  }
+
+  private resetForm(): void {
+    this.records = [];
+    this.columns = [];
+    this.pages = [];
+    this.recordDate = '';
+    this.coolOther = '';
+    this.warmOther = '';
+    this.monitorModes = { anal: false, bladder: false, blood: false, axillary: false };
+    this.selectedPage = null;
+    this.cdr.detectChanges();
   }
 
   private loadFromServer(pid: string) {
@@ -364,18 +377,20 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   private loadExtra(): void {
     this.http.get<any>(this.API_EXTRA_LATEST, { params: { pid: this.pid } }).subscribe({
       next: (d) => {
-        if (!d) return;
-        if (d.recordDate) this.recordDate = d.recordDate;
-        if (d.coolOther != null) this.coolOther = d.coolOther;
-        if (d.warmOther != null) this.warmOther = d.warmOther;
-        if (d.monitorModes) {
-          if (d.monitorModes.anal != null) this.monitorModes.anal = d.monitorModes.anal;
-          if (d.monitorModes.bladder != null) this.monitorModes.bladder = d.monitorModes.bladder;
-          if (d.monitorModes.blood != null) this.monitorModes.blood = d.monitorModes.blood;
-          if (d.monitorModes.axillary != null) this.monitorModes.axillary = d.monitorModes.axillary;
+        if (d) {
+          if (d.recordDate) this.recordDate = d.recordDate;
+          if (d.coolOther != null) this.coolOther = d.coolOther;
+          if (d.warmOther != null) this.warmOther = d.warmOther;
+          if (d.monitorModes) {
+            if (d.monitorModes.anal != null) this.monitorModes.anal = d.monitorModes.anal;
+            if (d.monitorModes.bladder != null) this.monitorModes.bladder = d.monitorModes.bladder;
+            if (d.monitorModes.blood != null) this.monitorModes.blood = d.monitorModes.blood;
+            if (d.monitorModes.axillary != null) this.monitorModes.axillary = d.monitorModes.axillary;
+          }
         }
+        this.cdr.detectChanges();
       },
-      error: () => { console.error('[ydwzl] loadExtra failed'); },
+      error: () => { console.error('[ydwzl] loadExtra failed'); this.cdr.detectChanges(); },
     });
   }
 
