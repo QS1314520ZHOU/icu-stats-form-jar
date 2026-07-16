@@ -190,7 +190,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     </ng-container>
   `,
   styles: [`
-    :host { display:block; background:#f0f2f5; --fz-h2:29px; --fz-xs4:16px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
+    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; --fz-h2:29px; --fz-xs4:16px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
     .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
     .page-select select { padding:4px 8px; }
@@ -198,7 +198,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .loading { padding:16px; font-family:var(--font-song); }
 
     /* A4 横向，与亚低温一致 */
-    .sheet { box-sizing:border-box; width:297mm; height:210mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); overflow:hidden; position:relative; color:#000; }
+    .sheet { box-sizing:border-box; width:297mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
     .title-line { font-family:var(--font-hei); font-weight:700; font-size:var(--fz-h2); line-height:1.4; }
 
@@ -219,7 +219,12 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
 
     .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
-    @media print { .no-print { display:none !important; } }
+    @media print {
+      :host { height:auto; overflow:visible; }
+      .no-print { display:none !important; }
+      .sheet { width:297mm; height:210mm; overflow:hidden; margin:0; box-shadow:none; zoom:1; page-break-after:always; }
+      .sheet:last-of-type { page-break-after:auto; }
+    }
   `],
 })
 export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy {
