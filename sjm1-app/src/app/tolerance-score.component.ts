@@ -49,7 +49,7 @@ const SYMPTOMS: SymptomDef[] = [
     label: '恶心/呕吐',
     descs: {
       5: '呕吐，需要胃肠减压或胃残余量（GRV）＞500ml',
-      2: '恶心呕吐，但不需要胃肠减压或胃残余量≥250ml',
+      2: '恶心呕吐，但不需要胃肠减压或胃残余量＞250ml',
       1: '有轻微恶心，无呕吐',
       0: '无',
     },
@@ -212,8 +212,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .record-table th { background:transparent; font-weight:700; }
     .score-col { width:58px; }
     .item-col { width:78px; }
-    .desc-col, .desc-cell { width:300px; }
-    .desc-cell { text-align:left; padding-left:6px; }
+    .desc-col, .desc-cell { width:300px; text-align:left; padding-left:6px; }
     .sum-label, .measure-label { text-align:left; padding-left:6px; font-weight:700; }
 
     .footnote { margin-top:6px; font-family:var(--font-song); font-size:12px; line-height:1.5; }
@@ -453,8 +452,8 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
       .record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 3px;height:30px;word-break:break-all;}
       .record-table th{background:transparent;font-weight:700;}
-      .score-col{width:58px;} .item-col{width:78px;} .desc-col{width:300px;}
-      .desc-cell{text-align:left;padding-left:6px;} .sum-label,.measure-label{text-align:left;padding-left:6px;font-weight:700;}
+      .score-col{width:58px;} .item-col{width:78px;} .desc-col,.desc-cell{width:300px;text-align:left;padding-left:6px;}
+      .sum-label,.measure-label{text-align:left;padding-left:6px;font-weight:700;}
       .footnote{margin-top:6px;font-size:12px;line-height:1.5;}
       .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
     `;
