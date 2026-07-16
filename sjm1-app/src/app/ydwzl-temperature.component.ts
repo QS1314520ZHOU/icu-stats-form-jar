@@ -178,7 +178,13 @@ const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_
     .info-item b { font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
     .date-item { flex:0 0 auto; margin-left:auto; }
-    .date-input { font-size:14px; cursor:pointer; }
+    .date-input {
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      outline: none;
+      background: transparent;
+    }
 
     /* 表格 */
     .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:13px; table-layout:fixed; }
@@ -305,8 +311,8 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
         case CODE_YISHI: col.signUserId = r.editUser || v; break;
       }
     }
-    // 只有体温不成列
-    const kept = [...map.values()].filter(col => !!(col.body || col.water || col.cool || col.warm || col.signUserId));
+    // 只有体温（或仅体温+签名）不成列，只有存在治疗数据才成列
+    const kept = [...map.values()].filter(col => !!(col.body || col.water || col.cool || col.warm));
     this.columns = kept.sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
     // 护士签名批量查询
