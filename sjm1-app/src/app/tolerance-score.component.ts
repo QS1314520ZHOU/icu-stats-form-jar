@@ -222,7 +222,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
 
     /* 表格内的备注行 */
-    .footnote-cell{border:1px solid #000;text-align:left;vertical-align:top;padding:6px 8px;font-family:var(--font-song);font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
+    .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-family:var(--font-song);font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
     .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
 
     .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
@@ -463,7 +463,7 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
       .score-col{width:58px;} .item-col{width:78px;} .desc-col,.desc-cell{width:300px;text-align:left;padding-left:6px;}
       .sum-label,.measure-label{text-align:left;padding-left:6px;font-weight:700;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
-      .footnote-cell{border:1px solid #000;text-align:left;vertical-align:top;padding:6px 8px;font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
+      .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
       .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
       .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
     `;
@@ -487,7 +487,7 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
     const d = new Date(v);
     if (isNaN(d.getTime())) return '';
     const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+    return `${p(d.getHours())}：${p(d.getMinutes())}`;
   }
   fmtDateTime(v?: string): string {
     if (!v) return '';
