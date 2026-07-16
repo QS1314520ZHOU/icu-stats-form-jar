@@ -176,14 +176,16 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
               <td class="sum-label" colspan="3">评估者签字</td>
               <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.signName || '') : '' }}</td>
             </tr>
+            <!-- 备注行：在 table 内，跨所有列 -->
+            <tr>
+              <td class="remark-cell" [attr.colspan]="colsPerPage + 3">
+                <div class="fn-line"><span class="fn-body">总分：0-2分：继续肠内营养，维持原速度或增加速度，对症治疗，每班评估一次</span></div>
+                <div class="fn-line"><span class="fn-body">3-4分：继续肠内营养，减慢速度，2h后新评估</span></div>
+                <div class="fn-line"><span class="fn-body">≥5分：暂停肠内营养，重新评估或更换输入途径</span></div>
+              </td>
+            </tr>
           </tbody>
         </table>
-
-        <div class="footnote">
-          <div>总分：0-2分：继续肠内营养，维持原速度或增加速度，对症治疗，每班评估一次</div>
-          <div>3-4分：继续肠内营养，减慢速度，2h后新评估</div>
-          <div>≥5分：暂停肠内营养，重新评估或更换输入途径</div>
-        </div>
 
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
       </div>
@@ -215,16 +217,24 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .desc-col, .desc-cell { width:300px; text-align:left; padding-left:6px; }
     .sum-label, .measure-label { text-align:left; padding-left:6px; font-weight:700; }
 
-    .footnote { margin-top:6px; font-family:var(--font-song); font-size:12px; line-height:1.5; }
+    /* 表格内的备注行 */
+    .remark-cell {
+      border:1px solid #000;
+      text-align:left;
+      padding:6px 8px;
+      font-family:var(--font-song);
+      font-size:12px;
+      line-height:1.5;
+      font-weight:normal;
+      word-break:break-all;
+    }
+    .fn-line { display:flex; align-items:flex-start; margin:1px 0; }
+    .fn-label { flex:0 0 auto; white-space:nowrap; }
+    .fn-body { flex:1 1 auto; min-width:0; text-indent:2em; }
 
     .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
-    @media print {
-      :host { height:auto; overflow:visible; }
-      .no-print { display:none !important; }
-      .sheet { width:297mm; height:210mm; overflow:hidden; margin:0; box-shadow:none; zoom:1; page-break-after:always; }
-      .sheet:last-of-type { page-break-after:auto; }
-    }
+    @media print { .no-print { display:none !important; } }
   `],
 })
 export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -459,7 +469,10 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
       .record-table th{background:transparent;font-weight:700;}
       .score-col{width:58px;} .item-col{width:78px;} .desc-col,.desc-cell{width:300px;text-align:left;padding-left:6px;}
       .sum-label,.measure-label{text-align:left;padding-left:6px;font-weight:700;}
-      .footnote{margin-top:6px;font-size:12px;line-height:1.5;}
+      .remark-cell{border:1px solid #000;text-align:left;padding:6px 8px;font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
+      .fn-line{display:flex;align-items:flex-start;margin:1px 0;}
+      .fn-label{flex:0 0 auto;white-space:nowrap;}
+      .fn-body{flex:1 1 auto;min-width:0;text-indent:2em;}
       .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
