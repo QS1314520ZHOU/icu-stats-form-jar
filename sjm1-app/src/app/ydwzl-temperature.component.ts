@@ -37,6 +37,8 @@ interface TimeColumn {
   water?: string;
   cool?: string;
   warm?: string;
+  coolMark?: string;
+  warmMark?: string;
   signUserId?: string;
   signName?: string;
 }
@@ -53,6 +55,11 @@ const CODE_COOL = 'param_降温措施';
 const CODE_WARM = 'param_升温措施';
 const CODE_YISHI = 'param_Yishi';
 const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_YISHI];
+
+const COOL_OPTIONS = ['头部冰帽、背部冰毯', '前额、颈部、腋窝及腹股沟区放置冰袋', '降低室温', '血管内降温', '冬眠合剂'];
+const WARM_OPTIONS = ['复温毯、复温帽', '棉被/毛毯保暖', '提升室温', '血管内复温', '停用冬眠合剂'];
+const OPTION_MARKS = ['①', '②', '③', '④', '⑤'];
+const MARK_OTHER = '⑥';
 
 @Component({
   standalone: false,
@@ -130,11 +137,11 @@ const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_
             </tr>
             <tr>
               <th class="row-label">降温措施</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.cool || '') : '' }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.coolMark || '') : '' }}</td>
             </tr>
             <tr>
               <th class="row-label">复温措施</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.warm || '') : '' }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.warmMark || '') : '' }}</td>
             </tr>
             <tr>
               <th class="row-label">护士签名</th>
@@ -146,8 +153,8 @@ const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_
                 <div class="remark-text">
                   备注：<br>
                   1、目标温度：33℃-35℃。<br>
-                  2、降温措施：每小时降温＜1℃，达到目标温度前每15分钟测量记录核心温度一次；达到目标温度后每1小时测量核心温度，维持治疗期间每2小时记录核心温度一次；降温措施：①头部冰帽、背部冰毯；②前额、颈部、腋窝及腹股沟区放置冰袋；③降低室温；④血管内降温；⑤冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="coolOther" (change)="onFieldChange()" />。<br>
-                  3、复温：患者意识恢复或治疗结束后复温，每小时记录核心温度一次；缓慢复温，每小时复温≤0.5℃，复温时间≥5小时，12-24小时恢复核心温度36℃-37℃：①复温毯、复温帽；②棉被/毛毯保暖；③提升室温；④血管内复温；⑤停用冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="warmOther" (change)="onFieldChange()" />。<br>
+                  2、降温措施：每小时降温＜1℃，达到目标温度前每15分钟测量记录核心温度一次；达到目标温度后每1小时测量核心温度，维持治疗期间每2小时记录核心温度一次；降温措施：①头部冰帽、背部冰毯；②前额、颈部、腋窝及腹股沟区放置冰袋；③降低室温；④血管内降温；⑤冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="coolOther" disabled />。<br>
+                  3、复温：患者意识恢复或治疗结束后复温，每小时记录核心温度一次；缓慢复温，每小时复温≤0.5℃，复温时间≥5小时，12-24小时恢复核心温度36℃-37℃：①复温毯、复温帽；②棉被/毛毯保暖；③提升室温；④血管内复温；⑤停用冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="warmOther" disabled />。<br>
                   4、注意事项：亚低温治疗期间每2小时翻身、检查皮肤、记录呼吸、心率、血压；密切观察患者有无皮肤冻伤或压力性损伤、电解质紊乱、凝血功能障碍以及心率失常等并发症。
                 </div>
               </td>
@@ -329,6 +336,25 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     const kept = [...map.values()].filter(col => !!(col.body || col.water || col.cool || col.warm));
     this.columns = kept.sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
+    // 降温/复温措施 → 圈号推导，收集"其他"文本
+    const coolOthers = new Set<string>();
+    const warmOthers = new Set<string>();
+    const toMark = (val: string | undefined, opts: string[], others: Set<string>): string => {
+      const v = (val ?? '').trim();
+      if (!v) return '';
+      if (['①', '②', '③', '④', '⑤', '⑥'].includes(v)) return v;
+      const i = opts.indexOf(v);
+      if (i >= 0) return OPTION_MARKS[i];
+      others.add(v);
+      return MARK_OTHER;
+    };
+    for (const col of this.columns) {
+      col.coolMark = toMark(col.cool, COOL_OPTIONS, coolOthers);
+      col.warmMark = toMark(col.warm, WARM_OPTIONS, warmOthers);
+    }
+    this.coolOther = [...coolOthers].join('；');
+    this.warmOther = [...warmOthers].join('；');
+
     // 护士签名批量查询
     const userIds = [...new Set(this.columns.map(c => c.signUserId).filter(Boolean))];
     if (userIds.length) {
@@ -379,8 +405,6 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       next: (d) => {
         if (d) {
           if (d.recordDate) this.recordDate = d.recordDate;
-          if (d.coolOther != null) this.coolOther = d.coolOther;
-          if (d.warmOther != null) this.warmOther = d.warmOther;
           if (d.monitorModes) {
             if (d.monitorModes.anal != null) this.monitorModes.anal = d.monitorModes.anal;
             if (d.monitorModes.bladder != null) this.monitorModes.bladder = d.monitorModes.bladder;
@@ -399,8 +423,6 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     const body = {
       pid: this.pid,
       recordDate: this.recordDate,
-      coolOther: this.coolOther,
-      warmOther: this.warmOther,
       monitorModes: { anal: this.monitorModes.anal, bladder: this.monitorModes.bladder, blood: this.monitorModes.blood, axillary: this.monitorModes.axillary },
     };
     this.http.post(this.API_EXTRA_SAVE, body).subscribe({

@@ -8,6 +8,7 @@ import { App } from './app';
 import { Sjm1VeinMaintenanceComponent } from './sjm1-vein-maintenance.component';
 import { SjmCrrtVeinMaintenanceComponent } from './sjm-crrt-vein-maintenance.component';
 import { YdwzlTemperatureComponent } from './ydwzl-temperature.component';
+import { ToleranceScoreComponent } from './tolerance-score.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -16,6 +17,7 @@ import { routes } from './app.routes';
     Sjm1VeinMaintenanceComponent,
     SjmCrrtVeinMaintenanceComponent,
     YdwzlTemperatureComponent,
+    ToleranceScoreComponent,
   ],
   imports: [
     BrowserModule,
