@@ -215,11 +215,14 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .record-table th { background:transparent; font-weight:700; }
     .record-table th,
     .record-table td { color:#000; }
-    .record-table td { font-weight:700; }
-    /* 固定参考列加粗纯黑；动态√保持原样 */
+    .record-table th { font-weight:700; }
+    .record-table td { font-weight:400; }
+    /* 纵向左侧固定列 + 汇总行左标签:加粗纯黑,与表头统一 */
     .record-table td.score-col,
     .record-table td.item-col,
-    .record-table td.desc-cell { font-weight:700; color:#000; }
+    .record-table td.desc-cell,
+    .record-table td.sum-label,
+    .record-table td.measure-label { font-weight:700; color:#000; }
     .score-col { width:58px; }
     .item-col { width:78px; }
     .desc-col, .desc-cell { width:300px; text-align:left; padding-left:6px; }
@@ -229,7 +232,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
 
     /* 表格内的备注行 */
-    .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-family:var(--font-song);font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
+    .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-family:var(--font-song);font-size:12px;line-height:1.5;font-weight:normal;color:#000;word-break:break-all;}
     .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
 
     .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
@@ -451,14 +454,16 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
       const c = s.cloneNode(true) as HTMLElement;
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
       c.style.zoom = '1';
-      body += c.outerHTML;
+      c.style.transform = 'none';
+      body += '<div class="print-page">' + c.outerHTML + '</div>';
     });
     const css = `
       @page { size: A4 landscape; margin:0; }
       html,body{margin:0;padding:0;}
       body{color:#000;font-family:'SimSun','宋体',serif;}
-      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:10mm 12mm;overflow:hidden;page-break-after:always;box-shadow:none;}
-      .sheet:last-of-type{page-break-after:auto;}
+      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
+      .print-page:last-of-type{page-break-after:auto;}
+      .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:29px;line-height:1.4;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:16px;white-space:nowrap;margin:6px 0;}
@@ -466,12 +471,12 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 3px;height:30px;word-break:break-all;}
-      .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .record-table td{font-weight:700;}
-      .record-table td.score-col,.record-table td.item-col,.record-table td.desc-cell{font-weight:700;color:#000;}
+      .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .record-table th{font-weight:700;} .record-table td{font-weight:400;}
+      .record-table td.score-col,.record-table td.item-col,.record-table td.desc-cell,.record-table td.sum-label,.record-table td.measure-label{font-weight:700;color:#000;}
       .score-col{width:58px;} .item-col{width:78px;} .desc-col,.desc-cell{width:300px;text-align:left;padding-left:6px;}
       .sum-label,.measure-label{text-align:left;padding-left:6px;font-weight:700;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
-      .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
+      .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-size:12px;line-height:1.5;font-weight:normal;color:#000;word-break:break-all;}
       .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
       .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
     `;
@@ -480,7 +485,26 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
     win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 300);
+    const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
+    setTimeout(() => {
+      win.document.querySelectorAll('.print-page').forEach((pg: any) => {
+        const sheet = pg.querySelector('.sheet') as HTMLElement;
+        const table = sheet && sheet.querySelector('.record-table') as HTMLElement;
+        if (!sheet || !table) return;
+        sheet.style.transform = 'none';
+        sheet.style.width = 'auto';
+        const cs = win.getComputedStyle(sheet);
+        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const tableW = table.getBoundingClientRect().width;
+        sheet.style.width = (tableW + padX) + 'px';
+        const w = sheet.scrollWidth, h = sheet.scrollHeight;
+        if (!w || !h) return;
+        const scale = Math.min(PAGE_W / w, PAGE_H / h);
+        sheet.style.transformOrigin = 'top left';
+        sheet.style.transform = 'scale(' + scale + ')';
+      });
+      win.focus(); win.print(); win.close();
+    }, 400);
   }
 
   fmtDate(v?: string): string {

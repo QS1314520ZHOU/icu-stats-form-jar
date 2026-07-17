@@ -171,7 +171,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of pagePaddedRows(page)">
+            <tr class="data-row" *ngFor="let r of pagePaddedRows(page)">
               <td class="date-cell">
                 <span class="dt-date">{{ r ? fmtDate(r.time) : '' }}</span>
                 <span class="dt-time">{{ r ? fmtTime(r.time) : '' }}</span>
@@ -229,7 +229,8 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .record-table th { background:transparent; font-weight:700; }
     .record-table th,
     .record-table td { color:#000; }
-    .record-table td { font-weight:700; }
+    .record-table th { font-weight:700; }
+    .record-table tr.data-row td { font-weight:400; }
     .date-col { width:70px; }
     .iad-sub { width:auto; }
     .pt-score-col { width:34px; }
@@ -489,14 +490,16 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       const c = s.cloneNode(true) as HTMLElement;
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
       c.style.zoom = '1';
-      body += c.outerHTML;
+      c.style.transform = 'none';
+      body += '<div class="print-page">' + c.outerHTML + '</div>';
     });
     const css = `
       @page { size: A4 landscape; margin:0; }
       html,body{margin:0;padding:0;}
       body{color:#000;font-family:'SimSun','宋体',serif;}
-      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:10mm 12mm;overflow:hidden;page-break-after:always;box-shadow:none;}
-      .sheet:last-of-type{page-break-after:auto;}
+      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
+      .print-page:last-of-type{page-break-after:auto;}
+      .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:26px;line-height:1.4;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-size:15px;white-space:nowrap;margin:6px 0;}
@@ -504,7 +507,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:3px 2px;height:30px;word-break:break-all;vertical-align:middle;}
-      .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .record-table td{font-weight:700;}
+      .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .legend-row td{font-weight:700;color:#000;} .record-table tr.data-row td{font-weight:400;}
       .date-col{width:70px;} .iad-sub{width:auto;} .pt-score-col{width:34px;}
       .total-col{width:44px;} .measure-col{width:96px;} .sign-col{width:60px;}
       .legend-label{font-weight:700;} .legend-desc{text-align:left;padding-left:5px;line-height:1.35;} .legend-blank{background:#f7f7f7;}
@@ -518,7 +521,26 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 300);
+    const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
+    setTimeout(() => {
+      win.document.querySelectorAll('.print-page').forEach((pg: any) => {
+        const sheet = pg.querySelector('.sheet') as HTMLElement;
+        const table = sheet && sheet.querySelector('.record-table') as HTMLElement;
+        if (!sheet || !table) return;
+        sheet.style.transform = 'none';
+        sheet.style.width = 'auto';
+        const cs = win.getComputedStyle(sheet);
+        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const tableW = table.getBoundingClientRect().width;
+        sheet.style.width = (tableW + padX) + 'px';
+        const w = sheet.scrollWidth, h = sheet.scrollHeight;
+        if (!w || !h) return;
+        const scale = Math.min(PAGE_W / w, PAGE_H / h);
+        sheet.style.transformOrigin = 'top left';
+        sheet.style.transform = 'scale(' + scale + ')';
+      });
+      win.focus(); win.print(); win.close();
+    }, 400);
   }
 
   fmtDate(v?: string): string {

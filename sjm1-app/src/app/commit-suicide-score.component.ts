@@ -149,7 +149,7 @@ interface RenderPage {
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of pagePaddedRows(page)">
+            <tr class="data-row" *ngFor="let r of pagePaddedRows(page)">
               <td class="date-col">{{ r ? fmtDateTime(r.time) : '' }}</td>
               <td class="check-cell" *ngFor="let it of items">
                 {{ r && r.checks[it.key] ? '√' : '' }}
@@ -201,8 +201,9 @@ interface RenderPage {
     .item-col { width:auto; height:118px; vertical-align:middle; padding:2px 0; }
     /* 风险项表头竖排，节省横向宽度 */
     .v-text { writing-mode:vertical-rl; text-orientation:upright; letter-spacing:1px; line-height:1.15; display:inline-block; max-height:112px; overflow:hidden; }
-    .score-cell { height:18px; }
+    .score-cell { height:18px; font-weight:700; color:#000; }
     .check-cell { font-weight:700; }
+    .record-table tr.data-row td { font-weight:400; }
     .total-col { width:34px; }
     .risk-col { width:56px; }
     .measure-col { width:96px; text-align:left; padding-left:4px; }
@@ -460,14 +461,16 @@ export class CommitSuicideScoreComponent
       const c = s.cloneNode(true) as HTMLElement;
       c.querySelectorAll('.no-print,.toolbar').forEach((el) => el.remove());
       c.style.zoom = '1';
-      body += c.outerHTML;
+      c.style.transform = 'none';
+      body += '<div class="print-page">' + c.outerHTML + '</div>';
     });
     const css = `
       @page { size: A4 landscape; margin:0; }
       html,body{margin:0;padding:0;}
       body{color:#000;font-family:'SimSun','宋体',serif;}
-      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:10mm 12mm;overflow:hidden;page-break-after:always;box-shadow:none;}
-      .sheet:last-of-type{page-break-after:auto;}
+      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
+      .print-page:last-of-type{page-break-after:auto;}
+      .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:29px;line-height:1.4;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:16px;white-space:nowrap;margin:6px 0;}
@@ -478,7 +481,8 @@ export class CommitSuicideScoreComponent
       .record-table td{height:30px;}
       .date-col{width:82px;} .item-col{width:auto;height:118px;}
       .v-text{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:1px;line-height:1.15;display:inline-block;max-height:112px;overflow:hidden;}
-      .score-cell{height:18px;} .check-cell{font-weight:700;}
+      .score-cell{height:18px;font-weight:700;color:#000;} .record-table tr.data-row td{font-weight:400;}
+      .check-cell{font-weight:700;}
       .total-col{width:34px;} .risk-col{width:56px;}
       .measure-col{width:96px;text-align:left;padding-left:4px;} .sign-col{width:60px;}
       .footnote{margin-top:6px;font-size:12px;line-height:1.6;}
@@ -492,10 +496,26 @@ export class CommitSuicideScoreComponent
     win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
     win.focus();
+    const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
     setTimeout(() => {
-      win.print();
-      win.close();
-    }, 300);
+      win.document.querySelectorAll('.print-page').forEach((pg: any) => {
+        const sheet = pg.querySelector('.sheet') as HTMLElement;
+        const table = sheet && sheet.querySelector('.record-table') as HTMLElement;
+        if (!sheet || !table) return;
+        sheet.style.transform = 'none';
+        sheet.style.width = 'auto';
+        const cs = win.getComputedStyle(sheet);
+        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const tableW = table.getBoundingClientRect().width;
+        sheet.style.width = (tableW + padX) + 'px';
+        const w = sheet.scrollWidth, h = sheet.scrollHeight;
+        if (!w || !h) return;
+        const scale = Math.min(PAGE_W / w, PAGE_H / h);
+        sheet.style.transformOrigin = 'top left';
+        sheet.style.transform = 'scale(' + scale + ')';
+      });
+      win.focus(); win.print(); win.close();
+    }, 400);
   }
 
   fmtDateTime(v?: string): string {

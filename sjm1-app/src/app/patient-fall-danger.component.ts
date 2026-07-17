@@ -366,8 +366,8 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   morseCheck(r: FallRow, field: string, score: number): string { return this.num(r.factor[field]) === score ? '√' : ''; }
   /** 适用方法 - 临床判定法：任一临床布尔为 true 打√ */
   clinicalUsed(r: FallRow): boolean { return this.CLINICAL.some(c => r.factor[c.key] === true); }
-  /** 适用方法 - Morse：有任一 Morse 分值或有总分打√ */
-  morseUsed(r: FallRow): boolean { return this.MORSE.some(m => this.num(r.factor[m.field]) !== null) || r.total !== null; }
+  /** 适用方法 - Morse：Morse 量表下有任一项填了数据才打√ */
+  morseUsed(r: FallRow): boolean { return this.MORSE.some(m => this.num(r.factor[m.field]) !== null); }
 
   private parseMeasures(list: any[]): string {
     const seen = new Set<string>(); const out: string[] = [];
@@ -478,12 +478,13 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     const sheets = this.host.nativeElement.querySelectorAll('.sheet');
     if (!sheets.length) return;
     let body = '';
-    sheets.forEach((s: HTMLElement) => { const c = s.cloneNode(true) as HTMLElement; c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove()); c.style.zoom = '1'; body += c.outerHTML; });
+    sheets.forEach((s: HTMLElement) => { const c = s.cloneNode(true) as HTMLElement; c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove()); c.style.zoom = '1'; c.style.transform = 'none'; body += '<div class="print-page">' + c.outerHTML + '</div>'; });
     const css = `
       @page { size: A4 landscape; margin:0; }
       html,body{margin:0;padding:0;} body{color:#000;font-family:'SimSun','宋体',serif;}
-      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:8mm 10mm;overflow:hidden;page-break-after:always;box-shadow:none;}
-      .sheet:last-of-type{page-break-after:auto;}
+      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
+      .print-page:last-of-type{page-break-after:auto;}
+      .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:8mm 10mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;} .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:24px;line-height:1.4;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:14px;font-size:14px;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;} .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
@@ -506,6 +507,25 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
     win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close(); win.focus();
-    setTimeout(() => { win.print(); win.close(); }, 300);
+    const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
+    setTimeout(() => {
+      win.document.querySelectorAll('.print-page').forEach((pg: any) => {
+        const sheet = pg.querySelector('.sheet') as HTMLElement;
+        const table = sheet && sheet.querySelector('.record-table') as HTMLElement;
+        if (!sheet || !table) return;
+        sheet.style.transform = 'none';
+        sheet.style.width = 'auto';
+        const cs = win.getComputedStyle(sheet);
+        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const tableW = table.getBoundingClientRect().width;
+        sheet.style.width = (tableW + padX) + 'px';
+        const w = sheet.scrollWidth, h = sheet.scrollHeight;
+        if (!w || !h) return;
+        const scale = Math.min(PAGE_W / w, PAGE_H / h);
+        sheet.style.transformOrigin = 'top left';
+        sheet.style.transform = 'scale(' + scale + ')';
+      });
+      win.focus(); win.print(); win.close();
+    }, 400);
   }
 }
