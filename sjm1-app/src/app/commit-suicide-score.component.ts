@@ -510,8 +510,10 @@ export class CommitSuicideScoreComponent
         const w = sheet.scrollWidth, h = sheet.scrollHeight;
         if (!w || !h) return;
         const scale = Math.min(PAGE_W / w, PAGE_H / h);
+        const offsetX = Math.max(0, (PAGE_W - w * scale) / 2);
+        const offsetY = Math.max(0, (PAGE_H - h * scale) / 2);
         sheet.style.transformOrigin = 'top left';
-        sheet.style.transform = 'scale(' + scale + ')';
+        sheet.style.transform = 'translate(' + offsetX + 'px,' + offsetY + 'px) scale(' + scale + ')';
       });
       win.focus(); win.print(); win.close();
     }, 400);

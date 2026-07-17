@@ -601,10 +601,9 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => {
       win.document.querySelectorAll('.print-page').forEach((pg: any) => {
         const sheet = pg.querySelector('.sheet') as HTMLElement;
-        const table = sheet && sheet.querySelector('.record-table') as HTMLElement;
+        const table = sheet && (sheet.querySelector('.record-table') as HTMLElement);
         if (!sheet || !table) return;
         sheet.style.transform = 'none';
-        sheet.style.width = 'auto';
         const cs = win.getComputedStyle(sheet);
         const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
         const tableW = table.getBoundingClientRect().width;
@@ -612,8 +611,10 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
         const w = sheet.scrollWidth, h = sheet.scrollHeight;
         if (!w || !h) return;
         const scale = Math.min(PAGE_W / w, PAGE_H / h);
+        const offsetX = Math.max(0, (PAGE_W - w * scale) / 2);
+        const offsetY = Math.max(0, (PAGE_H - h * scale) / 2);
         sheet.style.transformOrigin = 'top left';
-        sheet.style.transform = 'scale(' + scale + ')';
+        sheet.style.transform = 'translate(' + offsetX + 'px,' + offsetY + 'px) scale(' + scale + ')';
       });
       win.focus(); win.print(); win.close();
     }, 400);
