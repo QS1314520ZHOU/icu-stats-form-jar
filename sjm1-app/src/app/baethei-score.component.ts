@@ -67,14 +67,14 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
   selector: 'app-baethei-score',
   template: `
     <div class="toolbar no-print">
-      <div class="toolbar-left">
-        <span class="auditor-label">审核者签名：</span>
-        <input class="auditor-input" list="auditorList" [(ngModel)]="auditorName" (change)="onAuditorChange()" placeholder="输入姓名搜索" />
-        <datalist id="auditorList">
-          <option *ngFor="let a of accountList" [value]="a.accountName">{{ a.accountName }}</option>
-        </datalist>
-      </div>
       <div class="toolbar-right">
+        <span class="auditor-field">
+          <span class="auditor-label">审核者签名：</span>
+          <select class="auditor-select" [(ngModel)]="auditorName" (ngModelChange)="onAuditorChange()">
+            <option [ngValue]="''">（空）</option>
+            <option *ngFor="let a of orderedAccounts" [ngValue]="a.accountName">{{ a.accountName }}</option>
+          </select>
+        </span>
         <span class="page-select">页码选择：
           <select [(ngModel)]="selectedPage">
             <option [ngValue]="null">全部</option>
@@ -160,11 +160,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
         </table>
 
         <div class="footnote">
-          <div class="fn"><b>备注：</b>总分 0-100 分。</div>
-          <div class="fn">①100 分：无依赖；1 次/月评估。</div>
-          <div class="fn">②61-99 分：轻度依赖，日常生活少部分需要帮助；1 次/半月评估。</div>
-          <div class="fn">③41-60 分：中度依赖，日常生活大部分需要帮助；1 次/周评估。</div>
-          <div class="fn">④≤40 分：重度依赖，日常生活全部需要照顾；2 次/周评估，病情/因子改变随时评估。</div>
+          备注：总分 0-100 分。①100 分：无依赖；1 次/月评估。②61-99 分：轻度依赖，日常生活少部分需要帮助；1 次/半月评估。③41-60 分：中度依赖，日常生活大部分需要帮助；1 次/周评估。④≤40 分：重度依赖，日常生活全部需要照顾；2 次/周评估，病情/因子改变随时评估。
         </div>
 
         <div class="review-sign">审核护士签名：{{auditorName || '__________'}}</div>
@@ -174,11 +170,11 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
   `,
   styles: [`
     :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; --fz-h2:26px; --fz-xs4:15px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
-    .toolbar { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
-    .toolbar-left { display:flex; align-items:center; gap:8px; }
-    .auditor-label { font-family:var(--font-song); font-size:14px; white-space:nowrap; }
-    .auditor-input { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:140px; }
+    .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
+    .auditor-field { display:flex; align-items:center; }
+    .auditor-label { font-family:var(--font-song); font-size:14px; white-space:nowrap; }
+    .auditor-select { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; min-width:140px; }
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
     .loading { padding:16px; font-family:var(--font-song); }
@@ -431,39 +427,46 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadAccountList(): void {
     this.http.get<any[]>(this.API_ACCOUNT_ALL).subscribe({
       next: (list) => {
-        if (Array.isArray(list)) {
-          this.accountList = list.map(a => ({ accountId: a.accountId || '', accountName: a.accountName || '' }));
-        }
+        this.accountList = (Array.isArray(list) ? list : [])
+          .map(a => ({
+            accountId: a?.accountId || a?.username || a?.id || '',
+            accountName: a?.accountName || a?.trueName || '',
+          }))
+          .filter(a => a.accountName);
+        this.cdr.detectChanges();
       },
-      error: () => {},
+      error: (err) => { console.error('[baethei] loadAccountList failed', err); },
     });
+  }
+
+  /** 下拉选项：把当前登录者放到最前面（其余保持原顺序） */
+  get orderedAccounts(): { accountId: string; accountName: string }[] {
+    const login = this.hostPatient.getAccount();
+    const loginName = login?.trueName || '';
+    const list = [...this.accountList];
+    if (loginName) {
+      const idx = list.findIndex(a => a.accountName === loginName);
+      const loginOpt = idx >= 0
+        ? list.splice(idx, 1)[0]
+        : { accountId: login.username || login.accountId || login.id || '', accountName: loginName };
+      return [loginOpt, ...list];
+    }
+    return list;
   }
 
   private loadExtra(): void {
     this.http.get<any>(this.API_EXTRA_LATEST, { params: { pid: this.pid, formCode: 'baetheiForm' } }).subscribe({
       next: (d) => {
-        if (d) {
-          if (d.auditorId) this.auditorId = d.auditorId;
-          if (d.auditorName) this.auditorName = d.auditorName;
-        }
-        // 无保存值时使用登录账号
-        if (!this.auditorName) {
-          const acct = this.hostPatient.getAccount();
-          if (acct?.trueName) {
-            this.auditorName = acct.trueName;
-            this.auditorId = acct.username || acct.accountId || '';
-          }
+        if (d && d.auditorName) {
+          this.auditorName = d.auditorName;
+          this.auditorId = d.auditorId || '';
+        } else {
+          this.auditorName = '';   // 没保存过就保持空
+          this.auditorId = '';
         }
         this.cdr.detectChanges();
       },
-      error: () => {
-        const acct = this.hostPatient.getAccount();
-        if (acct?.trueName) {
-          this.auditorName = acct.trueName;
-          this.auditorId = acct.username || acct.accountId || '';
-        }
-        this.cdr.detectChanges();
-      },
+      error: () => { this.cdr.detectChanges(); },
     });
   }
 

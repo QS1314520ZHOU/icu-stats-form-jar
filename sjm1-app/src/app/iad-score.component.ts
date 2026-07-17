@@ -199,7 +199,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
             <!-- 备注：表格内跨整行，左对齐 -->
             <tr>
               <td class="footnote-cell" [attr.colspan]="12">
-                <div class="fn"><b>备注：</b></div>
+                <div class="fn">备注：</div>
                 <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者每日评估1次，1级、2级患者每日评估2次。</div>
                 <div class="fn">2、PAT量表采用 Likert 3 点计分法，各部分评分最佳至最差为 1~3 分；总分 4~12 分，4~6 分为低风险，7~12 分为高风险。</div>
                 <div class="fn">3、相关影响因素包括：低蛋白、使用抗生素、管饲饮食、失禁保护材料、其他。</div>
