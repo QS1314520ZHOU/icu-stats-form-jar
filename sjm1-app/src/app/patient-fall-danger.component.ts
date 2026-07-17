@@ -505,16 +505,15 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
-    win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
+    win.document.write('<html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
     win.document.close(); win.focus();
     const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
     setTimeout(() => {
       win.document.querySelectorAll('.print-page').forEach((pg: any) => {
         const sheet = pg.querySelector('.sheet') as HTMLElement;
-        const table = sheet && sheet.querySelector('.record-table') as HTMLElement;
+        const table = sheet && (sheet.querySelector('.record-table') as HTMLElement);
         if (!sheet || !table) return;
         sheet.style.transform = 'none';
-        sheet.style.width = 'auto';
         const cs = win.getComputedStyle(sheet);
         const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
         const tableW = table.getBoundingClientRect().width;
