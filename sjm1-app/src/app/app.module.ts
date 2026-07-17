@@ -10,6 +10,8 @@ import { SjmCrrtVeinMaintenanceComponent } from './sjm-crrt-vein-maintenance.com
 import { YdwzlTemperatureComponent } from './ydwzl-temperature.component';
 import { ToleranceScoreComponent } from './tolerance-score.component';
 import { CommitSuicideScoreComponent } from './commit-suicide-score.component';
+import { IadScoreComponent } from './iad-score.component';
+import { BaetheiScoreComponent } from './baethei-score.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -20,6 +22,8 @@ import { routes } from './app.routes';
     YdwzlTemperatureComponent,
     ToleranceScoreComponent,
     CommitSuicideScoreComponent,
+    IadScoreComponent,
+    BaetheiScoreComponent,
   ],
   imports: [
     BrowserModule,

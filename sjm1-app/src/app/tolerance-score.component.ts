@@ -194,7 +194,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
   `,
   styles: [`
     :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; --fz-h2:29px; --fz-xs4:16px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
-    .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; }
+    .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }

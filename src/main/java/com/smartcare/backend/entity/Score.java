@@ -16,9 +16,12 @@ public class Score {
     private Boolean valid;
     private String inputUserId;
     private String inputUser;
+    private String remarks;
     private List<NurseMeasure> nurseMeasureList;
     private ToleranceScore toleranceScore;
     private CommitSuicideScore commitSuicideScore;
+    private IncontinenceScore incontinenceScore;
+    private SelfCareAbility selfCareAbility;
 
     public static class NurseMeasure {
         private String code;
@@ -95,6 +98,57 @@ public class Score {
         public void setOtherSelect(Boolean otherSelect) { this.otherSelect = otherSelect; }
     }
 
+    public static class IncontinenceScore {
+        private Integer iad;
+        private Integer irritantType;
+        private Integer stimulationTime;
+        private Integer perineum;
+        private Integer influenceFactor;
+        public Integer getIad() { return iad; }
+        public void setIad(Integer iad) { this.iad = iad; }
+        public Integer getIrritantType() { return irritantType; }
+        public void setIrritantType(Integer irritantType) { this.irritantType = irritantType; }
+        public Integer getStimulationTime() { return stimulationTime; }
+        public void setStimulationTime(Integer stimulationTime) { this.stimulationTime = stimulationTime; }
+        public Integer getPerineum() { return perineum; }
+        public void setPerineum(Integer perineum) { this.perineum = perineum; }
+        public Integer getInfluenceFactor() { return influenceFactor; }
+        public void setInfluenceFactor(Integer influenceFactor) { this.influenceFactor = influenceFactor; }
+    }
+
+    public static class SelfCareAbility {
+        private Integer eat;
+        private Integer shower;
+        private Integer modification;
+        private Integer dressing;
+        private Integer defecationControl;
+        private Integer controllingUrination;
+        private Integer toilet;
+        private Integer bedChairTransfer;
+        private Integer walk;
+        private Integer upAndDownStairs;
+        public Integer getEat() { return eat; }
+        public void setEat(Integer eat) { this.eat = eat; }
+        public Integer getShower() { return shower; }
+        public void setShower(Integer shower) { this.shower = shower; }
+        public Integer getModification() { return modification; }
+        public void setModification(Integer modification) { this.modification = modification; }
+        public Integer getDressing() { return dressing; }
+        public void setDressing(Integer dressing) { this.dressing = dressing; }
+        public Integer getDefecationControl() { return defecationControl; }
+        public void setDefecationControl(Integer defecationControl) { this.defecationControl = defecationControl; }
+        public Integer getControllingUrination() { return controllingUrination; }
+        public void setControllingUrination(Integer controllingUrination) { this.controllingUrination = controllingUrination; }
+        public Integer getToilet() { return toilet; }
+        public void setToilet(Integer toilet) { this.toilet = toilet; }
+        public Integer getBedChairTransfer() { return bedChairTransfer; }
+        public void setBedChairTransfer(Integer bedChairTransfer) { this.bedChairTransfer = bedChairTransfer; }
+        public Integer getWalk() { return walk; }
+        public void setWalk(Integer walk) { this.walk = walk; }
+        public Integer getUpAndDownStairs() { return upAndDownStairs; }
+        public void setUpAndDownStairs(Integer upAndDownStairs) { this.upAndDownStairs = upAndDownStairs; }
+    }
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getPid() { return pid; }
@@ -119,4 +173,10 @@ public class Score {
     public void setToleranceScore(ToleranceScore toleranceScore) { this.toleranceScore = toleranceScore; }
     public CommitSuicideScore getCommitSuicideScore() { return commitSuicideScore; }
     public void setCommitSuicideScore(CommitSuicideScore commitSuicideScore) { this.commitSuicideScore = commitSuicideScore; }
+    public String getRemarks() { return remarks; }
+    public void setRemarks(String remarks) { this.remarks = remarks; }
+    public IncontinenceScore getIncontinenceScore() { return incontinenceScore; }
+    public void setIncontinenceScore(IncontinenceScore incontinenceScore) { this.incontinenceScore = incontinenceScore; }
+    public SelfCareAbility getSelfCareAbility() { return selfCareAbility; }
+    public void setSelfCareAbility(SelfCareAbility selfCareAbility) { this.selfCareAbility = selfCareAbility; }
 }
