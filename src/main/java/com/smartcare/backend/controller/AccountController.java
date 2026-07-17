@@ -32,6 +32,7 @@ public class AccountController {
             accounts = this.service.findAll();
         }
         List<AccountDto> list = accounts.stream()
+                .filter(a -> a.getValid() == null || !"invalid".equalsIgnoreCase(a.getValid().trim()))
                 .map(a -> new AccountDto(a.getUsername(), a.getTrueName()))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(list);

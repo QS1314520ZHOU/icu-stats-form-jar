@@ -12,6 +12,7 @@ import { ToleranceScoreComponent } from './tolerance-score.component';
 import { CommitSuicideScoreComponent } from './commit-suicide-score.component';
 import { IadScoreComponent } from './iad-score.component';
 import { BaetheiScoreComponent } from './baethei-score.component';
+import { PatientFallDangerComponent } from './patient-fall-danger.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -24,6 +25,7 @@ import { routes } from './app.routes';
     CommitSuicideScoreComponent,
     IadScoreComponent,
     BaetheiScoreComponent,
+    PatientFallDangerComponent,
   ],
   imports: [
     BrowserModule,

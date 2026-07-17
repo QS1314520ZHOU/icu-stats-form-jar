@@ -70,10 +70,18 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
       <div class="toolbar-right">
         <span class="auditor-field">
           <span class="auditor-label">审核者签名：</span>
-          <select class="auditor-select" [(ngModel)]="auditorName" (ngModelChange)="onAuditorChange()">
-            <option [ngValue]="''">（空）</option>
-            <option *ngFor="let a of orderedAccounts" [ngValue]="a.accountName">{{ a.accountName }}</option>
-          </select>
+          <span class="auditor-combo">
+            <input class="auditor-input" type="text"
+                   [(ngModel)]="auditorQuery"
+                   [placeholder]="auditorName || '搜索并选择'"
+                   (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
+            <ul class="auditor-menu" *ngIf="auditorOpen">
+              <li class="auditor-opt empty-opt" (mousedown)="clearAuditor()">（空）</li>
+              <li class="auditor-opt" *ngFor="let a of filteredAccounts"
+                  (mousedown)="selectAuditor(a)">{{ a.accountName }}</li>
+              <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
+            </ul>
+          </span>
         </span>
         <span class="page-select">页码选择：
           <select [(ngModel)]="selectedPage">
@@ -174,7 +182,13 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
     .auditor-field { display:flex; align-items:center; }
     .auditor-label { font-family:var(--font-song); font-size:14px; white-space:nowrap; }
-    .auditor-select { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; min-width:140px; }
+    .auditor-combo { position:relative; display:inline-block; }
+    .auditor-input { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:160px; }
+    .auditor-menu { position:absolute; top:100%; left:0; right:0; margin:2px 0 0; padding:4px 0; list-style:none; max-height:240px; overflow-y:auto; background:#fff; border:1px solid #d9d9d9; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:100; }
+    .auditor-opt { padding:5px 10px; font-size:14px; cursor:pointer; white-space:nowrap; }
+    .auditor-opt:hover { background:#f0f7ff; }
+    .empty-opt { color:#999; }
+    .no-opt { color:#999; cursor:default; }
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
     .loading { padding:16px; font-family:var(--font-song); }
@@ -245,7 +259,13 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
 
   auditorName = '';
   auditorId = '';
+  auditorQuery = '';
+  auditorOpen = false;
   accountList: { accountId: string; accountName: string }[] = [];
+  private blurTimer: any = null;
+
+  /** 屏蔽的系统账号（按 trueName 精确匹配） */
+  private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
 
   readonly rowsPerPage = 12;
   private pid = '';
@@ -303,6 +323,8 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     this.age = null;
     this.auditorName = '';
     this.auditorId = '';
+    this.auditorQuery = '';
+    this.auditorOpen = false;
     this.cdr.detectChanges();
   }
 
@@ -439,12 +461,18 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  /** 下拉选项：把当前登录者放到最前面（其余保持原顺序） */
+  /** 有效且未被屏蔽的账号 */
+  private get baseAccounts(): { accountId: string; accountName: string }[] {
+    return this.accountList.filter(a =>
+      a.accountName && !this.AUDITOR_BLOCK.includes(a.accountName.trim()));
+  }
+
+  /** 登录者置顶 */
   get orderedAccounts(): { accountId: string; accountName: string }[] {
     const login = this.hostPatient.getAccount();
-    const loginName = login?.trueName || '';
-    const list = [...this.accountList];
-    if (loginName) {
+    const loginName = (login?.trueName || '').trim();
+    const list = [...this.baseAccounts];
+    if (loginName && !this.AUDITOR_BLOCK.includes(loginName)) {
       const idx = list.findIndex(a => a.accountName === loginName);
       const loginOpt = idx >= 0
         ? list.splice(idx, 1)[0]
@@ -454,6 +482,13 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     return list;
   }
 
+  /** 按输入检索 */
+  get filteredAccounts(): { accountId: string; accountName: string }[] {
+    const q = (this.auditorQuery || '').trim().toLowerCase();
+    const base = this.orderedAccounts;
+    return q ? base.filter(a => a.accountName.toLowerCase().includes(q)) : base;
+  }
+
   private loadExtra(): void {
     this.http.get<any>(this.API_EXTRA_LATEST, { params: { pid: this.pid, formCode: 'baetheiForm' } }).subscribe({
       next: (d) => {
@@ -461,33 +496,55 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
           this.auditorName = d.auditorName;
           this.auditorId = d.auditorId || '';
         } else {
-          this.auditorName = '';   // 没保存过就保持空
+          this.auditorName = '';
           this.auditorId = '';
         }
+        this.auditorQuery = this.auditorName;
         this.cdr.detectChanges();
       },
-      error: () => { this.cdr.detectChanges(); },
+      error: () => {
+        this.auditorQuery = this.auditorName;
+        this.cdr.detectChanges();
+      },
     });
   }
 
-  onAuditorChange(): void {
-    const match = this.accountList.find(a => a.accountName === this.auditorName);
-    if (match) {
-      this.auditorId = match.accountId;
-    } else {
-      this.auditorId = '';
-    }
+  onAuditorFocus(): void {
+    if (this.blurTimer) { clearTimeout(this.blurTimer); this.blurTimer = null; }
+    this.auditorOpen = true;
+    this.auditorQuery = '';
+  }
+
+  onAuditorBlur(): void {
+    this.blurTimer = setTimeout(() => {
+      this.auditorOpen = false;
+      this.auditorQuery = this.auditorName;
+      this.cdr.detectChanges();
+    }, 150);
+  }
+
+  selectAuditor(a: { accountId: string; accountName: string }): void {
+    this.auditorName = a.accountName;
+    this.auditorId = a.accountId;
+    this.auditorQuery = a.accountName;
+    this.auditorOpen = false;
+    this.saveAuditor();
+  }
+
+  clearAuditor(): void {
+    this.auditorName = '';
+    this.auditorId = '';
+    this.auditorQuery = '';
+    this.auditorOpen = false;
+    this.saveAuditor();
+  }
+
+  private saveAuditor(): void {
     if (!this.pid) return;
-    const body = {
-      pid: this.pid,
-      formCode: 'baetheiForm',
-      auditorId: this.auditorId,
-      auditorName: this.auditorName,
-    };
-    this.http.post(this.API_EXTRA_SAVE, body).subscribe({
-      next: () => {},
-      error: (err) => { console.error('[baethei] saveExtra failed', err); },
-    });
+    this.http.post(this.API_EXTRA_SAVE, {
+      pid: this.pid, formCode: 'baetheiForm',
+      auditorId: this.auditorId, auditorName: this.auditorName,
+    }).subscribe({ next: () => {}, error: (e) => console.error('[baethei] saveExtra failed', e) });
   }
 
   private calcAge(birthday?: string): number | null {

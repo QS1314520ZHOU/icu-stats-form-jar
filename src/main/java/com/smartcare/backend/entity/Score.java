@@ -22,6 +22,7 @@ public class Score {
     private CommitSuicideScore commitSuicideScore;
     private IncontinenceScore incontinenceScore;
     private SelfCareAbility selfCareAbility;
+    private PatientFallDangerFactorV2 patientFallDangerFactorV2;
 
     public static class NurseMeasure {
         private String code;
@@ -149,6 +150,48 @@ public class Score {
         public void setUpAndDownStairs(Integer upAndDownStairs) { this.upAndDownStairs = upAndDownStairs; }
     }
 
+    public static class PatientFallDangerFactorV2 {
+        private Integer fallHistory;
+        private Integer otherDiagnosis;
+        private Integer useWalkTool;
+        private Integer intravenousInjection;
+        private Integer walk;
+        private Integer mentality;
+        private Boolean age;
+        private Boolean preHospitalization;
+        private Boolean exist;
+        private Boolean sixHours;
+        private Boolean thisHospitalization;
+        private Boolean hunmiOntanhaun;
+        private Boolean sylzys;
+        public Integer getFallHistory() { return fallHistory; }
+        public void setFallHistory(Integer fallHistory) { this.fallHistory = fallHistory; }
+        public Integer getOtherDiagnosis() { return otherDiagnosis; }
+        public void setOtherDiagnosis(Integer otherDiagnosis) { this.otherDiagnosis = otherDiagnosis; }
+        public Integer getUseWalkTool() { return useWalkTool; }
+        public void setUseWalkTool(Integer useWalkTool) { this.useWalkTool = useWalkTool; }
+        public Integer getIntravenousInjection() { return intravenousInjection; }
+        public void setIntravenousInjection(Integer intravenousInjection) { this.intravenousInjection = intravenousInjection; }
+        public Integer getWalk() { return walk; }
+        public void setWalk(Integer walk) { this.walk = walk; }
+        public Integer getMentality() { return mentality; }
+        public void setMentality(Integer mentality) { this.mentality = mentality; }
+        public Boolean getAge() { return age; }
+        public void setAge(Boolean age) { this.age = age; }
+        public Boolean getPreHospitalization() { return preHospitalization; }
+        public void setPreHospitalization(Boolean preHospitalization) { this.preHospitalization = preHospitalization; }
+        public Boolean getExist() { return exist; }
+        public void setExist(Boolean exist) { this.exist = exist; }
+        public Boolean getSixHours() { return sixHours; }
+        public void setSixHours(Boolean sixHours) { this.sixHours = sixHours; }
+        public Boolean getThisHospitalization() { return thisHospitalization; }
+        public void setThisHospitalization(Boolean thisHospitalization) { this.thisHospitalization = thisHospitalization; }
+        public Boolean getHunmiOntanhaun() { return hunmiOntanhaun; }
+        public void setHunmiOntanhaun(Boolean hunmiOntanhaun) { this.hunmiOntanhaun = hunmiOntanhaun; }
+        public Boolean getSylzys() { return sylzys; }
+        public void setSylzys(Boolean sylzys) { this.sylzys = sylzys; }
+    }
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getPid() { return pid; }
@@ -179,4 +222,6 @@ public class Score {
     public void setIncontinenceScore(IncontinenceScore incontinenceScore) { this.incontinenceScore = incontinenceScore; }
     public SelfCareAbility getSelfCareAbility() { return selfCareAbility; }
     public void setSelfCareAbility(SelfCareAbility selfCareAbility) { this.selfCareAbility = selfCareAbility; }
+    public PatientFallDangerFactorV2 getPatientFallDangerFactorV2() { return patientFallDangerFactorV2; }
+    public void setPatientFallDangerFactorV2(PatientFallDangerFactorV2 patientFallDangerFactorV2) { this.patientFallDangerFactorV2 = patientFallDangerFactorV2; }
 }
