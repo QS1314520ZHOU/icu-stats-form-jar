@@ -72,15 +72,6 @@ interface RenderPage { index: number; rows: FallRow[]; }
             </ul>
           </span>
         </span>
-        <span class="ctl">结果：<input class="txt" type="text" [(ngModel)]="result" (change)="saveExtra()" /></span>
-        <span class="ctl">日期：<input class="txt" type="date" [(ngModel)]="resultDate" (change)="saveExtra()" /></span>
-        <span class="ctl">是否跌倒：
-          <select [(ngModel)]="fell" (ngModelChange)="saveExtra()">
-            <option [ngValue]="''">—</option>
-            <option [ngValue]="'是'">是</option>
-            <option [ngValue]="'否'">否</option>
-          </select>
-        </span>
         <span class="page-select">页码：
           <select [(ngModel)]="selectedPage">
             <option [ngValue]="null">全部</option>
@@ -109,22 +100,45 @@ interface RenderPage { index: number; rows: FallRow[]; }
 
         <table class="record-table">
           <thead>
+            <!-- HR1 顶层分组 -->
             <tr>
-              <th class="date-col" rowspan="3">日期/时间</th>
-              <th [attr.colspan]="CLINICAL.length">临床判定法</th>
-              <th [attr.colspan]="morseLeafCount">Morse 评分量表</th>
-              <th class="total-col" rowspan="3">总分</th>
-              <th class="risk-col vtext" rowspan="3">跌倒风险</th>
-              <th class="measure-col" rowspan="3">预防措施</th>
-              <th class="sign-col" rowspan="3">签名</th>
+              <th class="date-col" rowspan="4">日期/时间</th>
+              <th colspan="2">适用方法</th>
+              <th colspan="7">临床判定法</th>
+              <th [attr.colspan]="morseLeafCount + 2">Morse 评分量表</th>
+              <th class="risk-col vtext" rowspan="4">跌倒风险</th>
+              <th class="measure-col" rowspan="4">预防措施</th>
+              <th class="sign-col" rowspan="4">签名</th>
             </tr>
+            <!-- HR2 项目行 -->
             <tr>
-              <th *ngFor="let c of CLINICAL" class="cond-col vtext" rowspan="2">{{ c.label }}</th>
+              <th class="method-col vtext" rowspan="3">临床判定法</th>
+              <th class="method-col vtext" rowspan="3">Morse评分量表</th>
+              <th class="cond-col vtext" rowspan="3">昏迷或完全瘫痪</th>
+              <th colspan="2">存在以下情况之一</th>
+              <th colspan="4">存在以下情况之一</th>
+              <th class="rowlabel-col">项目</th>
               <th *ngFor="let m of MORSE" [attr.colspan]="m.opts.length">{{ m.item }}</th>
+              <th class="total-col" rowspan="3">总分</th>
             </tr>
+            <!-- HR3 评估行 -->
             <tr>
+              <th class="cond-col vtext" rowspan="2">过去24小时曾有手术麻醉史</th>
+              <th class="cond-col vtext" rowspan="2">使用两种及以上镇静安眠药物</th>
+              <th class="cond-col vtext" rowspan="2">年龄≥80岁</th>
+              <th class="cond-col vtext" rowspan="2">住院前6个月内有跌倒经历/住院期间此次有跌倒经历</th>
+              <th class="cond-col vtext" rowspan="2">存在步态不稳、关节疼痛、肌肉疼痛、视觉障碍等</th>
+              <th class="cond-col vtext" rowspan="2">6h内使用过以上镇静、安眠药物</th>
+              <th class="rowlabel-col">评估</th>
               <ng-container *ngFor="let m of MORSE">
-                <th *ngFor="let o of m.opts" class="opt-col vtext">{{ o.label }}（{{ o.score }}）</th>
+                <th *ngFor="let o of m.opts" class="opt-col vtext">{{ o.label }}</th>
+              </ng-container>
+            </tr>
+            <!-- HR4 评分行 -->
+            <tr>
+              <th class="rowlabel-col">评分</th>
+              <ng-container *ngFor="let m of MORSE">
+                <th *ngFor="let o of m.opts" class="score-col">{{ o.score }}</th>
               </ng-container>
             </tr>
           </thead>
@@ -134,7 +148,10 @@ interface RenderPage { index: number; rows: FallRow[]; }
                 <div class="dt-date">{{ r ? fmtDate(r.time) : '' }}</div>
                 <div class="dt-time">{{ r ? fmtTime(r.time) : '' }}</div>
               </td>
+              <td>{{ r ? (clinicalUsed(r) ? '√' : '') : '' }}</td>
+              <td>{{ r ? (morseUsed(r) ? '√' : '') : '' }}</td>
               <td *ngFor="let c of CLINICAL">{{ r ? clinicalCheck(r, c.key) : '' }}</td>
+              <td class="rowlabel-col"></td>
               <ng-container *ngFor="let m of MORSE">
                 <td *ngFor="let o of m.opts">{{ r ? morseCheck(r, m.field, o.score) : '' }}</td>
               </ng-container>
@@ -147,9 +164,23 @@ interface RenderPage { index: number; rows: FallRow[]; }
         </table>
 
         <div class="result-line">
-          <span>结果：{{ result }}</span>
-          <span>日期：{{ resultDate }}</span>
-          <span>是否跌倒：{{ fell }}</span>
+          <span class="rl-item">结果：
+            <input class="screen-only fill-txt" type="text" [(ngModel)]="result" (change)="saveExtra()" />
+            <span class="print-only fill-val">{{ result }}</span>
+          </span>
+          <span class="rl-item">日期：
+            <input class="screen-only" type="date"
+                   style="border:none;background:transparent;outline:none;font-size:13px;color:#000;width:140px"
+                   [(ngModel)]="resultDate" (change)="saveExtra()" />
+            <span class="print-only fill-val">{{ resultDate }}</span>
+          </span>
+          <span class="rl-item">是否跌倒：
+            <span class="screen-only">
+              <label class="radio"><input type="radio" [name]="'fell'+page.index" value="是" [(ngModel)]="fell" (ngModelChange)="saveExtra()" /> 是</label>
+              <label class="radio"><input type="radio" [name]="'fell'+page.index" value="否" [(ngModel)]="fell" (ngModelChange)="saveExtra()" /> 否</label>
+            </span>
+            <span class="print-only fill-val">是 {{ fell === '是' ? '☑' : '☐' }}　否 {{ fell === '否' ? '☑' : '☐' }}</span>
+          </span>
         </div>
 
         <div class="footnote">
@@ -166,8 +197,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
     :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; --fz-h2:24px; --fz-xs4:14px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
     .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
     .toolbar-right { display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-end; }
-    .ctl, .page-select, .auditor-label { font-family:var(--font-song); font-size:14px; white-space:nowrap; }
-    .txt { padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:110px; }
+    .page-select, .auditor-label { font-family:var(--font-song); font-size:14px; white-space:nowrap; }
     .auditor-field { display:flex; align-items:center; }
     .auditor-combo { position:relative; display:inline-block; }
     .auditor-input { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:150px; }
@@ -185,15 +215,26 @@ interface RenderPage { index: number; rows: FallRow[]; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
     .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:11px; table-layout:fixed; }
-    .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:2px 1px; word-break:break-all; vertical-align:middle; }
+    .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:1px; word-break:break-all; vertical-align:middle; overflow:hidden; }
     .record-table td { height:26px; }
-    .vtext { writing-mode:vertical-rl; letter-spacing:1px; white-space:nowrap; height:150px; font-weight:700; }
-    .date-col { width:48px; } .cond-col { width:20px; } .opt-col { width:22px; }
-    .total-col { width:30px; } .risk-col { width:22px; } .measure-col { width:150px; } .sign-col { width:52px; }
+    /* 竖排文字：随行高自适应，允许向左换行 */
+    .vtext { writing-mode:vertical-rl; white-space:normal; line-height:1.12; letter-spacing:0.5px; font-size:10px; font-weight:700; }
+    .date-col { width:46px; }
+    .method-col { width:22px; }
+    .cond-col { width:26px; }
+    .rowlabel-col { width:16px; writing-mode:vertical-rl; white-space:nowrap; font-size:10px; letter-spacing:1px; }
+    .opt-col { width:24px; height:150px; font-weight:700; color:#000; }      /* 评估行：拉高，容纳长竖排选项 */
+    .score-col { width:24px; font-size:11px; }
+    .total-col { width:32px; } .risk-col { width:24px; } .measure-col { width:132px; } .sign-col { width:48px; }
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
     .measure-cell { text-align:left; padding-left:4px; letter-spacing:2px; }
 
-    .result-line { display:flex; gap:40px; margin-top:6px; font-family:var(--font-song); font-size:var(--fz-xs4); }
+    .result-line { display:flex; flex-wrap:wrap; gap:80px; margin-top:8px; align-items:center; font-family:var(--font-song); font-size:var(--fz-xs4); }
+    .rl-item { display:inline-flex; align-items:center; } .rl-item .radio { margin-right:12px; }
+    .fill-txt { width:160px; padding:2px 6px; border:1px solid #ccc; border-radius:3px; font-size:13px; }
+    .fill-date { padding:2px 6px; border:1px solid #ccc; border-radius:3px; font-size:13px; }
+    .print-only { display:none; } .fill-val { min-width:120px; border-bottom:1px solid #000; padding:0 6px; }
+
     .footnote { margin-top:6px; font-family:var(--font-song); font-size:11px; line-height:1.5; text-align:left; }
     .footnote .fn-title { font-weight:700; } .footnote .fn { margin:1px 0; }
     .review-sign { margin-top:6px; text-align:right; font-family:var(--font-song); font-size:var(--fz-xs4); padding-right:6px; }
@@ -202,6 +243,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
     @media print {
       :host { height:auto; overflow:visible; }
       .no-print { display:none !important; }
+      .screen-only { display:none !important; } .print-only { display:inline !important; }
       .sheet { width:297mm; height:210mm; overflow:hidden; margin:0; box-shadow:none; zoom:1; page-break-after:always; }
       .sheet:last-of-type { page-break-after:auto; }
     }
@@ -322,6 +364,10 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
 
   clinicalCheck(r: FallRow, key: string): string { return r.factor[key] === true ? '√' : ''; }
   morseCheck(r: FallRow, field: string, score: number): string { return this.num(r.factor[field]) === score ? '√' : ''; }
+  /** 适用方法 - 临床判定法：任一临床布尔为 true 打√ */
+  clinicalUsed(r: FallRow): boolean { return this.CLINICAL.some(c => r.factor[c.key] === true); }
+  /** 适用方法 - Morse：有任一 Morse 分值或有总分打√ */
+  morseUsed(r: FallRow): boolean { return this.MORSE.some(m => this.num(r.factor[m.field]) !== null) || r.total !== null; }
 
   private parseMeasures(list: any[]): string {
     const seen = new Set<string>(); const out: string[] = [];
@@ -442,12 +488,17 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       .patient-info-row{display:flex;align-items:center;width:100%;gap:14px;font-size:14px;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;} .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;}
-      .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;word-break:break-all;vertical-align:middle;}
+      .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:1px;word-break:break-all;vertical-align:middle;overflow:hidden;}
       .record-table td{height:26px;}
-      .vtext{writing-mode:vertical-rl;letter-spacing:1px;white-space:nowrap;height:150px;font-weight:700;}
-      .date-col{width:48px;} .cond-col{width:20px;} .opt-col{width:22px;} .total-col{width:30px;} .risk-col{width:22px;} .measure-col{width:150px;} .sign-col{width:52px;}
+      .vtext{writing-mode:vertical-rl;white-space:normal;line-height:1.12;letter-spacing:0.5px;font-size:10px;font-weight:700;}
+      .date-col{width:46px;} .method-col{width:22px;} .cond-col{width:26px;}
+      .rowlabel-col{width:16px;writing-mode:vertical-rl;white-space:nowrap;font-size:10px;letter-spacing:1px;}
+      .opt-col{width:24px;height:150px;font-weight:700;color:#000;writing-mode:vertical-rl;white-space:normal;line-height:1.12;font-size:10px;}
+      .score-col{width:24px;font-size:11px;} .total-col{width:32px;} .risk-col{width:24px;} .measure-col{width:132px;} .sign-col{width:48px;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;} .measure-cell{text-align:left;padding-left:4px;letter-spacing:2px;}
-      .result-line{display:flex;gap:40px;margin-top:6px;font-size:14px;}
+      .result-line{display:flex;flex-wrap:wrap;gap:80px;margin-top:8px;align-items:center;font-size:14px;}
+      .rl-item{display:inline-flex;align-items:center;} .screen-only{display:none !important;} .print-only{display:inline !important;}
+      .fill-val{min-width:120px;border-bottom:1px solid #000;padding:0 6px;}
       .footnote{margin-top:6px;font-size:11px;line-height:1.5;text-align:left;} .footnote .fn-title{font-weight:700;} .footnote .fn{margin:1px 0;}
       .review-sign{margin-top:6px;text-align:right;font-size:14px;padding-right:6px;} .sheet-pageno{margin-top:4px;text-align:center;font-size:14px;}
     `;

@@ -213,6 +213,13 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:13px; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:4px 3px; word-break:break-all; height:30px; }
     .record-table th { background:transparent; font-weight:700; }
+    .record-table th,
+    .record-table td { color:#000; }
+    .record-table td { font-weight:700; }
+    /* 固定参考列加粗纯黑；动态√保持原样 */
+    .record-table td.score-col,
+    .record-table td.item-col,
+    .record-table td.desc-cell { font-weight:700; color:#000; }
     .score-col { width:58px; }
     .item-col { width:78px; }
     .desc-col, .desc-cell { width:300px; text-align:left; padding-left:6px; }
@@ -459,7 +466,8 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 3px;height:30px;word-break:break-all;}
-      .record-table th{background:transparent;font-weight:700;}
+      .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .record-table td{font-weight:700;}
+      .record-table td.score-col,.record-table td.item-col,.record-table td.desc-cell{font-weight:700;color:#000;}
       .score-col{width:58px;} .item-col{width:78px;} .desc-col,.desc-cell{width:300px;text-align:left;padding-left:6px;}
       .sum-label,.measure-label{text-align:left;padding-left:6px;font-weight:700;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}

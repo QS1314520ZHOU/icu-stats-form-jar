@@ -128,72 +128,65 @@ interface RenderPage { index: number; rows: IadRow[]; }
         <table class="record-table">
           <thead>
             <tr>
-              <th class="date-col" rowspan="2">日期时间</th>
+              <th class="date-col" rowspan="5">日期时间</th>
               <th colspan="3">IAD分类</th>
               <th colspan="5">会阴部皮肤状况评估量表（PAT）</th>
-              <th class="total-col" rowspan="2">总分</th>
-              <th class="measure-col" rowspan="2">护理措施</th>
-              <th class="sign-col" rowspan="2">签名</th>
+              <th class="total-col" rowspan="5">总分</th>
+              <th class="measure-col" rowspan="5">护理措施</th>
+              <th class="sign-col" rowspan="5">签名</th>
             </tr>
             <tr>
-              <th class="iad-col">0级</th>
-              <th class="iad-col">1级</th>
-              <th class="iad-col">2级</th>
+              <th class="iad-sub">0级</th>
+              <th class="iad-sub">1级</th>
+              <th class="iad-sub">2级</th>
               <th class="pt-score-col">分值</th>
               <th>刺激物强度</th>
               <th>刺激物持续时间</th>
               <th>会阴部皮肤情况</th>
               <th>相关影响因素</th>
             </tr>
+            <tr class="legend-row">
+              <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[0].desc }}</td>
+              <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[1].desc }}</td>
+              <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[2].desc }}</td>
+              <td class="pt-score-col">{{ PAT_ROWS[0].score }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[0].irritant }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[0].time }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[0].perineum }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[0].influence }}</td>
+            </tr>
+            <tr class="legend-row">
+              <td class="pt-score-col">{{ PAT_ROWS[1].score }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[1].irritant }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[1].time }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[1].perineum }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[1].influence }}</td>
+            </tr>
+            <tr class="legend-row">
+              <td class="pt-score-col">{{ PAT_ROWS[2].score }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[2].irritant }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[2].time }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[2].perineum }}</td>
+              <td class="legend-desc">{{ PAT_ROWS[2].influence }}</td>
+            </tr>
           </thead>
           <tbody>
-            <!-- 评分标准图例（固定 3 行） -->
-            <tr class="legend-row">
-              <td class="legend-label" rowspan="3">评分<br>标准</td>
-              <td class="legend-desc" rowspan="3">{{IAD_LEVELS[0].desc}}</td>
-              <td class="legend-desc" rowspan="3">{{IAD_LEVELS[1].desc}}</td>
-              <td class="legend-desc" rowspan="3">{{IAD_LEVELS[2].desc}}</td>
-              <td>{{PAT_ROWS[0].score}}</td>
-              <td class="legend-desc">{{PAT_ROWS[0].irritant}}</td>
-              <td class="legend-desc">{{PAT_ROWS[0].time}}</td>
-              <td class="legend-desc">{{PAT_ROWS[0].perineum}}</td>
-              <td class="legend-desc">{{PAT_ROWS[0].influence}}</td>
-              <td class="legend-blank" rowspan="3"></td>
-              <td class="legend-blank" rowspan="3"></td>
-              <td class="legend-blank" rowspan="3"></td>
-            </tr>
-            <tr class="legend-row">
-              <td>{{PAT_ROWS[1].score}}</td>
-              <td class="legend-desc">{{PAT_ROWS[1].irritant}}</td>
-              <td class="legend-desc">{{PAT_ROWS[1].time}}</td>
-              <td class="legend-desc">{{PAT_ROWS[1].perineum}}</td>
-              <td class="legend-desc">{{PAT_ROWS[1].influence}}</td>
-            </tr>
-            <tr class="legend-row">
-              <td>{{PAT_ROWS[2].score}}</td>
-              <td class="legend-desc">{{PAT_ROWS[2].irritant}}</td>
-              <td class="legend-desc">{{PAT_ROWS[2].time}}</td>
-              <td class="legend-desc">{{PAT_ROWS[2].perineum}}</td>
-              <td class="legend-desc">{{PAT_ROWS[2].influence}}</td>
-            </tr>
-
-            <!-- 数据行：一条记录一行 -->
             <tr *ngFor="let r of pagePaddedRows(page)">
               <td class="date-cell">
-                <div class="dt-date">{{ r ? fmtDate(r.time) : '' }}</div>
-                <div class="dt-time">{{ r ? fmtTime(r.time) : '' }}</div>
+                <span class="dt-date">{{ r ? fmtDate(r.time) : '' }}</span>
+                <span class="dt-time">{{ r ? fmtTime(r.time) : '' }}</span>
               </td>
-              <td>{{ iadCheck(r, 1) }}</td>
-              <td>{{ iadCheck(r, 2) }}</td>
-              <td>{{ iadCheck(r, 3) }}</td>
-              <td></td>
+              <td>{{ r ? iadCheck(r, 1) : '' }}</td>
+              <td>{{ r ? iadCheck(r, 2) : '' }}</td>
+              <td>{{ r ? iadCheck(r, 3) : '' }}</td>
+              <td class="pt-score-col"></td>
               <td>{{ r && r.irritantType !== null ? r.irritantType : '' }}</td>
               <td>{{ r && r.stimulationTime !== null ? r.stimulationTime : '' }}</td>
               <td>{{ r && r.perineum !== null ? r.perineum : '' }}</td>
               <td>{{ r && r.influenceFactor !== null ? r.influenceFactor : '' }}</td>
-              <td>{{ r && r.total !== null ? r.total : '' }}</td>
-              <td>{{ r ? r.measures.join('、') : '' }}</td>
-              <td>{{ r ? (r.signName || '') : '' }}</td>
+              <td class="total-col">{{ r && r.total !== null ? r.total : '' }}</td>
+              <td class="measure-col">{{ r ? r.measures.join('、') : '' }}</td>
+              <td class="sign-col">{{ r ? (r.signName || '') : '' }}</td>
             </tr>
 
             <!-- 备注：表格内跨整行，左对齐 -->
@@ -234,15 +227,18 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:12px; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:3px 2px; word-break:break-all; height:30px; vertical-align:middle; }
     .record-table th { background:transparent; font-weight:700; }
+    .record-table th,
+    .record-table td { color:#000; }
+    .record-table td { font-weight:700; }
     .date-col { width:70px; }
-    .iad-col { width:120px; }
+    .iad-sub { width:auto; }
     .pt-score-col { width:34px; }
     .total-col { width:44px; }
     .measure-col { width:96px; }
     .sign-col { width:60px; }
 
     /* 图例 */
-    .legend-row td { font-size:12px; }
+    .legend-row td { font-size:12px; font-weight:700; color:#000; }
     .legend-label { font-weight:700; }
     .legend-desc { text-align:left; padding-left:5px; line-height:1.35; }
     .legend-blank { background:#f7f7f7; }
@@ -508,8 +504,8 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:3px 2px;height:30px;word-break:break-all;vertical-align:middle;}
-      .record-table th{background:transparent;font-weight:700;}
-      .date-col{width:70px;} .iad-col{width:120px;} .pt-score-col{width:34px;}
+      .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .record-table td{font-weight:700;}
+      .date-col{width:70px;} .iad-sub{width:auto;} .pt-score-col{width:34px;}
       .total-col{width:44px;} .measure-col{width:96px;} .sign-col{width:60px;}
       .legend-label{font-weight:700;} .legend-desc{text-align:left;padding-left:5px;line-height:1.35;} .legend-blank{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}

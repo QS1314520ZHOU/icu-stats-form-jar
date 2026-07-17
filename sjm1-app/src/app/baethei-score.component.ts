@@ -114,54 +114,35 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
         <table class="record-table">
           <thead>
             <tr>
-              <th class="date-col" rowspan="2">日期时间</th>
-              <th class="item-label-col" rowspan="2">项目</th>
-              <th colspan="10">日常生活能力评估（Barthel 指数）</th>
-              <th class="total-col" rowspan="2">总分</th>
-              <th class="grade-col" rowspan="2">分级</th>
-              <th class="other-col" rowspan="2">其他</th>
-              <th class="sign-col" rowspan="2">签名</th>
+              <th class="date-col" rowspan="6">日期时间</th>
+              <th [attr.colspan]="ITEMS.length + 2">日常生活能力评估（Barthel 指数）</th>
+              <th class="grade-col" rowspan="6">分级</th>
+              <th class="other-col" rowspan="6">其他</th>
+              <th class="sign-col" rowspan="6">签名</th>
             </tr>
             <tr>
-              <th *ngFor="let it of ITEMS" class="item-col">{{ it.label }}</th>
+              <th class="item-label-col">项目</th>
+              <th *ngFor="let it of ITEMS">{{ it.label }}</th>
+              <th class="total-col">总分</th>
+            </tr>
+            <tr class="legend-row" *ngFor="let lg of LEGEND">
+              <th class="legend-level">{{ lg.level }}</th>
+              <td *ngFor="let sc of lg.scores" [class.legend-blank]="!sc">{{ sc }}</td>
+              <td class="legend-total"></td>
             </tr>
           </thead>
           <tbody>
-            <!-- 评分标准图例（4 行） -->
-            <tr class="legend-row">
-              <td class="legend-label" rowspan="4">评分<br>标准</td>
-              <td class="legend-level">{{ LEGEND[0].level }}</td>
-              <td *ngFor="let sc of LEGEND[0].scores">{{ sc }}</td>
-              <td class="legend-blank" rowspan="4"></td>
-              <td class="legend-blank" rowspan="4"></td>
-              <td class="legend-blank" rowspan="4"></td>
-              <td class="legend-blank" rowspan="4"></td>
-            </tr>
-            <tr class="legend-row">
-              <td class="legend-level">{{ LEGEND[1].level }}</td>
-              <td *ngFor="let sc of LEGEND[1].scores">{{ sc }}</td>
-            </tr>
-            <tr class="legend-row">
-              <td class="legend-level">{{ LEGEND[2].level }}</td>
-              <td *ngFor="let sc of LEGEND[2].scores">{{ sc }}</td>
-            </tr>
-            <tr class="legend-row">
-              <td class="legend-level">{{ LEGEND[3].level }}</td>
-              <td *ngFor="let sc of LEGEND[3].scores">{{ sc }}</td>
-            </tr>
-
-            <!-- 数据行 -->
             <tr *ngFor="let r of pagePaddedRows(page)">
               <td class="date-cell">
-                <div class="dt-date">{{ r ? fmtDate(r.time) : '' }}</div>
-                <div class="dt-time">{{ r ? fmtTime(r.time) : '' }}</div>
+                <span class="dt-date">{{ r ? fmtDate(r.time) : '' }}</span>
+                <span class="dt-time">{{ r ? fmtTime(r.time) : '' }}</span>
               </td>
-              <td></td>
+              <td class="item-label-col"></td>
               <td *ngFor="let it of ITEMS">{{ r ? itemVal(r, it.key) : '' }}</td>
-              <td>{{ r && r.total !== null ? r.total : '' }}</td>
-              <td>{{ r ? r.grade : '' }}</td>
+              <td class="total-col">{{ r && r.total !== null ? r.total : '' }}</td>
+              <td class="grade-col">{{ r ? r.grade : '' }}</td>
               <td class="other-cell">{{ r ? r.remarks : '' }}</td>
-              <td>{{ r ? (r.signName || '') : '' }}</td>
+              <td class="sign-col">{{ r ? (r.signName || '') : '' }}</td>
             </tr>
 
           </tbody>
@@ -205,6 +186,9 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:12px; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:3px 2px; word-break:break-all; height:28px; vertical-align:middle; }
     .record-table th { background:transparent; font-weight:700; }
+    .record-table th,
+    .record-table td { color:#000; }
+    .record-table td { font-weight:700; }
     .date-col { width:64px; }
     .item-label-col { width:72px; }
     .item-col { width:auto; }
@@ -213,9 +197,12 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .other-col { width:120px; }
     .sign-col { width:60px; }
 
+    /* 固定评分标准加粗纯黑；记录行(tbody)保持原样 */
+    .legend-row th,
+    .legend-row td { font-weight:700; color:#000; }
     .legend-level { font-weight:700; white-space:nowrap; }
-    .legend-label { font-weight:700; }
     .legend-blank { background:#f7f7f7; }
+    .legend-total { background:#f7f7f7; }
 
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
     .other-cell { text-align:left; padding-left:5px; }
@@ -592,9 +579,9 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:3px 2px;height:28px;word-break:break-all;vertical-align:middle;}
-      .record-table th{background:transparent;font-weight:700;}
+      .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .record-table td{font-weight:700;}
       .date-col{width:64px;} .item-label-col{width:72px;} .total-col{width:42px;} .grade-col{width:40px;} .other-col{width:120px;} .sign-col{width:60px;}
-      .legend-level{font-weight:700;white-space:nowrap;} .legend-label{font-weight:700;} .legend-blank{background:#f7f7f7;}
+      .legend-row th,.legend-row td{font-weight:700;color:#000;} .legend-level{font-weight:700;white-space:nowrap;} .legend-blank{background:#f7f7f7;} .legend-total{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
       .other-cell{text-align:left;padding-left:5px;}
       .footnote{margin-top:6px;font-size:12px;line-height:1.5;text-align:left;}
