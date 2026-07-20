@@ -101,7 +101,7 @@ interface RenderPage {
 						<label class="cb"><input type="checkbox" [(ngModel)]="dialysisChecked" [disabled]="!hasData" />透析导管</label>
 					</div>
 					<div class="info-row">
-						<span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
+						<span class="info-item"><b>病区：</b>{{patient?.dept || ''}}</span>
 						<span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
 						<span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
 						<span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
@@ -170,11 +170,11 @@ interface RenderPage {
 		:host {
 			display: block;
 			background: #f0f2f5;
-			--fz-h2: 29px;
-			--fz-xs4: 16px;
-			--font-hei: 'SimHei', '黑体', sans-serif;
+			--fz-h2: 22pt;
+			--fz-xs4: 12pt;
+			
 			--font-fangsong: 'FangSong', '仿宋', 'STFangsong', serif;
-			--font-song: 'SimSun', '宋体', serif;
+			
 		}
 
 		.toolbar {
@@ -223,16 +223,16 @@ interface RenderPage {
 			text-align: center;
 			padding-bottom: 6px;
 		}
-		.title-line { font-family: var(--font-hei); font-weight: 700; font-size: var(--fz-h2); line-height: 1.4; }
+		.title-line { font-family: 'SimHei', '黑体', sans-serif; font-weight: 700; font-size: 22pt; line-height: 1.4; }
 		.document-title .document-name {
-			font-family: var(--font-fangsong);
-			font-size: var(--fz-h2);
+			font-family: 'FangSong', '仿宋', 'STFangsong', serif;
+			font-size: 22pt;
 			font-weight: 700;
 		}
 
 		.patient-info {
-			font-family: var(--font-song);
-			font-size: var(--fz-xs4);
+			font-family: 'SimSun', '宋体', serif;
+			font-size: 12pt;
 			margin: 8px 0 6px;
 		}
 		.info-row {
@@ -253,8 +253,8 @@ interface RenderPage {
 		.record-table {
 			width: 100%;
 			border-collapse: collapse;
-			font-family: var(--font-song);
-			font-size: 13px;
+			font-family: 'SimSun', '宋体', serif;
+			font-size: 9pt;
 			table-layout: fixed;
 		}
 		.record-table th,
@@ -273,15 +273,15 @@ interface RenderPage {
 		.sheet-remark {
 			margin-top: 6px;
 			text-align: left;
-			font-size: 12px;
+			font-size: 7.5pt;
 			line-height: 1.6;
-			font-family: var(--font-song);
+			font-family: 'SimSun', '宋体', serif;
 		}
 		.sheet-pageno {
 			margin-top: 4px;
 			text-align: center;
-			font-size: var(--fz-xs4);
-			font-family: var(--font-song);
+			font-size: 12pt;
+			font-family: 'SimSun', '宋体', serif;
 		}
 
 		@media screen {
@@ -555,14 +555,14 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 			.sheet{box-sizing:border-box;width:297mm;height:210mm;padding:12mm 10mm 10mm;margin:0;overflow:hidden;position:relative;page-break-after:always;box-shadow:none;}
 			.sheet:last-of-type{page-break-after:auto;}
 			.sheet-head{text-align:center;}
-			.title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:29px;line-height:1.4;}
-			.patient-info{font-size:16px;margin:8px 0 6px;}
+			.title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
+			.patient-info{font-size:12pt;margin:8px 0 6px;}
 			.info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
 			.record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
 			.record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
 			.record-table th{background:transparent;font-weight:700;}
-			.sheet-remark{margin-top:6px;text-align:left;font-size:12px;line-height:1.6;}
-			.sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
+			.sheet-remark{margin-top:6px;text-align:left;font-size:7.5pt;line-height:1.6;}
+			.sheet-pageno{margin-top:4px;text-align:center;font-size:12pt;}
 		`;
 		const win = window.open('', '_blank', 'width=1200,height=800');
 		if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }

@@ -116,7 +116,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
         </div>
 
         <div class="patient-info-row">
-          <span class="info-item"><b>科室：</b>{{deptName}}</span>
+          <span class="info-item"><b>病区：</b>{{deptName}}</span>
           <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
           <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
@@ -208,23 +208,23 @@ interface RenderPage { index: number; rows: IadRow[]; }
     </ng-container>
   `,
   styles: [`
-    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; --fz-h2:26px; --fz-xs4:15px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
+    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; }
     .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
-    .loading { padding:16px; font-family:var(--font-song); }
+    .loading { padding:16px; font-family:'SimSun','宋体',serif; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:var(--font-hei); font-weight:700; font-size:var(--fz-h2); line-height:1.4; }
+    .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
 
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:var(--font-song); font-size:var(--fz-xs4); white-space:nowrap; margin:6px 0; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:'SimSun','宋体',serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
     .info-item b { font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
-    .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:12px; table-layout:fixed; }
+    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:9pt; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:3px 2px; word-break:break-all; height:30px; vertical-align:middle; }
     .record-table th { background:transparent; font-weight:700; }
     .record-table th,
@@ -239,7 +239,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .sign-col { width:60px; }
 
     /* 图例 */
-    .legend-row td { font-size:12px; font-weight:700; color:#000; }
+    .legend-row td { font-size:9pt; font-weight:700; color:#000; }
     .legend-label { font-weight:700; }
     .legend-desc { text-align:left; padding-left:5px; line-height:1.35; }
     .legend-blank { background:#f7f7f7; }
@@ -248,10 +248,10 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
 
     /* 备注：表格内跨整行，左对齐（用 td.footnote-cell 提高优先级压过全局居中） */
-    .record-table td.footnote-cell { text-align:left; vertical-align:top; padding:6px 8px; font-family:var(--font-song); font-size:12px; line-height:1.5; font-weight:normal; word-break:break-all; }
+    .record-table td.footnote-cell { text-align:left; vertical-align:top; padding:6px 8px; font-family:'SimSun','宋体',serif; font-size:7.5pt; line-height:1.5; font-weight:normal; word-break:break-all; }
     .footnote-cell .fn { padding-left:2em; text-indent:-2em; margin:1px 0; }
 
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
+    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun','宋体',serif; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -501,20 +501,20 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .print-page:last-of-type{page-break-after:auto;}
       .sheet{box-sizing:border-box;width:397mm;min-height:210mm;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:26px;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-size:15px;white-space:nowrap;margin:6px 0;}
+      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-family:'SimSun','宋体',serif;font-size:12pt;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-      .record-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+      .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:3px 2px;height:30px;word-break:break-all;vertical-align:middle;}
       .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .legend-row td{font-weight:700;color:#000;} .record-table tr.data-row td{font-weight:400;}
       .date-col{width:70px;} .iad-sub{width:auto;} .pt-score-col{width:34px;}
       .total-col{width:44px;} .measure-col{width:96px;} .sign-col{width:60px;}
       .legend-label{font-weight:700;} .legend-desc{text-align:left;padding-left:5px;line-height:1.35;} .legend-blank{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
-      .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-size:12px;line-height:1.5;font-weight:normal;word-break:break-all;}
+      .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-family:'SimSun','宋体',serif;font-size:7.5pt;line-height:1.5;font-weight:normal;word-break:break-all;}
       .footnote-cell .fn{padding-left:2em;text-indent:-2em;margin:1px 0;}
-      .sheet-pageno{margin-top:4px;text-align:center;font-size:15px;}
+      .sheet-pageno{margin-top:4px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }

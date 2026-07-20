@@ -125,7 +125,7 @@ interface RenderPage {
         </div>
 
         <div class="patient-info-row">
-          <span class="info-item"><b>科室：</b>{{ deptName }}</span>
+          <span class="info-item"><b>病区：</b>{{ deptName }}</span>
           <span class="info-item"><b>姓名：</b>{{ patient?.name || '' }}</span>
           <span class="info-item"><b>床号：</b>{{ patient?.hisBed || '' }}</span>
           <span class="info-item"><b>住院号：</b>{{ patient?.mrn || '' }}</span>
@@ -176,23 +176,23 @@ interface RenderPage {
     </ng-container>
   `,
   styles: [`
-    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; --fz-h2:29px; --fz-xs4:16px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
+    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; }
     .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
-    .loading { padding:16px; font-family:var(--font-song); }
+    .loading { padding:16px; font-family:'SimSun','宋体',serif; }
 
     .sheet { box-sizing:border-box; width:297mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:var(--font-hei); font-weight:700; font-size:var(--fz-h2); line-height:1.4; }
+    .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
 
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:18px; font-family:var(--font-song); font-size:var(--fz-xs4); white-space:nowrap; margin:6px 0; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:18px; font-family:'SimSun','宋体',serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
     .info-item b { font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
-    .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:12px; table-layout:fixed; }
+    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:9pt; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:2px 1px; word-break:break-all; }
     .record-table th { background:transparent; font-weight:700; }
     .record-table td { height:30px; }
@@ -209,8 +209,8 @@ interface RenderPage {
     .measure-col { width:96px; text-align:left; padding-left:4px; }
     .sign-col { width:60px; }
 
-    .footnote { margin-top:6px; font-family:var(--font-song); font-size:12px; line-height:1.6; }
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
+    .footnote { margin-top:6px; font-family:'SimSun','宋体',serif; font-size:7.5pt; line-height:1.6; }
+    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun','宋体',serif; }
 
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
@@ -472,11 +472,11 @@ export class CommitSuicideScoreComponent
       .print-page:last-of-type{page-break-after:auto;}
       .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:29px;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:16px;white-space:nowrap;margin:6px 0;}
+      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-family:'SimSun','宋体',serif;font-size:12pt;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-      .record-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+      .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;word-break:break-all;}
       .record-table td{height:30px;}
       .date-col{width:82px;} .item-col{width:auto;height:118px;}
@@ -485,8 +485,8 @@ export class CommitSuicideScoreComponent
       .check-cell{font-weight:700;}
       .total-col{width:34px;} .risk-col{width:56px;}
       .measure-col{width:96px;text-align:left;padding-left:4px;} .sign-col{width:60px;}
-      .footnote{margin-top:6px;font-size:12px;line-height:1.6;}
-      .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
+      .footnote{margin-top:6px;font-family:'SimSun','宋体',serif;font-size:7.5pt;line-height:1.6;}
+      .sheet-pageno{margin-top:4px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) {

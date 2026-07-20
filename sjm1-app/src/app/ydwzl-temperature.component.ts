@@ -171,26 +171,26 @@ const MARK_OTHER = '⑥';
     </div>
   `,
   styles: [`
-    :host { display:block; background:#f0f2f5; --fz-h2:29px; --fz-xs4:16px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
+    :host { display:block; background:#f0f2f5;     }
     .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
-    .loading { padding:16px; font-family:var(--font-song); }
+    .loading { padding:16px; font-family:'SimSun', '宋体', serif; }
 
     /* A4 横向 */
     .sheet { box-sizing:border-box; width:297mm; height:210mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); overflow:hidden; position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:var(--font-hei); font-weight:700; font-size:var(--fz-h2); line-height:1.4; }
+    .title-line { font-family:'SimHei', '黑体', sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
 
     /* 患者信息：一排 */
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:18px; font-family:var(--font-song); font-size:var(--fz-xs4); white-space:nowrap; margin:6px 0; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:18px; font-family:'SimSun', '宋体', serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
     .info-item b { font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
     .date-item { flex:0 0 auto; margin-left:auto; }
     .date-input {
-      font-size: 14px;
+      font-size: 12pt;
       cursor: pointer;
       border: none;
       outline: none;
@@ -198,7 +198,7 @@ const MARK_OTHER = '⑥';
     }
 
     /* 表格 */
-    .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:13px; table-layout:fixed; }
+    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun', '宋体', serif; font-size:9pt; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:4px 2px; word-break:break-all; height:34px; }
     .record-table th { background:transparent; font-weight:700; }
     .row-label { width:130px; }
@@ -210,15 +210,15 @@ const MARK_OTHER = '⑥';
     .monitor-option { display:inline-flex; align-items:center; margin-right:26px; white-space:nowrap; }
 
     /* 备注 */
-    .remark-cell { box-sizing:border-box; width:100%; text-align:left !important; vertical-align:top; padding:5px 8px !important; font-size:12px; line-height:1.45; white-space:normal; word-break:break-word; }
+    .remark-cell { box-sizing:border-box; width:100%; text-align:left !important; vertical-align:top; padding:5px 8px !important; font-size:7.5pt; line-height:1.45; white-space:normal; word-break:break-word; }
     .remark-text { text-align:left; line-height:1.5; }
 
-    .other-input { border:none; border-bottom:1px solid #000; min-width:120px; font-size:12px; }
+    .other-input { border:none; border-bottom:1px solid #000; min-width:120px; font-size:7.5pt; }
     input:disabled,select:disabled { cursor:not-allowed; opacity:.6; }
 
     .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
 
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
+    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun', '宋体', serif; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print { .no-print { display:none !important; } .print-hidden { display:none !important; } }
   `],
@@ -523,21 +523,21 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       .print-page:last-of-type{page-break-after:auto;}
       .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:29px;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:16px;white-space:nowrap;margin:6px 0;}
+      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:12pt;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;}
       .info-item b{font-weight:700;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .date-item{flex:0 0 auto;margin-left:auto;}
-      .record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+      .record-table{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:34px;word-break:break-all;}
       .record-table th{background:transparent;font-weight:700;}
       .row-label{width:130px;}
       .monitor-cell{box-sizing:border-box;text-align:left !important;padding:5px 12px !important;white-space:nowrap;overflow:hidden;}
       .monitor-option{display:inline-flex;align-items:center;margin-right:26px;white-space:nowrap;}
-      .remark-cell{box-sizing:border-box;width:100%;text-align:left !important;vertical-align:top;padding:5px 8px !important;font-size:12px;line-height:1.45;white-space:normal;word-break:break-word;}
+      .remark-cell{box-sizing:border-box;width:100%;text-align:left !important;vertical-align:top;padding:5px 8px !important;font-size:7.5pt;line-height:1.45;white-space:normal;word-break:break-word;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
-      .sheet-pageno{margin-top:4px;text-align:center;font-size:16px;}
+      .sheet-pageno{margin-top:4px;text-align:center;font-size:12pt;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }

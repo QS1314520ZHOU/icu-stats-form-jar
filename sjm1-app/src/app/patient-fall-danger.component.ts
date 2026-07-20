@@ -89,7 +89,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
         <div class="sheet-head"><div class="title-line">{{hospitalName}}跌倒/坠床风险评估及预防措施护理记录单</div></div>
 
         <div class="patient-info-row">
-          <span class="info-item"><b>科室：</b>{{deptName}}</span>
+          <span class="info-item"><b>病区：</b>{{deptName}}</span>
           <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
           <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
@@ -194,10 +194,10 @@ interface RenderPage { index: number; rows: FallRow[]; }
     </ng-container>
   `,
   styles: [`
-    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; --fz-h2:24px; --fz-xs4:14px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
+    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; }
     .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
     .toolbar-right { display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:flex-end; }
-    .page-select, .auditor-label { font-family:var(--font-song); font-size:14px; white-space:nowrap; }
+    .page-select, .auditor-label { font-family:'SimSun','宋体',serif; font-size:14px; white-space:nowrap; }
     .auditor-field { display:flex; align-items:center; }
     .auditor-combo { position:relative; display:inline-block; }
     .auditor-input { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:150px; }
@@ -205,16 +205,16 @@ interface RenderPage { index: number; rows: FallRow[]; }
     .auditor-opt { padding:5px 10px; font-size:14px; cursor:pointer; white-space:nowrap; }
     .auditor-opt:hover { background:#f0f7ff; } .empty-opt { color:#999; } .no-opt { color:#999; cursor:default; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
-    .loading { padding:16px; font-family:var(--font-song); }
+    .loading { padding:16px; font-family:'SimSun','宋体',serif; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:8mm 10mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:var(--font-hei); font-weight:700; font-size:var(--fz-h2); line-height:1.4; }
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:14px; font-family:var(--font-song); font-size:var(--fz-xs4); white-space:nowrap; margin:6px 0; }
+    .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:14px; font-family:'SimSun','宋体',serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
-    .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:11px; table-layout:fixed; }
+    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:9pt; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:1px; word-break:break-all; vertical-align:middle; overflow:hidden; }
     .record-table td { height:26px; }
     /* 竖排文字：随行高自适应，允许向左换行 */
@@ -229,16 +229,16 @@ interface RenderPage { index: number; rows: FallRow[]; }
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
     .measure-cell { text-align:left; padding-left:4px; letter-spacing:2px; }
 
-    .result-line { display:flex; flex-wrap:wrap; gap:80px; margin-top:8px; align-items:center; font-family:var(--font-song); font-size:var(--fz-xs4); }
+    .result-line { display:flex; flex-wrap:wrap; gap:80px; margin-top:8px; align-items:center; font-family:'SimSun','宋体',serif; font-size:12pt; }
     .rl-item { display:inline-flex; align-items:center; } .rl-item .radio { margin-right:12px; }
     .fill-txt { width:160px; padding:2px 6px; border:1px solid #ccc; border-radius:3px; font-size:13px; }
     .fill-date { padding:2px 6px; border:1px solid #ccc; border-radius:3px; font-size:13px; }
     .print-only { display:none; } .fill-val { min-width:120px; border-bottom:1px solid #000; padding:0 6px; }
 
-    .footnote { margin-top:6px; font-family:var(--font-song); font-size:11px; line-height:1.5; text-align:left; }
+    .footnote { margin-top:6px; font-family:'SimSun','宋体',serif; font-size:7.5pt; line-height:1.5; text-align:left; }
     .footnote .fn-title { font-weight:700; } .footnote .fn { margin:1px 0; }
-    .review-sign { margin-top:6px; text-align:right; font-family:var(--font-song); font-size:var(--fz-xs4); padding-right:6px; }
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
+    .review-sign { margin-top:6px; text-align:right; font-family:'SimSun','宋体',serif; font-size:12pt; padding-right:6px; }
+    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun','宋体',serif; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -485,10 +485,10 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
       .sheet{box-sizing:border-box;width:397mm;min-height:210mm;margin:0;padding:8mm 10mm;box-shadow:none;transform-origin:top left;}
-      .sheet-head{text-align:center;padding-bottom:6px;} .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:24px;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:14px;font-size:14px;white-space:nowrap;margin:6px 0;}
+      .sheet-head{text-align:center;padding-bottom:6px;} .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:14px;font-family:'SimSun','宋体',serif;font-size:12pt;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;} .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-      .record-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;}
+      .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:1px;word-break:break-all;vertical-align:middle;overflow:hidden;}
       .record-table td{height:26px;}
       .vtext{writing-mode:vertical-rl;white-space:normal;line-height:1.12;letter-spacing:0.5px;font-size:10px;font-weight:700;}
@@ -497,11 +497,11 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       .opt-col{width:24px;height:150px;font-weight:700;color:#000;writing-mode:vertical-rl;white-space:normal;line-height:1.12;font-size:10px;}
       .score-col{width:24px;font-size:11px;} .total-col{width:32px;} .risk-col{width:24px;} .measure-col{width:132px;} .sign-col{width:48px;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;} .measure-cell{text-align:left;padding-left:4px;letter-spacing:2px;}
-      .result-line{display:flex;flex-wrap:wrap;gap:80px;margin-top:8px;align-items:center;font-size:14px;}
+      .result-line{display:flex;flex-wrap:wrap;gap:80px;margin-top:8px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
       .rl-item{display:inline-flex;align-items:center;} .screen-only{display:none !important;} .print-only{display:inline !important;}
       .fill-val{min-width:120px;border-bottom:1px solid #000;padding:0 6px;}
-      .footnote{margin-top:6px;font-size:11px;line-height:1.5;text-align:left;} .footnote .fn-title{font-weight:700;} .footnote .fn{margin:1px 0;}
-      .review-sign{margin-top:6px;text-align:right;font-size:14px;padding-right:6px;} .sheet-pageno{margin-top:4px;text-align:center;font-size:14px;}
+      .footnote{margin-top:6px;font-family:'SimSun','宋体',serif;font-size:7.5pt;line-height:1.5;text-align:left;} .footnote .fn-title{font-weight:700;} .footnote .fn{margin:1px 0;}
+      .review-sign{margin-top:6px;text-align:right;font-family:'SimSun','宋体',serif;font-size:12pt;padding-right:6px;} .sheet-pageno{margin-top:4px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }

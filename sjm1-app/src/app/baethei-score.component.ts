@@ -102,7 +102,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
         </div>
 
         <div class="patient-info-row">
-          <span class="info-item"><b>科室：</b>{{deptName}}</span>
+          <span class="info-item"><b>病区：</b>{{deptName}}</span>
           <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
           <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
@@ -158,32 +158,32 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     </ng-container>
   `,
   styles: [`
-    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; --fz-h2:26px; --fz-xs4:15px; --font-hei:'SimHei','黑体',sans-serif; --font-song:'SimSun','宋体',serif; }
+    :host { display:block; background:#f0f2f5; height:100vh; overflow:auto;     }
     .toolbar { display:flex; justify-content:flex-end; align-items:center; padding:10px 16px; background:#fff; border-bottom:1px solid #eee; position:sticky; top:0; z-index:50; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
     .auditor-field { display:flex; align-items:center; }
-    .auditor-label { font-family:var(--font-song); font-size:14px; white-space:nowrap; }
+    .auditor-label { font-family:'SimSun', '宋体', serif; font-size:12pt; white-space:nowrap; }
     .auditor-combo { position:relative; display:inline-block; }
-    .auditor-input { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:160px; }
+    .auditor-input { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:12pt; width:160px; }
     .auditor-menu { position:absolute; top:100%; left:0; right:0; margin:2px 0 0; padding:4px 0; list-style:none; max-height:240px; overflow-y:auto; background:#fff; border:1px solid #d9d9d9; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:100; }
-    .auditor-opt { padding:5px 10px; font-size:14px; cursor:pointer; white-space:nowrap; }
+    .auditor-opt { padding:5px 10px; font-size:12pt; cursor:pointer; white-space:nowrap; }
     .auditor-opt:hover { background:#f0f7ff; }
     .empty-opt { color:#999; }
     .no-opt { color:#999; cursor:default; }
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
-    .loading { padding:16px; font-family:var(--font-song); }
+    .loading { padding:16px; font-family:'SimSun', '宋体', serif; }
 
     .sheet { box-sizing:border-box; width:297mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:var(--font-hei); font-weight:700; font-size:var(--fz-h2); line-height:1.4; }
+    .title-line { font-family:'SimHei', '黑体', sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
 
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:var(--font-song); font-size:var(--fz-xs4); white-space:nowrap; margin:6px 0; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:'SimSun', '宋体', serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
     .info-item b { font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
-    .record-table { width:100%; border-collapse:collapse; font-family:var(--font-song); font-size:11px; table-layout:fixed; }
+    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun', '宋体', serif; font-size:9pt; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:2px 1px; word-break:break-all; height:28px; vertical-align:middle; }
     .record-table th { background:transparent; font-weight:700; }
     .record-table th,
@@ -208,11 +208,11 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
     .other-cell { text-align:left; padding-left:5px; }
 
-    .footnote { margin-top:6px; font-family:var(--font-song); font-size:12px; line-height:1.5; text-align:left; }
+    .footnote { margin-top:6px; font-family:'SimSun', '宋体', serif; font-size:7.5pt; line-height:1.5; text-align:left; }
     .footnote .fn { padding-left:2em; text-indent:-2em; margin:1px 0; }
 
-    .review-sign { margin-top:6px; text-align:right; font-family:var(--font-song); font-size:var(--fz-xs4); padding-right:6px; }
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:var(--fz-xs4); font-family:var(--font-song); }
+    .review-sign { margin-top:6px; text-align:right; font-family:'SimSun', '宋体', serif; font-size:12pt; padding-right:6px; }
+    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun', '宋体', serif; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -576,21 +576,21 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .print-page:last-of-type{page-break-after:auto;}
       .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:26px;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-size:15px;white-space:nowrap;margin:6px 0;}
+      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-size:12pt;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-      .record-table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;}
+      .record-table{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;height:28px;word-break:break-all;vertical-align:middle;}
       .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .legend-row th,.legend-row td{font-weight:700;color:#000;} .record-table tr.data-row td{font-weight:400;}
       .date-col{width:56px;} .item-label-col{width:58px;} .total-col{width:38px;} .grade-col{width:56px;} .other-col{width:88px;} .sign-col{width:50px;}
       .legend-row th,.legend-row td{font-weight:700;color:#000;} .legend-level{font-weight:700;} .legend-blank{background:#f7f7f7;} .legend-total{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
       .other-cell{text-align:left;padding-left:5px;}
-      .footnote{margin-top:6px;font-size:12px;line-height:1.5;text-align:left;}
+      .footnote{margin-top:6px;font-size:7.5pt;line-height:1.5;text-align:left;}
       .footnote .fn{padding-left:2em;text-indent:-2em;margin:1px 0;}
-      .review-sign{margin-top:6px;text-align:right;font-size:15px;padding-right:6px;}
-      .sheet-pageno{margin-top:4px;text-align:center;font-size:15px;}
+      .review-sign{margin-top:6px;text-align:right;font-size:12pt;padding-right:6px;}
+      .sheet-pageno{margin-top:4px;text-align:center;font-size:12pt;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
