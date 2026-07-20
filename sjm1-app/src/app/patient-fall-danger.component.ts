@@ -244,7 +244,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
       :host { height:auto; overflow:visible; }
       .no-print { display:none !important; }
       .screen-only { display:none !important; } .print-only { display:inline !important; }
-      .sheet { width:397mm; height:210mm; overflow:hidden; margin:0; box-shadow:none; zoom:1; page-break-after:always; }
+      .sheet { width:297mm; height:210mm; overflow:hidden; margin:0; box-shadow:none; zoom:1; page-break-after:always; }
       .sheet:last-of-type { page-break-after:auto; }
     }
   `],
@@ -482,9 +482,9 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     const css = `
       @page { size: A4 landscape; margin:0; }
       html,body{margin:0;padding:0;} body{color:#000;font-family:'SimSun','宋体',serif;}
-      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:10mm;overflow:hidden;page-break-after:always;background:#fff;display:flex;align-items:center;justify-content:center;}
+      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
-      .sheet{box-sizing:border-box;width:277mm;min-height:auto;margin:0;padding:0;box-shadow:none;flex:0 0 auto;transform-origin:center center;}
+      .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:8mm 10mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;} .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:24px;line-height:1.4;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:14px;font-size:14px;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;} .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
@@ -507,18 +507,24 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
     win.document.write('<html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
     win.document.close(); win.focus();
-    const M = 10, PX = 96 / 25.4;
-    const USABLE_W = (297 - 2 * M) * PX, USABLE_H = (210 - 2 * M) * PX;
+    const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
     setTimeout(() => {
       win.document.querySelectorAll('.print-page').forEach((pg: any) => {
         const sheet = pg.querySelector('.sheet') as HTMLElement;
-        if (!sheet) return;
+        const table = sheet && (sheet.querySelector('.record-table') as HTMLElement);
+        if (!sheet || !table) return;
         sheet.style.transform = 'none';
+        const cs = win.getComputedStyle(sheet);
+        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        const tableW = table.getBoundingClientRect().width;
+        sheet.style.width = (tableW + padX) + 'px';
         const w = sheet.scrollWidth, h = sheet.scrollHeight;
         if (!w || !h) return;
-        const scale = Math.min(USABLE_W / w, USABLE_H / h, 1);
-        sheet.style.transformOrigin = 'center center';
-        sheet.style.transform = 'scale(' + scale + ')';
+        const scale = Math.min(PAGE_W / w, PAGE_H / h);
+        const offsetX = Math.max(0, (PAGE_W - w * scale) / 2);
+        const offsetY = Math.max(0, (PAGE_H - h * scale) / 2);
+        sheet.style.transformOrigin = 'top left';
+        sheet.style.transform = 'translate(' + offsetX + 'px,' + offsetY + 'px) scale(' + scale + ')';
       });
       win.focus(); win.print(); win.close();
     }, 400);
