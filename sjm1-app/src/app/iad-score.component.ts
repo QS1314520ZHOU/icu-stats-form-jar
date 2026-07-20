@@ -188,20 +188,17 @@ interface RenderPage { index: number; rows: IadRow[]; }
               <td class="measure-col">{{ r ? r.measures.join('、') : '' }}</td>
               <td class="sign-col">{{ r ? (r.signName || '') : '' }}</td>
             </tr>
-
-            <!-- 备注：表格内跨整行，左对齐 -->
-            <tr>
-              <td class="footnote-cell" [attr.colspan]="12">
-                <div class="fn">备注：</div>
-                <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者每日评估1次，1级、2级患者每日评估2次。</div>
-                <div class="fn">2、PAT量表采用 Likert 3 点计分法，各部分评分最佳至最差为 1~3 分；总分 4~12 分，4~6 分为低风险，7~12 分为高风险。</div>
-                <div class="fn">3、相关影响因素包括：低蛋白、使用抗生素、管饲饮食、失禁保护材料、其他。</div>
-                <div class="fn">4、护理措施：</div>
-                <div class="fn" *ngFor="let m of MEASURE_LEGEND">{{ m }}</div>
-              </td>
-            </tr>
           </tbody>
         </table>
+
+        <div class="iad-footnote">
+          <div class="footnote-title">备注：</div>
+          <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者每日评估1次，1级、2级患者每日评估2次。</div>
+          <div class="fn">2、PAT量表采用 Likert 3 点计分法，各部分评分最佳至最差为 1~3 分；总分 4~12 分，4~6 分为低风险，7~12 分为高风险。</div>
+          <div class="fn">3、相关影响因素包括：低蛋白、使用抗生素、管饲饮食、失禁保护材料、其他。</div>
+          <div class="fn">4、护理措施：</div>
+          <div class="fn" *ngFor="let m of MEASURE_LEGEND">{{ m }}</div>
+        </div>
 
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
       </div>
@@ -217,20 +214,18 @@ interface RenderPage { index: number; rows: IadRow[]; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
+    .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:24pt; line-height:1.35; }
 
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:'SimSun','宋体',serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:'SimSun','宋体',serif; font-size:13pt; white-space:nowrap; margin:6px 0; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
     .info-item b { font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
-    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:9pt; table-layout:fixed; }
-    .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:3px 2px; word-break:break-all; height:30px; vertical-align:middle; }
-    .record-table th { background:transparent; font-weight:700; }
-    .record-table th,
-    .record-table td { color:#000; }
-    .record-table th { font-weight:700; }
-    .record-table tr.data-row td { font-weight:400; }
+    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:10.5pt; table-layout:fixed; color:#000; }
+    .record-table th,.record-table td { border:1.25px solid #000; text-align:center; padding:3px 2px; min-height:32px; height:32px; vertical-align:middle; color:#000; }
+    .record-table th { background:transparent; font-weight:700; line-height:1.3; }
+    .record-table td,
+    .record-table tr.data-row td { font-weight:500; }
     .date-col { width:70px; }
     .iad-sub { width:auto; }
     .pt-score-col { width:34px; }
@@ -239,7 +234,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .sign-col { width:60px; }
 
     /* 图例 */
-    .legend-row td { font-size:9pt; font-weight:700; color:#000; }
+    .legend-row td { font-size:10.5pt; font-weight:700; color:#000; }
     .legend-label { font-weight:700; }
     .legend-desc { text-align:left; padding-left:5px; line-height:1.35; }
     .legend-blank { background:#f7f7f7; }
@@ -247,11 +242,12 @@ interface RenderPage { index: number; rows: IadRow[]; }
     /* 日期两行 */
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
 
-    /* 备注：表格内跨整行，左对齐（用 td.footnote-cell 提高优先级压过全局居中） */
-    .record-table td.footnote-cell { text-align:left; vertical-align:top; padding:6px 8px; font-family:'SimSun','宋体',serif; font-size:7.5pt; line-height:1.5; font-weight:normal; word-break:break-all; }
-    .footnote-cell .fn { padding-left:2em; text-indent:-2em; margin:1px 0; }
+    /* 备注：独立于表格之外 */
+    .iad-footnote { box-sizing:border-box; width:100%; margin-top:6px; padding:0 2px; font-family:'SimSun','宋体',serif; font-size:9.5pt; font-weight:400; line-height:1.5; color:#000; text-align:left; }
+    .iad-footnote .footnote-title { font-weight:700; }
+    .iad-footnote .fn { margin:1px 0; padding-left:2em; text-indent:-2em; }
 
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun','宋体',serif; }
+    .sheet-pageno { margin-top:4px; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -501,20 +497,22 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .print-page:last-of-type{page-break-after:auto;}
       .sheet{box-sizing:border-box;width:397mm;min-height:210mm;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-family:'SimSun','宋体',serif;font-size:12pt;white-space:nowrap;margin:6px 0;}
+      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:24pt;line-height:1.35;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-family:'SimSun','宋体',serif;font-size:13pt;white-space:nowrap;margin:6px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-      .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
-      .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:3px 2px;height:30px;word-break:break-all;vertical-align:middle;}
-      .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .legend-row td{font-weight:700;color:#000;} .record-table tr.data-row td{font-weight:400;}
+      .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:10.5pt;table-layout:fixed;color:#000;}
+      .record-table th,.record-table td{border:1.25px solid #000;text-align:center;padding:3px 2px;min-height:32px;height:32px;word-break:break-all;vertical-align:middle;color:#000;}
+      .record-table th{background:transparent;font-weight:700;line-height:1.3;} .record-table td,.record-table tr.data-row td{font-weight:500;}
+      .legend-row td{font-weight:700;color:#000;font-size:10.5pt;}
       .date-col{width:70px;} .iad-sub{width:auto;} .pt-score-col{width:34px;}
       .total-col{width:44px;} .measure-col{width:96px;} .sign-col{width:60px;}
       .legend-label{font-weight:700;} .legend-desc{text-align:left;padding-left:5px;line-height:1.35;} .legend-blank{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
-      .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-family:'SimSun','宋体',serif;font-size:7.5pt;line-height:1.5;font-weight:normal;word-break:break-all;}
-      .footnote-cell .fn{padding-left:2em;text-indent:-2em;margin:1px 0;}
-      .sheet-pageno{margin-top:4px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
+      .iad-footnote{box-sizing:border-box;width:100%;margin-top:6px;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:9.5pt;font-weight:400;line-height:1.5;color:#000;text-align:left;}
+      .iad-footnote .footnote-title{font-weight:700;}
+      .iad-footnote .fn{margin:1px 0;padding-left:2em;text-indent:-2em;}
+      .sheet-pageno{margin-top:4px;text-align:center;font-family:'SimSun','宋体',serif;font-size:13pt;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
