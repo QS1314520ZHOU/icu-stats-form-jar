@@ -499,7 +499,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       body{color:#000;font-family:'SimSun','宋体',serif;}
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
-      .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
+      .sheet{box-sizing:border-box;width:397mm;min-height:210mm;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
       .sheet-head{text-align:center;padding-bottom:6px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:26px;line-height:1.4;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-size:15px;white-space:nowrap;margin:6px 0;}
@@ -521,22 +521,24 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     win.document.write('<html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
     win.document.close();
     win.focus();
-    const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
+    const PX = 96 / 25.4;
+    const PAGE_W = 297 * PX, PAGE_H = 210 * PX;
+    const MARGIN_X = 5 * PX, MARGIN_Y = 4 * PX;
+    const AVAILABLE_W = PAGE_W - MARGIN_X * 2;
+    const AVAILABLE_H = PAGE_H - MARGIN_Y * 2;
     setTimeout(() => {
       win.document.querySelectorAll('.print-page').forEach((pg: any) => {
         const sheet = pg.querySelector('.sheet') as HTMLElement;
-        const table = sheet && (sheet.querySelector('.record-table') as HTMLElement);
-        if (!sheet || !table) return;
+        if (!sheet) return;
+        sheet.style.width = '397mm';
+        sheet.style.height = 'auto';
+        sheet.style.minHeight = '210mm';
         sheet.style.transform = 'none';
-        const cs = win.getComputedStyle(sheet);
-        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-        const tableW = table.getBoundingClientRect().width;
-        sheet.style.width = (tableW + padX) + 'px';
         const w = sheet.scrollWidth, h = sheet.scrollHeight;
         if (!w || !h) return;
-        const scale = Math.min(PAGE_W / w, PAGE_H / h);
-        const offsetX = Math.max(0, (PAGE_W - w * scale) / 2);
-        const offsetY = Math.max(0, (PAGE_H - h * scale) / 2);
+        const scale = Math.min(AVAILABLE_W / w, AVAILABLE_H / h);
+        const offsetX = MARGIN_X + Math.max(0, (AVAILABLE_W - w * scale) / 2);
+        const offsetY = MARGIN_Y + Math.max(0, (AVAILABLE_H - h * scale) / 2);
         sheet.style.transformOrigin = 'top left';
         sheet.style.transform = 'translate(' + offsetX + 'px,' + offsetY + 'px) scale(' + scale + ')';
       });
