@@ -12,6 +12,6 @@ spring:
     time-zone: GMT+8
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT:10242}
 
 hospitalLog: ${HOSPITAL_NAME:重钢总医院}
