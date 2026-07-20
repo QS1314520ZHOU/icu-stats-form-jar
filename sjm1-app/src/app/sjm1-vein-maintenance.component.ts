@@ -592,7 +592,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 			.record-table{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed;}
 			.record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
 			.record-table th{background:transparent;font-weight:700;}
-			.sheet-remark{margin-top:6px;text-align:left;font-size:12px;line-height:1.6;}
+			.sheet-remark{margin-top:6px;text-align:left;font-family:'SimSun','宋体',serif;font-size:7.5pt;line-height:1.6;}
 			.sheet-pageno{margin-top:4px;text-align:center;font-size:12pt;}
 		`;
 		const win = window.open('', '_blank', 'width=1200,height=800');

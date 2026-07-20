@@ -225,7 +225,7 @@ interface RenderPage {
 		}
 		.title-line { font-family: 'SimHei', '黑体', sans-serif; font-weight: 700; font-size: 22pt; line-height: 1.4; }
 		.document-title .document-name {
-			font-family: 'FangSong', '仿宋', 'STFangsong', serif;
+			font-family: 'SimHei', '黑体', sans-serif;
 			font-size: 22pt;
 			font-weight: 700;
 		}
@@ -558,7 +558,7 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 			.title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
 			.patient-info{font-size:12pt;margin:8px 0 6px;}
 			.info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
-			.record-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+			.record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
 			.record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
 			.record-table th{background:transparent;font-weight:700;}
 			.sheet-remark{margin-top:6px;text-align:left;font-size:7.5pt;line-height:1.6;}

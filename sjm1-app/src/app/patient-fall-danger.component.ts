@@ -218,13 +218,13 @@ interface RenderPage { index: number; rows: FallRow[]; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:1px; word-break:break-all; vertical-align:middle; overflow:hidden; }
     .record-table td { height:26px; }
     /* 竖排文字：随行高自适应，允许向左换行 */
-    .vtext { writing-mode:vertical-rl; white-space:normal; line-height:1.12; letter-spacing:0.5px; font-size:10px; font-weight:700; }
+    .vtext { writing-mode:vertical-rl; white-space:normal; line-height:1.12; letter-spacing:0.5px; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; }
     .date-col { width:46px; }
     .method-col { width:22px; }
     .cond-col { width:26px; }
-    .rowlabel-col { width:16px; writing-mode:vertical-rl; white-space:nowrap; font-size:10px; letter-spacing:1px; }
-    .opt-col { width:24px; height:150px; font-weight:700; color:#000; }      /* 评估行：拉高，容纳长竖排选项 */
-    .score-col { width:24px; font-size:11px; }
+    .rowlabel-col { width:16px; writing-mode:vertical-rl; white-space:nowrap; font-family:'SimSun','宋体',serif; font-size:9pt; letter-spacing:1px; }
+    .opt-col { width:24px; height:150px; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; color:#000; }      /* 评估行：拉高，容纳长竖排选项 */
+    .score-col { width:24px; font-family:'SimSun','宋体',serif; font-size:9pt; }
     .total-col { width:32px; } .risk-col { width:24px; } .measure-col { width:132px; } .sign-col { width:48px; }
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
     .measure-cell { text-align:left; padding-left:4px; letter-spacing:2px; }
@@ -491,11 +491,11 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:1px;word-break:break-all;vertical-align:middle;overflow:hidden;}
       .record-table td{height:26px;}
-      .vtext{writing-mode:vertical-rl;white-space:normal;line-height:1.12;letter-spacing:0.5px;font-size:10px;font-weight:700;}
+      .vtext{writing-mode:vertical-rl;white-space:normal;line-height:1.12;letter-spacing:0.5px;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;}
       .date-col{width:46px;} .method-col{width:22px;} .cond-col{width:26px;}
-      .rowlabel-col{width:16px;writing-mode:vertical-rl;white-space:nowrap;font-size:10px;letter-spacing:1px;}
-      .opt-col{width:24px;height:150px;font-weight:700;color:#000;writing-mode:vertical-rl;white-space:normal;line-height:1.12;font-size:10px;}
-      .score-col{width:24px;font-size:11px;} .total-col{width:32px;} .risk-col{width:24px;} .measure-col{width:132px;} .sign-col{width:48px;}
+      .rowlabel-col{width:16px;writing-mode:vertical-rl;white-space:nowrap;font-family:'SimSun','宋体',serif;font-size:9pt;letter-spacing:1px;}
+      .opt-col{width:24px;height:150px;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;color:#000;writing-mode:vertical-rl;white-space:normal;line-height:1.12;}
+      .score-col{width:24px;font-family:'SimSun','宋体',serif;font-size:9pt;} .total-col{width:32px;} .risk-col{width:24px;} .measure-col{width:132px;} .sign-col{width:48px;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;} .measure-cell{text-align:left;padding-left:4px;letter-spacing:2px;}
       .result-line{display:flex;flex-wrap:wrap;gap:80px;margin-top:8px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
       .rl-item{display:inline-flex;align-items:center;} .screen-only{display:none !important;} .print-only{display:inline !important;}
