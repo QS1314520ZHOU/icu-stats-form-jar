@@ -247,7 +247,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   monitorModes = { anal: false, bladder: false, blood: false, axillary: false };
 
   selectedPage: number | null = null;
-  readonly colsPerPage = 7;
+  readonly colsPerPage = 6;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -530,7 +530,7 @@ private paginate(): void {
       body{color:#000;font-family:'SimSun','宋体',serif;}
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
-      .sheet{position:relative;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none!important;zoom:1!important;filter:none!important;text-shadow:none!important;}
+      .sheet{box-sizing:border-box;position:relative;width:297mm;max-width:297mm;height:210mm;max-height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none!important;zoom:1!important;filter:none!important;text-shadow:none!important;}
       .sheet-head{text-align:center;padding-bottom:6px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
@@ -552,7 +552,16 @@ private paginate(): void {
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
     win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
-    const doPrint = () => { win.focus(); win.print(); };
+    const doPrint = () => {
+      const sheets = win.document.querySelectorAll<HTMLElement>('.sheet');
+      for (const sheet of Array.from(sheets)) {
+        const pn = sheet.querySelector<HTMLElement>('.sheet-pageno');
+        if (!pn) { console.error('页码缺失'); }
+        if (sheet.scrollWidth > sheet.clientWidth + 1) { console.warn('横向溢出: ' + (sheet.scrollWidth - sheet.clientWidth) + 'px'); }
+        if (sheet.scrollHeight > sheet.clientHeight + 1) { console.warn('纵向溢出: ' + (sheet.scrollHeight - sheet.clientHeight) + 'px'); }
+      }
+      win.focus(); win.print();
+    };
     const ready = () => { const doc = win.document as any; if (doc.fonts?.ready) { doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); }); } else { requestAnimationFrame(() => requestAnimationFrame(doPrint)); } };
     win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
     if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }

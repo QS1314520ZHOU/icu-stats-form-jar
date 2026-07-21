@@ -142,13 +142,19 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
           <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
         </div>
 
-        <table class="record-table">
+        <table class="record-table" [style.width.px]="toleranceTableWidth">
+          <colgroup>
+            <col class="score-col">
+            <col class="item-col">
+            <col class="desc-col">
+            <col class="data-col" *ngFor="let c of pagePaddedCols(page)">
+          </colgroup>
           <thead>
             <tr>
               <th class="score-col">分值</th>
               <th class="item-col">项目</th>
               <th class="desc-col">症状/评估时间</th>
-              <th *ngFor="let c of pagePaddedCols(page)">
+              <th class="data-col" *ngFor="let c of pagePaddedCols(page)">
                 <div class="dt-date">{{ c ? fmtDate(c.time) : '' }}</div>
                 <div class="dt-time">{{ c ? fmtTime(c.time) : '' }}</div>
               </th>
@@ -159,24 +165,24 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
               <td class="score-col" *ngIf="r.rowspan > 0" [attr.rowspan]="r.rowspan">{{r.groupLabel}}</td>
               <td class="item-col">{{r.symptomLabel}}</td>
               <td class="desc-cell">{{r.desc}}</td>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ check(c, r.symptomKey, r.group) }}</td>
+              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ check(c, r.symptomKey, r.group) }}</td>
             </tr>
 
             <tr>
               <td class="sum-label" colspan="3">总分</td>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c && c.total !== null ? c.total : '' }}</td>
+              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ c && c.total !== null ? c.total : '' }}</td>
             </tr>
             <tr>
               <td class="sum-label" colspan="3">营养泵输入速度（ml/h）</td>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? c.yySpeed : '' }}</td>
+              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ c ? c.yySpeed : '' }}</td>
             </tr>
             <tr>
               <td class="measure-label" colspan="3">措施：A：暂停肠内营养  B：减慢速度  C：维持原速度  D：增加速度</td>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ measureText(c) }}</td>
+              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ measureText(c) }}</td>
             </tr>
             <tr>
               <td class="sum-label" colspan="3">评估者签字</td>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.signName || '') : '' }}</td>
+              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.signName || '') : '' }}</td>
             </tr>
             <!-- 备注行：在 table 内，跨所有列 -->
             <tr>
@@ -227,6 +233,9 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .item-col { width:78px; }
     .desc-col, .desc-cell { width:300px; text-align:left; padding-left:6px; }
     .sum-label, .measure-label { text-align:left; padding-left:6px; font-weight:700; }
+    .data-col { width:88px; min-width:88px; max-width:88px; }
+    .record-table th.data-col,
+    .record-table td.data-col { width:88px; min-width:88px; max-width:88px; padding-left:2px; padding-right:2px; white-space:nowrap; word-break:normal; }
 
     /* 表格内的备注行 */
     .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
@@ -268,6 +277,9 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
   );
 
   readonly colsPerPage = 5;
+  readonly toleranceFixedWidth = 58 + 78 + 300;
+  readonly toleranceDataColWidth = 88;
+  get toleranceTableWidth(): number { return this.toleranceFixedWidth + this.colsPerPage * this.toleranceDataColWidth; }
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -472,7 +484,7 @@ private paginate(): void {
       body{color:#000;font-family:'SimSun','宋体',serif;}
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
-      .sheet{position:relative;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none!important;zoom:1!important;filter:none!important;text-shadow:none!important;}
+      .sheet{box-sizing:border-box;position:relative;width:297mm;max-width:297mm;height:210mm;max-height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none!important;zoom:1!important;filter:none!important;text-shadow:none!important;}
       .sheet-head{text-align:center;padding-bottom:6px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
@@ -484,7 +496,9 @@ private paginate(): void {
       .record-table td.score-col,.record-table td.item-col,.record-table td.desc-cell,.record-table td.sum-label,.record-table td.measure-label{font-weight:700;color:#000;}
       .score-col{width:58px;} .item-col{width:78px;} .desc-col,.desc-cell{width:300px;text-align:left;padding-left:6px;}
       .sum-label,.measure-label{text-align:left;padding-left:6px;font-weight:700;}
-      .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
+      .data-col{width:88px;min-width:88px;max-width:88px;}
+      .record-table th.data-col,.record-table td.data-col{width:88px;min-width:88px;max-width:88px;padding-left:2px;padding-right:2px;white-space:nowrap;word-break:normal;}
+      .dt-date,.dt-time{display:block;white-space:nowrap;text-align:center;line-height:1.2;}
       .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-size:8pt;line-height:1.3;margin-bottom:10mm;font-weight:400;color:#000;word-break:break-all;}
       .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
       .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
@@ -493,7 +507,16 @@ private paginate(): void {
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
     win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
-    const doPrint = () => { win.focus(); win.print(); };
+    const doPrint = () => {
+      const sheets = win.document.querySelectorAll<HTMLElement>('.sheet');
+      for (const sheet of Array.from(sheets)) {
+        const pn = sheet.querySelector<HTMLElement>('.sheet-pageno');
+        if (!pn) { console.error('页码缺失'); }
+        if (sheet.scrollWidth > sheet.clientWidth + 1) { console.warn('横向溢出: ' + (sheet.scrollWidth - sheet.clientWidth) + 'px'); }
+        if (sheet.scrollHeight > sheet.clientHeight + 1) { console.warn('纵向溢出: ' + (sheet.scrollHeight - sheet.clientHeight) + 'px'); }
+      }
+      win.focus(); win.print();
+    };
     const ready = () => { const doc = win.document as any; if (doc.fonts?.ready) { doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); }); } else { requestAnimationFrame(() => requestAnimationFrame(doPrint)); } };
     win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
     if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }
