@@ -222,11 +222,11 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
     .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:10.5pt; table-layout:fixed; color:#000; }
-    .record-table th,.record-table td { border:1.25px solid #000; text-align:center; padding:3px 2px; min-height:32px; height:32px; vertical-align:middle; color:#000; }
+    .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:3px 2px; min-height:32px; height:32px; vertical-align:middle; color:#000; }
     .record-table th { background:transparent; font-weight:700; line-height:1.3; }
     .record-table td,
-    .record-table tr.data-row td { font-weight:500; }
-    .date-col { width:70px; }
+    .record-table tr.data-row td { font-weight:400; }
+    .date-col { width:88px; }
     .iad-sub { width:auto; }
     .pt-score-col { width:34px; }
     .total-col { width:44px; }
@@ -485,78 +485,81 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     sheets.forEach((s: HTMLElement) => {
       const c = s.cloneNode(true) as HTMLElement;
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
-      c.style.zoom = '1';
-      c.style.transform = 'none';
+      c.style.zoom = '';
+      c.style.transform = '';
+      c.style.transformOrigin = '';
+      c.style.minHeight = '';
       body += '<div class="print-page">' + c.outerHTML + '</div>';
     });
     const css = `
       @page { size: A4 landscape; margin:0; }
-      html,body{margin:0;padding:0;}
+      html,body{margin:0;padding:0;background:#fff;}
       body{color:#000;font-family:'SimSun','宋体',serif;}
-      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
+      .print-page{box-sizing:border-box;width:297mm;min-height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
-      .sheet{box-sizing:border-box;width:397mm;min-height:210mm;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
-      .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:24pt;line-height:1.35;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-family:'SimSun','宋体',serif;font-size:13pt;white-space:nowrap;margin:6px 0;}
+      .sheet{box-sizing:border-box;width:297mm;min-height:auto;margin:0;padding:6mm 10mm;box-shadow:none;background:#fff;color:#000;}
+      .sheet-head{text-align:center;padding-bottom:4px;}
+      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:12px;font-family:'SimSun','宋体',serif;font-size:12pt;white-space:nowrap;margin:4px 0;}
       .info-item{flex:0 0 auto;white-space:nowrap;}
+      .info-item b{font-weight:700;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-      .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:10.5pt;table-layout:fixed;color:#000;}
-      .record-table th,.record-table td{border:1.25px solid #000;text-align:center;padding:3px 2px;min-height:32px;height:32px;word-break:break-all;vertical-align:middle;color:#000;}
-      .record-table th{background:transparent;font-weight:700;line-height:1.3;} .record-table td,.record-table tr.data-row td{font-weight:500;}
-      .legend-row td{font-weight:700;color:#000;font-size:10.5pt;}
-      .date-col{width:70px;} .iad-sub{width:auto;} .pt-score-col{width:34px;}
-      .total-col{width:44px;} .measure-col{width:96px;} .sign-col{width:60px;}
-      .legend-label{font-weight:700;} .legend-desc{text-align:left;padding-left:5px;line-height:1.35;} .legend-blank{background:#f7f7f7;}
-      .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
-      .iad-footnote{box-sizing:border-box;width:100%;margin-top:6px;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:9.5pt;font-weight:400;line-height:1.5;color:#000;text-align:left;}
+      .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:8.5pt;table-layout:fixed;color:#000;}
+      .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;min-height:28px;height:28px;word-break:break-all;vertical-align:middle;color:#000;}
+      .record-table th{background:transparent;font-weight:700;line-height:1.25;}
+      .record-table td,
+      .record-table tr.data-row td{font-weight:400;}
+      .legend-row td{font-weight:700;color:#000;font-size:8.5pt;}
+      .date-col{width:80px;}
+      .iad-sub{width:auto;}
+      .pt-score-col{width:28px;}
+      .total-col{width:36px;}
+      .measure-col{width:76px;}
+      .sign-col{width:48px;}
+      .legend-label{font-weight:700;}
+      .legend-desc{text-align:left;padding-left:3px;line-height:1.25;}
+      .legend-blank{background:#f7f7f7;}
+      .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.2;}
+      .iad-footnote{box-sizing:border-box;width:100%;margin-top:4px;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.4;color:#000;text-align:left;}
       .iad-footnote .footnote-title{font-weight:700;}
-      .iad-footnote .fn{margin:1px 0;padding-left:2em;text-indent:-2em;}
-      .sheet-pageno{margin-top:4px;text-align:center;font-family:'SimSun','宋体',serif;font-size:13pt;}
+      .iad-footnote .fn{margin:0;padding-left:2em;text-indent:-2em;}
+      .sheet-pageno{margin-top:3px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;color:#000;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
-    win.document.write('<html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
     win.document.close();
-    win.focus();
-    const PX = 96 / 25.4;
-    const PAGE_W = 297 * PX, PAGE_H = 210 * PX;
-    const MARGIN_X = 5 * PX, MARGIN_Y = 4 * PX;
-    const AVAILABLE_W = PAGE_W - MARGIN_X * 2;
-    const AVAILABLE_H = PAGE_H - MARGIN_Y * 2;
-    setTimeout(() => {
-      win.document.querySelectorAll('.print-page').forEach((pg: any) => {
-        const sheet = pg.querySelector('.sheet') as HTMLElement;
-        if (!sheet) return;
-        sheet.style.width = '397mm';
-        sheet.style.height = 'auto';
-        sheet.style.minHeight = '210mm';
-        sheet.style.transform = 'none';
-        const w = sheet.scrollWidth, h = sheet.scrollHeight;
-        if (!w || !h) return;
-        const scale = Math.min(AVAILABLE_W / w, AVAILABLE_H / h);
-        const offsetX = MARGIN_X + Math.max(0, (AVAILABLE_W - w * scale) / 2);
-        const offsetY = MARGIN_Y + Math.max(0, (AVAILABLE_H - h * scale) / 2);
-        sheet.style.transformOrigin = 'top left';
-        sheet.style.transform = 'translate(' + offsetX + 'px,' + offsetY + 'px) scale(' + scale + ')';
-      });
-      win.focus(); win.print(); win.close();
-    }, 400);
+    const doPrint = () => {
+      win.focus();
+      win.print();
+    };
+    const ready = () => {
+      const doc = win.document as any;
+      if (doc.fonts && doc.fonts.ready) {
+        doc.fonts.ready.then(() => {
+          requestAnimationFrame(() => requestAnimationFrame(doPrint));
+        });
+      } else {
+        requestAnimationFrame(() => requestAnimationFrame(doPrint));
+      }
+    };
+    win.addEventListener('afterprint', () => { try { win.close(); } catch(e) { /* ignore */ } });
+    win.addEventListener('load', ready);
   }
 
   fmtDate(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
-    if (isNaN(d.getTime())) return v;
-    const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    if (Number.isNaN(d.getTime())) return v;
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
   fmtTime(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
-    if (isNaN(d.getTime())) return '';
-    const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getHours())}：${p(d.getMinutes())}`;
+    if (Number.isNaN(d.getTime())) return '';
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
   }
 
   private num(v: any): number | null {
