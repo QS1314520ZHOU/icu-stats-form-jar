@@ -203,6 +203,100 @@ interface RenderPage { index: number; rows: IadRow[]; }
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
       </div>
     </ng-container>
+
+    <!-- Hidden print source: 10 rows per page, off-screen, NOT visible -->
+    <div class="print-source" aria-hidden="true">
+      <section class="print-page" *ngFor="let page of printPages">
+        <div class="sheet">
+          <div class="sheet-head">
+            <div class="title-line">{{hospitalName}}成人失禁相关性皮炎分类及会阴部皮肤评估护理记录单</div>
+          </div>
+          <div class="patient-info-row">
+            <span class="info-item"><b>病区：</b>{{deptName}}</span>
+            <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
+            <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
+            <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
+            <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
+            <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
+            <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+          </div>
+          <table class="record-table">
+            <thead>
+              <tr>
+                <th class="date-col" rowspan="5">日期时间</th>
+                <th colspan="3">IAD分类</th>
+                <th colspan="5">会阴部皮肤状况评估量表（PAT）</th>
+                <th class="total-col" rowspan="5">总分</th>
+                <th class="measure-col" rowspan="5">护理措施</th>
+                <th class="sign-col" rowspan="5">签名</th>
+              </tr>
+              <tr>
+                <th class="iad-sub">0级</th>
+                <th class="iad-sub">1级</th>
+                <th class="iad-sub">2级</th>
+                <th class="pt-score-col">分值</th>
+                <th>刺激物强度</th>
+                <th>刺激物持续时间</th>
+                <th>会阴部皮肤情况</th>
+                <th>相关影响因素</th>
+              </tr>
+              <tr class="legend-row">
+                <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[0].desc }}</td>
+                <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[1].desc }}</td>
+                <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[2].desc }}</td>
+                <td class="pt-score-col">{{ PAT_ROWS[0].score }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[0].irritant }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[0].time }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[0].perineum }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[0].influence }}</td>
+              </tr>
+              <tr class="legend-row">
+                <td class="pt-score-col">{{ PAT_ROWS[1].score }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[1].irritant }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[1].time }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[1].perineum }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[1].influence }}</td>
+              </tr>
+              <tr class="legend-row">
+                <td class="pt-score-col">{{ PAT_ROWS[2].score }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[2].irritant }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[2].time }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[2].perineum }}</td>
+                <td class="legend-desc">{{ PAT_ROWS[2].influence }}</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="data-row" *ngFor="let r of pagePaddedRows(page, printRowsPerPage)">
+                <td class="date-cell">
+                  <span class="dt-date">{{ r ? fmtDate(r.time) : '' }}</span>
+                  <span class="dt-time">{{ r ? fmtTime(r.time) : '' }}</span>
+                </td>
+                <td>{{ r ? iadCheck(r, 1) : '' }}</td>
+                <td>{{ r ? iadCheck(r, 2) : '' }}</td>
+                <td>{{ r ? iadCheck(r, 3) : '' }}</td>
+                <td class="pt-score-col"></td>
+                <td>{{ r && r.irritantType !== null ? r.irritantType : '' }}</td>
+                <td>{{ r && r.stimulationTime !== null ? r.stimulationTime : '' }}</td>
+                <td>{{ r && r.perineum !== null ? r.perineum : '' }}</td>
+                <td>{{ r && r.influenceFactor !== null ? r.influenceFactor : '' }}</td>
+                <td class="total-col">{{ r && r.total !== null ? r.total : '' }}</td>
+                <td class="measure-col">{{ r ? r.measures.join('、') : '' }}</td>
+                <td class="sign-col">{{ r ? (r.signName || '') : '' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="iad-footnote">
+            <div class="footnote-title">备注：</div>
+            <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者，每日评估1次，对于1级、2级患者，每日评估2次。</div>
+            <div class="fn">2、PAT量表采用 Likert 3 点计分法，各部分评分最佳至最差为 1~3 分；总分 4~12 分，4~6 分为低风险，7~12 分为高风险。</div>
+            <div class="fn">3、PAT量表中相关影响因素有：低蛋白、使用抗生素、管饲饮食、艰难梭状芽孢杆菌、其他。</div>
+            <div class="fn">4、护理措施：</div>
+            <div class="fn" *ngFor="let m of MEASURE_LEGEND">{{ m }}</div>
+          </div>
+          <div class="sheet-pageno">第 {{page.index}} 页 共 {{printPages.length}} 页</div>
+        </div>
+      </section>
+    </div>
   `,
   styles: [`
     :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; }
@@ -248,6 +342,10 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .iad-footnote .fn { margin:1px 0; padding-left:2em; text-indent:-2em; }
 
     .sheet-pageno { margin-top:4px; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; }
+
+    /* Hidden print source: off-screen, invisible, no interaction */
+    .print-source { position:fixed; left:-100000px; top:0; width:297mm; visibility:hidden; pointer-events:none; }
+
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -277,9 +375,11 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   records: ScoreRecord[] = [];
   rows: IadRow[] = [];
   pages: RenderPage[] = [];
+  printPages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly rowsPerPage = 12;
+  readonly screenRowsPerPage = 12;
+  readonly printRowsPerPage = 10;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -328,6 +428,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     this.records = [];
     this.rows = [];
     this.pages = [];
+    this.printPages = [];
     this.selectedPage = null;
     this.diagnosisDisplay = '';
     this.age = null;
@@ -413,26 +514,35 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     return [...new Set(out)].sort();
   }
 
-  private paginate(): void {
-    const per = this.rowsPerPage;
-    const pages: RenderPage[] = [];
-    if (!this.rows.length) {
-      pages.push({ index: 1, rows: [] });
-    } else {
-      for (let i = 0; i < this.rows.length; i += per) {
-        pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) });
-      }
+  /** 通用分页：按每页行数生成 RenderPage[] */
+  private buildPages(rows: IadRow[], perPage: number): RenderPage[] {
+    if (!rows.length) {
+      return [{ index: 1, rows: [] }];
     }
-    this.pages = pages;
-    if (this.selectedPage !== null && this.selectedPage > pages.length) {
+    const result: RenderPage[] = [];
+    for (let i = 0; i < rows.length; i += perPage) {
+      result.push({
+        index: result.length + 1,
+        rows: rows.slice(i, i + perPage),
+      });
+    }
+    return result;
+  }
+
+  private paginate(): void {
+    // 屏幕分页始终12行
+    this.pages = this.buildPages(this.rows, this.screenRowsPerPage);
+    // 打印分页始终10行
+    this.printPages = this.buildPages(this.rows, this.printRowsPerPage);
+    if (this.selectedPage !== null && this.selectedPage > this.pages.length) {
       this.selectedPage = null;
     }
   }
 
-  /** 返回恰好 rowsPerPage 行，不足用 null 补齐 */
-  pagePaddedRows(page: RenderPage): (IadRow | null)[] {
-    const result: (IadRow | null)[] = page.rows.slice(0, this.rowsPerPage);
-    while (result.length < this.rowsPerPage) result.push(null);
+  /** 返回恰好 perPage 行，不足用 null 补齐（屏幕默认12行） */
+  pagePaddedRows(page: RenderPage, perPage: number = this.screenRowsPerPage): (IadRow | null)[] {
+    const result: (IadRow | null)[] = page.rows.slice(0, perPage);
+    while (result.length < perPage) result.push(null);
     return result;
   }
 
@@ -479,25 +589,40 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onPrint(): void {
-    const sheets = this.host.nativeElement.querySelectorAll('.sheet');
-    if (!sheets.length) return;
+    // Collect print pages from the hidden print-source (10 rows/page)
+    const printPageEls = this.host.nativeElement.querySelectorAll('.print-source .print-page') as NodeListOf<HTMLElement>;
+    if (!printPageEls.length) return;
+
+    // If a single screen page is selected, map its rows to print pages
+    let pagesToPrint: { index: number; rows: IadRow[] }[] = this.printPages;
+    if (this.selectedPage !== null) {
+      const screenPage = this.pages.find(p => p.index === this.selectedPage);
+      if (screenPage) {
+        pagesToPrint = this.buildPages(screenPage.rows, this.printRowsPerPage);
+      }
+    }
+
     let body = '';
-    sheets.forEach((s: HTMLElement) => {
-      const c = s.cloneNode(true) as HTMLElement;
+    // Use the hidden print-source DOM as template: clone each .print-page visible
+    const allSourcePages = this.host.nativeElement.querySelectorAll('.print-source .print-page') as NodeListOf<HTMLElement>;
+    allSourcePages.forEach((pg: HTMLElement, idx: number) => {
+      // Only include pages that are in our target set
+      if (idx >= pagesToPrint.length) return;
+      const c = pg.cloneNode(true) as HTMLElement;
+      c.style.visibility = 'visible';
+      c.removeAttribute('aria-hidden');
+      // Remove toolbar remnants if any
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
-      c.style.zoom = '';
-      c.style.transform = '';
-      c.style.transformOrigin = '';
-      c.style.minHeight = '';
-      body += '<div class="print-page">' + c.outerHTML + '</div>';
+      body += c.outerHTML;
     });
+
     const css = `
       @page { size: A4 landscape; margin:0; }
       html,body{margin:0;padding:0;background:#fff;}
       body{color:#000;font-family:'SimSun','宋体',serif;}
-      .print-page{box-sizing:border-box;width:297mm;min-height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
-      .print-page:last-of-type{page-break-after:auto;}
-      .sheet{box-sizing:border-box;width:297mm;min-height:auto;margin:0;padding:6mm 10mm;box-shadow:none;background:#fff;color:#000;}
+      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff;}
+      .print-page:last-child{break-after:auto;page-break-after:auto;}
+      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:6mm 10mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none !important;transform-origin:initial !important;zoom:1 !important;filter:none !important;text-shadow:none !important;}
       .sheet-head{text-align:center;padding-bottom:4px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:12px;font-family:'SimSun','宋体',serif;font-size:12pt;white-space:nowrap;margin:4px 0;}
@@ -505,7 +630,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .info-item b{font-weight:700;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:8.5pt;table-layout:fixed;color:#000;}
-      .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;min-height:28px;height:28px;word-break:break-all;vertical-align:middle;color:#000;}
+      .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;height:28px;word-break:break-all;vertical-align:middle;color:#000;}
       .record-table th{background:transparent;font-weight:700;line-height:1.25;}
       .record-table td,
       .record-table tr.data-row td{font-weight:400;}
@@ -529,10 +654,22 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
     win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
     win.document.close();
+
     const doPrint = () => {
+      // Overflow detection: verify each page fits within A4
+      const sheets = win.document.querySelectorAll<HTMLElement>('.sheet');
+      for (const sheet of Array.from(sheets)) {
+        if (sheet.scrollHeight > sheet.clientHeight + 2) {
+          console.warn('IAD print page overflow detected', {
+            scrollHeight: sheet.scrollHeight,
+            clientHeight: sheet.clientHeight,
+          });
+        }
+      }
       win.focus();
       win.print();
     };
+
     const ready = () => {
       const doc = win.document as any;
       if (doc.fonts && doc.fonts.ready) {
@@ -540,11 +677,21 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
           requestAnimationFrame(() => requestAnimationFrame(doPrint));
         });
       } else {
-        requestAnimationFrame(() => requestAnimationFrame(doPrint));
+        // Fallback: also check readyState
+        if (doc.readyState === 'complete') {
+          requestAnimationFrame(() => requestAnimationFrame(doPrint));
+        }
       }
     };
+
     win.addEventListener('afterprint', () => { try { win.close(); } catch(e) { /* ignore */ } });
-    win.addEventListener('load', ready);
+
+    // Handle case where load already fired before listener registered
+    if ((win.document as any).readyState === 'complete') {
+      ready();
+    } else {
+      win.addEventListener('load', ready);
+    }
   }
 
   fmtDate(v?: string): string {
