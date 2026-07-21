@@ -243,7 +243,7 @@ export class CommitSuicideScoreComponent
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly rowsPerPage = 12;
+  readonly rowsPerPage = 15;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -507,7 +507,24 @@ private paginate(): void {
     win.document.write('<html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
     win.document.close();
     win.focus();
-    const doPrint = () => { win.focus(); win.print(); };
+    const doPrint = () => {
+      const sheets = win.document.querySelectorAll<HTMLElement>('.sheet');
+      for (const sheet of Array.from(sheets)) {
+        const footnote = sheet.querySelector<HTMLElement>('.footnote');
+        const pageNumber = sheet.querySelector<HTMLElement>('.sheet-pageno');
+        if (footnote && pageNumber) {
+          const fnRect = footnote.getBoundingClientRect();
+          const pnRect = pageNumber.getBoundingClientRect();
+          if (fnRect.bottom > pnRect.top) {
+            console.error('备注与页码重叠: footnote.bottom=' + fnRect.bottom + ' pageno.top=' + pnRect.top);
+          }
+        }
+        if (sheet.scrollHeight > sheet.clientHeight + 1) {
+          console.warn('内容溢出: ' + (sheet.scrollHeight - sheet.clientHeight) + 'px');
+        }
+      }
+      win.focus(); win.print();
+    };
     const ready = () => { const doc = win.document as any; if (doc.fonts?.ready) { doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); }); } else { requestAnimationFrame(() => requestAnimationFrame(doPrint)); } };
     win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
     if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }
