@@ -93,6 +93,7 @@ interface RenderPage {
 				class="sheet"
 				*ngFor="let page of pages"
 				[class.print-hidden]="selectedPage !== null && selectedPage !== page.index"
+				[class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index"
 			>
 				<!-- 单行标题 -->
 				<header class="sheet-head">
@@ -290,6 +291,8 @@ interface RenderPage {
 		}
 		.sheet-pageno { position: absolute; left: 12mm; right: 12mm; bottom: 6mm; margin: 0; text-align: center; font-family: 'SimSun', '宋体', serif; font-size: 13pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; }
 
+		.sheet-hidden { display: none; }
+
 		@media screen {
 			.sheet { zoom: var(--sheet-scale, 1); }
 		}
@@ -298,6 +301,7 @@ interface RenderPage {
 		@media print {
 			.no-print { display: none !important; }
 			.print-hidden { display: none !important; }
+			.sheet-hidden { display: none !important; }
 		}
 	`],
 })
@@ -558,11 +562,18 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 
 		/* 打印：独立窗口 + 横向 + 去页眉页脚 */
 		onPrint(): void {
-			const sheets = this.host.nativeElement.querySelectorAll('.sheet');
-			if (!sheets.length) return;
+			const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
+			if (!allSheets.length) return;
+			const selectedPageNumber = this.selectedPage === null || this.selectedPage === undefined ? null : Number(this.selectedPage);
+			if (selectedPageNumber !== null && (!Number.isInteger(selectedPageNumber) || selectedPageNumber < 1 || selectedPageNumber > this.pages.length)) {
+				alert('选择的打印页码无效'); return;
+			}
 			let body = '';
-			sheets.forEach((s: HTMLElement) => {
+			allSheets.forEach((s: HTMLElement, idx: number) => {
+				const pageIndex = idx + 1;
+				if (selectedPageNumber !== null && pageIndex !== selectedPageNumber) return;
 				const c = s.cloneNode(true) as HTMLElement;
+				c.classList.remove('sheet-hidden');
 				c.querySelectorAll('input[type=checkbox]').forEach(el => {
 						const sp = document.createElement('span');
 						sp.textContent = (el as HTMLInputElement).checked ? '☑' : '☐';
@@ -576,7 +587,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 				});
 				c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
 				c.style.zoom = '1';
-				body += '<div class="print-page">' + c.outerHTML + '</div>';
+				body += '<div class="print-page" data-page-index="' + pageIndex + '">' + c.outerHTML + '</div>';
 			});
 			const css = `
 

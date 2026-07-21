@@ -80,8 +80,7 @@ const MARK_OTHER = '⑥';
 
     <div class="loading" *ngIf="loading">加载中…</div>
 
-    <div *ngFor="let page of pages">
-      <div class="sheet" *ngIf="selectedPage === null || selectedPage === page.index">
+    <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index">
         <!-- 标题 -->
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}重症医学科患者亚低温治疗体温记录单</div>
@@ -168,7 +167,6 @@ const MARK_OTHER = '⑥';
         <!-- 页码 -->
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
       </div>
-    </div>
   `,
   styles: [`
     :host { display:block; background:#f0f2f5;     }
@@ -177,6 +175,7 @@ const MARK_OTHER = '⑥';
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
     .loading { padding:16px; font-family:'SimSun', '宋体', serif; }
+    .sheet-hidden { display:none; }
 
     /* A4 横向 */
     .sheet { box-sizing:border-box; width:297mm; height:210mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); overflow:hidden; position:relative; color:#000; }
@@ -221,7 +220,7 @@ const MARK_OTHER = '⑥';
 
     .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
-    @media print { .no-print { display:none !important; } .print-hidden { display:none !important; } }
+    @media print { .no-print { display:none !important; } .print-hidden { display:none !important; } .sheet-hidden { display:none !important; } }
   `],
 })
 export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -495,11 +494,18 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   onPrint(): void {
-    const sheets = this.host.nativeElement.querySelectorAll('.sheet');
-    if (!sheets.length) return;
+    const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
+    if (!allSheets.length) return;
+    const selectedPageNumber = this.selectedPage === null || this.selectedPage === undefined ? null : Number(this.selectedPage);
+    if (selectedPageNumber !== null && (!Number.isInteger(selectedPageNumber) || selectedPageNumber < 1 || selectedPageNumber > this.pages.length)) {
+      alert('选择的打印页码无效'); return;
+    }
     let body = '';
-    sheets.forEach((s: HTMLElement) => {
+    allSheets.forEach((s: HTMLElement, idx: number) => {
+      const pageIndex = idx + 1;
+      if (selectedPageNumber !== null && pageIndex !== selectedPageNumber) return;
       const c = s.cloneNode(true) as HTMLElement;
+      c.classList.remove('sheet-hidden');
       c.querySelectorAll('input[type=checkbox]').forEach(el => {
         const sp = document.createElement('span');
         sp.textContent = (el as HTMLInputElement).checked ? '☑' : '☐';
@@ -512,9 +518,8 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
         el.replaceWith(sp);
       });
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
-      c.style.zoom = '1';
-      c.style.transform = 'none';
-      body += '<div class="print-page">' + c.outerHTML + '</div>';
+      c.style.zoom = '1'; c.style.transform = 'none';
+      body += '<div class="print-page" data-page-index="' + pageIndex + '">' + c.outerHTML + '</div>';
     });
     const css = `
       @page { size: A4 landscape; margin:0; }

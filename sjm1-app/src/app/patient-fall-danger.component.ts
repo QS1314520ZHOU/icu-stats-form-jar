@@ -84,8 +84,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
 
     <div class="loading" *ngIf="loading">加载中…</div>
 
-    <ng-container *ngFor="let page of pages">
-      <div class="sheet" *ngIf="selectedPage === null || selectedPage === page.index">
+    <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index">
         <div class="sheet-head"><div class="title-line">{{hospitalName}}跌倒/坠床风险评估及预防措施护理记录单</div></div>
 
         <div class="patient-info-row">
@@ -191,7 +190,6 @@ interface RenderPage { index: number; rows: FallRow[]; }
         <div class="review-sign">审核护士签名：{{ auditorName || '__________' }}</div>
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
       </div>
-    </ng-container>
   `,
   styles: [`
     :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; }
@@ -206,6 +204,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
     .auditor-opt:hover { background:#f0f7ff; } .empty-opt { color:#999; } .no-opt { color:#999; cursor:default; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
     .loading { padding:16px; font-family:'SimSun','宋体',serif; }
+    .sheet-hidden { display:none; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:8mm 10mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
@@ -245,6 +244,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
       :host { height:auto; overflow:visible; }
       .no-print { display:none !important; }
       .screen-only { display:none !important; } .print-only { display:inline !important; }
+      .sheet-hidden { display:none !important; }
       .sheet { width:297mm; height:210mm; overflow:hidden; margin:0; box-shadow:none; zoom:1; page-break-after:always; }
       .sheet:last-of-type { page-break-after:auto; }
     }
@@ -476,10 +476,22 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   private ts(v?: string): number { const t = v ? new Date(v).getTime() : 0; return isNaN(t) ? 0 : t; }
 
   onPrint(): void {
-    const sheets = this.host.nativeElement.querySelectorAll('.sheet');
-    if (!sheets.length) return;
+    const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
+    if (!allSheets.length) return;
+    const selectedPageNumber = this.selectedPage === null || this.selectedPage === undefined ? null : Number(this.selectedPage);
+    if (selectedPageNumber !== null && (!Number.isInteger(selectedPageNumber) || selectedPageNumber < 1 || selectedPageNumber > this.pages.length)) {
+      alert('选择的打印页码无效'); return;
+    }
     let body = '';
-    sheets.forEach((s: HTMLElement) => { const c = s.cloneNode(true) as HTMLElement; c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove()); c.style.zoom = '1'; c.style.transform = 'none'; body += '<div class="print-page">' + c.outerHTML + '</div>'; });
+    allSheets.forEach((s: HTMLElement, idx: number) => {
+      const pageIndex = idx + 1;
+      if (selectedPageNumber !== null && pageIndex !== selectedPageNumber) return;
+      const c = s.cloneNode(true) as HTMLElement;
+      c.classList.remove('sheet-hidden');
+      c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
+      c.style.zoom = '1'; c.style.transform = 'none';
+      body += '<div class="print-page" data-page-index="' + pageIndex + '">' + c.outerHTML + '</div>';
+    });
     const css = `
       @page { size: A4 landscape; margin:0; }
       html,body{margin:0;padding:0;} body{color:#000;font-family:'SimSun','宋体',serif;}
