@@ -27,15 +27,15 @@ const MEASURE_CODES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 /** IAD 三级描述；数组下标 i 对应 iad 值 = i + 1（0级=1、1级=2、2级=3） */
 const IAD_LEVELS = [
   { label: '0级', desc: '无IAD：皮肤完好、无发红' },
-  { label: '1级', desc: '轻度IAD：皮肤发红' },
-  { label: '2级', desc: '中重度IAD：皮肤发红、破损、水疱、大疱、皮肤摩擦、脱皮、感染' },
+  { label: '1级', desc: '轻度IAD：皮肤完整、发红；红斑、水肿' },
+  { label: '2级', desc: '中重度IAD：皮肤发红、破损；水泡、大疱、皮肤糜烂、剥脱、感染' },
 ];
 
 /** PAT 评分标准（分值 3/2/1 各列描述） */
 const PAT_ROWS = [
   { score: 3, irritant: '水样便有或伴随尿液', time: '护理垫更换频率：至少每2小时更换', perineum: '脱皮/腐蚀（有或无皮肤）', influence: '影响因素≥3个' },
-  { score: 2, irritant: '软便有或伴随尿液',   time: '至少每4小时更换',              perineum: '红斑/皮肤（有或无念珠菌感染）', influence: '影响因素：2个' },
-  { score: 1, irritant: '成形便有或伴随尿液', time: '至少每8小时更换',              perineum: '干净无损伤',            influence: '影响因素≤1个' },
+  { score: 2, irritant: '软便有或伴随尿液',   time: '护理垫更换频率：至少每4小时更换', perineum: '红斑/皮肤（有或无念珠菌感染）', influence: '影响因素：2个' },
+  { score: 1, irritant: '成形便有或伴随尿液', time: '护理垫更换频率：至少每8小时更换', perineum: '干净无损伤', influence: '影响因素≤1个' },
 ];
 
 /** 护理措施 A~I 全文（备注区展示） */
