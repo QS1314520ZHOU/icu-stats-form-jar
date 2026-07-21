@@ -33,17 +33,17 @@ const IAD_LEVELS = [
 
 /** PAT 评分标准（分值 3/2/1 各列描述） */
 const PAT_ROWS = [
-  { score: 3, irritant: '水样便有或伴随尿液', time: '护理垫更换频率：至少每2小时更换', perineum: '脱皮/腐蚀（有或无皮肤）', influence: '影响因素≥3个' },
+  { score: 3, irritant: '水样便有或伴随尿液', time: '护理垫更换频率：至少每2小时更换', perineum: '脱皮/腐蚀（有或无皮炎）', influence: '影响因素≥3个' },
   { score: 2, irritant: '软便有或伴随尿液',   time: '护理垫更换频率：至少每4小时更换', perineum: '红斑/皮肤（有或无念珠菌感染）', influence: '影响因素：2个' },
   { score: 1, irritant: '成形便有或伴随尿液', time: '护理垫更换频率：至少每8小时更换', perineum: '干净无损伤', influence: '影响因素≤1个' },
 ];
 
 /** 护理措施 A~I 全文（备注区展示） */
 const MEASURE_LEGEND = [
-  'A. 及时清洁大便和/或尿液污染的会阴部及周围皱褶处皮肤。',
+  'A. 及时清洁有粪便和/或尿液污染的会阴部及周围皱褶处皮肤。',
   'B. 选用温和、无刺激的弱酸性或中性皮肤清洗液。',
-  'C. 使用柔软、无刺激性的湿巾或毛巾按压式清洁皮肤。',
-  'D. 使用一次性高吸收性护理用品，污染或潮湿后及时更换。',
+  'C. 使用柔软、无刺激性的湿巾或布类按压式清洁皮肤。',
+  'D. 使用一次性高吸收性护理用品，污染或潮湿应及时更换。',
   'E. 使用收集袋和/或引流装置管理粪便和/或尿液。',
   'F. 使用皮肤保护用品或水胶体敷料隔离潮湿和刺激物，范围大于粪便和/或尿液接触的皮肤，避免使用刺激性的皮肤保护用品。',
   'G. 使用保湿剂护理干燥皮肤。',
@@ -193,9 +193,9 @@ interface RenderPage { index: number; rows: IadRow[]; }
 
         <div class="iad-footnote">
           <div class="footnote-title">备注：</div>
-          <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者每日评估1次，1级、2级患者每日评估2次。</div>
+          <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者，每日评估1次，对于1级、2级患者，每日评估2次。</div>
           <div class="fn">2、PAT量表采用 Likert 3 点计分法，各部分评分最佳至最差为 1~3 分；总分 4~12 分，4~6 分为低风险，7~12 分为高风险。</div>
-          <div class="fn">3、相关影响因素包括：低蛋白、使用抗生素、管饲饮食、失禁保护材料、其他。</div>
+          <div class="fn">3、PAT量表中相关影响因素有：低蛋白、使用抗生素、管饲饮食、艰难梭状芽孢杆菌、其他。</div>
           <div class="fn">4、护理措施：</div>
           <div class="fn" *ngFor="let m of MEASURE_LEGEND">{{ m }}</div>
         </div>
