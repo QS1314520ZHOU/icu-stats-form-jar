@@ -338,11 +338,11 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
 
     /* 备注：独立于表格之外，底部留空给页码 */
-    .iad-footnote { box-sizing:border-box; width:100%; margin-top:2px; margin-bottom:8mm; padding:0 2px; font-family:'SimSun','宋体',serif; font-size:9.5pt; font-weight:400; line-height:1.3; color:#000; text-align:left; }
+    .iad-footnote { box-sizing:border-box; width:100%; margin-top:2px; margin-bottom:6mm; padding:0 2px; font-family:'SimSun','宋体',serif; font-size:9.5pt; font-weight:400; line-height:1.3; color:#000; text-align:left; }
     .iad-footnote .footnote-title { font-weight:700; }
     .iad-footnote .fn { margin:0; padding-left:2em; text-indent:-2em; }
 
-    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:4mm; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
 
     /* Hidden print source: off-screen, invisible, no interaction */
     .print-source { position:fixed; left:-100000px; top:0; width:297mm; visibility:hidden; pointer-events:none; }
