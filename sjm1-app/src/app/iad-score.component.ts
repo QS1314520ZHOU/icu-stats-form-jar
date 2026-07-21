@@ -206,7 +206,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
 
     <!-- Hidden print source: 10 rows per page, off-screen, NOT visible -->
     <div class="print-source" aria-hidden="true">
-      <section class="print-page" *ngFor="let page of pages">
+      <section class="print-page" *ngFor="let page of pages" [attr.data-page-index]="page.index">
         <div class="sheet">
           <div class="sheet-head">
             <div class="title-line">{{hospitalName}}成人失禁相关性皮炎分类及会阴部皮肤评估护理记录单</div>
@@ -578,12 +578,44 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onPrint(): void {
-    const printPageEls = this.host.nativeElement.querySelectorAll('.print-source .print-page') as NodeListOf<HTMLElement>;
-    if (!printPageEls.length) return;
+    const allPrintPages = Array.from(
+      this.host.nativeElement.querySelectorAll('.print-source .print-page')
+    ) as HTMLElement[];
+    if (!allPrintPages.length) return;
 
-    // Build body: clone all print pages (always all rendered, not filtered by selectedPage)
+    // Validate and normalize selectedPage
+    const selectedPageNumber =
+      this.selectedPage === null || this.selectedPage === undefined
+        ? null
+        : Number(this.selectedPage);
+    if (
+      selectedPageNumber !== null &&
+      (!Number.isInteger(selectedPageNumber) ||
+        selectedPageNumber < 1 ||
+        selectedPageNumber > this.pages.length)
+    ) {
+      alert('选择的打印页码无效');
+      return;
+    }
+
+    // Filter pages by selectedPage
+    const pagesToPrint: HTMLElement[] =
+      selectedPageNumber === null
+        ? allPrintPages
+        : allPrintPages.filter((page: HTMLElement) => {
+            return Number(page.dataset['pageIndex']) === selectedPageNumber;
+          });
+    if (!pagesToPrint.length) {
+      alert(
+        selectedPageNumber === null
+          ? '没有可打印的页面'
+          : '没有找到第' + selectedPageNumber + '页'
+      );
+      return;
+    }
+
     let body = '';
-    printPageEls.forEach((pg: HTMLElement) => {
+    pagesToPrint.forEach((pg: HTMLElement) => {
       const c = pg.cloneNode(true) as HTMLElement;
       c.style.visibility = 'visible';
       c.removeAttribute('aria-hidden');
