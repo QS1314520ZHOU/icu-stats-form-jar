@@ -337,12 +337,12 @@ interface RenderPage { index: number; rows: IadRow[]; }
     /* 日期两行 */
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
 
-    /* 备注：独立于表格之外 */
-    .iad-footnote { box-sizing:border-box; width:100%; margin-top:2px; padding:0 2px; font-family:'SimSun','宋体',serif; font-size:9.5pt; font-weight:400; line-height:1.5; color:#000; text-align:left; }
+    /* 备注：独立于表格之外，底部留空给页码 */
+    .iad-footnote { box-sizing:border-box; width:100%; margin-top:2px; margin-bottom:8mm; padding:0 2px; font-family:'SimSun','宋体',serif; font-size:9.5pt; font-weight:400; line-height:1.3; color:#000; text-align:left; }
     .iad-footnote .footnote-title { font-weight:700; }
     .iad-footnote .fn { margin:0; padding-left:2em; text-indent:-2em; }
 
-    .sheet-pageno { margin-top:1px; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:4mm; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
 
     /* Hidden print source: off-screen, invisible, no interaction */
     .print-source { position:fixed; left:-100000px; top:0; width:297mm; visibility:hidden; pointer-events:none; }
@@ -378,7 +378,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly rowsPerPage = 10;
+  readonly maxRowsPerPage = 9;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -523,15 +523,15 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private paginate(): void {
-    this.pages = this.buildPages(this.rows, this.rowsPerPage);
+    this.pages = this.buildPages(this.rows, this.maxRowsPerPage);
     if (this.selectedPage !== null && this.selectedPage > this.pages.length) {
       this.selectedPage = null;
     }
   }
 
   pagePaddedRows(page: RenderPage): (IadRow | null)[] {
-    const result: (IadRow | null)[] = page.rows.slice(0, this.rowsPerPage);
-    while (result.length < this.rowsPerPage) result.push(null);
+    const result: (IadRow | null)[] = page.rows.slice(0, this.maxRowsPerPage);
+    while (result.length < this.maxRowsPerPage) result.push(null);
     return result;
   }
 
@@ -597,7 +597,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       body{color:#000;font-family:'SimSun','宋体',serif;}
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff;}
       .print-page:last-child{break-after:auto;page-break-after:auto;}
-      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:4mm 10mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none !important;zoom:1 !important;filter:none !important;text-shadow:none !important;}
+      .sheet{box-sizing:border-box;position:relative;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none !important;zoom:1 !important;filter:none !important;text-shadow:none !important;}
       .sheet-head{text-align:center;padding-bottom:2px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:12px;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
@@ -613,10 +613,10 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .total-col{width:36px;} .measure-col{width:76px;} .sign-col{width:48px;}
       .legend-label{font-weight:700;} .legend-desc{text-align:left;padding-left:3px;line-height:1.25;} .legend-blank{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.2;}
-      .iad-footnote{box-sizing:border-box;width:100%;margin-top:2px;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.4;color:#000;text-align:left;}
+      .iad-footnote{box-sizing:border-box;width:100%;margin-top:2px;margin-bottom:8mm;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.3;color:#000;text-align:left;}
       .iad-footnote .footnote-title{font-weight:700;}
       .iad-footnote .fn{margin:0;padding-left:2em;text-indent:-2em;}
-      .sheet-pageno{margin-top:1px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;color:#000;}
+      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
@@ -624,8 +624,26 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     win.document.close();
 
     const doPrint = () => {
-      const sheets = win.document.querySelectorAll<HTMLElement>('.sheet');
-      for (const sheet of Array.from(sheets)) {
+      const printPages = win.document.querySelectorAll<HTMLElement>('.print-page');
+      for (const printPage of Array.from(printPages)) {
+        const sheet = printPage.querySelector<HTMLElement>('.sheet');
+        const footnote = printPage.querySelector<HTMLElement>('.iad-footnote');
+        const pageNumber = printPage.querySelector<HTMLElement>('.sheet-pageno');
+        if (!sheet || !pageNumber) {
+          console.error('IAD print page missing sheet or page number');
+          continue;
+        }
+        const sheetRect = sheet.getBoundingClientRect();
+        const pnRect = pageNumber.getBoundingClientRect();
+        if (pnRect.top < sheetRect.top || pnRect.bottom > sheetRect.bottom) {
+          console.error('IAD page number outside A4 page', { pnRect, sheetRect });
+        }
+        if (footnote) {
+          const fnRect = footnote.getBoundingClientRect();
+          if (fnRect.bottom > pnRect.top) {
+            console.error('IAD footnote overlaps page number', { fnBottom: fnRect.bottom, pnTop: pnRect.top });
+          }
+        }
         const overflow = sheet.scrollHeight - sheet.clientHeight;
         console.log('IAD print page:', { scrollHeight: sheet.scrollHeight, clientHeight: sheet.clientHeight, overflow });
         if (overflow > 1) {
