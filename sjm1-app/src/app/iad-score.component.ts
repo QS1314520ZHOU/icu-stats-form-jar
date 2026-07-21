@@ -645,10 +645,10 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .total-col{width:36px;} .measure-col{width:76px;} .sign-col{width:48px;}
       .legend-label{font-weight:700;} .legend-desc{text-align:left;padding-left:3px;line-height:1.25;} .legend-blank{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.2;}
-      .iad-footnote{box-sizing:border-box;width:100%;margin-top:2px;margin-bottom:8mm;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.3;color:#000;text-align:left;}
+      .iad-footnote{box-sizing:border-box;width:100%;margin-top:2px;margin-bottom:6mm;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.3;color:#000;text-align:left;}
       .iad-footnote .footnote-title{font-weight:700;}
       .iad-footnote .fn{margin:0;padding-left:2em;text-indent:-2em;}
-      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:6mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
