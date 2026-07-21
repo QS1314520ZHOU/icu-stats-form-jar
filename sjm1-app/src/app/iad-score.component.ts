@@ -206,7 +206,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
 
     <!-- Hidden print source: 10 rows per page, off-screen, NOT visible -->
     <div class="print-source" aria-hidden="true">
-      <section class="print-page" *ngFor="let page of printPages">
+      <section class="print-page" *ngFor="let page of pages">
         <div class="sheet">
           <div class="sheet-head">
             <div class="title-line">{{hospitalName}}成人失禁相关性皮炎分类及会阴部皮肤评估护理记录单</div>
@@ -266,7 +266,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
               </tr>
             </thead>
             <tbody>
-              <tr class="data-row" *ngFor="let r of pagePaddedRows(page, printRowsPerPage)">
+              <tr class="data-row" *ngFor="let r of pagePaddedRows(page)">
                 <td class="date-cell">
                   <span class="dt-date">{{ r ? fmtDate(r.time) : '' }}</span>
                   <span class="dt-time">{{ r ? fmtTime(r.time) : '' }}</span>
@@ -293,7 +293,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
             <div class="fn">4、护理措施：</div>
             <div class="fn" *ngFor="let m of MEASURE_LEGEND">{{ m }}</div>
           </div>
-          <div class="sheet-pageno">第 {{page.index}} 页 共 {{printPages.length}} 页</div>
+          <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
         </div>
       </section>
     </div>
@@ -307,13 +307,14 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .loading { padding:16px; font-family:'SimSun','宋体',serif; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
-    .sheet-head { text-align:center; padding-bottom:6px; }
+    .sheet-head { text-align:center; padding-bottom:2px; }
     .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:24pt; line-height:1.35; }
 
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:'SimSun','宋体',serif; font-size:13pt; white-space:nowrap; margin:6px 0; }
-    .info-item { flex:0 0 auto; white-space:nowrap; }
-    .info-item b { font-weight:700; }
-    .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; white-space:nowrap; margin:2px 0; color:#000; }
+    .patient-info-row b,
+    .patient-info-row strong { font-family:inherit; font-size:inherit; font-style:inherit; line-height:inherit; color:inherit; font-weight:700; }
+    .info-item { flex:0 0 auto; white-space:nowrap; font-family:inherit; font-size:inherit; font-weight:inherit; }
+    .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; font-family:inherit; font-size:inherit; font-weight:inherit; }
 
     .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:10.5pt; table-layout:fixed; color:#000; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:3px 2px; min-height:32px; height:32px; vertical-align:middle; color:#000; }
@@ -337,11 +338,11 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
 
     /* 备注：独立于表格之外 */
-    .iad-footnote { box-sizing:border-box; width:100%; margin-top:6px; padding:0 2px; font-family:'SimSun','宋体',serif; font-size:9.5pt; font-weight:400; line-height:1.5; color:#000; text-align:left; }
+    .iad-footnote { box-sizing:border-box; width:100%; margin-top:2px; padding:0 2px; font-family:'SimSun','宋体',serif; font-size:9.5pt; font-weight:400; line-height:1.5; color:#000; text-align:left; }
     .iad-footnote .footnote-title { font-weight:700; }
-    .iad-footnote .fn { margin:1px 0; padding-left:2em; text-indent:-2em; }
+    .iad-footnote .fn { margin:0; padding-left:2em; text-indent:-2em; }
 
-    .sheet-pageno { margin-top:4px; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; }
+    .sheet-pageno { margin-top:1px; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; }
 
     /* Hidden print source: off-screen, invisible, no interaction */
     .print-source { position:fixed; left:-100000px; top:0; width:297mm; visibility:hidden; pointer-events:none; }
@@ -375,11 +376,9 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   records: ScoreRecord[] = [];
   rows: IadRow[] = [];
   pages: RenderPage[] = [];
-  printPages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly screenRowsPerPage = 12;
-  readonly printRowsPerPage = 10;
+  readonly rowsPerPage = 10;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -428,7 +427,6 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     this.records = [];
     this.rows = [];
     this.pages = [];
-    this.printPages = [];
     this.selectedPage = null;
     this.diagnosisDisplay = '';
     this.age = null;
@@ -514,35 +512,26 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     return [...new Set(out)].sort();
   }
 
-  /** 通用分页：按每页行数生成 RenderPage[] */
+  /** 通用分页 */
   private buildPages(rows: IadRow[], perPage: number): RenderPage[] {
-    if (!rows.length) {
-      return [{ index: 1, rows: [] }];
-    }
+    if (!rows.length) return [{ index: 1, rows: [] }];
     const result: RenderPage[] = [];
     for (let i = 0; i < rows.length; i += perPage) {
-      result.push({
-        index: result.length + 1,
-        rows: rows.slice(i, i + perPage),
-      });
+      result.push({ index: result.length + 1, rows: rows.slice(i, i + perPage) });
     }
     return result;
   }
 
   private paginate(): void {
-    // 屏幕分页始终12行
-    this.pages = this.buildPages(this.rows, this.screenRowsPerPage);
-    // 打印分页始终10行
-    this.printPages = this.buildPages(this.rows, this.printRowsPerPage);
+    this.pages = this.buildPages(this.rows, this.rowsPerPage);
     if (this.selectedPage !== null && this.selectedPage > this.pages.length) {
       this.selectedPage = null;
     }
   }
 
-  /** 返回恰好 perPage 行，不足用 null 补齐（屏幕默认12行） */
-  pagePaddedRows(page: RenderPage, perPage: number = this.screenRowsPerPage): (IadRow | null)[] {
-    const result: (IadRow | null)[] = page.rows.slice(0, perPage);
-    while (result.length < perPage) result.push(null);
+  pagePaddedRows(page: RenderPage): (IadRow | null)[] {
+    const result: (IadRow | null)[] = page.rows.slice(0, this.rowsPerPage);
+    while (result.length < this.rowsPerPage) result.push(null);
     return result;
   }
 
@@ -589,29 +578,15 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   onPrint(): void {
-    // Collect print pages from the hidden print-source (10 rows/page)
     const printPageEls = this.host.nativeElement.querySelectorAll('.print-source .print-page') as NodeListOf<HTMLElement>;
     if (!printPageEls.length) return;
 
-    // If a single screen page is selected, map its rows to print pages
-    let pagesToPrint: { index: number; rows: IadRow[] }[] = this.printPages;
-    if (this.selectedPage !== null) {
-      const screenPage = this.pages.find(p => p.index === this.selectedPage);
-      if (screenPage) {
-        pagesToPrint = this.buildPages(screenPage.rows, this.printRowsPerPage);
-      }
-    }
-
+    // Build body: clone all print pages (always all rendered, not filtered by selectedPage)
     let body = '';
-    // Use the hidden print-source DOM as template: clone each .print-page visible
-    const allSourcePages = this.host.nativeElement.querySelectorAll('.print-source .print-page') as NodeListOf<HTMLElement>;
-    allSourcePages.forEach((pg: HTMLElement, idx: number) => {
-      // Only include pages that are in our target set
-      if (idx >= pagesToPrint.length) return;
+    printPageEls.forEach((pg: HTMLElement) => {
       const c = pg.cloneNode(true) as HTMLElement;
       c.style.visibility = 'visible';
       c.removeAttribute('aria-hidden');
-      // Remove toolbar remnants if any
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
       body += c.outerHTML;
     });
@@ -622,33 +597,26 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       body{color:#000;font-family:'SimSun','宋体',serif;}
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff;}
       .print-page:last-child{break-after:auto;page-break-after:auto;}
-      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:6mm 10mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none !important;transform-origin:initial !important;zoom:1 !important;filter:none !important;text-shadow:none !important;}
-      .sheet-head{text-align:center;padding-bottom:4px;}
+      .sheet{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:4mm 10mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none !important;zoom:1 !important;filter:none !important;text-shadow:none !important;}
+      .sheet-head{text-align:center;padding-bottom:2px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:12px;font-family:'SimSun','宋体',serif;font-size:12pt;white-space:nowrap;margin:4px 0;}
-      .info-item{flex:0 0 auto;white-space:nowrap;}
-      .info-item b{font-weight:700;}
-      .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:12px;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
+      .patient-info-row b,.patient-info-row strong{font-family:inherit;font-size:inherit;font-style:inherit;line-height:inherit;color:inherit;font-weight:700;}
+      .info-item{flex:0 0 auto;white-space:nowrap;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;}
+      .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;}
       .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:8.5pt;table-layout:fixed;color:#000;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;height:28px;word-break:break-all;vertical-align:middle;color:#000;}
       .record-table th{background:transparent;font-weight:700;line-height:1.25;}
-      .record-table td,
-      .record-table tr.data-row td{font-weight:400;}
+      .record-table td,.record-table tr.data-row td{font-weight:400;}
       .legend-row td{font-weight:700;color:#000;font-size:8.5pt;}
-      .date-col{width:80px;}
-      .iad-sub{width:auto;}
-      .pt-score-col{width:28px;}
-      .total-col{width:36px;}
-      .measure-col{width:76px;}
-      .sign-col{width:48px;}
-      .legend-label{font-weight:700;}
-      .legend-desc{text-align:left;padding-left:3px;line-height:1.25;}
-      .legend-blank{background:#f7f7f7;}
+      .date-col{width:80px;} .iad-sub{width:auto;} .pt-score-col{width:28px;}
+      .total-col{width:36px;} .measure-col{width:76px;} .sign-col{width:48px;}
+      .legend-label{font-weight:700;} .legend-desc{text-align:left;padding-left:3px;line-height:1.25;} .legend-blank{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.2;}
-      .iad-footnote{box-sizing:border-box;width:100%;margin-top:4px;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.4;color:#000;text-align:left;}
+      .iad-footnote{box-sizing:border-box;width:100%;margin-top:2px;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.4;color:#000;text-align:left;}
       .iad-footnote .footnote-title{font-weight:700;}
       .iad-footnote .fn{margin:0;padding-left:2em;text-indent:-2em;}
-      .sheet-pageno{margin-top:3px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;color:#000;}
+      .sheet-pageno{margin-top:1px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;color:#000;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
@@ -656,14 +624,12 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     win.document.close();
 
     const doPrint = () => {
-      // Overflow detection: verify each page fits within A4
       const sheets = win.document.querySelectorAll<HTMLElement>('.sheet');
       for (const sheet of Array.from(sheets)) {
-        if (sheet.scrollHeight > sheet.clientHeight + 2) {
-          console.warn('IAD print page overflow detected', {
-            scrollHeight: sheet.scrollHeight,
-            clientHeight: sheet.clientHeight,
-          });
+        const overflow = sheet.scrollHeight - sheet.clientHeight;
+        console.log('IAD print page:', { scrollHeight: sheet.scrollHeight, clientHeight: sheet.clientHeight, overflow });
+        if (overflow > 1) {
+          console.error('IAD print overflow: ' + overflow + 'px');
         }
       }
       win.focus();
@@ -672,21 +638,16 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const ready = () => {
       const doc = win.document as any;
-      if (doc.fonts && doc.fonts.ready) {
+      if (doc.fonts?.ready) {
         doc.fonts.ready.then(() => {
           requestAnimationFrame(() => requestAnimationFrame(doPrint));
         });
-      } else {
-        // Fallback: also check readyState
-        if (doc.readyState === 'complete') {
-          requestAnimationFrame(() => requestAnimationFrame(doPrint));
-        }
+      } else if (doc.readyState === 'complete') {
+        requestAnimationFrame(() => requestAnimationFrame(doPrint));
       }
     };
 
     win.addEventListener('afterprint', () => { try { win.close(); } catch(e) { /* ignore */ } });
-
-    // Handle case where load already fired before listener registered
     if ((win.document as any).readyState === 'complete') {
       ready();
     } else {
