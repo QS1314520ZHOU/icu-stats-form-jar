@@ -540,31 +540,31 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 			sheets.forEach((s: HTMLElement) => {
 				const c = s.cloneNode(true) as HTMLElement;
 				c.querySelectorAll('input[type=checkbox]').forEach(el => {
-						const sp = document.createElement('span');
-						sp.textContent = (el as HTMLInputElement).checked ? '☑' : '☐';
-						el.replaceWith(sp);
+					const sp = document.createElement('span');
+					sp.textContent = (el as HTMLInputElement).checked ? '☑' : '☐';
+					el.replaceWith(sp);
 				});
 				c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
 				c.style.zoom = '1';
 				body += '<div class="print-page">' + c.outerHTML + '</div>';
 			});
 			const css = `
-			  @page { size: A4 landscape; margin:0; }
-			  html,body{margin:0;padding:0;background:#fff;}
-			  body{color:#000;font-family:'SimSun','宋体',serif;}
-			  .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff;}
-			  .print-page:last-child{break-after:auto;page-break-after:auto;}
-			  .sheet{box-sizing:border-box;position:relative;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none !important;zoom:1 !important;filter:none !important;text-shadow:none !important;}
-			  .sheet-head{text-align:center;padding-bottom:2px;}
-			  .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
-			  .patient-info{font-family:'SimSun','宋体',serif;font-size:12pt;margin:2px 0;}
-			  .info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
-			  .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
-			  .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
-			  .record-table th{background:transparent;font-weight:700;}
-			  .sheet-remark{margin-top:2px;margin-bottom:10mm;text-align:left;font-family:'SimSun','宋体',serif;font-size:8pt;line-height:1.3;}
-			  .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
-			  .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.2;}
+				@page { size: A4 landscape; margin:0; }
+				html,body{margin:0;padding:0;background:#fff;}
+				body{color:#000;font-family:'SimSun','宋体',serif;}
+				.print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff;}
+				.print-page:last-child{break-after:auto;page-break-after:auto;}
+				.sheet{box-sizing:border-box;position:relative;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none !important;zoom:1 !important;filter:none !important;text-shadow:none !important;}
+				.sheet-head{text-align:center;padding-bottom:2px;}
+				.title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
+				.patient-info{font-family:'SimSun','宋体',serif;font-size:12pt;margin:2px 0;}
+				.info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
+				.record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
+				.record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 2px;height:30px;word-break:break-all;}
+				.record-table th{background:transparent;font-weight:700;}
+				.sheet-remark{margin-top:2px;margin-bottom:10mm;text-align:left;font-family:'SimSun','宋体',serif;font-size:8pt;line-height:1.3;}
+				.sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+				.dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.2;}
 			`;
 			const win = window.open('', '_blank', 'width=1400,height=900');
 			if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
@@ -574,15 +574,13 @@ export class SjmCrrtVeinMaintenanceComponent implements OnInit, AfterViewInit, O
 			const ready = () => {
 				const doc = win.document as any;
 				if (doc.fonts?.ready) {
-						doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); });
+					doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); });
 				} else { requestAnimationFrame(() => requestAnimationFrame(doPrint)); }
 			};
 			win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
 			if ((win.document as any).readyState === 'complete') { ready(); }
 			else { win.addEventListener('load', ready); }
-		}
-
-		private calcAge(birthday?: string): number | null {
+		}		private calcAge(birthday?: string): number | null {
 		if (!birthday) return null;
 		const b = new Date(birthday);
 		if (isNaN(b.getTime())) return null;

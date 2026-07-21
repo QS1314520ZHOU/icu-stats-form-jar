@@ -176,11 +176,12 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
 
     .sheet { box-sizing:border-box; width:297mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:'SimHei', '黑体', sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
+    .title-line { font-family:'SimHei', '黑体', sans-serif; font-weight:700; font-size:24pt; line-height:1.35; }
 
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:'SimSun', '宋体', serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:16px; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; white-space:nowrap; margin:2px 0; color:#000; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
     .info-item b { font-weight:700; }
+    .info-item b, .info-item strong { font-family:inherit; font-size:inherit; font-style:inherit; line-height:inherit; color:inherit; font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
     .record-table { width:100%; border-collapse:collapse; font-family:'SimSun', '宋体', serif; font-size:9pt; table-layout:fixed; }
@@ -208,11 +209,11 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
     .other-cell { text-align:left; padding-left:5px; }
 
-    .footnote { margin-top:6px; font-family:'SimSun', '宋体', serif; font-size:7.5pt; line-height:1.5; text-align:left; }
+    .footnote { margin-top:6px; margin-bottom:10mm; font-family:'SimSun', '宋体', serif; font-size:9.5pt; line-height:1.3; text-align:left; }
     .footnote .fn { padding-left:2em; text-indent:-2em; margin:1px 0; }
 
-    .review-sign { margin-top:6px; text-align:right; font-family:'SimSun', '宋体', serif; font-size:12pt; padding-right:6px; }
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun', '宋体', serif; }
+    .review-sign { margin-top:6px; text-align:right; font-family:'SimSun', '宋体', serif; font-size:13pt; padding-right:6px; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -574,10 +575,10 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       body{color:#000;font-family:'SimSun','宋体',serif;}
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
-      .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
+      .sheet{box-sizing:border-box;position:relative;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none!important;zoom:1!important;filter:none!important;text-shadow:none!important;}
       .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-size:12pt;white-space:nowrap;margin:6px 0;}
+      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:16px;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
       .info-item{flex:0 0 auto;white-space:nowrap;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed;}
@@ -587,52 +588,35 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .legend-row th,.legend-row td{font-weight:700;color:#000;} .legend-level{font-weight:700;} .legend-blank{background:#f7f7f7;} .legend-total{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
       .other-cell{text-align:left;padding-left:5px;}
-      .footnote{margin-top:6px;font-size:7.5pt;line-height:1.5;text-align:left;}
+      .footnote{margin-top:6px;margin-bottom:10mm;font-size:8pt;line-height:1.3;text-align:left;}
       .footnote .fn{padding-left:2em;text-indent:-2em;margin:1px 0;}
-      .review-sign{margin-top:6px;text-align:right;font-size:12pt;padding-right:6px;}
-      .sheet-pageno{margin-top:4px;text-align:center;font-size:12pt;}
+      .review-sign{margin-top:6px;text-align:right;font-size:13pt;padding-right:6px;}
+      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
     win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
     win.focus();
-    const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
-    setTimeout(() => {
-      win.document.querySelectorAll('.print-page').forEach((pg: any) => {
-        const sheet = pg.querySelector('.sheet') as HTMLElement;
-        const table = sheet && (sheet.querySelector('.record-table') as HTMLElement);
-        if (!sheet || !table) return;
-        sheet.style.transform = 'none';
-        const cs = win.getComputedStyle(sheet);
-        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-        const tableW = table.getBoundingClientRect().width;
-        sheet.style.width = (tableW + padX) + 'px';
-        const w = sheet.scrollWidth, h = sheet.scrollHeight;
-        if (!w || !h) return;
-        const scale = Math.min(PAGE_W / w, PAGE_H / h);
-        const offsetX = Math.max(0, (PAGE_W - w * scale) / 2);
-        const offsetY = Math.max(0, (PAGE_H - h * scale) / 2);
-        sheet.style.transformOrigin = 'top left';
-        sheet.style.transform = 'translate(' + offsetX + 'px,' + offsetY + 'px) scale(' + scale + ')';
-      });
-      win.focus(); win.print(); win.close();
-    }, 400);
+    const doPrint = () => { win.focus(); win.print(); };
+    const ready = () => { const doc = win.document as any; if (doc.fonts?.ready) { doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); }); } else { requestAnimationFrame(() => requestAnimationFrame(doPrint)); } };
+    win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
+    if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }
   }
 
   fmtDate(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
-    if (isNaN(d.getTime())) return v;
+    if (Number.isNaN(d.getTime())) return v;
     const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
   fmtTime(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
-    if (isNaN(d.getTime())) return '';
+    if (Number.isNaN(d.getTime())) return '';
     const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getHours())}：${p(d.getMinutes())}`;
+    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
   }
 
   private num(v: any): number | null {
