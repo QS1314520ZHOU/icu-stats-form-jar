@@ -243,7 +243,7 @@ export class CommitSuicideScoreComponent
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly rowsPerPage = 10;
+  readonly rowsPerPage = 12;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;

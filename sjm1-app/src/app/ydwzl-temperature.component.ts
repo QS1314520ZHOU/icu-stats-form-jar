@@ -247,7 +247,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   monitorModes = { anal: false, bladder: false, blood: false, axillary: false };
 
   selectedPage: number | null = null;
-  readonly colsPerPage = 5;
+  readonly colsPerPage = 7;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;

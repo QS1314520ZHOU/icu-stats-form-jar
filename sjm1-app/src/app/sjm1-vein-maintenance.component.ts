@@ -327,7 +327,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	isOutHospital = false;
 
 	selectedPage: number | null = null;
-	private readonly rowsPerPage = 10; // fallback, will be auto-calculated
+	private readonly rowsPerPage = 12; // 固定每页12条，系统展示与打印一致
 	private pid = '';
 	private destroy$ = new Subject<void>();
 	private ro?: ResizeObserver;
