@@ -556,7 +556,6 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 		return rows;
 	}
 
-	/* 打印：独立窗口 + 横向 + 去页眉页脚 */
 		/* 打印：独立窗口 + 横向 + 去页眉页脚 */
 		onPrint(): void {
 			const sheets = this.host.nativeElement.querySelectorAll('.sheet');
@@ -613,7 +612,9 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 			win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
 			if ((win.document as any).readyState === 'complete') { ready(); }
 			else { win.addEventListener('load', ready); }
-		}/* 工具方法 */
+		}
+
+		/* 工具方法 */
 	private calcAge(birthday?: string): number | null {
 		if (!birthday) return null;
 		const b = new Date(birthday);

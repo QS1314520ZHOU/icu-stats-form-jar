@@ -209,9 +209,10 @@ interface RenderPage { index: number; rows: FallRow[]; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:8mm 10mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:14px; font-family:'SimSun','宋体',serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
+    .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:24pt; line-height:1.35; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:14px; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; white-space:nowrap; margin:2px 0; color:#000; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
+    .info-item b, .info-item strong { font-family:inherit; font-size:inherit; font-style:inherit; line-height:inherit; color:inherit; font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
 
     .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:9pt; table-layout:fixed; }
@@ -235,10 +236,10 @@ interface RenderPage { index: number; rows: FallRow[]; }
     .fill-date { padding:2px 6px; border:1px solid #ccc; border-radius:3px; font-size:13px; }
     .print-only { display:none; } .fill-val { min-width:120px; border-bottom:1px solid #000; padding:0 6px; }
 
-    .footnote { margin-top:6px; font-family:'SimSun','宋体',serif; font-size:7.5pt; line-height:1.5; text-align:left; }
+    .footnote { margin-top:6px; font-family:'SimSun','宋体',serif; font-size:9.5pt; line-height:1.3; text-align:left; margin-bottom:10mm; }
     .footnote .fn-title { font-weight:700; } .footnote .fn { margin:1px 0; }
-    .review-sign { margin-top:6px; text-align:right; font-family:'SimSun','宋体',serif; font-size:12pt; padding-right:6px; }
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun','宋体',serif; }
+    .review-sign { margin-top:6px; text-align:right; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; padding-right:6px; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -469,8 +470,8 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     if (!x) return ''; let i = -1; for (const s of [';', '；', ',', '，']) { const j = x.indexOf(s); if (j >= 0 && (i < 0 || j < i)) i = j; }
     return i >= 0 ? x.substring(0, i).trim() : x.trim();
   }
-  fmtDate(v?: string): string { if (!v) return ''; const d = new Date(v); if (isNaN(d.getTime())) return v; const p = (n: number) => `${n}`.padStart(2, '0'); return `${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
-  fmtTime(v?: string): string { if (!v) return ''; const d = new Date(v); if (isNaN(d.getTime())) return ''; const p = (n: number) => `${n}`.padStart(2, '0'); return `${p(d.getHours())}：${p(d.getMinutes())}`; }
+  fmtDate(v?: string): string { if (!v) return ''; const d = new Date(v); if (Number.isNaN(d.getTime())) return v; const p = (n: number) => `${n}`.padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
+  fmtTime(v?: string): string { if (!v) return ''; const d = new Date(v); if (Number.isNaN(d.getTime())) return ''; const p = (n: number) => `${n}`.padStart(2, '0'); return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
   private num(v: any): number | null { if (v === null || v === undefined || v === '') return null; const n = Number(v); return isNaN(n) ? null : n; }
   private ts(v?: string): number { const t = v ? new Date(v).getTime() : 0; return isNaN(t) ? 0 : t; }
 
@@ -484,9 +485,9 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       html,body{margin:0;padding:0;} body{color:#000;font-family:'SimSun','宋体',serif;}
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
-      .sheet{box-sizing:border-box;width:397mm;min-height:210mm;margin:0;padding:8mm 10mm;box-shadow:none;transform-origin:top left;}
-      .sheet-head{text-align:center;padding-bottom:6px;} .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:14px;font-family:'SimSun','宋体',serif;font-size:12pt;white-space:nowrap;margin:6px 0;}
+      .sheet{position:relative;box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none!important;zoom:1!important;filter:none!important;text-shadow:none!important;}
+      .sheet-head{text-align:center;padding-bottom:6px;} .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:14px;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
       .info-item{flex:0 0 auto;white-space:nowrap;} .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:1px;word-break:break-all;vertical-align:middle;overflow:hidden;}
@@ -500,35 +501,16 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       .result-line{display:flex;flex-wrap:wrap;gap:80px;margin-top:8px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
       .rl-item{display:inline-flex;align-items:center;} .screen-only{display:none !important;} .print-only{display:inline !important;}
       .fill-val{min-width:120px;border-bottom:1px solid #000;padding:0 6px;}
-      .footnote{margin-top:6px;font-family:'SimSun','宋体',serif;font-size:7.5pt;line-height:1.5;text-align:left;} .footnote .fn-title{font-weight:700;} .footnote .fn{margin:1px 0;}
-      .review-sign{margin-top:6px;text-align:right;font-family:'SimSun','宋体',serif;font-size:12pt;padding-right:6px;} .sheet-pageno{margin-top:4px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
+      .footnote{font-family:'SimSun','宋体',serif;font-size:8pt;line-height:1.3;text-align:left;margin-bottom:10mm;} .footnote .fn-title{font-weight:700;} .footnote .fn{margin:1px 0;}
+      .review-sign{margin-top:6px;text-align:right;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;padding-right:6px;} .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
     win.document.write('<html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
     win.document.close(); win.focus();
-    const PX = 96 / 25.4;
-    const PAGE_W = 297 * PX, PAGE_H = 210 * PX;
-    const MARGIN_X = 5 * PX, MARGIN_Y = 4 * PX;
-    const AVAILABLE_W = PAGE_W - MARGIN_X * 2;
-    const AVAILABLE_H = PAGE_H - MARGIN_Y * 2;
-    setTimeout(() => {
-      win.document.querySelectorAll('.print-page').forEach((pg: any) => {
-        const sheet = pg.querySelector('.sheet') as HTMLElement;
-        if (!sheet) return;
-        sheet.style.width = '397mm';
-        sheet.style.height = 'auto';
-        sheet.style.minHeight = '210mm';
-        sheet.style.transform = 'none';
-        const w = sheet.scrollWidth, h = sheet.scrollHeight;
-        if (!w || !h) return;
-        const scale = Math.min(AVAILABLE_W / w, AVAILABLE_H / h);
-        const offsetX = MARGIN_X + Math.max(0, (AVAILABLE_W - w * scale) / 2);
-        const offsetY = MARGIN_Y + Math.max(0, (AVAILABLE_H - h * scale) / 2);
-        sheet.style.transformOrigin = 'top left';
-        sheet.style.transform = 'translate(' + offsetX + 'px,' + offsetY + 'px) scale(' + scale + ')';
-      });
-      win.focus(); win.print(); win.close();
-    }, 400);
+    const doPrint = () => { win.focus(); win.print(); };
+    const ready = () => { const doc = win.document as any; if (doc.fonts?.ready) { doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); }); } else { requestAnimationFrame(() => requestAnimationFrame(doPrint)); } };
+    win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
+    if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }
   }
 }

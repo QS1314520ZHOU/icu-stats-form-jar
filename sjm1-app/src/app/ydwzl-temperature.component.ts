@@ -181,12 +181,13 @@ const MARK_OTHER = '⑥';
     /* A4 横向 */
     .sheet { box-sizing:border-box; width:297mm; height:210mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); overflow:hidden; position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:'SimHei', '黑体', sans-serif; font-weight:700; font-size:22pt; line-height:1.4; }
+    .title-line { font-family:'SimHei', '黑体', sans-serif; font-weight:700; font-size:24pt; line-height:1.35; }
 
     /* 患者信息：一排 */
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:18px; font-family:'SimSun', '宋体', serif; font-size:12pt; white-space:nowrap; margin:6px 0; }
+    .patient-info-row { display:flex; align-items:center; width:100%; gap:18px; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; white-space:nowrap; margin:2px 0; color:#000; }
     .info-item { flex:0 0 auto; white-space:nowrap; }
     .info-item b { font-weight:700; }
+    .info-item b, .info-item strong { font-family:inherit; font-size:inherit; font-style:inherit; line-height:inherit; color:inherit; font-weight:700; }
     .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
     .date-item { flex:0 0 auto; margin-left:auto; }
     .date-input {
@@ -210,7 +211,7 @@ const MARK_OTHER = '⑥';
     .monitor-option { display:inline-flex; align-items:center; margin-right:26px; white-space:nowrap; }
 
     /* 备注 */
-    .remark-cell { box-sizing:border-box; width:100%; text-align:left !important; vertical-align:top; padding:5px 8px !important; font-size:7.5pt; line-height:1.45; white-space:normal; word-break:break-word; }
+    .remark-cell { box-sizing:border-box; width:100%; text-align:left !important; vertical-align:top; padding:5px 8px !important; font-size:9.5pt; line-height:1.3; white-space:normal; word-break:break-word; margin-bottom:10mm; }
     .remark-text { text-align:left; line-height:1.5; }
 
     .other-input { border:none; border-bottom:1px solid #000; min-width:120px; font-size:7.5pt; }
@@ -218,7 +219,7 @@ const MARK_OTHER = '⑥';
 
     .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
 
-    .sheet-pageno { margin-top:4px; text-align:center; font-size:12pt; font-family:'SimSun', '宋体', serif; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print { .no-print { display:none !important; } .print-hidden { display:none !important; } }
   `],
@@ -521,10 +522,10 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       body{color:#000;font-family:'SimSun','宋体',serif;}
       .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
       .print-page:last-of-type{page-break-after:auto;}
-      .sheet{box-sizing:border-box;min-height:auto;margin:0;padding:10mm 12mm;box-shadow:none;transform-origin:top left;}
+      .sheet{position:relative;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none!important;zoom:1!important;filter:none!important;text-shadow:none!important;}
       .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.4;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:12pt;white-space:nowrap;margin:6px 0;}
+      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
+      .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
       .info-item{flex:0 0 auto;white-space:nowrap;}
       .info-item b{font-weight:700;}
       .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
@@ -535,36 +536,18 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       .row-label{width:130px;}
       .monitor-cell{box-sizing:border-box;text-align:left !important;padding:5px 12px !important;white-space:nowrap;overflow:hidden;}
       .monitor-option{display:inline-flex;align-items:center;margin-right:26px;white-space:nowrap;}
-      .remark-cell{box-sizing:border-box;width:100%;text-align:left !important;vertical-align:top;padding:5px 8px !important;font-size:7.5pt;line-height:1.45;white-space:normal;word-break:break-word;}
+      .remark-cell{box-sizing:border-box;width:100%;text-align:left !important;vertical-align:top;padding:5px 8px !important;font-size:8pt;line-height:1.3;margin-bottom:10mm;white-space:normal;word-break:break-word;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
-      .sheet-pageno{margin-top:4px;text-align:center;font-size:12pt;}
+      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
     win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
-    win.focus();
-    const PX = 96 / 25.4, PAGE_W = 297 * PX, PAGE_H = 210 * PX;
-    setTimeout(() => {
-      win.document.querySelectorAll('.print-page').forEach((pg: any) => {
-        const sheet = pg.querySelector('.sheet') as HTMLElement;
-        const table = sheet && (sheet.querySelector('.record-table') as HTMLElement);
-        if (!sheet || !table) return;
-        sheet.style.transform = 'none';
-        const cs = win.getComputedStyle(sheet);
-        const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
-        const tableW = table.getBoundingClientRect().width;
-        sheet.style.width = (tableW + padX) + 'px';
-        const w = sheet.scrollWidth, h = sheet.scrollHeight;
-        if (!w || !h) return;
-        const scale = Math.min(PAGE_W / w, PAGE_H / h);
-        const offsetX = Math.max(0, (PAGE_W - w * scale) / 2);
-        const offsetY = Math.max(0, (PAGE_H - h * scale) / 2);
-        sheet.style.transformOrigin = 'top left';
-        sheet.style.transform = 'translate(' + offsetX + 'px,' + offsetY + 'px) scale(' + scale + ')';
-      });
-      win.focus(); win.print(); win.close();
-    }, 400);
+    const doPrint = () => { win.focus(); win.print(); };
+    const ready = () => { const doc = win.document as any; if (doc.fonts?.ready) { doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); }); } else { requestAnimationFrame(() => requestAnimationFrame(doPrint)); } };
+    win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
+    if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }
   }
 
   private calcAge(birthday?: string): number | null {
@@ -581,16 +564,16 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   fmtDate(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
-    if (isNaN(d.getTime())) return v;
+    if (Number.isNaN(d.getTime())) return v;
     const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
   fmtTime(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
-    if (isNaN(d.getTime())) return '';
+    if (Number.isNaN(d.getTime())) return '';
     const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
   }
   fmtDateTime(v?: string): string {
     if (!v) return '';
