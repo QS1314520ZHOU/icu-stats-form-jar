@@ -537,7 +537,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;} .measure-cell{text-align:left;padding-left:4px;letter-spacing:2px;}
       .result-line{display:flex;flex-wrap:wrap;gap:80px;margin-top:8px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
       .rl-item{display:inline-flex;align-items:center;} .screen-only{display:none !important;} .print-only{display:inline !important;}
-      .fill-val{min-width:120px;border-bottom:1px solid #000;padding:0 6px;}
+      .fill-val{display:inline-block;min-width:0;border:0!important;border-bottom:0!important;padding:0 4px;box-shadow:none!important;background:transparent!important;text-decoration:none!important;}
       .footnote{font-family:'SimSun','宋体',serif;font-size:8pt;line-height:1.3;text-align:left;margin-bottom:10mm;} .footnote .fn-title{font-weight:700;} .footnote .fn{margin:1px 0;}
       .review-sign{margin-top:6px;text-align:right;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;padding-right:6px;} .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;

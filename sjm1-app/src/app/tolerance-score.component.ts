@@ -276,7 +276,7 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
     })),
   );
 
-  readonly colsPerPage = 5;
+  readonly colsPerPage = 6;
   readonly toleranceFixedWidth = 58 + 78 + 300;
   readonly toleranceDataColWidth = 88;
   get toleranceTableWidth(): number { return this.toleranceFixedWidth + this.colsPerPage * this.toleranceDataColWidth; }
