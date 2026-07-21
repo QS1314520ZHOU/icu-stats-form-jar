@@ -24,7 +24,6 @@ import {
   tap,
 } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
-import { measureRowCapacity } from './form-measure.util';
 
 /* ============================= 配置区 ============================= */
 
@@ -244,7 +243,7 @@ export class CommitSuicideScoreComponent
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  maxRowsPerPage = 16;
+  readonly rowsPerPage = 10;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -359,16 +358,17 @@ export class CommitSuicideScoreComponent
                 row.signName = nameMap.get(row.signUserId) || row.signName;
               }
             }
-            this.autoPaginate();
+            this.paginate();
             this.cdr.detectChanges();
           },
           error: () => {
-            this.autoPaginate();
+            this.paginate();
             this.cdr.detectChanges();
           },
         });
     } else {
-      this.autoPaginate();
+      this.paginate();
+      this.cdr.detectChanges();
     }
   }
 
@@ -402,29 +402,8 @@ export class CommitSuicideScoreComponent
     return [...new Set(out)].sort();
   }
 
-  private async autoPaginate(): Promise<void> {
-    try {
-      const title = this.hospitalName + '自杀风险评估表（NGASR）';
-      const fixedHtml = '<div class="sheet-head"><div class="title-line">' + title + '</div></div>' +
-        '<div class="patient-info-row"><span class="info-item"><b>病区：</b>' + this.deptName + '</span></div>' +
-        '<table class="record-table"><thead><tr><th class="date-col" rowspan="2">日期 时间</th>' +
-        '<th class="item-col"><span class="v-text">项目</span></th>' +
-        '<th class="total-col" rowspan="2">总分</th><th class="risk-col" rowspan="2">风险等级</th>' +
-        '<th class="measure-col" rowspan="2">防范措施</th><th class="sign-col" rowspan="2">签名</th></tr>' +
-        '<tr><th class="score-cell">分值</th></tr></thead></table>' +
-        '<div class="footnote"><div>防范措施：</div></div>';
-      const rowHtml = '<table class="record-table"><tr class="data-row"><td class="date-col">2026-01-01 12:00</td>' +
-        '<td class="check-cell">√</td><td class="total-col">0</td><td class="risk-col">低风险</td>' +
-        '<td class="measure-col"></td><td class="sign-col"></td></tr></table>';
-      const capacity = await measureRowCapacity(fixedHtml, rowHtml, { safetyMargin: 8 });
-      this.maxRowsPerPage = Math.max(5, Math.min(16, capacity));
-    } catch(e) { /* keep fallback */ }
-    this.paginate();
-    this.cdr.detectChanges();
-  }
-
-  private paginate(): void {
-    const per = this.maxRowsPerPage;
+private paginate(): void {
+    const per = this.rowsPerPage;
     const pages: RenderPage[] = [];
     if (!this.rows.length) {
       pages.push({ index: 1, rows: [] });
@@ -441,8 +420,8 @@ export class CommitSuicideScoreComponent
 
   /** 每页补空行，保证表格高度稳定 */
   pagePaddedRows(page: RenderPage): (EvalRow | null)[] {
-    const result: (EvalRow | null)[] = page.rows.slice(0, this.maxRowsPerPage);
-    while (result.length < this.maxRowsPerPage) result.push(null);
+    const result: (EvalRow | null)[] = page.rows.slice(0, this.rowsPerPage);
+    while (result.length < this.rowsPerPage) result.push(null);
     return result;
   }
 
