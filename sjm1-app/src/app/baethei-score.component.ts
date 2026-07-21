@@ -11,6 +11,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { measureRowCapacity } from './form-measure.util';
 
 /* ============================= 配置区 ============================= */
 
@@ -257,7 +258,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 屏蔽的系统账号（按 trueName 精确匹配） */
   private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
 
-  readonly rowsPerPage = 12;
+  maxRowsPerPage = 12;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -368,13 +369,13 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
               row.signName = nameMap.get(row.signUserId) || row.signName;
             }
           }
-          this.paginate();
+          this.autoPaginate();
           this.cdr.detectChanges();
         },
-        error: () => { this.paginate(); this.cdr.detectChanges(); },
+        error: () => { this.autoPaginate(); this.cdr.detectChanges(); },
       });
     } else {
-      this.paginate();
+      this.autoPaginate();
     }
   }
 
@@ -394,8 +395,33 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     return '';
   }
 
+  private async autoPaginate(): Promise<void> {
+    try {
+      const title = this.hospitalName + '住院患者日常生活能力评估单';
+      const fixedHtml = '<div class="sheet-head"><div class="title-line">' + title + '</div></div>' +
+        '<div class="patient-info-row"><span class="info-item"><b>病区：</b>' + this.deptName + '</span></div>' +
+        '<table class="record-table"><thead><tr><th class="date-col" rowspan="6">日期时间</th>' +
+        '<th colspan="12">日常生活能力评估（Barthel 指数）</th>' +
+        '<th class="grade-col" rowspan="6">分级</th><th class="other-col" rowspan="6">其他</th><th class="sign-col" rowspan="6">签名</th></tr>' +
+        '<tr><th class="item-label-col">项目</th><th>进食</th><th>洗浴</th><th>修饰</th><th>穿[脱]衣</th><th>控制大便</th><th>控制小便</th><th>如厕</th><th>床椅移动</th><th>平地行走</th><th>上下楼梯</th><th class="total-col">总分</th></tr>' +
+        '<tr class="legend-row"><th class="legend-level">完全独立</th><td>10</td><td>5</td><td>5</td><td>10</td><td>10</td><td>10</td><td>10</td><td>15</td><td>15</td><td>10</td><td class="legend-total"></td></tr>' +
+        '<tr class="legend-row"><th class="legend-level">需部分帮助</th><td>5</td><td>0</td><td>0</td><td>5</td><td>5偶尔</td><td>5偶尔</td><td>5</td><td>10</td><td>10</td><td>5</td><td class="legend-total"></td></tr>' +
+        '<tr class="legend-row"><th class="legend-level">需极大帮助</th><td>0</td><td></td><td></td><td>0</td><td>0失控</td><td>0失控</td><td>0</td><td>5</td><td>5</td><td>0</td><td class="legend-total"></td></tr>' +
+        '<tr class="legend-row"><th class="legend-level">完全依赖</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>0</td><td>0</td><td></td><td class="legend-total"></td></tr>' +
+        '</thead></table>' +
+        '<div class="footnote"><div>备注：</div></div>';
+      const rowHtml = '<table class="record-table"><tr class="data-row"><td class="date-cell"><span class="dt-date">2026-01-01</span><span class="dt-time">12:00:00</span></td>' +
+        '<td class="item-label-col"></td><td>10</td><td>5</td><td>5</td><td>10</td><td>10</td><td>10</td><td>10</td><td>15</td><td>15</td><td>10</td><td class="total-col">100</td>' +
+        '<td class="grade-col">无依赖</td><td class="other-cell"></td><td class="sign-col"></td></tr></table>';
+      const capacity = await measureRowCapacity(fixedHtml, rowHtml, { safetyMargin: 8 });
+      this.maxRowsPerPage = Math.max(5, Math.min(12, capacity));
+    } catch(e) { /* keep fallback */ }
+    this.paginate();
+    this.cdr.detectChanges();
+  }
+
   private paginate(): void {
-    const per = this.rowsPerPage;
+    const per = this.maxRowsPerPage;
     const pages: RenderPage[] = [];
     if (!this.rows.length) {
       pages.push({ index: 1, rows: [] });
@@ -411,8 +437,8 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   pagePaddedRows(page: RenderPage): (BarthelRow | null)[] {
-    const result: (BarthelRow | null)[] = page.rows.slice(0, this.rowsPerPage);
-    while (result.length < this.rowsPerPage) result.push(null);
+    const result: (BarthelRow | null)[] = page.rows.slice(0, this.maxRowsPerPage);
+    while (result.length < this.maxRowsPerPage) result.push(null);
     return result;
   }
 

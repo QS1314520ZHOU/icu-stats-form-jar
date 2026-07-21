@@ -29,6 +29,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { measureRowCapacity } from './form-measure.util';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -327,7 +328,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	isOutHospital = false;
 
 	selectedPage: number | null = null;
-	private rowsPerPage = 18;
+	private maxRowsPerPage = 18; // fallback, will be auto-calculated
 	private pid = '';
 	private destroy$ = new Subject<void>();
 	private ro?: ResizeObserver;
@@ -454,8 +455,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 		this.http.get<any>(this.API_VEIN_EXTRA, {
 			params: { pid: this.pid, tubeId: this.tubeId(), type: '中心静脉导管' }
 		}).pipe(finalize(() => {
-			this.paginate();
-			this.cdr.detectChanges();
+			this.autoPaginate();
 		})).subscribe({
 			next: (d) => {
 				if (d) {
@@ -519,9 +519,29 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 		return diagnosis.trim();
 	}
 
+	/* 自动分页：通过实际 DOM 测量计算每页行数 */
+	private async autoPaginate(): Promise<void> {
+		try {
+			const fixedHtml = '<div class="sheet-head"><div class="title-line">' + this.hospitalName + '深静脉维护记录单（一）</div></div>' +
+				'<div class="patient-info"><div class="info-row"><span class="info-item"><b>病区：</b>' + (this.patient?.dept || '') + '</span></div></div>' +
+				'<table class="record-table"><thead><tr><th rowspan="2">日期时间</th><th colspan="6">置管信息</th><th colspan="6">维护信息</th></tr>' +
+				'<tr><th>置管时间</th><th>置管长度</th><th>置入位置</th><th>换敷料</th><th>更换输液接头</th><th>外露长度(cm)</th>' +
+				'<th>渗血</th><th>疼痛</th><th>红肿感染</th><th>回血</th><th>其他</th><th>签名</th></tr></thead></table>' +
+				'<div class="sheet-remark">备注：1.执行相应操作后请在栏内打"√"</div>';
+			const rowHtml = '<table class="record-table"><tr><td>2026-01-01 12:00</td><td>2026-01-01 12:00</td>' +
+				'<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>';
+			const capacity = await measureRowCapacity(fixedHtml, rowHtml, { safetyMargin: 12 });
+			this.maxRowsPerPage = Math.max(5, Math.min(18, capacity));
+		} catch(e) {
+			// keep fallback 18
+		}
+		this.paginate();
+		this.cdr.detectChanges();
+	}
+
 	/* 分页 */
 	private paginate(): void {
-		const per = Math.max(1, this.rowsPerPage);
+		const per = Math.max(1, this.maxRowsPerPage);
 		const pages: RenderPage[] = [];
 		if (this.validRecords.length === 0) {
 			pages.push({ index: 1, rows: [] });
@@ -547,8 +567,8 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 		const rowH = 30;
 		const rows = Math.floor((usableH - fixedH - tableHeaderH) / rowH);
 		const next = Math.max(5, rows);
-		if (next !== this.rowsPerPage) {
-			this.rowsPerPage = next;
+		if (next !== this.maxRowsPerPage) {
+			this.maxRowsPerPage = next;
 			this.paginate();
 			this.cdr.detectChanges();
 		}
@@ -556,7 +576,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 
 	pagePaddedRows(page: RenderPage): (TubeRecord | null)[] {
 		const rows: (TubeRecord | null)[] = [...page.rows];
-		while (rows.length < this.rowsPerPage) rows.push(null);
+		while (rows.length < this.maxRowsPerPage) rows.push(null);
 		return rows;
 	}
 

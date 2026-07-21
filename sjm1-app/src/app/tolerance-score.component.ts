@@ -21,6 +21,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { measureColCapacity } from './form-measure.util';
 
 /* ============================= 配置区（新增评估表时改这里） ============================= */
 
@@ -180,7 +181,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
             </tr>
             <!-- 备注行：在 table 内，跨所有列 -->
             <tr>
-              <td class="footnote-cell" [attr.colspan]="colsPerPage + 3">
+              <td class="footnote-cell" [attr.colspan]="maxColsPerPage + 3">
                 <div class="fn">总分：0-2分：继续肠内营养，维持原速度或增加速度，对症治疗，每班评估一次<br>3-4分：继续肠内营养，减慢速度，2h后新评估<br>≥5分：暂停肠内营养，重新评估或更换输入途径</div>
               </td>
             </tr>
@@ -267,7 +268,7 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
     })),
   );
 
-  readonly colsPerPage = 8;
+  maxColsPerPage = 8;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -368,13 +369,13 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
               col.signName = nameMap.get(col.signUserId) || col.signName;
             }
           }
-          this.paginate();
+          this.autoPaginate();
           this.cdr.detectChanges();
         },
-        error: () => { this.paginate(); this.cdr.detectChanges(); },
+        error: () => { this.autoPaginate(); this.cdr.detectChanges(); },
       });
     } else {
-      this.paginate();
+      this.autoPaginate();
     }
   }
 
@@ -399,8 +400,19 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
     return [...new Set(out)];
   }
 
+  private async autoPaginate(): Promise<void> {
+    try {
+      const fixedHtml = '<table class="record-table"><thead><tr><th class="row-label">项目</th></tr></thead></table>';
+      const colHtml = '<table class="record-table"><thead><tr><th><div class="dt-date">2026-01-01</div><div class="dt-time">12:00:00</div></th></tr></thead></table>';
+      const capacity = await measureColCapacity(fixedHtml, colHtml, { safetyMargin: 10 });
+      this.maxColsPerPage = Math.max(4, Math.min(8, capacity));
+    } catch(e) { /* keep fallback */ }
+    this.paginate();
+    this.cdr.detectChanges();
+  }
+
   private paginate(): void {
-    const per = this.colsPerPage;
+    const per = this.maxColsPerPage;
     const pages: RenderPage[] = [];
     if (!this.columns.length) {
       pages.push({ index: 1, cols: [] });
@@ -416,8 +428,8 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   pagePaddedCols(page: RenderPage): (EvalColumn | null)[] {
-    const result: (EvalColumn | null)[] = page.cols.slice(0, this.colsPerPage);
-    while (result.length < this.colsPerPage) result.push(null);
+    const result: (EvalColumn | null)[] = page.cols.slice(0, this.maxColsPerPage);
+    while (result.length < this.maxColsPerPage) result.push(null);
     return result;
   }
 

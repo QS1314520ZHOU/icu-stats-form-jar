@@ -7,6 +7,7 @@ import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnI
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { measureRowCapacity } from './form-measure.util';
 
 const SCORE_TYPE = 'patientFallDangerLJRMYY';
 const FORM_CODE = 'patientFallDangerForm';
@@ -281,7 +282,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   private blurTimer: any = null;
   private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
 
-  readonly rowsPerPage = 15;
+  maxRowsPerPage = 15;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -356,9 +357,9 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
           const nameMap = new Map<string, string>();
           if (Array.isArray(accounts)) for (const a of accounts) { const id = a?._id || a?.id; if (id) nameMap.set(String(id), a?.trueName || ''); }
           for (const row of this.rows) if (row.signUserId && nameMap.has(row.signUserId)) row.signName = nameMap.get(row.signUserId) || row.signName;
-          this.paginate(); this.cdr.detectChanges();
+          this.autoPaginate();
         },
-        error: () => { this.paginate(); this.cdr.detectChanges(); },
+        error: () => { this.autoPaginate(); },
       });
     } else { this.paginate(); }
   }
@@ -381,16 +382,38 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     return out.join(' ');
   }
 
+  private async autoPaginate(): Promise<void> {
+    try {
+      const title = this.hospitalName + '跌倒/坠床风险评估及预防措施护理记录单';
+      const fixedHtml = '<div class="sheet-head"><div class="title-line">' + title + '</div></div>' +
+        '<div class="patient-info-row"><span class="info-item"><b>病区：</b>' + this.deptName + '</span></div>' +
+        '<table class="record-table"><thead><tr><th class="date-col" rowspan="4">日期/时间</th>' +
+        '<th colspan="2">适用方法</th><th colspan="7">临床判定法</th>' +
+        '<th colspan="2">Morse评分量表</th><th class="risk-col" rowspan="4">跌倒风险</th>' +
+        '<th class="measure-col" rowspan="4">预防措施</th><th class="sign-col" rowspan="4">签名</th></tr></thead></table>' +
+        '<div class="footnote"><div class="fn-title">预防跌倒护理措施：</div></div>' +
+        '<div class="review-sign">审核护士签名：</div>';
+      const rowHtml = '<table class="record-table"><tr><td class="date-cell"><span class="dt-date">2026-01-01</span>' +
+        '<span class="dt-time">12:00:00</span></td><td></td><td></td>' +
+        '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>' +
+        '<td></td><td></td><td></td><td></td><td></td></tr></table>';
+      const capacity = await measureRowCapacity(fixedHtml, rowHtml, { safetyMargin: 8 });
+      this.maxRowsPerPage = Math.max(5, Math.min(15, capacity));
+    } catch(e) { /* keep fallback */ }
+    this.paginate();
+    this.cdr.detectChanges();
+  }
+
   private paginate(): void {
-    const per = this.rowsPerPage; const pages: RenderPage[] = [];
+    const per = this.maxRowsPerPage; const pages: RenderPage[] = [];
     if (!this.rows.length) pages.push({ index: 1, rows: [] });
     else for (let i = 0; i < this.rows.length; i += per) pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) });
     this.pages = pages;
     if (this.selectedPage !== null && this.selectedPage > pages.length) this.selectedPage = null;
   }
   pagePaddedRows(page: RenderPage): (FallRow | null)[] {
-    const result: (FallRow | null)[] = page.rows.slice(0, this.rowsPerPage);
-    while (result.length < this.rowsPerPage) result.push(null);
+    const result: (FallRow | null)[] = page.rows.slice(0, this.maxRowsPerPage);
+    while (result.length < this.maxRowsPerPage) result.push(null);
     return result;
   }
 

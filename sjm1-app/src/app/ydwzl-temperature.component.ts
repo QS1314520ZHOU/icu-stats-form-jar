@@ -18,6 +18,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { measureColCapacity } from './form-measure.util';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -110,7 +111,7 @@ const MARK_OTHER = '⑥';
             <!-- 体温监测方式 -->
             <tr>
               <th class="row-label">体温监测方式</th>
-              <td class="monitor-cell" [attr.colspan]="colsPerPage">
+              <td class="monitor-cell" [attr.colspan]="maxColsPerPage">
                 <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.anal" (change)="onFieldChange()" /> 肛温</label>
                 <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.bladder" (change)="onFieldChange()" /> 膀胱温</label>
                 <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.blood" (change)="onFieldChange()" /> 血温</label>
@@ -151,7 +152,7 @@ const MARK_OTHER = '⑥';
             </tr>
             <!-- 备注 -->
             <tr>
-              <td class="remark-cell" [attr.colspan]="colsPerPage + 1">
+              <td class="remark-cell" [attr.colspan]="maxColsPerPage + 1">
                 <div class="remark-text">
                   备注：<br>
                   1、目标温度：33℃-35℃。<br>
@@ -247,7 +248,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   monitorModes = { anal: false, bladder: false, blood: false, axillary: false };
 
   selectedPage: number | null = null;
-  readonly colsPerPage = 16;
+  maxColsPerPage = 16;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -378,14 +379,14 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
             }
           }
           this.loadExtra();
-          this.paginate();
+          this.autoPaginate();
           this.cdr.detectChanges();
         },
-        error: () => { this.loadExtra(); this.paginate(); this.cdr.detectChanges(); },
+        error: () => { this.loadExtra(); this.autoPaginate(); this.cdr.detectChanges(); },
       });
     } else {
       this.loadExtra();
-      this.paginate();
+      this.autoPaginate();
     }
   }
 
@@ -470,8 +471,19 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
 		return diagnosis.trim();
   }
 
+  private async autoPaginate(): Promise<void> {
+    try {
+      const fixedHtml = '<table class="record-table"><thead><tr><th class="row-label">项目</th></tr></thead></table>';
+      const colHtml = '<table class="record-table"><thead><tr><th><div class="dt-date">2026-01-01</div><div class="dt-time">12:00:00</div></th></tr></thead></table>';
+      const capacity = await measureColCapacity(fixedHtml, colHtml, { safetyMargin: 10 });
+      this.maxColsPerPage = Math.max(4, Math.min(16, capacity));
+    } catch(e) { /* keep fallback */ }
+    this.paginate();
+    this.cdr.detectChanges();
+  }
+
   private paginate(): void {
-    const per = this.colsPerPage;
+    const per = this.maxColsPerPage;
     const pages: RenderPage[] = [];
     if (!this.columns.length) {
       pages.push({ index: 1, cols: [] });
@@ -486,10 +498,10 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     }
   }
 
-  /** 返回恰好 colsPerPage 项的数组 */
+  /** 返回恰好 maxColsPerPage 项的数组 */
   pagePaddedCols(page: RenderPage): (TimeColumn | null)[] {
-    const result: (TimeColumn | null)[] = page.cols.slice(0, this.colsPerPage);
-    while (result.length < this.colsPerPage) result.push(null);
+    const result: (TimeColumn | null)[] = page.cols.slice(0, this.maxColsPerPage);
+    while (result.length < this.maxColsPerPage) result.push(null);
     return result;
   }
 
