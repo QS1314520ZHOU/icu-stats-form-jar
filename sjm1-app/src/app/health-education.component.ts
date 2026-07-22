@@ -169,7 +169,46 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     return r?.valuableCodes?.includes(code) ? '☑' : '□';
   }
   has(arr: string[]|undefined, code: string): boolean { return !!arr?.includes(code); }
-  externalExamSelectionText(r:HealthEducationRecord|null):string[]{if(!r)return[];const o:string[]=[];if(r.itemCodes?.includes("EXAM_CT"))o.push("√CT");if(r.itemCodes?.includes("MRI"))o.push("√磁共振");if(r.itemCodes?.includes("GASTROSCOPY"))o.push("√胃镜");if(r.itemCodes?.includes("EXAM_OTHER"))o.push("√其它");return o;} internalExamSelectionText(r:HealthEducationRecord|null):string[]{if(!r)return[];const o:string[]=[];if(r.itemCodes?.includes("BRONCHOSCOPY"))o.push("√纤支镜");if(r.itemCodes?.includes("WARD_OTHER"))o.push("√其它");return o;} toggle(field:'itemCodes'|'evaluationCodes'|'valuableCodes',code:string,on:boolean):void{const s=new Set(this.form[field]||[]);if(on){s.add(code)}else{s.delete(code);if(field==='itemCodes'){if(code==='SPECIAL_OTHER')this.form.specialMedicationOther='';if(code==='EXAM_OTHER')this.form.externalExamOther='';if(code==='WARD_OTHER')this.form.internalExamOther='';if(code==='OTHER')this.form.otherEducation='';}}this.form[field]=[...s];}
+  /**
+   * 判断全部有效评估记录中，是否至少有一次选择了对应项目。
+   *
+   * 用于表格前面固定内容列中的选择框：
+   * 选中过至少一次显示√，从未选择显示□。
+   */
+  summaryCheckbox(code: string): string {
+    return this.records.some(record =>
+      record?.itemCodes?.includes(code)
+    )
+      ? '√'
+      : '□';
+  }
+  /**
+   * 判断单次评估是否选择了任意指定项目。
+   */
+  recordHasAny(
+    record: HealthEducationRecord | null,
+    codes: string[]
+  ): boolean {
+    if (!record) {
+      return false;
+    }
+
+    return codes.some(code =>
+      record.itemCodes?.includes(code)
+    );
+  }
+  /**
+   * 用于后面的动态评估列显示一个普通 √。
+   */
+  recordAnyMark(
+    record: HealthEducationRecord | null,
+    codes: string[]
+  ): string {
+    return this.recordHasAny(record, codes)
+      ? '√'
+      : '';
+  }
+  toggle(field:'itemCodes'|'evaluationCodes'|'valuableCodes',code:string,on:boolean):void{const s=new Set(this.form[field]||[]);if(on){s.add(code)}else{s.delete(code);if(field==='itemCodes'){if(code==='SPECIAL_OTHER')this.form.specialMedicationOther='';if(code==='EXAM_OTHER')this.form.externalExamOther='';if(code==='WARD_OTHER')this.form.internalExamOther='';if(code==='OTHER')this.form.otherEducation='';}}this.form[field]=[...s];}
   targetMark(r: HealthEducationRecord|null, code: string): string {
     return r && (r.educationTarget===code || r.educationTarget==='AB') ? '√' : '';
   }
@@ -216,7 +255,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       .sheet-pageno{position:absolute;left:8mm;right:8mm;bottom:5mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
       .no-print,.shared-screen-editor,.shared-actions{display:none!important}
       .other-summary-cell .no-print{display:none!important}
-      .merged-item-cell{width:136px;padding:2px 4px!important;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2}.detail-content-cell{padding:2px 4px!important;text-align:left;vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:break-word;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.25}.inline-other-part{display:inline;white-space:normal}.other-fill-value{color:#000;font-weight:400}.fill-line{display:inline-block;width:140px;min-height:1em;vertical-align:bottom;border-bottom:1px solid #000}.fill-line.short-line{width:55px}.fill-line.long-line{width:80%}
+      .merged-item-cell{width:136px;padding:2px 4px!important;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2}.detail-content-cell{padding:2px 4px!important;text-align:left;vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:break-word;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.25}.inline-other-part{display:inline;white-space:normal}.exam-prefix{display:inline;white-space:nowrap}.fixed-exam-option,.fixed-medication-option{display:inline-block;margin-right:5px;white-space:nowrap;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.25;color:#000}.other-label{display:inline}.other-fill-value{display:inline;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;color:#000}.fill-line{display:inline-block;width:140px;min-height:1em;vertical-align:bottom;border-bottom:1px solid #000}.fill-line.short-line{width:55px}.fill-line.long-line{width:80%}
     `;
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) { alert('打印窗口被拦截'); return; }
