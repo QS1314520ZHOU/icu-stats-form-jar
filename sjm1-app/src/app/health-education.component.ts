@@ -67,6 +67,9 @@ const VALUABLES = ['手机','现金','医保卡','身份证','银行卡','钥匙
 export class HealthEducationComponent implements OnInit, OnDestroy {
   private readonly API = '/api/v1/icu/health-education';
   readonly groups = GROUPS; readonly valuables = VALUABLES;
+  readonly admissionGroup = GROUPS.find(g=>g.name==='入院/转入宣教')!;
+  readonly diseaseGroup = GROUPS.find(g=>g.name==='疾病宣教')!;
+  readonly remainingGroups = GROUPS.filter(g=>!['入院/转入宣教','疾病宣教','药物宣教','检查宣教','其它'].includes(g.name));
   readonly targetOptions = [{code:'A',label:'家属'},{code:'B',label:'病人'}];
   readonly evaluationOptions = [{code:'A',label:'能复述'},{code:'B',label:'能解释'},{code:'C',label:'能模仿'},{code:'D',label:'能操作'}];
 
@@ -154,24 +157,17 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   }
 
   checked(r: HealthEducationRecord|null, code: string): string { return r?.itemCodes?.includes(code) ? '√' : ''; }
-  get otherEducationSummary(): string { return this.records.filter(r=>!!r?.otherEducation?.trim()).map(r=>{const d=this.fmtMonthDay(r.assessmentTime);const t=this.fmtHourMinute(r.assessmentTime);return `${d} ${t}：${r.otherEducation!.trim()}`;}).join('；'); }
-  itemDisplayText(r: HealthEducationRecord|null, code: string): string {
-    if (!r?.itemCodes?.includes(code)) return '';
-    switch (code) {
-      case 'SPECIAL_OTHER': return r.specialMedicationOther ? '√ 其他：'+r.specialMedicationOther : '√';
-      case 'EXAM_OTHER': return r.externalExamOther ? '√ 其它：'+r.externalExamOther : '√';
-      case 'WARD_OTHER': return r.internalExamOther ? '√ 其它：'+r.internalExamOther : '√';
-      case 'OTHER': return r.otherEducation ? '√ '+r.otherEducation : '√';
-      default: return '√';
-    }
-  }
+  checkedAny(r:HealthEducationRecord|null,codes:string[]):string{if(!r)return'';return codes.some(c=>r.itemCodes?.includes(c))?'√':'';}
+  get otherEducationSummary(): string { return this.joinDistinctOtherValues(this.records.filter(r=>r.itemCodes?.includes('OTHER')&&!!r.otherEducation?.trim()).map(r=>r.otherEducation)); }
+  get specialMedicationOtherSummary(): string { return this.joinDistinctOtherValues(this.records.filter(r=>r.itemCodes?.includes('SPECIAL_OTHER')&&!!r.specialMedicationOther?.trim()).map(r=>r.specialMedicationOther)); }
+  get externalExamOtherSummary(): string { return this.joinDistinctOtherValues(this.records.filter(r=>r.itemCodes?.includes('EXAM_OTHER')&&!!r.externalExamOther?.trim()).map(r=>r.externalExamOther)); }
+  get internalExamOtherSummary(): string { return this.joinDistinctOtherValues(this.records.filter(r=>r.itemCodes?.includes('WARD_OTHER')&&!!r.internalExamOther?.trim()).map(r=>r.internalExamOther)); }
+  itemDisplayText(r:HealthEducationRecord|null,code:string):string{return r?.itemCodes?.includes(code)?'√':'';}
   valuableMark(r: HealthEducationRecord|null, code: string): string {
     return r?.valuableCodes?.includes(code) ? '☑' : '□';
   }
   has(arr: string[]|undefined, code: string): boolean { return !!arr?.includes(code); }
-  toggle(field: 'itemCodes'|'evaluationCodes'|'valuableCodes', code: string, on: boolean): void {
-    const set=new Set(this.form[field] || []); on ? set.add(code) : set.delete(code); this.form[field]=[...set];
-  }
+  toggle(field:'itemCodes'|'evaluationCodes'|'valuableCodes',code:string,on:boolean):void{const s=new Set(this.form[field]||[]);if(on){s.add(code)}else{s.delete(code);if(field==='itemCodes'){if(code==='SPECIAL_OTHER')this.form.specialMedicationOther='';if(code==='EXAM_OTHER')this.form.externalExamOther='';if(code==='WARD_OTHER')this.form.internalExamOther='';if(code==='OTHER')this.form.otherEducation='';}}this.form[field]=[...s];}
   targetMark(r: HealthEducationRecord|null, code: string): string {
     return r && (r.educationTarget===code || r.educationTarget==='AB') ? '√' : '';
   }
@@ -203,9 +199,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       .paper-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2;color:#000;text-shadow:none!important;filter:none!important}
       .paper-table th,.paper-table td{box-sizing:border-box;border:1px solid #000;padding:2px 3px;vertical-align:middle;font-family:inherit;font-size:inherit;color:#000;background:transparent;text-shadow:none!important;filter:none!important}
       .paper-table th{font-weight:700}.paper-table td{font-weight:400}
-      .paper-table col.category-column{width:20px}
-      .paper-table col.content-column{width:auto}
-      .paper-table col.record-column{width:46px}
+      .paper-table col.category-column{width:20px}.paper-table col.item-column{width:136px}.paper-table col.detail-column{width:auto}.paper-table col.record-column{width:46px}
       .paper-table .group{box-sizing:border-box;width:20px;min-width:20px;max-width:20px;padding:2px 1px;writing-mode:vertical-rl;text-orientation:upright;text-align:center;vertical-align:middle;white-space:normal;word-break:keep-all;font-size:9pt;font-weight:700;line-height:1.05;letter-spacing:0;color:#000}
       .paper-table .content{width:auto;padding:2px 4px;text-align:left;white-space:normal;word-break:normal;overflow-wrap:break-word}
       .paper-table .mark,.paper-table .time-cell,.paper-table .sign-cell{box-sizing:border-box;width:46px;min-width:46px;max-width:46px;padding:1px 2px;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-size:9pt;font-weight:400;color:#000}
@@ -220,6 +214,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       .sheet-pageno{position:absolute;left:8mm;right:8mm;bottom:5mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
       .no-print,.shared-screen-editor,.shared-actions{display:none!important}
       .other-summary-cell .no-print{display:none!important}
+      .merged-item-cell{width:136px;padding:2px 4px!important;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2}.detail-content-cell{padding:2px 4px!important;text-align:left;vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:break-word;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.25}.inline-other-part{display:inline;white-space:normal}.other-fill-value{color:#000;font-weight:400}.fill-line{display:inline-block;width:140px;min-height:1em;vertical-align:bottom;border-bottom:1px solid #000}.fill-line.short-line{width:55px}.fill-line.long-line{width:80%}
     `;
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) { alert('打印窗口被拦截'); return; }
@@ -236,6 +231,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   }
 
   closeDialogs(): void { this.editListOpen=false; this.formOpen=false; this.errorText=''; }
+  private joinDistinctOtherValues(values:Array<string|undefined|null>):string{return[...new Set(values.map(v=>String(v||'').trim()).filter(Boolean))].join('；');}
   private emptySharedInfo(): HealthEducationSharedInfo { return {valuableCodes:[],valuableOther:'',receiverConfirmed:false,receiverName:'',receivedAt:''}; }
   private cloneSharedInfo(v:HealthEducationSharedInfo):HealthEducationSharedInfo { return {valuableCodes:[...v.valuableCodes],valuableOther:v.valuableOther,receiverConfirmed:v.receiverConfirmed,receiverName:v.receiverName,receivedAt:v.receivedAt}; }
   private hydrateSharedInfo():void{const s=[...this.records].reverse().find(r=>!!r.valuableCodes?.length||!!r.valuableOther?.trim()||r.receiverConfirmed===true||!!r.receiverName?.trim()||!!r.receivedAt)||this.records[this.records.length-1]||null;this.sharedCarrierRecord=s;this.sharedInfo={valuableCodes:[...(s?.valuableCodes||[])],valuableOther:s?.valuableOther||'',receiverConfirmed:s?.receiverConfirmed===true,receiverName:s?.receiverName||'',receivedAt:s?.receivedAt?this.toLocalInput(new Date(s.receivedAt)):''};this.sharedDraft=this.cloneSharedInfo(this.sharedInfo);}
