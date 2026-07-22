@@ -32,8 +32,7 @@ const GROUPS: OptionGroup[] = [
     {code:'RISKS',label:'患者跌倒坠床、皮肤压力性损伤、非计划性拔管、VTE发生及营养等风险告知及预防相关知识宣教'},
     {code:'RESTRAINT',label:'保护性约束及风险告知'}]},
   { name: '疾病宣教', items: [
-    {code:'DISEASE_CARE',label:'疾病护理教育',detail:'临床表现、主要治疗、心理护理、体位、营养、功能锻炼等'},
-    {code:'SMOKING_CESSATION',label:'戒烟宣教'}]},
+    {code:'DISEASE_CARE',label:'疾病相关临床表现、主要治疗、心理护理及疾病护理教育（疾病护理要点、体位、营养、功能锻炼等）'}]},
   { name: '药物宣教', items: [
     {code:'ORAL_MEDICATION',label:'口服药宣教',detail:'作用、用药途径及方法'},
     {code:'ENTERAL_NUTRITION',label:'肠内营养制剂宣教',detail:'使用目的、途径、方法及注意事项'},
@@ -48,12 +47,12 @@ const GROUPS: OptionGroup[] = [
     {code:'TRANSPORT_RISK',label:'患者转运风险'},
     {code:'BRONCHOSCOPY',label:'科内检查：纤维支气管镜灌洗'},
     {code:'WARD_OTHER',label:'科内检查：其它'}]},
-  { name: '术前宣教', items: [{code:'PREOP',label:'术前准备与配合',detail:'体位练习、咳嗽咳痰、床上排便方法等'}]},
-  { name: '术后宣教', items: [{code:'POSTOP',label:'术后注意事项',detail:'饮食、活动、术口、管道及疼痛护理'}]},
+  { name: '术前宣教', items: [{code:'PREOP',label:'讲解术前准备的配合和注意事项，示范：体位练习、咳嗽、咳痰、床上排便方法等'}]},
+  { name: '术后宣教', items: [{code:'POSTOP',label:'告知术后注意事项：饮食、活动、术口护理知识、管道护理、疼痛护理'}]},
   { name: '出院/转科宣教', items: [
-    {code:'DISCHARGE_PROCEDURE',label:'办理出院（转科）手续，发带药及资料'},
-    {code:'DISCHARGE_GUIDANCE',label:'饮食、用药、休息及预防疾病指导'},
-    {code:'FOLLOWUP',label:'复诊及随访事项，发放《出院通知单》'}]},
+    {code:'DISCHARGE_PROCEDURE',label:'办理出院（转科）手续，发出院（转科）带药及资料'},
+    {code:'DISCHARGE_GUIDANCE',label:'出院（转科）饮食、用药指导、休息及预防疾病注意事项'},
+    {code:'FOLLOWUP',label:'出院后复诊及随访事项，发放《出院通知单》'}]},
   { name: '其它', items: [{code:'OTHER',label:'其它宣教'}]}
 ];
 const VALUABLES = ['手机','现金','医保卡','身份证','银行卡','钥匙','假牙'];
@@ -133,6 +132,9 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     this.errorText='';
     if (!this.form.assessmentTime) { this.errorText='评估时间为必填项'; return; }
     if (!this.form.nurseName?.trim()) { this.errorText='护士签名为必填项'; return; }
+    if (this.form.itemCodes?.includes('EXAM_OTHER') && !this.form.externalExamOther?.trim()) { this.errorText='请选择并填写外出检查其它内容'; return; }
+    if (this.form.itemCodes?.includes('WARD_OTHER') && !this.form.internalExamOther?.trim()) { this.errorText='请选择并填写科内检查其它内容'; return; }
+    if (this.form.itemCodes?.includes('SPECIAL_OTHER') && !this.form.specialMedicationOther?.trim()) { this.errorText='请选择并填写特殊用药其他内容'; return; }
     this.saving=true;
     const operationPid = this.pid;
     const body={...this.form, pid:this.pid, assessmentTime:new Date(this.form.assessmentTime).toISOString(),
@@ -167,7 +169,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     return r?.valuableCodes?.includes(code) ? '☑' : '□';
   }
   has(arr: string[]|undefined, code: string): boolean { return !!arr?.includes(code); }
-  toggle(field:'itemCodes'|'evaluationCodes'|'valuableCodes',code:string,on:boolean):void{const s=new Set(this.form[field]||[]);if(on){s.add(code)}else{s.delete(code);if(field==='itemCodes'){if(code==='SPECIAL_OTHER')this.form.specialMedicationOther='';if(code==='EXAM_OTHER')this.form.externalExamOther='';if(code==='WARD_OTHER')this.form.internalExamOther='';if(code==='OTHER')this.form.otherEducation='';}}this.form[field]=[...s];}
+  externalExamSelectionText(r:HealthEducationRecord|null):string[]{if(!r)return[];const o:string[]=[];if(r.itemCodes?.includes("EXAM_CT"))o.push("√CT");if(r.itemCodes?.includes("MRI"))o.push("√磁共振");if(r.itemCodes?.includes("GASTROSCOPY"))o.push("√胃镜");if(r.itemCodes?.includes("EXAM_OTHER"))o.push("√其它");return o;} internalExamSelectionText(r:HealthEducationRecord|null):string[]{if(!r)return[];const o:string[]=[];if(r.itemCodes?.includes("BRONCHOSCOPY"))o.push("√纤支镜");if(r.itemCodes?.includes("WARD_OTHER"))o.push("√其它");return o;} toggle(field:'itemCodes'|'evaluationCodes'|'valuableCodes',code:string,on:boolean):void{const s=new Set(this.form[field]||[]);if(on){s.add(code)}else{s.delete(code);if(field==='itemCodes'){if(code==='SPECIAL_OTHER')this.form.specialMedicationOther='';if(code==='EXAM_OTHER')this.form.externalExamOther='';if(code==='WARD_OTHER')this.form.internalExamOther='';if(code==='OTHER')this.form.otherEducation='';}}this.form[field]=[...s];}
   targetMark(r: HealthEducationRecord|null, code: string): string {
     return r && (r.educationTarget===code || r.educationTarget==='AB') ? '√' : '';
   }

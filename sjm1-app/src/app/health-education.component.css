@@ -91,6 +91,14 @@ em{color:#dc2626;font-style:normal}
 .fill-line{display:inline-block;width:140px;min-height:1em;vertical-align:bottom;border-bottom:1px solid #000}
 .fill-line.short-line{width:55px}
 .fill-line.long-line{width:80%}
+.exam-mark-cell{padding:1px!important;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-size:8pt!important;line-height:1.08!important}
+.exam-selected-item{display:block;width:100%;margin:0;text-align:center;white-space:normal;word-break:keep-all;color:#000}
+.fixed-exam-option{white-space:nowrap}
+.exam-form-section{display:grid;grid-template-columns:90px minmax(0,1fr);align-items:start;padding:7px 0;border-bottom:1px dashed #e5e7eb}
+.exam-form-section:last-child{border-bottom:0}
+.exam-form-title{padding-top:5px;font-size:13px;font-weight:600;color:#333}
+.exam-form-options{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px}
+.inline-other-input{width:220px;min-height:30px;padding:4px 7px}
 @media(max-width:900px){.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.option-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.form-grid,.option-grid{grid-template-columns:1fr}.option-wide{grid-column:span 1}.overlay{padding:10px}}
 @media print{@page{size:A4 portrait;margin:0}:host{background:#fff}.no-print,.shared-screen-editor,.shared-actions{display:none!important}.sheet{width:210mm;height:297mm;margin:0;padding:8mm 8mm 14mm;box-shadow:none;overflow:hidden;page-break-after:always}.sheet:last-of-type{page-break-after:auto}h1{font-size:16pt}.paper-table{font-size:9pt}.paper-table th,.paper-table td{padding:2px 3px}.paper-table col.category-column{width:20px}.paper-table col.record-column{width:46px}.paper-table .group{width:20px;min-width:20px;max-width:20px}}
