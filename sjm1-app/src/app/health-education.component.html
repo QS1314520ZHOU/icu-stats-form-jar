@@ -7,6 +7,7 @@
   </div>
 </div>
 <div class="loading" *ngIf="loading">加载中…</div>
+<div class="loading error" *ngIf="loadError">{{loadError}} <button class="text-btn" (click)="reload()">重试</button></div>
 
 <section class="sheet" *ngFor="let page of pages">
   <header>
@@ -20,25 +21,34 @@
   </header>
 
   <table class="paper-table">
-    <thead><tr><th colspan="2">宣教内容</th><th colspan="5">宣教时间</th></tr></thead>
+    <thead>
+      <tr><th colspan="2" rowspan="2">宣教内容</th><th colspan="5">宣教时间</th></tr>
+      <tr>
+        <th class="time" *ngFor="let r of page.records">
+          <span class="dt-date" *ngIf="r">{{fmtDate(r.assessmentTime)}}</span>
+          <span class="dt-time" *ngIf="r">{{fmtTime(r.assessmentTime)}}</span>
+        </th>
+      </tr>
+    </thead>
     <tbody>
       <ng-container *ngFor="let g of groups">
         <tr *ngFor="let item of g.items; let first=first">
           <th class="group" *ngIf="first" [attr.rowspan]="groupRows(g)">{{g.name}}</th>
           <td class="content"><b>{{item.label}}</b><span *ngIf="item.detail">：{{item.detail}}</span></td>
-          <td class="mark" *ngFor="let r of pageRecords(page)">{{checked(r,item.code)}}</td>
+          <td class="mark" *ngFor="let r of page.records">{{itemDisplayText(r,item.code) || checked(r,item.code)}}</td>
         </tr>
       </ng-container>
-      <tr><th colspan="2">宣教对象　A：家属　B：病人</th><td class="mark" *ngFor="let r of pageRecords(page)">A{{targetMark(r,'A')}} B{{targetMark(r,'B')}}</td></tr>
-      <tr><th colspan="2">评价　A.能复述　B.能解释　C.能模仿　D.能操作</th><td class="mark" *ngFor="let r of pageRecords(page)">{{evalText(r)}}</td></tr>
-      <tr><th colspan="2">护士签名</th><td class="sign" *ngFor="let r of pageRecords(page)">{{r?.nurseName || ''}}</td></tr>
-      <tr><th colspan="2">宣教时间</th><td class="time" *ngFor="let r of pageRecords(page)">{{fmtDateTime(r?.assessmentTime)}}</td></tr>
+      <tr><th colspan="2">出院宣教</th><td class="mark" *ngFor="let r of page.records">{{r?.dischargeEducation ? '☑' : '□'}}</td></tr>
+      <tr><th colspan="2">转科宣教</th><td class="mark" *ngFor="let r of page.records">{{r?.transferEducation ? '☑' : '□'}}</td></tr>
+      <tr><th colspan="2">宣教对象　A：家属　B：病人</th><td class="mark" *ngFor="let r of page.records">A{{targetMark(r,'A')}} B{{targetMark(r,'B')}}</td></tr>
+      <tr><th colspan="2">评价　A.能复述　B.能解释　C.能模仿　D.能操作</th><td class="mark" *ngFor="let r of page.records">{{evalText(r)}}</td></tr>
+      <tr><th colspan="2">护士签名</th><td class="sign" *ngFor="let r of page.records">{{r?.nurseName || ''}}</td></tr>
     </tbody>
   </table>
 
-  <div class="valuables" *ngIf="page.records[0] as r">
-    <b>贵重物品：</b><span *ngFor="let v of valuables">□{{v}}　</span>□其他：{{r.valuableOther || '________'}}
-    <div>贵重物品接收者确认：{{r.receiverConfirmed ? '☑已收到' : '□已收到'}}　病人或家属签名：{{r.receiverName || '________'}}　时间：{{fmtDateTime(r.receivedAt)}}</div>
+  <div class="valuables">
+    <b>贵重物品：</b><span *ngFor="let v of valuables">{{valuableMark(page.records[0], v)}}{{v}}　</span>□其他：{{page.records[0]?.valuableOther || '________'}}
+    <div>贵重物品接收者确认：{{page.records[0]?.receiverConfirmed ? '☑已收到' : '□已收到'}}　病人或家属签名：{{page.records[0]?.receiverName || '________'}}　时间：{{fmtDateTime(page.records[0]?.receivedAt)}}</div>
   </div>
   <footer>如需帮助请致电：81915173（护士工作站）、81915174（医生办公室）　　第 {{page.index}} 页 / 共 {{pages.length}} 页</footer>
 </section>
@@ -48,7 +58,7 @@
     <div class="dialog-head"><h2>编辑</h2><button class="icon-btn" (click)="editListOpen=false">×</button></div>
     <div class="record-list">
       <table><thead><tr><th>No</th><th>时间</th><th>评估人</th><th>操作</th></tr></thead>
-      <tbody><tr *ngFor="let r of records; let i=index"><td>{{i+1}}</td><td>{{fmtDateTime(r.assessmentTime)}}</td><td>{{r.nurseName}}</td><td><button class="text-btn" (click)="editRecord(r)">编辑</button><button class="text-btn danger" (click)="invalidate(r)">删除</button></td></tr>
+      <tbody><tr *ngFor="let r of records; let i=index"><td>{{i+1}}</td><td>{{fmtDateTime(r.assessmentTime)}}</td><td>{{r.nurseName}}</td><td><button class="text-btn" (click)="editRecord(r)">编辑</button><button class="text-btn danger" (click)="invalidate(r)" [disabled]="deletingId===r.id">{{deletingId===r.id?'删除中…':'删除'}}</button></td></tr>
       <tr *ngIf="!records.length"><td colspan="4" class="empty">暂无评估记录</td></tr></tbody></table>
     </div>
   </section>
@@ -56,12 +66,14 @@
 
 <div class="overlay no-print" *ngIf="formOpen" (click)="formOpen=false">
   <section class="dialog form-dialog" (click)="$event.stopPropagation()">
-    <div class="dialog-head"><h2>{{editing ? '编辑健康教育记录' : '新增健康教育记录'}}</h2><button class="icon-btn" (click)="formOpen=false">×</button></div>
+    <div class="dialog-head"><h2>{{editing ? '编辑健康教育记录' : '新增健康教育记录'}}</h2><button class="icon-btn" (click)="formOpen=false" [disabled]="saving">×</button></div>
     <div class="form-body">
       <div class="form-grid">
         <label>评估时间 <em>*</em><input type="datetime-local" [(ngModel)]="form.assessmentTime"></label>
-        <label>护士签名 <em>*</em><input [(ngModel)]="form.nurseName" list="account-list"><datalist id="account-list"><option *ngFor="let a of accounts" [value]="a.accountName"></option></datalist></label>
+        <label>护士签名 <em>*</em><input [(ngModel)]="form.nurseName" (input)="onNurseInput($any($event.target).value)" list="account-list"><datalist id="account-list"><option *ngFor="let a of accounts" [value]="a.accountName" (click)="selectNurse(a)">{{a.accountName}}</option></datalist></label>
         <label>宣教对象<select [(ngModel)]="form.educationTarget"><option value="">请选择</option><option value="A">A 家属</option><option value="B">B 病人</option><option value="AB">家属和病人</option></select></label>
+        <label>出院宣教<input type="checkbox" [(ngModel)]="form.dischargeEducation"></label>
+        <label>转科宣教<input type="checkbox" [(ngModel)]="form.transferEducation"></label>
       </div>
       <div class="option-group" *ngFor="let g of groups"><h3>{{g.name}}</h3><label class="check-item" *ngFor="let item of g.items"><input type="checkbox" [checked]="has(form.itemCodes,item.code)" (change)="toggle('itemCodes',item.code,$any($event.target).checked)"><span><b>{{item.label}}</b><small *ngIf="item.detail">{{item.detail}}</small></span></label></div>
       <div class="option-group"><h3>评价</h3><label class="inline-check" *ngFor="let o of evaluationOptions"><input type="checkbox" [checked]="has(form.evaluationCodes,o.code)" (change)="toggle('evaluationCodes',o.code,$any($event.target).checked)">{{o.code}}. {{o.label}}</label></div>
@@ -69,6 +81,6 @@
       <div class="option-group"><h3>贵重物品</h3><label class="inline-check" *ngFor="let v of valuables"><input type="checkbox" [checked]="has(form.valuableCodes,v)" (change)="toggle('valuableCodes',v,$any($event.target).checked)">{{v}}</label><div class="form-grid"><label>其它<input [(ngModel)]="form.valuableOther"></label><label>接收确认<select [(ngModel)]="form.receiverConfirmed"><option [ngValue]="false">未确认</option><option [ngValue]="true">已收到</option></select></label><label>病人或家属签名<input [(ngModel)]="form.receiverName"></label><label>接收时间<input type="datetime-local" [(ngModel)]="form.receivedAt"></label></div></div>
       <div class="error" *ngIf="errorText">{{errorText}}</div>
     </div>
-    <div class="dialog-foot"><button class="btn" (click)="formOpen=false">取消</button><button class="btn primary" (click)="save()" [disabled]="saving">{{saving?'保存中…':'保存'}}</button></div>
+    <div class="dialog-foot"><button class="btn" (click)="formOpen=false" [disabled]="saving">取消</button><button class="btn primary" (click)="save()" [disabled]="saving">{{saving?'保存中…':'保存'}}</button></div>
   </section>
 </div>

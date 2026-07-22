@@ -12,6 +12,7 @@ interface HealthEducationRecord {
   nurseId?: string; nurseName: string;
   specialMedicationOther?: string; externalExamOther?: string;
   internalExamOther?: string; otherEducation?: string;
+  dischargeEducation?: boolean; transferEducation?: boolean;
   valuableCodes: string[]; valuableOther?: string;
   receiverConfirmed?: boolean; receiverName?: string; receivedAt?: string;
   valid?: boolean; updatedBy?: string;
@@ -69,11 +70,13 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   readonly evaluationOptions = [{code:'A',label:'能复述'},{code:'B',label:'能解释'},{code:'C',label:'能模仿'},{code:'D',label:'能操作'}];
 
   patient: any = null; hospitalName = '重钢总医院'; age: number|null = null;
-  loading = false; saving = false; records: HealthEducationRecord[] = []; pages: RenderPage[] = [];
+  loading = false; saving = false; deletingId = ''; loadError = '';
+  records: HealthEducationRecord[] = []; pages: RenderPage[] = [];
   editListOpen = false; formOpen = false; editing = false; errorText = '';
   accounts: AccountOption[] = []; account: any = null;
   form: HealthEducationRecord = this.emptyForm('');
   private pid = ''; private destroy$ = new Subject<void>();
+  private refresh$ = new Subject<void>();
 
   constructor(private http: HttpClient, private hostPatient: HostPatientService,
               private cdr: ChangeDetectorRef, private host: ElementRef) {}
@@ -84,20 +87,21 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     this.hostPatient.patient$.pipe(
       filter(Boolean), map(p => ({p, pid:String(p.id || '').trim()})), filter(x => !!x.pid),
       distinctUntilChanged((a,b) => a.pid === b.pid),
-      tap(({p,pid}) => { this.closeDialogs(); this.patient=p; this.pid=pid; this.age=this.calcAge(p.birthday); this.records=[]; this.paginate(); }),
+      tap(({p,pid}) => { this.closeDialogs(); this.patient=p; this.pid=pid; this.age=this.calcAge(p.birthday); this.records=[]; this.paginate(); this.loadError=''; }),
       switchMap(({pid}) => this.fetchRecords(pid)), takeUntil(this.destroy$)
     ).subscribe();
+    this.refresh$.pipe(takeUntil(this.destroy$)).subscribe(() => { if(this.pid) this.fetchRecords(this.pid).subscribe(); });
   }
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
 
   private fetchRecords(pid: string) {
-    this.loading = true;
+    this.loading = true; this.loadError = '';
     return this.http.get<HealthEducationRecord[]>(`${this.API}/listByPid`, {params:{pid}}).pipe(
       tap(list => { this.records=(Array.isArray(list)?list:[]).sort((a,b)=>this.ts(a.assessmentTime)-this.ts(b.assessmentTime)); this.paginate(); }),
       finalize(()=>{this.loading=false; this.cdr.detectChanges();})
     );
   }
-  private reload(): void { if (this.pid) this.fetchRecords(this.pid).subscribe(); }
+  private reload(): void { this.refresh$.next(); }
 
   openCreate(): void {
     if (!this.pid) return;
@@ -121,21 +125,42 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     if (!this.form.assessmentTime) { this.errorText='评估时间为必填项'; return; }
     if (!this.form.nurseName?.trim()) { this.errorText='护士签名为必填项'; return; }
     this.saving=true;
+    const operationPid = this.pid;
     const body={...this.form, pid:this.pid, assessmentTime:new Date(this.form.assessmentTime).toISOString(),
       receivedAt:this.form.receivedAt ? new Date(this.form.receivedAt).toISOString() : undefined,
       nurseName:this.form.nurseName.trim(), updatedBy:String(this.account?.id || '')};
-    this.http.post<HealthEducationRecord>(`${this.API}/save`, body).pipe(finalize(()=>this.saving=false)).subscribe({
-      next:()=>{this.formOpen=false; this.reload();}, error:e=>this.errorText=e?.error?.message || '保存失败，请稍后重试'
+    this.http.post<HealthEducationRecord>(`${this.API}/save`, body).pipe(finalize(()=>this.saving=false), takeUntil(this.destroy$)).subscribe({
+      next:()=>{ if(operationPid===this.pid){ this.formOpen=false; this.reload(); } },
+      error:e=>this.errorText=e?.error?.message || '保存失败，请稍后重试'
     });
   }
   invalidate(r: HealthEducationRecord): void {
-    if (!r.id || !confirm(`确认删除 ${this.fmtDateTime(r.assessmentTime)} 的评估记录？`)) return;
-    this.http.patch(`${this.API}/${r.id}/invalidate`, null, {params:{operatorId:String(this.account?.id || '')}}).subscribe({
-      next:()=>this.reload(), error:()=>alert('删除失败')
+    if (!r.id || this.deletingId) return;
+    if (!confirm(`确认删除 ${this.fmtDateTime(r.assessmentTime)} 的评估记录？`)) return;
+    this.deletingId = r.id;
+    const operationPid = this.pid;
+    this.http.patch(`${this.API}/${r.id}/invalidate`, null, {params:{operatorId:String(this.account?.id || '')}}).pipe(
+      finalize(()=>this.deletingId=''), takeUntil(this.destroy$)
+    ).subscribe({
+      next:()=>{ if(operationPid===this.pid) this.reload(); },
+      error:()=>alert('删除失败')
     });
   }
 
   checked(r: HealthEducationRecord|null, code: string): string { return r?.itemCodes?.includes(code) ? '√' : ''; }
+  itemDisplayText(r: HealthEducationRecord|null, code: string): string {
+    if (!r?.itemCodes?.includes(code)) return '';
+    switch (code) {
+      case 'SPECIAL_OTHER': return r.specialMedicationOther ? '√ 其他：'+r.specialMedicationOther : '√';
+      case 'EXAM_OTHER': return r.externalExamOther ? '√ 其它：'+r.externalExamOther : '√';
+      case 'WARD_OTHER': return r.internalExamOther ? '√ 其它：'+r.internalExamOther : '√';
+      case 'OTHER': return r.otherEducation ? '√ '+r.otherEducation : '√';
+      default: return '√';
+    }
+  }
+  valuableMark(r: HealthEducationRecord|null, code: string): string {
+    return r?.valuableCodes?.includes(code) ? '☑' : '□';
+  }
   has(arr: string[]|undefined, code: string): boolean { return !!arr?.includes(code); }
   toggle(field: 'itemCodes'|'evaluationCodes'|'valuableCodes', code: string, on: boolean): void {
     const set=new Set(this.form[field] || []); on ? set.add(code) : set.delete(code); this.form[field]=[...set];
@@ -145,20 +170,63 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   }
   evalText(r: HealthEducationRecord|null): string { return (r?.evaluationCodes || []).join('、'); }
   groupRows(g: OptionGroup): number { return g.items.length; }
-  pageRecords(p: RenderPage): (HealthEducationRecord|null)[] { return p.records; }
+  selectNurse(a: AccountOption): void { this.form.nurseId = a.accountId; this.form.nurseName = a.accountName; }
+  onNurseInput(v: string): void { this.form.nurseName = v; const m = this.accounts.find(a => a.accountName===v.trim()); this.form.nurseId = m?.accountId || ''; }
 
-  print(): void { window.print(); }
+  print(): void {
+    const sheets = this.host.nativeElement.querySelectorAll('.sheet') as NodeListOf<HTMLElement>;
+    if (!sheets.length) return;
+    let body = '';
+    sheets.forEach((s: HTMLElement) => {
+      const c = s.cloneNode(true) as HTMLElement;
+      c.querySelectorAll('.no-print').forEach(el => el.remove());
+      body += '<section class="print-page">' + c.outerHTML + '</section>';
+    });
+    const css = `
+      @page{size:A4 portrait;margin:0}html,body{margin:0;padding:0;background:#fff}
+      .print-page{box-sizing:border-box;width:210mm;height:297mm;overflow:hidden;page-break-after:always;break-after:page;background:#fff}
+      .print-page:last-child{page-break-after:auto;break-after:auto}
+      .sheet{box-sizing:border-box;width:210mm;height:297mm;margin:0;padding:8mm 8mm;box-shadow:none;background:#fff;color:#000;overflow:hidden}
+      h1{margin:0 0 4px;text-align:center;font-family:SimHei,sans-serif;font-size:18pt}
+      .patient-line{display:flex;justify-content:space-between;margin:2px 0 4px;font-family:SimSun,serif;font-size:10pt}
+      .paper-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:SimSun,serif;font-size:7.5pt}
+      .paper-table th,.paper-table td{border:1px solid #111;padding:1px 2px;line-height:1.15;vertical-align:middle}
+      .paper-table .group{width:20mm;text-align:center;font-size:8.5pt}
+      .paper-table .content{width:auto}
+      .paper-table .mark{width:14mm;text-align:center;font-weight:700}
+      .paper-table .time{width:14mm;text-align:center;font-size:7pt;word-break:break-all}
+      .valuables{margin-top:3px;border:1px solid #111;padding:3px;font-family:SimSun,serif;font-size:8pt;line-height:1.5}
+      footer{text-align:center;margin-top:3px;font-family:SimSun,serif;font-size:8pt}
+      .no-print{display:none!important}
+      .dt-date,.dt-time{display:block;white-space:nowrap;text-align:center;line-height:1.15}
+    `;
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) { alert('打印窗口被拦截'); return; }
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+css+'</style></head><body>'+body+'</body></html>');
+    win.document.close();
+    const doPrint = () => {
+      const s = win.document.querySelectorAll<HTMLElement>('.sheet');
+      s.forEach(sh => { if(sh.scrollHeight>sh.clientHeight+1) console.warn('Overflow:',sh.scrollHeight-sh.clientHeight); });
+      win.focus(); win.print();
+    };
+    const ready = () => { const d=win.document as any; if(d.fonts?.ready){ d.fonts.ready.then(()=>{requestAnimationFrame(()=>requestAnimationFrame(doPrint));}); } else { requestAnimationFrame(()=>requestAnimationFrame(doPrint)); } };
+    win.addEventListener('afterprint', () => { try{win.close()}catch(e){} });
+    if((win.document as any).readyState==='complete') ready(); else win.addEventListener('load', ready);
+  }
+
   closeDialogs(): void { this.editListOpen=false; this.formOpen=false; this.errorText=''; }
   private paginate(): void {
     const out: RenderPage[]=[]; const source=this.records.length?this.records:[null as any];
     for(let i=0;i<source.length;i+=5){const rows=(source.slice(i,i+5) as (HealthEducationRecord|null)[]); while(rows.length<5)rows.push(null); out.push({index:out.length+1,records:rows});}
     this.pages=out;
   }
-  private emptyForm(pid: string): HealthEducationRecord { return {pid,assessmentTime:'',itemCodes:[],educationTarget:'',evaluationCodes:[],nurseName:'',valuableCodes:[],receiverConfirmed:false}; }
-  private loadAccounts(): void { this.http.get<AccountOption[]>('/api/v1/icu/accounts').subscribe({next:x=>this.accounts=Array.isArray(x)?x:[],error:()=>{}}); }
-  private loadHospitalName(): void { this.http.get<any>('/api/v1/config/hospital').subscribe({next:x=>{if(x?.hospitalName)this.hospitalName=x.hospitalName;},error:()=>{}}); }
-  fmtDateTime(v?: string): string { if(!v)return ''; const d=new Date(v); if(isNaN(d.getTime()))return v; const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+  private emptyForm(pid: string): HealthEducationRecord { return {pid,assessmentTime:'',itemCodes:[],educationTarget:'',evaluationCodes:[],nurseName:'',valuableCodes:[],receiverConfirmed:false,dischargeEducation:false,transferEducation:false}; }
+  private loadAccounts(): void { this.http.get<AccountOption[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$)).subscribe({next:x=>this.accounts=Array.isArray(x)?x:[],error:()=>{}}); }
+  private loadHospitalName(): void { this.http.get<any>('/api/v1/config/hospital').pipe(takeUntil(this.destroy$)).subscribe({next:x=>{if(x?.hospitalName)this.hospitalName=x.hospitalName;},error:()=>{}}); }
+  fmtDateTime(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return v; const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+  fmtDate(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return v; const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+  fmtTime(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; const p=(n:number)=>String(n).padStart(2,'0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
   private toLocalInput(d: Date): string { const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
-  private ts(v?:string):number { const t=v?new Date(v).getTime():0; return isNaN(t)?0:t; }
-  private calcAge(v?:string):number|null { if(!v)return null; const b=new Date(v); if(isNaN(b.getTime()))return null; const n=new Date(); let a=n.getFullYear()-b.getFullYear(); if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--; return a>=0?a:null; }
+  private ts(v?:string):number { const t=v?new Date(v).getTime():0; return Number.isNaN(t)?0:t; }
+  private calcAge(v?:string):number|null { if(!v)return null; const b=new Date(v); if(Number.isNaN(b.getTime()))return null; const n=new Date(); let a=n.getFullYear()-b.getFullYear(); if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--; return a>=0?a:null; }
 }

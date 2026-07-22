@@ -17,8 +17,8 @@ public class HealthEducationRecord {
     private String pid;
     private Instant assessmentTime;
     private List<String> itemCodes = new ArrayList<>();
-    private String educationTarget; // A家属、B病人、AB两者
-    private List<String> evaluationCodes = new ArrayList<>(); // A/B/C/D
+    private String educationTarget;
+    private List<String> evaluationCodes = new ArrayList<>();
     private String nurseId;
     private String nurseName;
 
@@ -26,6 +26,9 @@ public class HealthEducationRecord {
     private String externalExamOther;
     private String internalExamOther;
     private String otherEducation;
+
+    private Boolean dischargeEducation;
+    private Boolean transferEducation;
 
     private List<String> valuableCodes = new ArrayList<>();
     private String valuableOther;

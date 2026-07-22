@@ -28,20 +28,39 @@ public class HealthEducationRecordService {
 
         Instant now = Instant.now();
         if (StringUtils.hasText(input.getId())) {
-            HealthEducationRecord old = repository.findById(input.getId())
+            HealthEducationRecord existing = repository.findById(input.getId())
                 .orElseThrow(() -> new IllegalArgumentException("记录不存在"));
-            if (Boolean.FALSE.equals(old.getValid())) throw new IllegalArgumentException("记录已删除");
-            if (!old.getPid().equals(input.getPid())) throw new IllegalArgumentException("禁止修改患者归属");
-            input.setCreatedAt(old.getCreatedAt());
-            input.setCreatedBy(old.getCreatedBy());
+            if (Boolean.FALSE.equals(existing.getValid())) throw new IllegalArgumentException("记录已删除");
+            if (!existing.getPid().equals(input.getPid())) throw new IllegalArgumentException("禁止修改患者归属");
+
+            existing.setAssessmentTime(input.getAssessmentTime());
+            existing.setItemCodes(input.getItemCodes());
+            existing.setEducationTarget(input.getEducationTarget());
+            existing.setEvaluationCodes(input.getEvaluationCodes());
+            existing.setNurseId(input.getNurseId());
+            existing.setNurseName(input.getNurseName());
+            existing.setSpecialMedicationOther(input.getSpecialMedicationOther());
+            existing.setExternalExamOther(input.getExternalExamOther());
+            existing.setInternalExamOther(input.getInternalExamOther());
+            existing.setOtherEducation(input.getOtherEducation());
+            existing.setDischargeEducation(input.getDischargeEducation());
+            existing.setTransferEducation(input.getTransferEducation());
+            existing.setValuableCodes(input.getValuableCodes());
+            existing.setValuableOther(input.getValuableOther());
+            existing.setReceiverConfirmed(input.getReceiverConfirmed());
+            existing.setReceiverName(input.getReceiverName());
+            existing.setReceivedAt(input.getReceivedAt());
+            existing.setUpdatedAt(now);
+            existing.setUpdatedBy(input.getUpdatedBy());
+            return repository.save(existing);
         } else {
             input.setId(null);
+            input.setValid(true);
             input.setCreatedAt(now);
             input.setCreatedBy(input.getUpdatedBy());
+            input.setUpdatedAt(now);
+            return repository.save(input);
         }
-        input.setValid(true);
-        input.setUpdatedAt(now);
-        return repository.save(input);
     }
 
     public void invalidate(String id, String operatorId) {
