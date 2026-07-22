@@ -5,11 +5,15 @@
 .btn{min-height:38px;padding:0 16px;border:1px solid #cfd6df;border-radius:6px;background:#fff;color:#334155;cursor:pointer}
 .btn.primary{background:#2783de;border-color:#2783de;color:#fff}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+.print-page-select{display:flex;align-items:center;margin:0}
+.print-page-select select{box-sizing:border-box;width:110px;min-height:38px;padding:0 8px;border:1px solid #cfd6df;border-radius:6px;background:#fff;color:#334155;font-size:14px}
 .loading{padding:20px;text-align:center}
 .loading.error{color:#b42318}
 .sheet{box-sizing:border-box;width:210mm;min-height:297mm;margin:18px auto;padding:10mm 7mm;background:#fff;box-shadow:0 1px 8px rgba(0,0,0,.12);color:#000;position:relative}
 h1{margin:0 0 4px;text-align:center;font-family:SimHei,sans-serif;font-size:18pt}
-.patient-line{display:flex;justify-content:space-between;margin:2px 0 4px;font-family:SimSun,serif;font-size:10pt}
+.patient-line{display:flex;align-items:baseline;justify-content:space-between;width:100%;margin:2px 0 5px;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:13pt;font-style:normal;font-weight:400;line-height:1.3;color:#000;white-space:nowrap}
+.patient-line span{display:inline-flex;align-items:baseline;font-family:inherit;font-size:inherit;font-style:inherit;font-weight:400;line-height:inherit;color:inherit}
+.patient-line strong{font-family:inherit;font-size:inherit;font-style:normal;font-weight:700;line-height:inherit;color:#000}
 .paper-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;line-height:1.15;color:#000}
 .paper-table th,.paper-table td{border:1px solid #000;padding:1px 2px;line-height:1.15;vertical-align:middle;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
 .paper-table b{font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
@@ -56,4 +60,4 @@ input:focus,select:focus,textarea:focus{outline:2px solid #cfe6fb;border-color:#
 em{color:#dc2626;font-style:normal}
 @media(max-width:1000px){.option-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.option-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.overlay{padding:10px}}
-@media print{@page{size:A4 portrait;margin:0}:host{background:#fff}.no-print{display:none!important}.sheet{width:210mm;height:297mm;margin:0;padding:7mm 7mm;box-shadow:none;overflow:hidden;page-break-after:always}.sheet:last-of-type{page-break-after:auto}h1{font-size:16pt}.paper-table{font-size:9px}.paper-table th,.paper-table td{padding:1px 1.5px;font-size:9px}.paper-table .group{width:20px;min-width:20px;max-width:20px;font-size:9px}.paper-table .mark,.paper-table .time-cell,.paper-table .sign-cell{width:42px;min-width:42px;max-width:42px;font-size:9px}.valuables{font-size:8pt}}
+@media print{@page{size:A4 portrait;margin:0}:host{background:#fff}.no-print{display:none!important}.sheet{width:210mm;height:297mm;margin:0;padding:7mm 7mm;box-shadow:none;overflow:hidden;page-break-after:always}.sheet:last-of-type{page-break-after:auto}h1{font-size:16pt}.paper-table{font-size:9px}.paper-table th,.paper-table td{padding:1px 1.5px;font-size:9px}.paper-table .group{width:20px;min-width:20px;max-width:20px;font-size:9px}.paper-table .mark,.paper-table .time-cell,.paper-table .sign-cell{width:42px;min-width:42px;max-width:42px;font-size:9px}.valuables{font-size:8pt}.patient-line,.patient-line span,.patient-line strong{font-family:'SimSun','宋体',serif;font-size:12pt;font-style:normal;line-height:1.25;color:#000}.patient-line{font-weight:400}.patient-line span{font-weight:400}.patient-line strong{font-weight:700}}

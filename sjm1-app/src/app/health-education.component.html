@@ -1,9 +1,14 @@
 <div class="toolbar no-print">
-  <div class="toolbar-title">健康教育实施、评价记录表</div>
   <div class="toolbar-actions">
     <button class="btn primary" (click)="openCreate()" [disabled]="!patient">＋ 新增</button>
     <button class="btn" (click)="openEditList()" [disabled]="!patient">✎ 编辑</button>
-    <button class="btn" (click)="print()">▣ 打印</button>
+    <label class="print-page-select">
+      <select [(ngModel)]="selectedPrintPage">
+        <option [ngValue]="null">全部</option>
+        <option *ngFor="let page of pages" [ngValue]="page.index">第 {{ page.index }} 页</option>
+      </select>
+    </label>
+    <button class="btn" (click)="print()" [disabled]="!pages.length">▣ 打印</button>
   </div>
 </div>
 <div class="loading" *ngIf="loading">加载中…</div>
@@ -13,10 +18,10 @@
   <header>
     <h1>{{hospitalName}}重症医学科健康教育实施、评价记录表</h1>
     <div class="patient-line">
-      <span>床号：<b>{{patient?.hisBed || ''}}</b></span>
-      <span>姓名：<b>{{patient?.name || ''}}</b></span>
-      <span>年龄：<b>{{age ?? ''}}</b></span>
-      <span>住院号：<b>{{patient?.mrn || ''}}</b></span>
+      <span><strong>床号：</strong>{{patient?.hisBed || ''}}</span>
+      <span><strong>姓名：</strong>{{patient?.name || ''}}</span>
+      <span><strong>年龄：</strong>{{age ?? ''}}</span>
+      <span><strong>住院号：</strong>{{patient?.mrn || ''}}</span>
     </div>
   </header>
 

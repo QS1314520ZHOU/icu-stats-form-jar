@@ -72,6 +72,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   patient: any = null; hospitalName = '重钢总医院'; age: number|null = null;
   loading = false; saving = false; deletingId = ''; loadError = '';
   records: HealthEducationRecord[] = []; pages: RenderPage[] = [];
+  selectedPrintPage: number | null = null;
   editListOpen = false; formOpen = false; editing = false; errorText = '';
   accounts: AccountOption[] = []; account: any = null;
   form: HealthEducationRecord = this.emptyForm('');
@@ -174,10 +175,13 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   onNurseInput(v: string): void { this.form.nurseName = v; const m = this.accounts.find(a => a.accountName===v.trim()); this.form.nurseId = m?.accountId || ''; }
 
   print(): void {
-    const sheets = this.host.nativeElement.querySelectorAll('.sheet') as NodeListOf<HTMLElement>;
-    if (!sheets.length) return;
+    const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
+    if (!allSheets.length) { alert('没有可打印的表单'); return; }
+    const sp = this.selectedPrintPage;
+    if (sp !== null && (!Number.isInteger(sp) || sp < 1 || sp > this.pages.length)) { alert('选择的打印页码无效'); return; }
     let body = '';
-    sheets.forEach((s: HTMLElement) => {
+    allSheets.forEach((s: HTMLElement, idx: number) => {
+      if (sp !== null && idx + 1 !== sp) return;
       const c = s.cloneNode(true) as HTMLElement;
       c.querySelectorAll('.no-print').forEach(el => el.remove());
       body += '<section class="print-page">' + c.outerHTML + '</section>';
@@ -219,6 +223,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     const out: RenderPage[]=[]; const source=this.records.length?this.records:[null as any];
     for(let i=0;i<source.length;i+=5){const rows=(source.slice(i,i+5) as (HealthEducationRecord|null)[]); while(rows.length<5)rows.push(null); out.push({index:out.length+1,records:rows});}
     this.pages=out;
+    if(this.selectedPrintPage!==null && this.selectedPrintPage>this.pages.length) this.selectedPrintPage=null;
   }
   private emptyForm(pid: string): HealthEducationRecord { return {pid,assessmentTime:'',itemCodes:[],educationTarget:'',evaluationCodes:[],nurseName:'',valuableCodes:[],receiverConfirmed:false,dischargeEducation:false,transferEducation:false}; }
   private loadAccounts(): void { this.http.get<AccountOption[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$)).subscribe({next:x=>this.accounts=Array.isArray(x)?x:[],error:()=>{}}); }
