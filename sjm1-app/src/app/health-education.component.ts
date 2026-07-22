@@ -89,6 +89,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   sharedDraft: HealthEducationSharedInfo = this.emptySharedInfo();
   sharedEditing = false; sharedSaving = false;
   nurseQuery = ''; nurseDropdownOpen = false; filteredAccounts: AccountOption[] = [];
+  selectedNurse: AccountOption | null = null;
   private sharedCarrierRecord: HealthEducationRecord | null = null;
   private pid = ''; private destroy$ = new Subject<void>();
   private refresh$ = new Subject<void>();
@@ -127,6 +128,9 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     this.form.nurseId = currentId;
     this.form.nurseName = currentName;
     this.nurseQuery = currentName;
+    this.selectedNurse = currentId && currentName
+      ? { accountId: currentId, accountName: currentName, username: String(this.account?.username || ''), code: String(this.account?.code ?? this.account?.jobNumber ?? '') }
+      : null;
     this.filteredAccounts = this.accounts.slice(0, 20);
     this.nurseDropdownOpen = false;
     this.formOpen = true;
@@ -139,6 +143,9 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     if (this.form.receivedAt) this.form.receivedAt=this.toLocalInput(new Date(this.form.receivedAt));
     this.form.itemCodes ||= []; this.form.evaluationCodes ||= []; this.form.valuableCodes ||= [];
     this.nurseQuery = this.form.nurseName || '';
+    this.selectedNurse = this.form.nurseId && this.form.nurseName
+      ? { accountId: this.form.nurseId, accountName: this.form.nurseName }
+      : null;
     this.nurseDropdownOpen = false;
     this.formOpen=true;
   }
@@ -146,15 +153,10 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     this.errorText='';
     if (!this.form.assessmentTime) { this.errorText='评估时间为必填项'; return; }
     if (!this.form.nurseName?.trim()) { this.errorText='护士签名为必填项'; return; }
-    const selectedNurse = this.accounts.find(account =>
-      account.accountId === this.form.nurseId &&
-      account.accountName === this.form.nurseName.trim()
-    );
-    const isExistingHistoricalNurse = this.editing && !!this.form.id && !!this.form.nurseId && !!this.form.nurseName?.trim();
-    if (!selectedNurse && !isExistingHistoricalNurse) {
-      this.errorText = '请从护士账号检索结果中选择签名账号';
-      return;
-    }
+    const nurseIsConfirmed = !!this.selectedNurse && !!this.form.nurseId
+      && this.form.nurseId === this.selectedNurse.accountId
+      && this.form.nurseName.trim() === this.selectedNurse.accountName;
+    if (!nurseIsConfirmed) { this.errorText = '护士签名已被修改，请从检索结果中选择账号'; return; }
     if (this.form.itemCodes?.includes('EXAM_OTHER') && !this.form.externalExamOther?.trim()) { this.errorText='请选择并填写外出检查其它内容'; return; }
     if (this.form.itemCodes?.includes('WARD_OTHER') && !this.form.internalExamOther?.trim()) { this.errorText='请选择并填写科内检查其它内容'; return; }
     if (this.form.itemCodes?.includes('SPECIAL_OTHER') && !this.form.specialMedicationOther?.trim()) { this.errorText='请选择并填写特殊用药其他内容'; return; }
@@ -163,7 +165,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     const operationPid = this.pid;
     const body={...this.form, pid:this.pid, assessmentTime:new Date(this.form.assessmentTime).toISOString(),
       receivedAt:this.form.receivedAt ? new Date(this.form.receivedAt).toISOString() : undefined,
-      nurseName:this.form.nurseName.trim(), updatedBy:String(this.account?.id || '')};
+      nurseId: this.selectedNurse!.accountId, nurseName: this.selectedNurse!.accountName, updatedBy:String(this.account?.id || '')};
     this.http.post<HealthEducationRecord>(`${this.API}/save`, body).pipe(finalize(()=>this.saving=false), takeUntil(this.destroy$)).subscribe({
       next:()=>{ if(operationPid===this.pid){ this.formOpen=false; this.reload(); } },
       error:e=>this.errorText=e?.error?.message || '保存失败，请稍后重试'
@@ -226,16 +228,25 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
 
   /* ---- 护士检索选择 ---- */
   selectNurse(account: AccountOption): void {
+    this.selectedNurse = account;
     this.form.nurseId = account.accountId;
     this.form.nurseName = account.accountName;
     this.nurseQuery = account.accountName;
     this.nurseDropdownOpen = false;
+    this.errorText = '';
   }
   onNurseSearchInput(value: string): void {
     this.nurseQuery = value;
-    this.form.nurseName = value;
-    this.form.nurseId = '';
-    const keyword = value.trim().toLowerCase();
+    const normalizedValue = value.trim();
+    if (this.selectedNurse && normalizedValue === this.selectedNurse.accountName) {
+      this.form.nurseId = this.selectedNurse.accountId;
+      this.form.nurseName = this.selectedNurse.accountName;
+    } else {
+      this.selectedNurse = null;
+      this.form.nurseId = '';
+      this.form.nurseName = value;
+    }
+    const keyword = normalizedValue.toLowerCase();
     this.filteredAccounts = this.accounts
       .filter(account => {
         if (!keyword) return true;
@@ -245,10 +256,6 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       })
       .slice(0, 20);
     this.nurseDropdownOpen = true;
-    const exactMatches = this.accounts.filter(account => account.accountName === value.trim());
-    if (exactMatches.length === 1) {
-      this.form.nurseId = exactMatches[0].accountId;
-    }
   }
   openNurseDropdown(): void {
     this.filteredAccounts = this.accounts.slice(0, 20);
@@ -322,7 +329,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     if((win.document as any).readyState==='complete') ready(); else win.addEventListener('load', ready);
   }
 
-  closeDialogs(): void { this.editListOpen=false; this.formOpen=false; this.errorText=''; this.nurseQuery=''; this.nurseDropdownOpen=false; }
+  closeDialogs(): void { this.editListOpen=false; this.formOpen=false; this.errorText=''; this.nurseQuery=''; this.nurseDropdownOpen=false; this.selectedNurse=null; }
   private joinDistinctOtherValues(values:Array<string|undefined|null>):string{return[...new Set(values.map(v=>String(v||'').trim()).filter(Boolean))].join('；');}
   private emptySharedInfo(): HealthEducationSharedInfo { return {valuableCodes:[],valuableOther:'',receiverConfirmed:false,receiverName:'',receivedAt:''}; }
   private cloneSharedInfo(v:HealthEducationSharedInfo):HealthEducationSharedInfo { return {valuableCodes:[...v.valuableCodes],valuableOther:v.valuableOther,receiverConfirmed:v.receiverConfirmed,receiverName:v.receiverName,receivedAt:v.receivedAt}; }
