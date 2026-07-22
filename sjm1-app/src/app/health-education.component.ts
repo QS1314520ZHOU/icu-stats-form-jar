@@ -158,6 +158,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     if (this.form.itemCodes?.includes('EXAM_OTHER') && !this.form.externalExamOther?.trim()) { this.errorText='请选择并填写外出检查其它内容'; return; }
     if (this.form.itemCodes?.includes('WARD_OTHER') && !this.form.internalExamOther?.trim()) { this.errorText='请选择并填写科内检查其它内容'; return; }
     if (this.form.itemCodes?.includes('SPECIAL_OTHER') && !this.form.specialMedicationOther?.trim()) { this.errorText='请选择并填写特殊用药其他内容'; return; }
+    if (this.form.itemCodes?.includes('OTHER') && !this.form.otherEducation?.trim()) { this.errorText='请选择并填写其它宣教内容'; return; }
     this.saving=true;
     const operationPid = this.pid;
     const body={...this.form, pid:this.pid, assessmentTime:new Date(this.form.assessmentTime).toISOString(),

@@ -124,7 +124,7 @@
         <td class="mark" *ngFor="let record of page.records">{{recordAnyMark(record,['BRONCHOSCOPY','WARD_OTHER'])}}</td>
       </tr>
       <ng-container *ngFor="let g of remainingGroups"><ng-container *ngTemplateOutlet="standardGroup;context:{$implicit:g,pageRecords:page.records}"></ng-container></ng-container>
-      <tr class="other-row"><th class="group">其它</th><td colspan="7" class="other-summary-cell">{{otherEducationSummary}}<span class="fill-line long-line" *ngIf="!otherEducationSummary"></span></td></tr>
+      <tr class="other-row"><th class="group">其它</th><td colspan="2" class="other-summary-cell">{{otherEducationSummary}}<span class="fill-line long-line" *ngIf="!otherEducationSummary"></span></td><td class="mark" *ngFor="let record of page.records">{{checked(record,'OTHER')}}</td></tr>
       <tr><th class="group">宣教对象</th><td colspan="2" class="content bottom-desc">A：家属　　B：病人</td><td class="mark" *ngFor="let r of page.records">{{educationTargetText(r)}}</td></tr>
       <tr><th class="group">评价</th><td colspan="2" class="content bottom-desc">A：能复述　B：能解释　C：能模仿　D：能操作</td><td class="mark" *ngFor="let r of page.records">{{evalText(r)}}</td></tr>
       <tr><th colspan="3" class="bottom-title">护士签名</th><td class="sign-cell" *ngFor="let r of page.records">{{r?.nurseName||''}}</td></tr>
