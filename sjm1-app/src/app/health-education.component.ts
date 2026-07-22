@@ -24,11 +24,11 @@ const GROUPS: OptionGroup[] = [
   { name: '入院/转入宣教', items: [
     {code:'ADMISSION_STAFF',label:'人员介绍',detail:'科主任、护士长、主管医生、主管护士及护工等'},
     {code:'ENVIRONMENT',label:'环境介绍',detail:'医院环境、病区环境，如出入院处、医保办、病员服务中心等'},
-    {code:'RULES',label:'住院相关制度',detail:'病区管理、作息、探视、消毒隔离制度及护工服务内容等'},
-    {code:'SAFETY',label:'住院安全',detail:'用水、用电安全、禁止烟火、防盗、贵重物品保存、防烫伤等'},
+    {code:'RULES',label:'介绍住院相关制度',detail:'病区管理、作息、探视、消毒隔离制度及护工服务内容等'},
+    {code:'SAFETY',label:'介绍住院安全',detail:'用水、用电安全、禁止烟火、防盗、贵重物品保存、防烫伤等注意事项'},
     {code:'COST',label:'住院费用及住院一日清单发放说明等'},
     {code:'WARM_TIPS',label:'发放《入院温馨提示》',detail:'患者住院所需生活用物及饮食准备宣教'},
-    {code:'RISKS',label:'风险告知及预防',detail:'跌倒坠床、压力性损伤、非计划性拔管、VTE及营养等'},
+    {code:'RISKS',label:'患者跌倒坠床、皮肤压力性损伤、非计划性拔管、VTE发生及营养等风险告知及预防相关知识宣教'},
     {code:'RESTRAINT',label:'保护性约束及风险告知'}]},
   { name: '疾病宣教', items: [
     {code:'DISEASE_CARE',label:'疾病护理教育',detail:'临床表现、主要治疗、心理护理、体位、营养、功能锻炼等'},
@@ -224,8 +224,9 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   private loadAccounts(): void { this.http.get<AccountOption[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$)).subscribe({next:x=>this.accounts=Array.isArray(x)?x:[],error:()=>{}}); }
   private loadHospitalName(): void { this.http.get<any>('/api/v1/config/hospital').pipe(takeUntil(this.destroy$)).subscribe({next:x=>{if(x?.hospitalName)this.hospitalName=x.hospitalName;},error:()=>{}}); }
   fmtDateTime(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return v; const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
-  fmtDate(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return v; const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
-  fmtTime(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; const p=(n:number)=>String(n).padStart(2,'0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
+  fmtMonthDay(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; const p=(n:number)=>String(n).padStart(2,'0'); return `${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+  fmtHourMinute(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; const p=(n:number)=>String(n).padStart(2,'0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
+  educationTargetText(r: HealthEducationRecord|null): string { if(!r)return ''; if(r.educationTarget==='A')return 'A'; if(r.educationTarget==='B')return 'B'; if(r.educationTarget==='AB')return 'A、B'; return ''; }
   private toLocalInput(d: Date): string { const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
   private ts(v?:string):number { const t=v?new Date(v).getTime():0; return Number.isNaN(t)?0:t; }
   private calcAge(v?:string):number|null { if(!v)return null; const b=new Date(v); if(Number.isNaN(b.getTime()))return null; const n=new Date(); let a=n.getFullYear()-b.getFullYear(); if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--; return a>=0?a:null; }

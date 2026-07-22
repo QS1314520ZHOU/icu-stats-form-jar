@@ -24,9 +24,9 @@
     <thead>
       <tr><th colspan="2" rowspan="2">宣教内容</th><th colspan="5">宣教时间</th></tr>
       <tr>
-        <th class="time" *ngFor="let r of page.records">
-          <span class="dt-date" *ngIf="r">{{fmtDate(r.assessmentTime)}}</span>
-          <span class="dt-time" *ngIf="r">{{fmtTime(r.assessmentTime)}}</span>
+        <th class="time-cell" *ngFor="let r of page.records">
+          <span class="time-date" *ngIf="r">{{fmtMonthDay(r.assessmentTime)}}</span>
+          <span class="time-clock" *ngIf="r">{{fmtHourMinute(r.assessmentTime)}}</span>
         </th>
       </tr>
     </thead>
@@ -40,7 +40,7 @@
       </ng-container>
       <tr><th colspan="2">出院宣教</th><td class="mark" *ngFor="let r of page.records">{{r?.dischargeEducation ? '☑' : '□'}}</td></tr>
       <tr><th colspan="2">转科宣教</th><td class="mark" *ngFor="let r of page.records">{{r?.transferEducation ? '☑' : '□'}}</td></tr>
-      <tr><th colspan="2">宣教对象　A：家属　B：病人</th><td class="mark" *ngFor="let r of page.records">A{{targetMark(r,'A')}} B{{targetMark(r,'B')}}</td></tr>
+      <tr><th colspan="2">宣教对象　A：家属　B：病人</th><td class="mark" *ngFor="let r of page.records">{{educationTargetText(r)}}</td></tr>
       <tr><th colspan="2">评价　A.能复述　B.能解释　C.能模仿　D.能操作</th><td class="mark" *ngFor="let r of page.records">{{evalText(r)}}</td></tr>
       <tr><th colspan="2">护士签名</th><td class="sign" *ngFor="let r of page.records">{{r?.nurseName || ''}}</td></tr>
     </tbody>
@@ -75,7 +75,7 @@
         <label>出院宣教<input type="checkbox" [(ngModel)]="form.dischargeEducation"></label>
         <label>转科宣教<input type="checkbox" [(ngModel)]="form.transferEducation"></label>
       </div>
-      <div class="option-group" *ngFor="let g of groups"><h3>{{g.name}}</h3><label class="check-item" *ngFor="let item of g.items"><input type="checkbox" [checked]="has(form.itemCodes,item.code)" (change)="toggle('itemCodes',item.code,$any($event.target).checked)"><span><b>{{item.label}}</b><small *ngIf="item.detail">{{item.detail}}</small></span></label></div>
+      <div class="option-group" *ngFor="let g of groups"><h3>{{g.name}}</h3><div class="option-grid"><label class="check-item" *ngFor="let item of g.items"><input type="checkbox" [checked]="has(form.itemCodes,item.code)" (change)="toggle('itemCodes',item.code,$any($event.target).checked)"><span class="option-text"><span class="option-label">{{item.label}}</span><span class="option-detail" *ngIf="item.detail">{{item.detail}}</span></span></label></div></div>
       <div class="option-group"><h3>评价</h3><label class="inline-check" *ngFor="let o of evaluationOptions"><input type="checkbox" [checked]="has(form.evaluationCodes,o.code)" (change)="toggle('evaluationCodes',o.code,$any($event.target).checked)">{{o.code}}. {{o.label}}</label></div>
       <div class="form-grid"><label>特殊用药其它<input [(ngModel)]="form.specialMedicationOther"></label><label>外出检查其它<input [(ngModel)]="form.externalExamOther"></label><label>科内检查其它<input [(ngModel)]="form.internalExamOther"></label><label class="wide">其它宣教<textarea rows="2" [(ngModel)]="form.otherEducation"></textarea></label></div>
       <div class="option-group"><h3>贵重物品</h3><label class="inline-check" *ngFor="let v of valuables"><input type="checkbox" [checked]="has(form.valuableCodes,v)" (change)="toggle('valuableCodes',v,$any($event.target).checked)">{{v}}</label><div class="form-grid"><label>其它<input [(ngModel)]="form.valuableOther"></label><label>接收确认<select [(ngModel)]="form.receiverConfirmed"><option [ngValue]="false">未确认</option><option [ngValue]="true">已收到</option></select></label><label>病人或家属签名<input [(ngModel)]="form.receiverName"></label><label>接收时间<input type="datetime-local" [(ngModel)]="form.receivedAt"></label></div></div>
