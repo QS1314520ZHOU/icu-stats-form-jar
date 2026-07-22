@@ -190,19 +190,27 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       @page{size:A4 portrait;margin:0}html,body{margin:0;padding:0;background:#fff}
       .print-page{box-sizing:border-box;width:210mm;height:297mm;overflow:hidden;page-break-after:always;break-after:page;background:#fff}
       .print-page:last-child{page-break-after:auto;break-after:auto}
-      .sheet{box-sizing:border-box;width:210mm;height:297mm;margin:0;padding:8mm 8mm;box-shadow:none;background:#fff;color:#000;overflow:hidden}
-      h1{margin:0 0 4px;text-align:center;font-family:SimHei,sans-serif;font-size:18pt}
-      .patient-line{display:flex;justify-content:space-between;margin:2px 0 4px;font-family:SimSun,serif;font-size:10pt}
-      .paper-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:SimSun,serif;font-size:7.5pt}
-      .paper-table th,.paper-table td{border:1px solid #111;padding:1px 2px;line-height:1.15;vertical-align:middle}
-      .paper-table .group{width:20mm;text-align:center;font-size:8.5pt}
-      .paper-table .content{width:auto}
-      .paper-table .mark{width:14mm;text-align:center;font-weight:700}
-      .paper-table .time{width:14mm;text-align:center;font-size:7pt;word-break:break-all}
-      .valuables{margin-top:3px;border:1px solid #111;padding:3px;font-family:SimSun,serif;font-size:8pt;line-height:1.5}
-      footer{text-align:center;margin-top:3px;font-family:SimSun,serif;font-size:8pt}
+      .sheet{box-sizing:border-box;width:210mm;height:297mm;margin:0;padding:7mm 7mm;box-shadow:none;background:#fff;color:#000;overflow:hidden}
+      h1{margin:0 0 4px;text-align:center;font-family:SimHei,sans-serif;font-size:16pt}
+      .patient-line{display:flex;align-items:baseline;justify-content:space-between;margin:2px 0 4px;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;color:#000}
+      .patient-line strong{font-weight:700}
+      .paper-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:9px;font-weight:400;line-height:1.1;color:#000}
+      .paper-table th,.paper-table td{box-sizing:border-box;border:1px solid #000;padding:1px 1.5px;vertical-align:middle;font-family:inherit;font-size:inherit;font-weight:400;color:#000}
+      .paper-table col.category-column{width:18px}
+      .paper-table col.content-column{width:auto}
+      .paper-table col.record-column{width:42px}
+      .paper-table .group{box-sizing:border-box;width:18px;min-width:18px;max-width:18px;padding:2px 1px;writing-mode:vertical-rl;text-orientation:upright;text-align:center;vertical-align:middle;white-space:normal;font-family:'SimSun','宋体',serif;font-size:9px;font-weight:400;line-height:1.05;color:#000}
+      .paper-table .content{width:auto;padding:2px 3px;text-align:left;word-break:normal;overflow-wrap:break-word}
+      .paper-table .mark,.paper-table .time-cell,.paper-table .sign-cell{box-sizing:border-box;width:42px;min-width:42px;max-width:42px;padding:1px 2px;text-align:center;vertical-align:middle;font-family:'SimSun','宋体',serif;font-size:9px;font-weight:400;color:#000}
+      .paper-table .sign-cell{word-break:break-all;white-space:normal}
+      .time-date,.time-clock{display:block;text-align:center;white-space:nowrap;line-height:1.1;font-family:'SimSun','宋体',serif;font-size:9px;font-weight:400;color:#000}
+      .education-header{text-align:center;vertical-align:middle}
+      .bottom-desc{font-size:9px!important}
+      .bottom-title{text-align:center}
+      .valuable-row{padding:3px 5px!important;text-align:left;white-space:normal;line-height:1.3}
+      .handover-row{padding:4px 6px!important}.handover-row-content{display:grid;grid-template-columns:1.3fr 1fr 1.2fr;align-items:center;gap:10px}
+      .contact-row{padding:3px 5px!important;text-align:center;font-family:'SimSun','宋体',serif;font-size:9px;font-weight:400;color:#000}
       .no-print{display:none!important}
-      .dt-date,.dt-time{display:block;white-space:nowrap;text-align:center;line-height:1.15}
     `;
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) { alert('打印窗口被拦截'); return; }
@@ -231,6 +239,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   fmtDateTime(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return v; const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
   fmtMonthDay(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; const p=(n:number)=>String(n).padStart(2,'0'); return `${p(d.getMonth()+1)}-${p(d.getDate())}`; }
   fmtHourMinute(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; const p=(n:number)=>String(n).padStart(2,'0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
+  formatHandoverDate(v?: string): string { if(!v)return '____ 年 __ 月 __ 日'; const d=new Date(v); if(Number.isNaN(d.getTime()))return '____ 年 __ 月 __ 日'; const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()} 年 ${p(d.getMonth()+1)} 月 ${p(d.getDate())} 日`; }
   educationTargetText(r: HealthEducationRecord|null): string { if(!r)return ''; if(r.educationTarget==='A')return 'A'; if(r.educationTarget==='B')return 'B'; if(r.educationTarget==='AB')return 'A、B'; return ''; }
   private toLocalInput(d: Date): string { const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
   private ts(v?:string):number { const t=v?new Date(v).getTime():0; return Number.isNaN(t)?0:t; }

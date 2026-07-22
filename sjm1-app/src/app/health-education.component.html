@@ -26,8 +26,13 @@
   </header>
 
   <table class="paper-table">
+    <colgroup>
+      <col class="category-column">
+      <col class="content-column">
+      <col class="record-column" *ngFor="let record of page.records">
+    </colgroup>
     <thead>
-      <tr><th colspan="2" rowspan="2">宣教内容</th><th colspan="5">宣教时间</th></tr>
+      <tr><th colspan="2" rowspan="2" class="education-header">宣教内容</th><th colspan="5">宣教时间</th></tr>
       <tr>
         <th class="time-cell" *ngFor="let r of page.records">
           <span class="time-date" *ngIf="r">{{fmtMonthDay(r.assessmentTime)}}</span>
@@ -39,23 +44,21 @@
       <ng-container *ngFor="let g of groups">
         <tr *ngFor="let item of g.items; let first=first">
           <th class="group" *ngIf="first" [attr.rowspan]="groupRows(g)">{{g.name}}</th>
-          <td class="content"><b>{{item.label}}</b><span *ngIf="item.detail">：{{item.detail}}</span></td>
+          <td class="content">{{item.label}}<span *ngIf="item.detail">：{{item.detail}}</span></td>
           <td class="mark" *ngFor="let r of page.records">{{itemDisplayText(r,item.code) || checked(r,item.code)}}</td>
         </tr>
       </ng-container>
-      <tr><th colspan="2">出院宣教</th><td class="mark" *ngFor="let r of page.records">{{r?.dischargeEducation ? '☑' : '□'}}</td></tr>
-      <tr><th colspan="2">转科宣教</th><td class="mark" *ngFor="let r of page.records">{{r?.transferEducation ? '☑' : '□'}}</td></tr>
-      <tr><th colspan="2">宣教对象　A：家属　B：病人</th><td class="mark" *ngFor="let r of page.records">{{educationTargetText(r)}}</td></tr>
-      <tr><th colspan="2">评价　A.能复述　B.能解释　C.能模仿　D.能操作</th><td class="mark" *ngFor="let r of page.records">{{evalText(r)}}</td></tr>
-      <tr><th colspan="2">护士签名</th><td class="sign" *ngFor="let r of page.records">{{r?.nurseName || ''}}</td></tr>
+      <tr><th colspan="2">出院宣教</th><td class="mark" *ngFor="let r of page.records">{{r?.dischargeEducation ? '√' : ''}}</td></tr>
+      <tr><th colspan="2">转科宣教</th><td class="mark" *ngFor="let r of page.records">{{r?.transferEducation ? '√' : ''}}</td></tr>
+      <tr><th class="group">其它</th><td class="content"></td><td class="mark" *ngFor="let r of page.records">{{itemDisplayText(r,'OTHER')}}</td></tr>
+      <tr><th class="group">宣教对象</th><td class="content bottom-desc">A：家属　　　B：病人</td><td class="mark" *ngFor="let r of page.records">{{educationTargetText(r)}}</td></tr>
+      <tr><th class="group">评价</th><td class="content bottom-desc">A. 能复述　B. 能解释　C. 能模仿　D. 能操作</td><td class="mark" *ngFor="let r of page.records">{{evalText(r)}}</td></tr>
+      <tr><th colspan="2" class="bottom-title">护士签名</th><td class="sign-cell" *ngFor="let r of page.records">{{r?.nurseName || ''}}</td></tr>
+      <tr><th class="group">贵重物品</th><td colspan="6" class="valuable-row"><span *ngFor="let v of valuables">{{valuableMark(page.records[0], v)}}{{v}}　</span><span>□其他：{{page.records[0]?.valuableOther || '________________'}}</span></td></tr>
+      <tr><td colspan="7" class="handover-row"><div class="handover-row-content"><span>贵重物品接收者确认：{{page.records[0]?.receiverConfirmed ? '☑' : '□'}}已收到</span><span>病人或家属签名：{{page.records[0]?.receiverName || '________'}}</span><span>时间：{{formatHandoverDate(page.records[0]?.receivedAt)}}</span></div></td></tr>
+      <tr><td colspan="7" class="contact-row">如需帮助请致电：81915173（护士工作站）、81915174（医生办公室）　　第 {{page.index}} 页 / 共 {{pages.length}} 页</td></tr>
     </tbody>
   </table>
-
-  <div class="valuables">
-    <b>贵重物品：</b><span *ngFor="let v of valuables">{{valuableMark(page.records[0], v)}}{{v}}　</span>□其他：{{page.records[0]?.valuableOther || '________'}}
-    <div>贵重物品接收者确认：{{page.records[0]?.receiverConfirmed ? '☑已收到' : '□已收到'}}　病人或家属签名：{{page.records[0]?.receiverName || '________'}}　时间：{{fmtDateTime(page.records[0]?.receivedAt)}}</div>
-  </div>
-  <footer>如需帮助请致电：81915173（护士工作站）、81915174（医生办公室）　　第 {{page.index}} 页 / 共 {{pages.length}} 页</footer>
 </section>
 
 <div class="overlay no-print" *ngIf="editListOpen" (click)="editListOpen=false">

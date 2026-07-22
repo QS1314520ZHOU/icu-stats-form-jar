@@ -17,14 +17,21 @@ h1{margin:0 0 4px;text-align:center;font-family:SimHei,sans-serif;font-size:18pt
 .paper-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;line-height:1.15;color:#000}
 .paper-table th,.paper-table td{border:1px solid #000;padding:1px 2px;line-height:1.15;vertical-align:middle;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
 .paper-table b{font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
-.paper-table .group{width:22px;min-width:22px;max-width:22px;padding:2px 1px;text-align:center;vertical-align:middle;writing-mode:vertical-rl;text-orientation:upright;letter-spacing:1px;white-space:normal;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
-.paper-table .content{width:auto;padding:2px 3px;text-align:left;word-break:break-all}
-.paper-table .mark{width:46px;min-width:46px;max-width:46px;padding:1px 2px;text-align:center;vertical-align:middle;white-space:normal;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
-.paper-table .time-cell{width:46px;min-width:46px;max-width:46px;padding:1px 2px;text-align:center;vertical-align:middle;white-space:normal;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
-.paper-table .sign-cell{width:46px;min-width:46px;max-width:46px;padding:1px 2px;text-align:center;white-space:normal;word-break:break-all;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
-.time-date,.time-clock{display:block;text-align:center;white-space:nowrap;line-height:1.15;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
-.valuables{margin-top:3px;border:1px solid #000;padding:3px;font-family:'SimSun','宋体',serif;font-size:9pt;line-height:1.5;color:#000}
-footer{text-align:center;margin-top:3px;font-family:'SimSun','宋体',serif;font-size:8.5pt}
+.paper-table col.category-column{width:20px}
+.paper-table col.content-column{width:auto}
+.paper-table col.record-column{width:46px}
+.paper-table .group{box-sizing:border-box;width:20px;min-width:20px;max-width:20px;padding:2px 1px;text-align:center;vertical-align:middle;writing-mode:vertical-rl;text-orientation:upright;white-space:normal;word-break:keep-all;letter-spacing:0;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;line-height:1.05;color:#000}
+.paper-table .content{width:auto;padding:2px 4px;text-align:left;word-break:normal;overflow-wrap:break-word}
+.paper-table .mark{box-sizing:border-box;width:46px;min-width:46px;max-width:46px;padding:1px 2px;text-align:center;vertical-align:middle;white-space:normal;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
+.paper-table .time-cell{box-sizing:border-box;width:46px;min-width:46px;max-width:46px;padding:1px 2px;text-align:center;vertical-align:middle;white-space:normal;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
+.paper-table .sign-cell{box-sizing:border-box;width:46px;min-width:46px;max-width:46px;padding:1px 2px;text-align:center;white-space:normal;word-break:break-all;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
+.education-header{text-align:center;vertical-align:middle}
+.bottom-desc{text-align:left!important}
+.bottom-title{text-align:center}
+.valuable-row{padding:3px 5px!important;text-align:left;white-space:normal;word-break:normal;line-height:1.3}
+.handover-row{padding:4px 6px!important}.handover-row-content{display:grid;grid-template-columns:1.3fr 1fr 1.2fr;align-items:center;gap:10px}
+.contact-row{padding:3px 5px!important;text-align:center;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
+.time-date,.time-clock{display:block;text-align:center;white-space:nowrap;line-height:1.1;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;color:#000}
 .overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.42)}
 .dialog{display:flex;flex-direction:column;width:min(1080px,96vw);max-height:92vh;background:#fff;border:1px solid #d8dee8;border-radius:10px;box-shadow:0 20px 50px rgba(0,0,0,.2);overflow:hidden}
 .form-dialog{width:min(1080px,96vw)}
@@ -60,4 +67,4 @@ input:focus,select:focus,textarea:focus{outline:2px solid #cfe6fb;border-color:#
 em{color:#dc2626;font-style:normal}
 @media(max-width:1000px){.option-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.option-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.overlay{padding:10px}}
-@media print{@page{size:A4 portrait;margin:0}:host{background:#fff}.no-print{display:none!important}.sheet{width:210mm;height:297mm;margin:0;padding:7mm 7mm;box-shadow:none;overflow:hidden;page-break-after:always}.sheet:last-of-type{page-break-after:auto}h1{font-size:16pt}.paper-table{font-size:9px}.paper-table th,.paper-table td{padding:1px 1.5px;font-size:9px}.paper-table .group{width:20px;min-width:20px;max-width:20px;font-size:9px}.paper-table .mark,.paper-table .time-cell,.paper-table .sign-cell{width:42px;min-width:42px;max-width:42px;font-size:9px}.valuables{font-size:8pt}.patient-line,.patient-line span,.patient-line strong{font-family:'SimSun','宋体',serif;font-size:12pt;font-style:normal;line-height:1.25;color:#000}.patient-line{font-weight:400}.patient-line span{font-weight:400}.patient-line strong{font-weight:700}}
+@media print{@page{size:A4 portrait;margin:0}:host{background:#fff}.no-print{display:none!important}.sheet{width:210mm;height:297mm;margin:0;padding:7mm 7mm;box-shadow:none;overflow:hidden;page-break-after:always}.sheet:last-of-type{page-break-after:auto}h1{font-size:16pt}.paper-table{font-size:9px}.paper-table th,.paper-table td{padding:1px 1.5px;font-size:9px}.paper-table .group{width:20px;min-width:20px;max-width:20px;font-size:9px}.paper-table .mark,.paper-table .time-cell,.paper-table .sign-cell{width:42px;min-width:42px;max-width:42px;font-size:9px}.valuables{font-size:8pt}.patient-line,.patient-line span,.patient-line strong{font-family:'SimSun','宋体',serif;font-size:12pt;font-style:normal;line-height:1.25;color:#000}.patient-line{font-weight:400}.patient-line span{font-weight:400}.patient-line strong{font-weight:700}.paper-table col.category-column{width:18px}.paper-table col.record-column{width:42px}.paper-table .group{width:18px;min-width:18px;max-width:18px;font-size:9px}.paper-table .mark,.paper-table .time-cell,.paper-table .sign-cell{width:42px;min-width:42px;max-width:42px;font-size:9px}}
