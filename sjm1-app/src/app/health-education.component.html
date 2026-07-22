@@ -26,14 +26,103 @@
     <tbody>
       <ng-container *ngTemplateOutlet="standardGroup;context:{$implicit:admissionGroup,pageRecords:page.records}"></ng-container>
       <ng-container *ngTemplateOutlet="standardGroup;context:{$implicit:diseaseGroup,pageRecords:page.records}"></ng-container>
+      <!-- 药物宣教 -->
       <tr><th class="group" rowspan="5">药物宣教</th><td class="content" colspan="2">口服药宣教：作用、用药途径及方法</td><td class="mark" *ngFor="let r of page.records">{{checked(r,'ORAL_MEDICATION')}}</td></tr>
       <tr><td class="content" colspan="2">肠内营养制剂宣教：使用目的、途径及方法及注意事项等</td><td class="mark" *ngFor="let r of page.records">{{checked(r,'ENTERAL_NUTRITION')}}</td></tr>
       <tr><td class="content" colspan="2">静脉用药宣教：使用目的、途径及方法及注意事项等</td><td class="mark" *ngFor="let r of page.records">{{checked(r,'IV_MEDICATION')}}</td></tr>
-      <tr><td class="merged-item-cell" rowspan="2">特殊用药使用安全<br>及副作用</td><td class="detail-content-cell"><span class="fixed-medication-option">{{summaryCheckbox('SPECIAL_ANTIBIOTIC')}}抗菌药物</span><span class="fixed-medication-option">{{summaryCheckbox('VASOACTIVE')}}血管活性药物</span><span class="fixed-medication-option">{{summaryCheckbox('SEDATION')}}镇静镇痛药物</span></td><td class="mark" *ngFor="let record of page.records">{{recordAnyMark(record,['SPECIAL_ANTIBIOTIC','VASOACTIVE','SEDATION'])}}</td></tr>
-      <tr><td class="detail-content-cell"><span class="fixed-medication-option">{{summaryCheckbox('SPECIAL_OTHER')}}其他</span><span class="other-label">：</span><span class="other-fill-value" *ngIf="specialMedicationOtherSummary">{{specialMedicationOtherSummary}}</span><span class="fill-line" *ngIf="!specialMedicationOtherSummary"></span></td><td class="mark" *ngFor="let record of page.records">{{checked(record,'SPECIAL_OTHER')}}</td></tr>
-      <tr><th class="group" rowspan="3">检查宣教</th><td class="merged-item-cell" rowspan="3">特殊检查目的、配合方法和注意事项</td><td class="detail-content-cell"><span class="exam-prefix">外出检查：</span><span class="fixed-exam-option">{{summaryCheckbox('EXAM_CT')}}CT</span><span class="fixed-exam-option">{{summaryCheckbox('MRI')}}磁共振</span><span class="fixed-exam-option">{{summaryCheckbox('GASTROSCOPY')}}胃镜</span><span class="fixed-exam-option">{{summaryCheckbox('EXAM_OTHER')}}其它</span><span class="other-label">：</span><span class="other-fill-value" *ngIf="externalExamOtherSummary">{{externalExamOtherSummary}}</span><span class="fill-line short-line" *ngIf="!externalExamOtherSummary"></span></td><td class="mark" *ngFor="let record of page.records">{{recordAnyMark(record,['EXAM_CT','MRI','GASTROSCOPY','EXAM_OTHER'])}}</td></tr>
+      <tr>
+        <td class="merged-item-cell" rowspan="2">特殊用药使用安全<br>及副作用</td>
+        <td class="detail-content-cell">
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('SPECIAL_ANTIBIOTIC')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('SPECIAL_ANTIBIOTIC')">√</span>
+            </span>
+            <span class="document-option-label">抗菌药物</span>
+          </span>
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('VASOACTIVE')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('VASOACTIVE')">√</span>
+            </span>
+            <span class="document-option-label">血管活性药物</span>
+          </span>
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('SEDATION')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('SEDATION')">√</span>
+            </span>
+            <span class="document-option-label">镇静镇痛药物</span>
+          </span>
+        </td>
+        <td class="mark" *ngFor="let record of page.records">{{checkedAny(record,['SPECIAL_ANTIBIOTIC','VASOACTIVE','SEDATION'])}}</td>
+      </tr>
+      <tr>
+        <td class="detail-content-cell">
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('SPECIAL_OTHER')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('SPECIAL_OTHER')">√</span>
+            </span>
+            <span class="document-option-label">其他：</span>
+          </span>
+          <span class="other-fill-value">{{specialMedicationOtherSummary}}</span>
+          <span class="fill-line" *ngIf="!specialMedicationOtherSummary"></span>
+        </td>
+        <td class="mark" *ngFor="let record of page.records">{{checked(record,'SPECIAL_OTHER')}}</td>
+      </tr>
+      <!-- 检查宣教 -->
+      <tr>
+        <th class="group" rowspan="3">检查宣教</th>
+        <td class="merged-item-cell" rowspan="3">特殊检查目的、配合方法和注意事项</td>
+        <td class="detail-content-cell">
+          <span class="exam-prefix">外出检查：</span>
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('EXAM_CT')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('EXAM_CT')">√</span>
+            </span>
+            <span class="document-option-label">CT</span>
+          </span>
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('MRI')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('MRI')">√</span>
+            </span>
+            <span class="document-option-label">磁共振</span>
+          </span>
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('GASTROSCOPY')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('GASTROSCOPY')">√</span>
+            </span>
+            <span class="document-option-label">胃镜</span>
+          </span>
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('EXAM_OTHER')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('EXAM_OTHER')">√</span>
+            </span>
+            <span class="document-option-label">其它：</span>
+          </span>
+          <span class="other-fill-value">{{externalExamOtherSummary}}</span>
+          <span class="fill-line short-line" *ngIf="!externalExamOtherSummary"></span>
+        </td>
+        <td class="mark" *ngFor="let record of page.records">{{recordAnyMark(record,['EXAM_CT','MRI','GASTROSCOPY','EXAM_OTHER'])}}</td>
+      </tr>
       <tr><td class="detail-content-cell">患者转运风险</td><td class="mark" *ngFor="let r of page.records">{{checked(r,'TRANSPORT_RISK')}}</td></tr>
-      <tr><td class="detail-content-cell"><span class="exam-prefix">科内检查：</span><span class="fixed-exam-option">{{summaryCheckbox('BRONCHOSCOPY')}}纤维支气管镜灌洗</span><span class="fixed-exam-option">{{summaryCheckbox('WARD_OTHER')}}其它</span><span class="other-label">：</span><span class="other-fill-value" *ngIf="internalExamOtherSummary">{{internalExamOtherSummary}}</span><span class="fill-line short-line" *ngIf="!internalExamOtherSummary"></span></td><td class="mark" *ngFor="let record of page.records">{{recordAnyMark(record,['BRONCHOSCOPY','WARD_OTHER'])}}</td></tr>
+      <tr>
+        <td class="detail-content-cell">
+          <span class="exam-prefix">科内检查：</span>
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('BRONCHOSCOPY')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('BRONCHOSCOPY')">√</span>
+            </span>
+            <span class="document-option-label">纤维支气管镜灌洗</span>
+          </span>
+          <span class="document-option">
+            <span class="document-checkbox" [class.checked]="summarySelected('WARD_OTHER')">
+              <span class="document-checkbox-tick" *ngIf="summarySelected('WARD_OTHER')">√</span>
+            </span>
+            <span class="document-option-label">其它：</span>
+          </span>
+          <span class="other-fill-value">{{internalExamOtherSummary}}</span>
+          <span class="fill-line short-line" *ngIf="!internalExamOtherSummary"></span>
+        </td>
+        <td class="mark" *ngFor="let record of page.records">{{recordAnyMark(record,['BRONCHOSCOPY','WARD_OTHER'])}}</td>
+      </tr>
       <ng-container *ngFor="let g of remainingGroups"><ng-container *ngTemplateOutlet="standardGroup;context:{$implicit:g,pageRecords:page.records}"></ng-container></ng-container>
       <tr class="other-row"><th class="group">其它</th><td colspan="7" class="other-summary-cell">{{otherEducationSummary}}<span class="fill-line long-line" *ngIf="!otherEducationSummary"></span></td></tr>
       <tr><th class="group">宣教对象</th><td colspan="2" class="content bottom-desc">A：家属　　B：病人</td><td class="mark" *ngFor="let r of page.records">{{educationTargetText(r)}}</td></tr>
@@ -65,19 +154,74 @@
 <div class="overlay no-print" *ngIf="formOpen" (click)="formOpen=false"><section class="dialog form-dialog" (click)="$event.stopPropagation()">
   <div class="dialog-head"><h2>{{editing?'编辑健康教育记录':'新增健康教育记录'}}</h2><button class="icon-btn" (click)="formOpen=false" [disabled]="saving">×</button></div>
   <div class="form-body">
-    <div class="form-grid"><label>评估时间 <em>*</em><input type="datetime-local" [(ngModel)]="form.assessmentTime"></label><label>护士签名 <em>*</em><input [(ngModel)]="form.nurseName" (input)="onNurseInput($any($event.target).value)" list="account-list"><datalist id="account-list"><option *ngFor="let a of accounts" [value]="a.accountName" (click)="selectNurse(a)">{{a.accountName}}</option></datalist></label><label>宣教对象<select [(ngModel)]="form.educationTarget"><option value="">请选择</option><option value="A">A 家属</option><option value="B">B 病人</option><option value="AB">家属和病人</option></select></label></div>
-    <div class="option-group" *ngFor="let g of groups"><h3>{{g.name}}</h3><div class="option-grid"><label class="check-item" *ngFor="let item of g.items" [class.option-wide]="item.code==='RISKS'||item.code==='DISEASE_CARE'"><input type="checkbox" [checked]="has(form.itemCodes,item.code)" (change)="toggle('itemCodes',item.code,$any($event.target).checked)"><span class="option-text"><span class="option-label">{{item.label}}</span><span class="option-detail" *ngIf="item.detail">{{item.detail}}</span></span></label></div></div>
-    <div class="option-group"><h3>检查宣教</h3>
-    <div class="exam-form-section"><div class="exam-form-title">外出检查</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'EXAM_CT')" (change)="toggle('itemCodes','EXAM_CT',$any($event.target).checked)">CT</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'MRI')" (change)="toggle('itemCodes','MRI',$any($event.target).checked)">磁共振</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'GASTROSCOPY')" (change)="toggle('itemCodes','GASTROSCOPY',$any($event.target).checked)">胃镜</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'EXAM_OTHER')" (change)="toggle('itemCodes','EXAM_OTHER',$any($event.target).checked)">其它</label><input *ngIf="has(form.itemCodes,'EXAM_OTHER')" class="inline-other-input" type="text" placeholder="请输入外出检查其它内容" [(ngModel)]="form.externalExamOther"></div></div>
-    <div class="exam-form-section"><div class="exam-form-title">转运风险</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'TRANSPORT_RISK')" (change)="toggle('itemCodes','TRANSPORT_RISK',$any($event.target).checked)">患者转运风险</label></div></div>
-    <div class="exam-form-section"><div class="exam-form-title">科内检查</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'BRONCHOSCOPY')" (change)="toggle('itemCodes','BRONCHOSCOPY',$any($event.target).checked)">纤维支气管镜灌洗</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'WARD_OTHER')" (change)="toggle('itemCodes','WARD_OTHER',$any($event.target).checked)">其它</label><input *ngIf="has(form.itemCodes,'WARD_OTHER')" class="inline-other-input" type="text" placeholder="请输入科内检查其它内容" [(ngModel)]="form.internalExamOther"></div></div></div>
-<div class="option-group"><h3>评价</h3><label class="inline-check" *ngFor="let o of evaluationOptions"><input type="checkbox" [checked]="has(form.evaluationCodes,o.code)" (change)="toggle('evaluationCodes',o.code,$any($event.target).checked)">{{o.code}}. {{o.label}}</label></div>
-    <div class="form-grid">
-      <label class="conditional-other-input" *ngIf="has(form.itemCodes,'SPECIAL_OTHER')">特殊用药其他<input type="text" [(ngModel)]="form.specialMedicationOther"></label>
-      <label class="conditional-other-input" *ngIf="has(form.itemCodes,'EXAM_OTHER')">外出检查其他<input type="text" [(ngModel)]="form.externalExamOther"></label>
-      <label class="conditional-other-input" *ngIf="has(form.itemCodes,'WARD_OTHER')">科内检查其他<input type="text" [(ngModel)]="form.internalExamOther"></label>
-      <label class="conditional-other-input wide" *ngIf="has(form.itemCodes,'OTHER')">其它宣教<textarea rows="2" [(ngModel)]="form.otherEducation"></textarea></label>
+    <!-- 顶栏：评估时间 / 护士签名 / 宣教对象 -->
+    <div class="form-grid basic-form-grid">
+      <label class="form-field">
+        <span class="field-label">评估时间<em class="required-mark">*</em></span>
+        <input type="datetime-local" [(ngModel)]="form.assessmentTime">
+      </label>
+      <div class="form-field nurse-field">
+        <span class="field-label">护士签名<em class="required-mark">*</em></span>
+        <div class="nurse-search">
+          <input type="text" class="nurse-search-input" autocomplete="off" [ngModel]="nurseQuery" (ngModelChange)="onNurseSearchInput($event)" (focus)="openNurseDropdown()" (blur)="closeNurseDropdownLater()" placeholder="输入姓名、账号或工号检索">
+          <div class="nurse-dropdown" *ngIf="nurseDropdownOpen">
+            <button type="button" class="nurse-option" *ngFor="let account of filteredAccounts" (mousedown)="$event.preventDefault()" (click)="selectNurse(account)">
+              <span class="nurse-option-name">{{account.accountName}}</span>
+              <span class="nurse-option-code" *ngIf="account.code || account.username">{{account.code || account.username}}</span>
+            </button>
+            <div class="nurse-empty" *ngIf="!filteredAccounts.length">未找到匹配的账号</div>
+          </div>
+        </div>
+      </div>
+      <label class="form-field">
+        <span class="field-label">宣教对象<em class="required-mark required-placeholder" aria-hidden="true">*</em></span>
+        <select [(ngModel)]="form.educationTarget">
+          <option value="">请选择</option>
+          <option value="A">A 家属</option>
+          <option value="B">B 病人</option>
+          <option value="AB">家属和病人</option>
+        </select>
+      </label>
     </div>
+    <!-- 标准分组（入院/转入、疾病、术前、术后、出院/转科） -->
+    <div class="option-group" *ngFor="let group of modalStandardGroups">
+      <h3>{{group.name}}</h3>
+      <div class="option-grid">
+        <label class="check-item" *ngFor="let item of group.items" [class.option-wide]="item.code==='RISKS'||item.code==='DISEASE_CARE'">
+          <input type="checkbox" [checked]="has(form.itemCodes,item.code)" (change)="toggle('itemCodes',item.code,$any($event.target).checked)">
+          <span class="option-text"><span class="option-label">{{item.label}}</span><span class="option-detail" *ngIf="item.detail">{{item.detail}}</span></span>
+        </label>
+      </div>
+    </div>
+    <!-- 药物宣教 -->
+    <div class="option-group">
+      <h3>药物宣教</h3>
+      <div class="option-grid">
+        <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'ORAL_MEDICATION')" (change)="toggle('itemCodes','ORAL_MEDICATION',$any($event.target).checked)"><span class="option-text">口服药宣教：作用、用药途径及方法</span></label>
+        <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'ENTERAL_NUTRITION')" (change)="toggle('itemCodes','ENTERAL_NUTRITION',$any($event.target).checked)"><span class="option-text">肠内营养制剂宣教：使用目的、途径及方法及注意事项等</span></label>
+        <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'IV_MEDICATION')" (change)="toggle('itemCodes','IV_MEDICATION',$any($event.target).checked)"><span class="option-text">静脉用药宣教：使用目的、途径及方法及注意事项等</span></label>
+        <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'SPECIAL_ANTIBIOTIC')" (change)="toggle('itemCodes','SPECIAL_ANTIBIOTIC',$any($event.target).checked)"><span class="option-text">特殊用药：抗菌药物</span></label>
+        <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'VASOACTIVE')" (change)="toggle('itemCodes','VASOACTIVE',$any($event.target).checked)"><span class="option-text">特殊用药：血管活性药物</span></label>
+        <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'SEDATION')" (change)="toggle('itemCodes','SEDATION',$any($event.target).checked)"><span class="option-text">特殊用药：镇静镇痛药物</span></label>
+        <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'SPECIAL_OTHER')" (change)="toggle('itemCodes','SPECIAL_OTHER',$any($event.target).checked)"><span class="option-text">特殊用药：其他</span></label>
+      </div>
+      <label class="conditional-other-input" *ngIf="has(form.itemCodes,'SPECIAL_OTHER')">其他内容<input type="text" [(ngModel)]="form.specialMedicationOther" placeholder="请输入特殊用药其他内容"></label>
+    </div>
+    <!-- 检查宣教 -->
+    <div class="option-group">
+      <h3>检查宣教</h3>
+      <div class="exam-form-section"><div class="exam-form-title">外出检查</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'EXAM_CT')" (change)="toggle('itemCodes','EXAM_CT',$any($event.target).checked)">CT</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'MRI')" (change)="toggle('itemCodes','MRI',$any($event.target).checked)">磁共振</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'GASTROSCOPY')" (change)="toggle('itemCodes','GASTROSCOPY',$any($event.target).checked)">胃镜</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'EXAM_OTHER')" (change)="toggle('itemCodes','EXAM_OTHER',$any($event.target).checked)">其它</label><input *ngIf="has(form.itemCodes,'EXAM_OTHER')" class="inline-other-input" type="text" placeholder="请输入外出检查其它内容" [(ngModel)]="form.externalExamOther"></div></div>
+      <div class="exam-form-section"><div class="exam-form-title">转运风险</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'TRANSPORT_RISK')" (change)="toggle('itemCodes','TRANSPORT_RISK',$any($event.target).checked)">患者转运风险</label></div></div>
+      <div class="exam-form-section"><div class="exam-form-title">科内检查</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'BRONCHOSCOPY')" (change)="toggle('itemCodes','BRONCHOSCOPY',$any($event.target).checked)">纤维支气管镜灌洗</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'WARD_OTHER')" (change)="toggle('itemCodes','WARD_OTHER',$any($event.target).checked)">其它</label><input *ngIf="has(form.itemCodes,'WARD_OTHER')" class="inline-other-input" type="text" placeholder="请输入科内检查其它内容" [(ngModel)]="form.internalExamOther"></div></div>
+    </div>
+    <!-- 其它宣教 -->
+    <div class="option-group">
+      <h3>其它</h3>
+      <label class="check-item other-check-item"><input type="checkbox" [checked]="has(form.itemCodes,'OTHER')" (change)="toggle('itemCodes','OTHER',$any($event.target).checked)"><span class="option-text">其它宣教</span></label>
+      <label class="conditional-other-input" *ngIf="has(form.itemCodes,'OTHER')">宣教内容<textarea rows="2" [(ngModel)]="form.otherEducation" placeholder="请输入其它宣教内容"></textarea></label>
+    </div>
+    <!-- 评价 -->
+    <div class="option-group"><h3>评价</h3><label class="inline-check" *ngFor="let o of evaluationOptions"><input type="checkbox" [checked]="has(form.evaluationCodes,o.code)" (change)="toggle('evaluationCodes',o.code,$any($event.target).checked)">{{o.code}}. {{o.label}}</label></div>
     <div class="error" *ngIf="errorText">{{errorText}}</div>
   </div>
   <div class="dialog-foot"><button class="dialog-btn cancel-btn" (click)="formOpen=false" [disabled]="saving">取消</button><button class="dialog-btn save-btn" (click)="save()" [disabled]="saving">{{saving?'保存中…':'保存'}}</button></div>

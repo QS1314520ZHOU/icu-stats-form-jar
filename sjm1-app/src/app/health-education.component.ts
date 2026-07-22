@@ -17,7 +17,10 @@ interface HealthEducationRecord {
   receiverConfirmed?: boolean; receiverName?: string; receivedAt?: string;
   valid?: boolean; updatedBy?: string;
 }
-interface AccountOption { accountId: string; accountName: string; }
+interface AccountOption {
+  accountId: string; accountName: string;
+  username?: string; code?: string;
+}
 interface RenderPage { index: number; records: (HealthEducationRecord|null)[]; }
 interface HealthEducationSharedInfo { valuableCodes: string[]; valuableOther: string; receiverConfirmed: boolean; receiverName: string; receivedAt: string; }
 
@@ -35,8 +38,8 @@ const GROUPS: OptionGroup[] = [
     {code:'DISEASE_CARE',label:'疾病相关临床表现、主要治疗、心理护理及疾病护理教育（疾病护理要点、体位、营养、功能锻炼等）'}]},
   { name: '药物宣教', items: [
     {code:'ORAL_MEDICATION',label:'口服药宣教',detail:'作用、用药途径及方法'},
-    {code:'ENTERAL_NUTRITION',label:'肠内营养制剂宣教',detail:'使用目的、途径、方法及注意事项'},
-    {code:'IV_MEDICATION',label:'静脉用药宣教',detail:'使用目的、途径、方法及注意事项'},
+    {code:'ENTERAL_NUTRITION',label:'肠内营养制剂宣教',detail:'使用目的、途径及方法及注意事项等'},
+    {code:'IV_MEDICATION',label:'静脉用药宣教',detail:'使用目的、途径及方法及注意事项等'},
     {code:'SPECIAL_ANTIBIOTIC',label:'特殊用药：抗菌药物'},
     {code:'VASOACTIVE',label:'特殊用药：血管活性药物'},
     {code:'SEDATION',label:'特殊用药：镇静镇痛药物'},
@@ -69,6 +72,9 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   readonly admissionGroup = GROUPS.find(g=>g.name==='入院/转入宣教')!;
   readonly diseaseGroup = GROUPS.find(g=>g.name==='疾病宣教')!;
   readonly remainingGroups = GROUPS.filter(g=>!['入院/转入宣教','疾病宣教','药物宣教','检查宣教','其它'].includes(g.name));
+  readonly modalStandardGroups = GROUPS.filter(group =>
+    ['入院/转入宣教','疾病宣教','术前宣教','术后宣教','出院/转科宣教'].includes(group.name)
+  );
   readonly targetOptions = [{code:'A',label:'家属'},{code:'B',label:'病人'}];
   readonly evaluationOptions = [{code:'A',label:'能复述'},{code:'B',label:'能解释'},{code:'C',label:'能模仿'},{code:'D',label:'能操作'}];
 
@@ -82,6 +88,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   sharedInfo: HealthEducationSharedInfo = this.emptySharedInfo();
   sharedDraft: HealthEducationSharedInfo = this.emptySharedInfo();
   sharedEditing = false; sharedSaving = false;
+  nurseQuery = ''; nurseDropdownOpen = false; filteredAccounts: AccountOption[] = [];
   private sharedCarrierRecord: HealthEducationRecord | null = null;
   private pid = ''; private destroy$ = new Subject<void>();
   private refresh$ = new Subject<void>();
@@ -113,11 +120,16 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
 
   openCreate(): void {
     if (!this.pid) return;
-    this.editing=false; this.errorText=''; this.form=this.emptyForm(this.pid);
-    this.form.assessmentTime=this.toLocalInput(new Date());
-    this.form.nurseId=String(this.account?.id || this.account?.username || '');
-    this.form.nurseName=this.account?.trueName || this.account?.accountName || '';
-    this.formOpen=true;
+    this.editing = false; this.errorText = ''; this.form = this.emptyForm(this.pid);
+    this.form.assessmentTime = this.toLocalInput(new Date());
+    const currentId = String(this.account?.id ?? this.account?._id ?? this.account?.accountId ?? this.account?.username ?? '').trim();
+    const currentName = String(this.account?.trueName ?? this.account?.accountName ?? this.account?.name ?? '').trim();
+    this.form.nurseId = currentId;
+    this.form.nurseName = currentName;
+    this.nurseQuery = currentName;
+    this.filteredAccounts = this.accounts.slice(0, 20);
+    this.nurseDropdownOpen = false;
+    this.formOpen = true;
   }
   openEditList(): void { this.editListOpen=true; }
   editRecord(r: HealthEducationRecord): void {
@@ -126,12 +138,23 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     this.form.assessmentTime=this.toLocalInput(new Date(r.assessmentTime));
     if (this.form.receivedAt) this.form.receivedAt=this.toLocalInput(new Date(this.form.receivedAt));
     this.form.itemCodes ||= []; this.form.evaluationCodes ||= []; this.form.valuableCodes ||= [];
+    this.nurseQuery = this.form.nurseName || '';
+    this.nurseDropdownOpen = false;
     this.formOpen=true;
   }
   save(): void {
     this.errorText='';
     if (!this.form.assessmentTime) { this.errorText='评估时间为必填项'; return; }
     if (!this.form.nurseName?.trim()) { this.errorText='护士签名为必填项'; return; }
+    const selectedNurse = this.accounts.find(account =>
+      account.accountId === this.form.nurseId &&
+      account.accountName === this.form.nurseName.trim()
+    );
+    const isExistingHistoricalNurse = this.editing && !!this.form.id && !!this.form.nurseId && !!this.form.nurseName?.trim();
+    if (!selectedNurse && !isExistingHistoricalNurse) {
+      this.errorText = '请从护士账号检索结果中选择签名账号';
+      return;
+    }
     if (this.form.itemCodes?.includes('EXAM_OTHER') && !this.form.externalExamOther?.trim()) { this.errorText='请选择并填写外出检查其它内容'; return; }
     if (this.form.itemCodes?.includes('WARD_OTHER') && !this.form.internalExamOther?.trim()) { this.errorText='请选择并填写科内检查其它内容'; return; }
     if (this.form.itemCodes?.includes('SPECIAL_OTHER') && !this.form.specialMedicationOther?.trim()) { this.errorText='请选择并填写特殊用药其他内容'; return; }
@@ -160,6 +183,30 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
 
   checked(r: HealthEducationRecord|null, code: string): string { return r?.itemCodes?.includes(code) ? '√' : ''; }
   checkedAny(r:HealthEducationRecord|null,codes:string[]):string{if(!r)return'';return codes.some(c=>r.itemCodes?.includes(c))?'√':'';}
+
+  /**
+   * 判断全部有效评估记录中，是否至少有一次选择了对应项目。
+   * 返回 boolean，用于 HTML 方框组件的 [class.checked] 绑定和 *ngIf。
+   */
+  summarySelected(code: string): boolean {
+    return this.records.some(record =>
+      record?.itemCodes?.includes(code)
+    );
+  }
+  /**
+   * 判断单次评估是否选择了任意指定项目。
+   */
+  recordHasAny(record: HealthEducationRecord | null, codes: string[]): boolean {
+    if (!record) return false;
+    return codes.some(code => record.itemCodes?.includes(code));
+  }
+  /**
+   * 用于后面的动态评估列显示一个普通 √。
+   */
+  recordAnyMark(record: HealthEducationRecord | null, codes: string[]): string {
+    return this.recordHasAny(record, codes) ? '√' : '';
+  }
+
   get otherEducationSummary(): string { return this.joinDistinctOtherValues(this.records.filter(r=>r.itemCodes?.includes('OTHER')&&!!r.otherEducation?.trim()).map(r=>r.otherEducation)); }
   get specialMedicationOtherSummary(): string { return this.joinDistinctOtherValues(this.records.filter(r=>r.itemCodes?.includes('SPECIAL_OTHER')&&!!r.specialMedicationOther?.trim()).map(r=>r.specialMedicationOther)); }
   get externalExamOtherSummary(): string { return this.joinDistinctOtherValues(this.records.filter(r=>r.itemCodes?.includes('EXAM_OTHER')&&!!r.externalExamOther?.trim()).map(r=>r.externalExamOther)); }
@@ -169,53 +216,46 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     return r?.valuableCodes?.includes(code) ? '☑' : '□';
   }
   has(arr: string[]|undefined, code: string): boolean { return !!arr?.includes(code); }
-  /**
-   * 判断全部有效评估记录中，是否至少有一次选择了对应项目。
-   *
-   * 用于表格前面固定内容列中的选择框：
-   * 选中过至少一次显示√，从未选择显示□。
-   */
-  summaryCheckbox(code: string): string {
-    return this.records.some(record =>
-      record?.itemCodes?.includes(code)
-    )
-      ? '√'
-      : '□';
-  }
-  /**
-   * 判断单次评估是否选择了任意指定项目。
-   */
-  recordHasAny(
-    record: HealthEducationRecord | null,
-    codes: string[]
-  ): boolean {
-    if (!record) {
-      return false;
-    }
-
-    return codes.some(code =>
-      record.itemCodes?.includes(code)
-    );
-  }
-  /**
-   * 用于后面的动态评估列显示一个普通 √。
-   */
-  recordAnyMark(
-    record: HealthEducationRecord | null,
-    codes: string[]
-  ): string {
-    return this.recordHasAny(record, codes)
-      ? '√'
-      : '';
-  }
   toggle(field:'itemCodes'|'evaluationCodes'|'valuableCodes',code:string,on:boolean):void{const s=new Set(this.form[field]||[]);if(on){s.add(code)}else{s.delete(code);if(field==='itemCodes'){if(code==='SPECIAL_OTHER')this.form.specialMedicationOther='';if(code==='EXAM_OTHER')this.form.externalExamOther='';if(code==='WARD_OTHER')this.form.internalExamOther='';if(code==='OTHER')this.form.otherEducation='';}}this.form[field]=[...s];}
   targetMark(r: HealthEducationRecord|null, code: string): string {
     return r && (r.educationTarget===code || r.educationTarget==='AB') ? '√' : '';
   }
   evalText(r: HealthEducationRecord|null): string { return (r?.evaluationCodes || []).join('、'); }
   groupRows(g: OptionGroup): number { return g.items.length; }
-  selectNurse(a: AccountOption): void { this.form.nurseId = a.accountId; this.form.nurseName = a.accountName; }
-  onNurseInput(v: string): void { this.form.nurseName = v; const m = this.accounts.find(a => a.accountName===v.trim()); this.form.nurseId = m?.accountId || ''; }
+
+  /* ---- 护士检索选择 ---- */
+  selectNurse(account: AccountOption): void {
+    this.form.nurseId = account.accountId;
+    this.form.nurseName = account.accountName;
+    this.nurseQuery = account.accountName;
+    this.nurseDropdownOpen = false;
+  }
+  onNurseSearchInput(value: string): void {
+    this.nurseQuery = value;
+    this.form.nurseName = value;
+    this.form.nurseId = '';
+    const keyword = value.trim().toLowerCase();
+    this.filteredAccounts = this.accounts
+      .filter(account => {
+        if (!keyword) return true;
+        return [account.accountName, account.username, account.code].some(field =>
+          String(field || '').toLowerCase().includes(keyword)
+        );
+      })
+      .slice(0, 20);
+    this.nurseDropdownOpen = true;
+    const exactMatches = this.accounts.filter(account => account.accountName === value.trim());
+    if (exactMatches.length === 1) {
+      this.form.nurseId = exactMatches[0].accountId;
+    }
+  }
+  openNurseDropdown(): void {
+    this.filteredAccounts = this.accounts.slice(0, 20);
+    this.nurseDropdownOpen = true;
+  }
+  closeNurseDropdownLater(): void {
+    window.setTimeout(() => { this.nurseDropdownOpen = false; }, 150);
+  }
 
   print(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
@@ -255,7 +295,17 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       .sheet-pageno{position:absolute;left:8mm;right:8mm;bottom:5mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
       .no-print,.shared-screen-editor,.shared-actions{display:none!important}
       .other-summary-cell .no-print{display:none!important}
-      .merged-item-cell{width:136px;padding:2px 4px!important;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2}.detail-content-cell{padding:2px 4px!important;text-align:left;vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:break-word;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.25}.inline-other-part{display:inline;white-space:normal}.exam-prefix{display:inline;white-space:nowrap}.fixed-exam-option,.fixed-medication-option{display:inline-block;margin-right:5px;white-space:nowrap;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.25;color:#000}.other-label{display:inline}.other-fill-value{display:inline;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;color:#000}.fill-line{display:inline-block;width:140px;min-height:1em;vertical-align:bottom;border-bottom:1px solid #000}.fill-line.short-line{width:55px}.fill-line.long-line{width:80%}
+      .merged-item-cell{width:136px;padding:2px 4px!important;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2}
+      .detail-content-cell{padding:2px 4px!important;text-align:left;vertical-align:middle;white-space:normal;word-break:normal;overflow-wrap:break-word;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.25}
+      .inline-other-part{display:inline;white-space:normal}
+      .exam-prefix{display:inline;white-space:nowrap}
+      .document-option{display:inline-flex;align-items:center;gap:2px;margin-right:6px;white-space:nowrap;vertical-align:middle}
+      .document-checkbox{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;border:1px solid #000;background:#fff;color:#000;vertical-align:middle}
+      .document-checkbox-tick{display:block;margin-top:-1px;font-family:'SimSun','宋体',serif;font-size:11px;font-weight:700;line-height:1;color:#000}
+      .document-option-label{display:inline-block;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2;color:#000}
+      .other-label{display:inline}
+      .other-fill-value{display:inline;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;color:#000}
+      .fill-line{display:inline-block;width:140px;min-height:1em;vertical-align:bottom;border-bottom:1px solid #000}.fill-line.short-line{width:55px}.fill-line.long-line{width:80%}
     `;
     const win = window.open('', '_blank', 'width=900,height=700');
     if (!win) { alert('打印窗口被拦截'); return; }
@@ -271,7 +321,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     if((win.document as any).readyState==='complete') ready(); else win.addEventListener('load', ready);
   }
 
-  closeDialogs(): void { this.editListOpen=false; this.formOpen=false; this.errorText=''; }
+  closeDialogs(): void { this.editListOpen=false; this.formOpen=false; this.errorText=''; this.nurseQuery=''; this.nurseDropdownOpen=false; }
   private joinDistinctOtherValues(values:Array<string|undefined|null>):string{return[...new Set(values.map(v=>String(v||'').trim()).filter(Boolean))].join('；');}
   private emptySharedInfo(): HealthEducationSharedInfo { return {valuableCodes:[],valuableOther:'',receiverConfirmed:false,receiverName:'',receivedAt:''}; }
   private cloneSharedInfo(v:HealthEducationSharedInfo):HealthEducationSharedInfo { return {valuableCodes:[...v.valuableCodes],valuableOther:v.valuableOther,receiverConfirmed:v.receiverConfirmed,receiverName:v.receiverName,receivedAt:v.receivedAt}; }
@@ -287,7 +337,26 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     if(this.selectedPrintPage!==null && this.selectedPrintPage>this.pages.length) this.selectedPrintPage=null;
   }
   private emptyForm(pid: string): HealthEducationRecord { return {pid,assessmentTime:'',itemCodes:[],educationTarget:'',evaluationCodes:[],nurseName:'',valuableCodes:[],receiverConfirmed:false,dischargeEducation:false,transferEducation:false}; }
-  private loadAccounts(): void { this.http.get<AccountOption[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$)).subscribe({next:x=>this.accounts=Array.isArray(x)?x:[],error:()=>{}}); }
+  private loadAccounts(): void {
+    this.http.get<any[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$)).subscribe({
+      next: rows => {
+        const source = Array.isArray(rows) ? rows : [];
+        this.accounts = source
+          .map(row => ({
+            accountId: String(row?.accountId ?? row?._id ?? row?.id ?? '').trim(),
+            accountName: String(row?.accountName ?? row?.trueName ?? row?.name ?? '').trim(),
+            username: String(row?.username ?? row?.loginName ?? '').trim(),
+            code: String(row?.code ?? row?.jobNumber ?? '').trim(),
+          }))
+          .filter(account => !!account.accountId && !!account.accountName);
+        this.filteredAccounts = this.accounts.slice(0, 20);
+      },
+      error: () => {
+        this.accounts = [];
+        this.filteredAccounts = [];
+      },
+    });
+  }
   private loadHospitalName(): void { this.http.get<any>('/api/v1/config/hospital').pipe(takeUntil(this.destroy$)).subscribe({next:x=>{if(x?.hospitalName)this.hospitalName=x.hospitalName;},error:()=>{}}); }
   fmtDateTime(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return v; const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
   fmtMonthDay(v?: string): string { if(!v)return ''; const d=new Date(v); if(Number.isNaN(d.getTime()))return ''; const p=(n:number)=>String(n).padStart(2,'0'); return `${p(d.getMonth()+1)}-${p(d.getDate())}`; }
