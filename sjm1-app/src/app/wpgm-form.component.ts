@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, ElementRef, OnInit } from '@angular/core';
 
 export type SupplyCategory = '常规' | '特殊' | '专科' | '失禁';
 
@@ -12,6 +12,14 @@ export interface SupplyItem {
   selected: boolean;
 }
 
+interface RenderPage {
+  index: number;
+  items: SupplyItem[];
+  showHeaderNotice: boolean;
+  showReferenceImages: boolean;
+  showFooterNotice: boolean;
+}
+
 @Component({
   standalone: false,
   selector: 'app-wpgm-form',
@@ -22,6 +30,7 @@ export class WpgmFormComponent implements OnInit {
   readonly categories: SupplyCategory[] = ['常规', '特殊', '专科', '失禁'];
   selectorOpen = false;
   keyword = '';
+  pages: RenderPage[] = [];
 
   items: SupplyItem[] = [
     { id:'turning-pillow', category:'常规', name:'翻身枕', quantity:'1个', specification:'R型或等边三角形', purpose:'翻身', selected:false },
@@ -67,13 +76,15 @@ export class WpgmFormComponent implements OnInit {
     { id:'stoma-powder', category:'失禁', name:'造口粉', quantity:'1瓶', specification:'/', purpose:'吸收渗液、减轻刺激', selected:false },
   ];
 
+  constructor(private host: ElementRef) {}
+
   ngOnInit(): void {
-    // 仅记住项目勾选，不保存患者信息；如不需要记忆可删除这段。
     try {
       const saved = JSON.parse(localStorage.getItem('wpgmForm.selectedIds') || '[]') as string[];
       const selected = new Set(saved);
       this.items.forEach(item => item.selected = selected.has(item.id));
     } catch { /* 忽略损坏的本地缓存 */ }
+    this.paginate();
   }
 
   get selectedItems(): SupplyItem[] { return this.items.filter(item => item.selected); }
@@ -87,6 +98,10 @@ export class WpgmFormComponent implements OnInit {
 
   selectedByCategory(category: SupplyCategory): SupplyItem[] {
     return this.items.filter(item => item.category === category && item.selected);
+  }
+
+  pageItemsByCategory(page: RenderPage, category: SupplyCategory): SupplyItem[] {
+    return page.items.filter(item => item.category === category);
   }
 
   categoryTotal(category: SupplyCategory): number {
@@ -105,16 +120,126 @@ export class WpgmFormComponent implements OnInit {
 
   selectAll(): void { this.items.forEach(item => item.selected = true); this.persistSelection(); }
   clearAll(): void { this.items.forEach(item => item.selected = false); this.persistSelection(); }
+
   onItemChanged(): void { this.persistSelection(); }
 
   trackById(_: number, item: SupplyItem): string { return item.id; }
 
+  /* ---- 分页 ---- */
+  private paginate(): void {
+    const items = this.selectedItems;
+    if (!items.length) { this.pages = []; return; }
+
+    const PAGE1_ITEMS = 14;   // 首页含标题/提示/图片/底部提醒
+    const PAGE2_ITEMS = 14;   // 第2页含图片
+    const PAGE_MID_ITEMS = 28; // 中间纯表格页
+    const PAGE_LAST_ITEMS = 22; // 末页含底部提醒
+
+    const total = items.length;
+    const out: RenderPage[] = [];
+
+    if (total <= PAGE1_ITEMS) {
+      out.push({ index: 1, items: [...items], showHeaderNotice: true, showReferenceImages: true, showFooterNotice: true });
+    } else if (total <= PAGE1_ITEMS + PAGE_LAST_ITEMS) {
+      out.push({ index: 1, items: items.slice(0, PAGE1_ITEMS), showHeaderNotice: true, showReferenceImages: true, showFooterNotice: false });
+      out.push({ index: 2, items: items.slice(PAGE1_ITEMS), showHeaderNotice: false, showReferenceImages: false, showFooterNotice: true });
+    } else {
+      out.push({ index: 1, items: items.slice(0, PAGE1_ITEMS), showHeaderNotice: true, showReferenceImages: false, showFooterNotice: false });
+      out.push({ index: 2, items: items.slice(PAGE1_ITEMS, PAGE1_ITEMS + PAGE2_ITEMS), showHeaderNotice: false, showReferenceImages: true, showFooterNotice: false });
+      const rest = items.slice(PAGE1_ITEMS + PAGE2_ITEMS);
+      if (rest.length <= PAGE_LAST_ITEMS) {
+        out.push({ index: 3, items: rest, showHeaderNotice: false, showReferenceImages: false, showFooterNotice: true });
+      } else {
+        out.push({ index: 3, items: rest.slice(0, PAGE_MID_ITEMS), showHeaderNotice: false, showReferenceImages: false, showFooterNotice: false });
+        out.push({ index: 4, items: rest.slice(PAGE_MID_ITEMS), showHeaderNotice: false, showReferenceImages: false, showFooterNotice: true });
+      }
+    }
+
+    this.pages = out;
+  }
+
+  /* ---- 打印（参考health-education实现） ---- */
   print(): void {
     if (!this.selectedCount) { alert('请先选择需要展示和打印的物品'); return; }
-    window.print();
+
+    const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
+    if (!allSheets.length) { alert('没有可打印的表单'); return; }
+
+    let body = '';
+    allSheets.forEach((s: HTMLElement) => {
+      const c = s.cloneNode(true) as HTMLElement;
+      c.querySelectorAll('.no-print').forEach(el => el.remove());
+      body += '<section class="print-page">' + c.outerHTML + '</section>';
+    });
+
+    const css = `
+      @page{size:A4 portrait;margin:0}
+      html,body{margin:0;padding:0;background:#fff}
+      .print-page{box-sizing:border-box;width:210mm;height:297mm;overflow:hidden;page-break-after:always;break-after:page;background:#fff}
+      .print-page:last-child{page-break-after:auto;break-after:auto}
+      .sheet{box-sizing:border-box;position:relative;width:210mm;height:297mm;margin:0;padding:8mm 8mm 14mm;box-shadow:none;background:#fff;color:#000;overflow:hidden}
+      h1{margin:0 0 2mm;text-align:center;font-family:SimHei,'黑体',sans-serif;font-size:20pt;line-height:1.35}
+      .notice-copy p{margin:1mm 0;text-align:justify;font-family:'SimSun','宋体',serif}
+      .notice-copy .indent{text-indent:2em}
+      .paper-table{width:100%;margin:4mm 0;border-collapse:collapse;table-layout:fixed;font-size:9.5pt;line-height:1.45;font-family:'SimSun','宋体',serif}
+      .paper-table th,.paper-table td{border:1px solid #000;padding:1.6mm 1.5mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
+      .paper-table th{font-family:SimHei,'黑体',sans-serif;font-weight:700}
+      .paper-table thead{display:table-header-group}
+      .paper-table tr{break-inside:avoid;page-break-inside:avoid}
+      .paper-table .category{font-weight:700}
+      .category-column{width:9%}.name-column{width:18%}.quantity-column{width:11%}.spec-column{width:30%}.purpose-column{width:32%}
+      .reference-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3mm 5mm;margin:4mm 0 5mm;break-inside:avoid;page-break-inside:avoid}
+      .reference-image-card{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;margin:0;break-inside:avoid;page-break-inside:avoid}
+      .reference-image-card img{display:block;width:100%;height:31mm;object-fit:contain;background:#fff}
+      .reference-image-card figcaption{margin-top:1.5mm;text-align:center;font-family:SimHei,"黑体",sans-serif;font-size:9.5pt;font-weight:700;line-height:1.25}
+      .footer-copy{margin-top:4mm}.footer-copy p{break-inside:avoid}
+      .no-print{display:none!important}
+      .sheet-pageno{position:absolute;left:8mm;right:8mm;bottom:5mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
+    `;
+
+    const win = window.open('', '_blank', 'width=900,height=700');
+    if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
+    win.document.close();
+
+    const doPrint = () => {
+      const sheets = win!.document.querySelectorAll<HTMLElement>('.sheet');
+      sheets.forEach(sh => { if (sh.scrollHeight > sh.clientHeight + 1) console.warn('Overflow:', sh.scrollHeight - sh.clientHeight); });
+      win!.focus(); win!.print();
+    };
+
+    const ready = () => {
+      const doc = win!.document as any;
+      const run = () => {
+        this.waitForImages(win!.document).then(() => {
+          if (doc.fonts?.ready) {
+            doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); });
+          } else {
+            requestAnimationFrame(() => requestAnimationFrame(doPrint));
+          }
+        });
+      };
+      run();
+    };
+
+    win.addEventListener('afterprint', () => { try { win.close(); } catch(e) { /* ignore */ } });
+    if ((win.document as any).readyState === 'complete') ready();
+    else win.addEventListener('load', ready);
+  }
+
+  private waitForImages(doc: Document): Promise<void> {
+    const images = Array.from(doc.images);
+    return Promise.all(images.map(image => {
+      if (image.complete) return Promise.resolve();
+      return new Promise<void>(resolve => {
+        image.addEventListener('load', () => resolve(), { once: true });
+        image.addEventListener('error', () => resolve(), { once: true });
+      });
+    })).then(() => undefined);
   }
 
   private persistSelection(): void {
     localStorage.setItem('wpgmForm.selectedIds', JSON.stringify(this.selectedItems.map(item => item.id)));
+    this.paginate();
   }
 }

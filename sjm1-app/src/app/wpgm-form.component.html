@@ -6,23 +6,25 @@
   </div>
 </div>
 
-<main class="sheet" aria-label="重症医学科患者物品购买温馨提醒打印预览">
-  <h1>重症医学科患者物品购买温馨提醒</h1>
-  <div class="notice-copy">
+<div class="empty-preview no-print" *ngIf="!selectedCount">
+  <div class="empty-icon">✓</div>
+  <strong>尚未选择物品</strong>
+  <span>点击顶部"选择物品"，勾选后将在这里形成打印清单。</span>
+  <button class="btn primary" type="button" (click)="selectorOpen = true">开始选择</button>
+</div>
+
+<section class="sheet" *ngFor="let page of pages" [attr.aria-label]="'第' + page.index + '页'">
+  <h1 *ngIf="page.showHeaderNotice">重症医学科患者物品购买温馨提醒</h1>
+  <h1 *ngIf="!page.showHeaderNotice" class="repeat-title">重症医学科患者物品购买温馨提醒</h1>
+
+  <div class="notice-copy" *ngIf="page.showHeaderNotice">
     <p>尊敬的病员家属：</p>
     <p class="indent">您好！为了给患者提供一个安全舒适的就医环境，特此说明以下提醒事项，请您知晓，敬请配合！</p>
     <p>1、重症医学科（ICU）实行24小时无陪护制度，每日探视时间为11:00—11:30，每位患者探视人数不超过2人，中途不交换家属，具体探视要求请参照《重症医学科探视制度》规定。</p>
     <p>2、请按照以下物品清单为患者准备住院所需用物，为方便您购买，部分物品可参照以下图片。</p>
   </div>
 
-  <div class="empty-preview no-print" *ngIf="!selectedCount">
-    <div class="empty-icon">✓</div>
-    <strong>尚未选择物品</strong>
-    <span>点击顶部“选择物品”，勾选后将在这里形成打印清单。</span>
-    <button class="btn primary" type="button" (click)="selectorOpen = true">开始选择</button>
-  </div>
-
-  <table class="paper-table" *ngIf="selectedCount">
+  <table class="paper-table">
     <colgroup>
       <col class="category-column">
       <col class="name-column">
@@ -35,7 +37,7 @@
     </thead>
     <tbody>
       <ng-container *ngFor="let category of categories">
-        <ng-container *ngIf="selectedByCategory(category) as rows">
+        <ng-container *ngIf="pageItemsByCategory(page, category) as rows">
           <tr *ngFor="let item of rows; let first = first; trackBy: trackById">
             <td class="category" *ngIf="first" [attr.rowspan]="rows.length">{{ category }}</td>
             <td>{{ item.name }}</td>
@@ -48,7 +50,7 @@
     </tbody>
   </table>
 
-  <section class="reference-images" *ngIf="selectedCount" aria-label="部分物品参考图片">
+  <section class="reference-images" *ngIf="page.showReferenceImages" aria-label="部分物品参考图片">
     <figure class="reference-image-card">
       <img src="wpgm/fsz.png" alt="翻身枕" />
       <figcaption>翻身枕</figcaption>
@@ -75,7 +77,7 @@
     </figure>
   </section>
 
-  <div class="notice-copy footer-copy" *ngIf="selectedCount">
+  <div class="notice-copy footer-copy" *ngIf="page.showFooterNotice">
     <p>3、以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品。</p>
     <p>4、患者身上不留现金、手机及其它贵重物品，若必须留时，请与医护人员当面交接。</p>
     <p>5、请注意维护公共环境，请勿在通道座椅上躺卧睡觉，同时请保管好个人财物。</p>
@@ -83,7 +85,9 @@
     <p>7、家属在外走廊等候期间，请不要大声喧哗，以免影响患者休息。</p>
     <p>8、如患者病情变化、转科或生活物品数量不足，医护人员会电话通知您，请保持电话通畅。如有需要请拨打科室电话：023-81915173。</p>
   </div>
-</main>
+
+  <div class="sheet-pageno">第 {{ page.index }} 页　共 {{ pages.length }} 页</div>
+</section>
 
 <div class="overlay no-print" *ngIf="selectorOpen" (click)="selectorOpen = false">
   <section class="selector-dialog" role="dialog" aria-modal="true" aria-labelledby="selector-title" (click)="$event.stopPropagation()">
