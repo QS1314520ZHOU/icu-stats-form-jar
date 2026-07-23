@@ -16,6 +16,7 @@ import { PatientFallDangerComponent } from './patient-fall-danger.component';
 import { HealthEducationComponent } from './health-education.component';
 import { WpgmFormComponent } from './wpgm-form.component';
 import { EcmoRecordComponent } from './ecmo-record.component';
+import { TransfusionRecordComponent } from './transfusion-record.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -32,6 +33,7 @@ import { routes } from './app.routes';
     HealthEducationComponent,
     WpgmFormComponent,
     EcmoRecordComponent,
+    TransfusionRecordComponent,
   ],
   imports: [
     BrowserModule,

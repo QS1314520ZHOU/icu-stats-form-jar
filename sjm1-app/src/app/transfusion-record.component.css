@@ -1,0 +1,44 @@
+:host { display: block; height: 100vh; overflow: auto; background: #f0f2f5; color: #000; }
+
+.toolbar { position: sticky; top: 0; z-index: 50; display: flex; justify-content: flex-end; align-items: center; min-height: 54px; padding: 0 16px; background: #fff; border-bottom: 1px solid #e6e8eb; }
+.toolbar-right { display: flex; align-items: center; gap: 10px; }
+.btn { min-height: 34px; padding: 5px 16px; border-radius: 4px; font: 14px "SimSun","宋体",serif; cursor: pointer; }
+.btn:disabled { cursor: not-allowed; opacity: .55; }
+.btn.primary { border: 1px solid #1890ff; background: #1890ff; color: #fff; }
+.btn.secondary { border: 1px solid #c9cdd4; background: #fff; color: #333; }
+.btn.danger { border: 1px solid #dc2626; background: #fff; color: #dc2626; }
+.page-select { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font: 14px "SimSun","宋体",serif; }
+.page-select select { min-height: 32px; padding: 4px 8px; border: 1px solid #ccc; background: #fff; font: inherit; }
+.loading { padding: 14px 16px; font-family: "SimSun","宋体",serif; }
+.loading.error { color: #b42318; }
+
+.sheet { box-sizing: border-box; position: relative; width: 210mm; min-height: 297mm; margin: 16px auto; padding: 8mm 8mm 14mm; overflow: hidden; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.15); color: #000; font-family: "SimSun","宋体",serif; }
+h1 { margin: 0 0 2mm; text-align: center; font-family: SimHei,"黑体",sans-serif; font-size: 18pt; font-weight: 700; }
+.patient-info-row { display: flex; align-items: center; width: 100%; gap: 12px; margin: 2px 0; font-size: 11pt; }
+.patient-info-row.second { margin-bottom: 4mm; }
+.info-item { flex: 0 0 auto; white-space: nowrap; }
+.info-item b { font-weight: 700; }
+.diagnosis-item { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sheet-pageno { position: absolute; left: 8mm; right: 8mm; bottom: 5mm; margin: 0; text-align: center; font-size: 12pt; }
+
+.overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15,23,42,.45); }
+.dialog { display: flex; flex-direction: column; max-height: 90vh; background: #fff; border-radius: 8px; box-shadow: 0 20px 50px rgba(0,0,0,.2); overflow: hidden; }
+.product-dialog { width: min(600px, 94vw); }
+.dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #e5e7eb; }
+.dialog-head h2 { margin: 0; font-size: 18px; }
+.icon-btn { width: 44px; height: 44px; border: 0; background: transparent; font-size: 28px; color: #64748b; cursor: pointer; }
+.dialog-body { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.dialog-body label { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.dialog-body input { flex: 1; min-height: 32px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+.dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 11px 18px; border-top: 1px solid #e5e7eb; background: #f8fafc; }
+.hint { color: #64748b; padding: 8px; }
+.product-option { padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px; cursor: pointer; }
+.product-option:hover { background: #eef6ff; }
+
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  :host { height: auto; overflow: visible; background: #fff; }
+  .no-print { display: none !important; }
+  .sheet { width: 210mm; height: 297mm; margin: 0; box-shadow: none; page-break-after: always; }
+  .sheet:last-of-type { page-break-after: auto; }
+}

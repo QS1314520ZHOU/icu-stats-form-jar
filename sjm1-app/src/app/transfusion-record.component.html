@@ -1,0 +1,54 @@
+<div class="toolbar no-print">
+  <div class="toolbar-right">
+    <button type="button" class="btn secondary" [disabled]="isEditing || loading" (click)="addPage()">新增一页</button>
+    <button type="button" class="btn secondary" [disabled]="isEditing || !selectedPage" (click)="startEdit(selectedPage)">编辑本页</button>
+    <button type="button" class="btn secondary danger" [disabled]="isEditing || deleting || !selectedPage" (click)="deleteCurrentPage()">{{ deleting ? '删除中…' : '删除本页' }}</button>
+    <button *ngIf="isEditing" type="button" class="btn primary" [disabled]="saving" (click)="saveCurrentPage()">{{ saving ? '保存中…' : '保存' }}</button>
+    <button *ngIf="isEditing" type="button" class="btn secondary" [disabled]="saving" (click)="cancelEdit()">取消</button>
+    <label class="page-select">当前页：<select [(ngModel)]="selectedPageNo" [disabled]="isEditing"><option *ngFor="let p of pages" [ngValue]="p.pageNo">第 {{ p.pageNo }} 页</option></select></label>
+    <label class="page-select">打印页码：<select [(ngModel)]="selectedPrintPage" [disabled]="isEditing"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.pageNo">第 {{ p.pageNo }} 页</option></select></label>
+    <button type="button" class="btn primary" [disabled]="isEditing || loading" (click)="print()">打印</button>
+  </div>
+</div>
+
+<div class="loading no-print" *ngIf="loading">加载中…</div>
+<div class="loading error no-print" *ngIf="loadError">{{ loadError }}</div>
+
+<section class="sheet" *ngFor="let page of pages">
+  <h1>重钢总医院输血记录单</h1>
+
+  <div class="patient-info-row">
+    <span class="info-item"><b>科室：</b>{{ patient?.dept || '' }}</span>
+    <span class="info-item"><b>床号：</b>{{ patient?.hisBed || '' }}</span>
+    <span class="info-item"><b>姓名：</b>{{ patient?.name || '' }}</span>
+    <span class="info-item"><b>性别：</b>{{ genderText(patient?.gender) }}</span>
+    <span class="info-item"><b>年龄：</b>{{ age ?? '' }}</span>
+    <span class="info-item"><b>住院号：</b>{{ patient?.mrn || '' }}</span>
+  </div>
+  <div class="patient-info-row second">
+    <span class="info-item"><b>血型：</b>{{ patient?.bloodType || '' }}</span>
+    <span class="info-item"><b>RH(D)：</b>{{ patient?.rhType || '' }}</span>
+    <span class="info-item diagnosis-item"><b>诊断：</b>{{ diagnosisDisplay }}</span>
+  </div>
+
+  <div class="sheet-pageno">第 {{ page.pageNo }} 页　共 {{ pages.length }} 页</div>
+</section>
+
+<!-- 血液制品选择弹框 -->
+<div class="overlay no-print" *ngIf="productDialogOpen" (click)="closeProductDialog()">
+  <section class="dialog product-dialog" (click)="$event.stopPropagation()">
+    <div class="dialog-head"><h2>血液制品相关信息</h2><button class="icon-btn" (click)="closeProductDialog()">×</button></div>
+    <div class="dialog-body">
+      <div *ngIf="productLoading">加载中…</div>
+      <div *ngIf="!productLoading && !availableProducts.length" class="hint">暂未同步到可选择的血液制品，请手工填写。</div>
+      <div *ngFor="let p of availableProducts" class="product-option" (click)="selectAvailableProduct(p)">{{ p.productType }} {{ p.bagNo }} {{ p.dose }}{{ p.doseUnit }}</div>
+      <label>血袋号：<input [(ngModel)]="productDraft.bagNo"></label>
+      <label>ABO血型：<input [(ngModel)]="productDraft.aboType"></label>
+      <label>RH：<input [(ngModel)]="productDraft.rhType"></label>
+      <label>品种：<input [(ngModel)]="productDraft.productType"></label>
+      <label>剂量：<input [(ngModel)]="productDraft.dose"> <input [(ngModel)]="productDraft.doseUnit" placeholder="单位"></label>
+      <label>有效期：<input type="datetime-local" [(ngModel)]="productDraft.expiresAt"></label>
+    </div>
+    <div class="dialog-foot"><button class="btn secondary" (click)="closeProductDialog()">取消</button><button class="btn primary" (click)="confirmProduct()">确定</button></div>
+  </section>
+</div>
