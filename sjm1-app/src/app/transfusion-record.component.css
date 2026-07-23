@@ -10,6 +10,16 @@
 .ps{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font:14px "SimSun","宋体",serif}
 .ps select{min-height:32px;padding:4px 8px;border:1px solid #ccc;background:#fff;font:inherit}
 .as{font-size:12px;color:#7d7a75;white-space:nowrap}.as .ok{color:#46a171}.retry{background:none;border:0;color:#dc2626;cursor:pointer;text-decoration:underline;font:inherit}
+.tx input,.tx select{pointer-events:auto!important;position:relative;z-index:2}
+.dtc{position:relative;padding:0!important;cursor:pointer}.dtc input{box-sizing:border-box;width:100%;height:100%;min-height:5mm;margin:0;padding:0 1mm;border:0;outline:0;background:transparent;text-align:center;font:inherit;color:#000;cursor:pointer}
+.psel{box-sizing:border-box;width:100%;min-height:5mm;padding:0 1mm;border:0;outline:0;background:transparent;font:inherit;color:#000}
+.pr{display:inline-flex;align-items:center;gap:2px;margin:0 4px;cursor:pointer;font:inherit}.pr input{width:auto;height:auto;margin:0;cursor:pointer}.pr span{white-space:nowrap}
+.vi{box-sizing:border-box;width:9mm;height:4mm;padding:0;border:0;border-bottom:1px solid #000;border-radius:0;outline:0;background:transparent;text-align:center;font:inherit}.vi.bp{width:8mm}
+.vl{display:flex;flex-direction:column;gap:1px;align-items:center}.vlr{display:flex;align-items:center;gap:1px;white-space:nowrap;font-size:8pt}
+.dri{box-sizing:border-box;width:30mm;height:5mm;padding:0 2mm;border:0;border-bottom:1px solid #000;border-radius:0;outline:0;background:transparent;text-align:center;font:inherit}
+.pec{cursor:pointer;transition:background .15s}.pec:hover{background:#eef6ff}
+.dual{display:flex;gap:2px}
+.tx input:focus,.tx select:focus{outline:1px solid #2783de;outline-offset:-1px}
 .loading{padding:14px 16px;font-family:"SimSun","宋体",serif}
 .loading.error{color:#b42318}
 

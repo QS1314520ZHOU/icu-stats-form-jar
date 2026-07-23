@@ -127,6 +127,7 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
 
   /* 时间控件 */
   openDatePicker(input: HTMLInputElement): void { input.focus(); try { (input as any).showPicker?.(); } catch { input.click(); } }
+  onDateCellClick(event: Event): void { const inp = (event.currentTarget as HTMLElement).querySelector('input'); if (inp) this.openDatePicker(inp); }
 
   /* 签名 */
   setSigner(item: TransfusionItem, field: keyof TransfusionItem, accountId: string): void { if (!accountId) { (item as any)[field] = null; return; } const a = this.accounts.find(x => x.accountId === accountId); (item as any)[field] = a ? { accountId: a.accountId, accountName: a.accountName } : null; }
