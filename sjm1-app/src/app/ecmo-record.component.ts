@@ -18,7 +18,7 @@ const ECMO_GROUPS: EcmoGroup[] = [
   { name: 'ECMO相关参数', metrics: [
     { label: '治疗模式', code: 'param_ECMOMoShi' }, { label: '治疗状态', code: 'param_治疗状态' },
     { label: '血流量（L/min）', code: 'param_ECMO_xueLiuLiang' },
-    { label: '转速', code: 'param_ECMO_IXinBengZhuanSu', aliases: ['param_ECMO_lXinBengZhuanSu', 'param_ECMO_iXinBengZhuanSu'] },
+    { label: '转速', code: 'param_ECMO_liXinBengZhuanSu', aliases: ['param_ECMO_IXinBengZhuanSu', 'param_ECMO_lXinBengZhuanSu', 'param_ECMO_iXinBengZhuanSu'] },
     { label: '气流量（L/min）', code: 'param_ECMO_QiLiuLiang' }, { label: 'FiO₂(%)', code: 'param_ECMO_FiO2' },
     { label: '血温℃', code: 'param_bg_Temp' }, { label: '设置水温℃', code: 'param_ShuiXiangTemp_set' },
     { label: '实际水温℃', code: 'param_ShuiXiangTemp_act' }, { label: 'P泵前（mmHg）', code: 'param_P_Beng_MoQian_MoHou' },
@@ -62,7 +62,6 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   private readonly API_ECMO_EXTRA = '/api/v1/icu/ecmo-extra';
   private readonly destroy$ = new Subject<void>();
   private readonly values = new Map<string, string>();
-  private readonly signatures = new Map<string, string>();
   private readonly consumablesSave$ = new Subject<{ pid: string; text: string }>();
   private lastConsumablesDraft: { pid: string; text: string } | null = null;
 
@@ -109,13 +108,13 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
 
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(patient => {
-      if (!patient?.id) { this.pid = ''; this.records = []; this.values.clear(); this.signatures.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }]; this.cdr.detectChanges(); return; }
+      if (!patient?.id) { this.pid = ''; this.records = []; this.values.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }]; this.cdr.detectChanges(); return; }
       const nextPid = String(patient.id).trim();
       if (!nextPid) return;
       const prevPid = this.pid;
       this.pid = nextPid;
       this.setPatient(patient);
-      if (nextPid !== prevPid) { this.records = []; this.values.clear(); this.signatures.clear(); this.buildPages(); this.load(); this.loadConsumables(nextPid); }
+      if (nextPid !== prevPid) { this.records = []; this.values.clear(); this.buildPages(); this.load(); this.loadConsumables(nextPid); }
       this.cdr.detectChanges();
     });
   }
@@ -151,11 +150,11 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
         const source = Array.isArray(response) ? response : Array.isArray((response as any)?.data) ? (response as any).data : [];
         const allCodes = new Set(this.codes.map(c => this.norm(c)));
         this.records = source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && allCodes.has(this.norm(r.code)));
-        this.buildValueMap(); this.buildSignatureMap(); this.buildPages();
+        this.buildValueMap(); this.buildPages();
         this.loading = false; this.cdr.detectChanges();
       },
       error: e => {
-        this.records = []; this.values.clear(); this.signatures.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }];
+        this.records = []; this.values.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }];
         this.loading = false; this.loadError = e?.error?.message || 'ECMO运行记录加载失败';
         this.cdr.detectChanges();
       },
@@ -171,8 +170,8 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  /* 签名 */
-  signatureAt(time: string | undefined): string { if (!time) return ''; return this.signatures.get(this.timeKey(time)) ?? ''; }
+  /* 签名 — 来自宿主SmartCare postMessage的account.trueName */
+  signatureAt(time: string | undefined): string { if (!time) return ''; return String(this.account?.trueName ?? '').trim(); }
 
   displayTime(time: string | undefined): string {
     if (!time) return '';
@@ -228,23 +227,10 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   /* ---- 内部 ---- */
   private valueKey(code: unknown, time: unknown): string { return `${this.norm(code)} ${this.timeKey(time)}`; }
 
-  private recordUser(r: BedsideRecord): string { return String(r.recordUserName ?? r.editUserName ?? r.editUser ?? '').trim(); }
-
   private buildValueMap(): void {
     this.values.clear();
     const ordered = [...this.records].sort((a, b) => this.ts(a.time) - this.ts(b.time) || this.ts(a.editTime) - this.ts(b.editTime));
     for (const r of ordered) { const c = this.norm(r.code); const t = this.timeKey(r.time); if (!c || !t) continue; this.values.set(this.valueKey(c, t), String(r.strVal ?? '')); }
-  }
-
-  private buildSignatureMap(): void {
-    this.signatures.clear();
-    const grouped = new Map<string, BedsideRecord[]>();
-    for (const r of this.records) { const t = this.timeKey(r.time); if (!t) continue; const list = grouped.get(t) ?? []; list.push(r); grouped.set(t, list); }
-    for (const [time, recs] of grouped) {
-      const ordered = [...recs].sort((a, b) => this.ts(a.editTime) - this.ts(b.editTime));
-      const names = ordered.map(r => this.recordUser(r)).filter(Boolean);
-      this.signatures.set(time, names.length ? names[names.length - 1] : '');
-    }
   }
 
   private buildPages(): void {
