@@ -7,10 +7,9 @@
 </div>
 
 <section class="sheet" *ngFor="let page of pages" [attr.aria-label]="'第' + page.index + '页'">
-  <h1 *ngIf="page.showHeaderNotice">重症医学科患者物品购买温馨提醒</h1>
-  <h1 *ngIf="!page.showHeaderNotice" class="repeat-title">重症医学科患者物品购买温馨提醒</h1>
+  <h1 *ngIf="page.showDocumentHeader">重症医学科患者物品购买温馨提醒</h1>
 
-  <div class="notice-copy" *ngIf="page.showHeaderNotice">
+  <div class="notice-copy" *ngIf="page.showDocumentHeader">
     <p>尊敬的病员家属：</p>
     <p class="indent">您好！为了给患者提供一个安全舒适的就医环境，特此说明以下提醒事项，请您知晓，敬请配合！</p>
     <p>1、重症医学科（ICU）实行24小时无陪护制度，每日探视时间为11:00—11:30，每位患者探视人数不超过2人，中途不交换家属，具体探视要求请参照《重症医学科探视制度》规定。</p>

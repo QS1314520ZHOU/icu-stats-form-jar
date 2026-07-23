@@ -15,10 +15,16 @@ export interface SupplyItem {
 interface RenderPage {
   index: number;
   items: SupplyItem[];
-  showHeaderNotice: boolean;
+  showDocumentHeader: boolean;
   showReferenceImages: boolean;
   showFooterNotice: boolean;
 }
+
+const INTRO_HTML = `<p>尊敬的病员家属：</p><p class="indent">您好！为了给患者提供一个安全舒适的就医环境，特此说明以下提醒事项，请您知晓，敬请配合！</p><p>1、重症医学科（ICU）实行24小时无陪护制度，每日探视时间为11:00—11:30，每位患者探视人数不超过2人，中途不交换家属，具体探视要求请参照《重症医学科探视制度》规定。</p><p>2、请按照以下物品清单为患者准备住院所需用物，为方便您购买，部分物品可参照以下图片。</p>`;
+
+const TABLE_HEADER_HTML = `<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5pt;line-height:1.45"><thead><tr><th style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:9%">分类</th><th style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:18%">物品名称</th><th style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:11%">数量</th><th style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:30%">规格</th><th style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:32%">物品用途</th></tr></thead></table>`;
+
+const IMAGES_HTML = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4mm 6mm;margin:5mm 0 6mm"><figure style="margin:0"><div style="display:block;width:100%;height:34mm;background:#fff"></div><div style="margin-top:1.5mm;text-align:center;font-family:SimHei,sans-serif;font-size:10.5pt;font-weight:700">图</div></figure><figure style="margin:0"><div style="display:block;width:100%;height:34mm;background:#fff"></div><div style="margin-top:1.5mm;text-align:center;font-family:SimHei,sans-serif;font-size:10.5pt;font-weight:700">图</div></figure></div>`;
 
 @Component({
   standalone: false,
@@ -76,6 +82,14 @@ export class WpgmFormComponent implements OnInit {
     { id:'stoma-powder', category:'失禁', name:'造口粉', quantity:'1瓶', specification:'/', purpose:'吸收渗液、减轻刺激', selected:false },
   ];
 
+  // 缓存测量值
+  private _pxPerMm = 0;
+  private _rowHeightMm = 0;
+  private _headerRowHeightMm = 0;
+  private _introHeightMm = 0;
+  private _imagesHeightMm = 0;
+  private _footerLineHeightMm = 0;
+
   constructor(private host: ElementRef) {}
 
   ngOnInit(): void {
@@ -83,8 +97,9 @@ export class WpgmFormComponent implements OnInit {
       const saved = JSON.parse(localStorage.getItem('wpgmForm.selectedIds') || '[]') as string[];
       const selected = new Set(saved);
       this.items.forEach(item => item.selected = selected.has(item.id));
-    } catch { /* 忽略损坏的本地缓存 */ }
-    this.paginate();
+    } catch { /* ignore */ }
+    // 延迟测量，等DOM就绪
+    setTimeout(() => { this.measureHeights(); this.paginate(); }, 50);
   }
 
   get selectedItems(): SupplyItem[] { return this.items.filter(item => item.selected); }
@@ -120,63 +135,140 @@ export class WpgmFormComponent implements OnInit {
 
   selectAll(): void { this.items.forEach(item => item.selected = true); this.persistSelection(); }
   clearAll(): void { this.items.forEach(item => item.selected = false); this.persistSelection(); }
-
   onItemChanged(): void { this.persistSelection(); }
-
   trackById(_: number, item: SupplyItem): string { return item.id; }
 
-  /* ---- 分页 ----
-   * 结构：第1-2点 → 表格 → 图片 → 第3-8点
-   * 图片必须在所有表格行之后、第3-8点之前出现。
-   * 因此图片+第3-8点始终在最后一页。
-   */
-  private paginate(): void {
-    const items = this.selectedItems;
-
-    // 0项：1页（无表格，其余全有）
-    if (!items.length) {
-      this.pages = [{ index: 1, items: [], showHeaderNotice: true, showReferenceImages: true, showFooterNotice: true }];
-      return;
+  /* ---- 高度测量 ---- */
+  private get pxPerMm(): number {
+    if (!this._pxPerMm) {
+      const div = document.createElement('div');
+      div.style.cssText = 'position:fixed;visibility:hidden;width:100mm';
+      document.body.appendChild(div);
+      this._pxPerMm = div.getBoundingClientRect().width / 100;
+      document.body.removeChild(div);
     }
-
-    const PAGE1_ALL = 12; // 全部内容挤在一页的最大行数
-    const FIRST_CAP = 28; // 首页（标题+第1-2点+表格）容量
-    const LAST_CAP  = 15; // 末页（表格+图片+第3-8点）容量
-    const MID_CAP   = 30; // 纯表格续页容量
-
-    const total = items.length;
-    const out: RenderPage[] = [];
-
-    // 1页搞定
-    if (total <= PAGE1_ALL) {
-      this.pages = [{ index: 1, items: [...items], showHeaderNotice: true, showReferenceImages: true, showFooterNotice: true }];
-      return;
-    }
-
-    // 末页必须包含图片+第3-8点，优先分配末页行数
-    const lastCount = Math.min(total, LAST_CAP);
-    const beforeLast = total - lastCount; // 末页之前的物品数
-
-    // 首页（含第1-2点）及可能的中继页（纯表格）
-    let placed = 0;
-    if (beforeLast > 0) {
-      const firstTake = Math.min(beforeLast, FIRST_CAP);
-      out.push({ index: 1, items: items.slice(0, firstTake), showHeaderNotice: true, showReferenceImages: false, showFooterNotice: false });
-      placed = firstTake;
-      while (placed < beforeLast) {
-        const take = Math.min(MID_CAP, beforeLast - placed);
-        out.push({ index: out.length + 1, items: items.slice(placed, placed + take), showHeaderNotice: false, showReferenceImages: false, showFooterNotice: false });
-        placed += take;
-      }
-    }
-
-    // 末页 = 剩余表格行 + 图片 + 第3-8点
-    out.push({ index: out.length + 1, items: items.slice(beforeLast), showHeaderNotice: false, showReferenceImages: true, showFooterNotice: true });
-
-    this.pages = out;
+    return this._pxPerMm;
   }
 
-  /* ---- 打印（参考health-education实现） ---- */
+  private mmToPx(mm: number): number { return mm * this.pxPerMm; }
+  private pxToMm(px: number): number { return px / this.pxPerMm; }
+
+  private measureBlock(innerHtml: string, extraCss: string = ''): number {
+    const div = document.createElement('div');
+    div.style.cssText = `position:fixed;visibility:hidden;width:${this.mmToPx(194)}px;font-family:'SimSun','宋体',serif;font-size:11pt;line-height:1.75;${extraCss}`;
+    div.innerHTML = innerHtml;
+    document.body.appendChild(div);
+    const h = div.getBoundingClientRect().height;
+    document.body.removeChild(div);
+    return this.pxToMm(h);
+  }
+
+  private measureHeights(): void {
+    // 标题+第1-2点
+    this._introHeightMm = this.measureBlock(
+      INTRO_HTML,
+      'font-size:11pt;line-height:1.75'
+    ) + 10; // h1 title ~10mm
+
+    // 表头
+    this._headerRowHeightMm = this.measureBlock(
+      TABLE_HEADER_HTML,
+      'font-size:10.5pt;line-height:1.45'
+    );
+
+    // 数据行（用最长的规格行测量）
+    const longest = this.items.reduce((a, b) =>
+      (a.specification.length + a.purpose.length) > (b.specification.length + b.purpose.length) ? a : b
+    );
+    this._rowHeightMm = this.measureBlock(
+      `<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5pt;line-height:1.45"><tr><td style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:9%">分类</td><td style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:18%">${longest.name}</td><td style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:11%">${longest.quantity}</td><td style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:30%">${longest.specification}</td><td style="border:1px solid #000;padding:2.2mm 2mm;text-align:center;width:32%">${longest.purpose}</td></tr></table>`,
+      'font-size:10.5pt;line-height:1.45'
+    );
+
+    // 图片区（两行三列，img高度34mm×2+间距+标题）
+    this._imagesHeightMm = 34 * 2 + 4 + 3 + 5 + 6; // ~86mm
+
+    // 底部提醒每行
+    this._footerLineHeightMm = this.measureBlock(
+      '<p>3、以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品。</p>',
+      'font-size:11pt;line-height:1.75'
+    );
+  }
+
+  /* ---- 分页：三阶段（表格→图片→第3-8点） ---- */
+  private paginate(): void {
+    const items = this.selectedItems;
+    const out: RenderPage[] = [];
+
+    // 0项：1页无表格
+    if (!items.length) {
+      out.push({ index: 1, items: [], showDocumentHeader: true, showReferenceImages: true, showFooterNotice: true });
+      this.pages = out;
+      return;
+    }
+
+    const pageH = 275; // mm (297 - 8top - 14bottom)
+    const introH = this._introHeightMm || 35;
+    const thH = this._headerRowHeightMm || 8;
+    const rowH = this._rowHeightMm || 7.5;
+    const imagesH = this._imagesHeightMm || 86;
+    const footerLineH = this._footerLineHeightMm || 8;
+
+    const FOOTER_LINES = [
+      '3、以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品。',
+      '4、患者身上不留现金、手机及其它贵重物品，若必须留时，请与医护人员当面交接。',
+      '5、请注意维护公共环境，请勿在通道座椅上躺卧睡觉，同时请保管好个人财物。',
+      '6、医院禁止吸烟及任何形式使用明火，通道电源插座禁止连接大功率电器，插座上不能有裸露的电源线，请及时将充电电源线取下。为了您和家人的安全，请重视消防安全！',
+      '7、家属在外走廊等候期间，请不要大声喧哗，以免影响患者休息。',
+      '8、住院期间如患者病情变化、转科或生活物品数量不足等情况，医护人员会电话通知您，请保持电话通畅，以便及时与您取得联系，如有需要请拨打科室电话：023-81915173。',
+    ];
+
+    // --- 第一阶段：分页表格行（不预留给图片和第3-8点） ---
+    let currentPage = this.makePage();
+    currentPage.showDocumentHeader = true;
+    let usedH = introH + (items.length > 0 ? thH : 0);
+
+    for (const item of items) {
+      if (usedH + rowH > pageH) {
+        out.push(currentPage);
+        currentPage = this.makePage();
+        usedH = thH; // 续页只有表头
+      }
+      currentPage.items.push(item);
+      usedH += rowH;
+    }
+
+    // --- 第二阶段：全部表格行结束后放图片 ---
+    if (usedH + imagesH > pageH) {
+      out.push(currentPage);
+      currentPage = this.makePage();
+      usedH = 0;
+    }
+    currentPage.showReferenceImages = true;
+    usedH += imagesH;
+
+    // --- 第三阶段：图片之后放第3-8点 ---
+    for (const line of FOOTER_LINES) {
+      const lineH = line.length > 60 ? footerLineH * 2 : footerLineH;
+      if (usedH + lineH > pageH) {
+        out.push(currentPage);
+        currentPage = this.makePage();
+        usedH = 0;
+      }
+      usedH += lineH;
+    }
+    currentPage.showFooterNotice = true;
+    out.push(currentPage);
+
+    // 编号
+    this.pages = out.map((p, i) => { p.index = i + 1; return p; });
+  }
+
+  private makePage(): RenderPage {
+    return { index: 0, items: [], showDocumentHeader: false, showReferenceImages: false, showFooterNotice: false };
+  }
+
+  /* ---- 打印 ---- */
   print(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) { alert('没有可打印的表单'); return; }
