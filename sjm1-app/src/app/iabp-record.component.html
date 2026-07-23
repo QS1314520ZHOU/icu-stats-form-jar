@@ -1,0 +1,17 @@
+<div class="toolbar no-print"><label>打印页码：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option *ngFor="let page of pages" [ngValue]="page.index">第 {{page.index}} 页</option></select></label><button class="btn primary" (click)="print()">打印</button></div>
+<div *ngIf="loading" class="status">加载中…</div><div *ngIf="loadError" class="status error">{{loadError}} <button (click)="load()">重试</button></div>
+<section class="print-page" *ngFor="let page of pages" [class.print-hidden]="selectedPrintPage!==null&&selectedPrintPage!==page.index"><div class="sheet">
+ <h1>重钢总医院重症医学科IABP运行护理记录单</h1>
+ <div class="patient-line"><span>床号：{{patient?.hisBed||''}}</span><span>姓名：{{patient?.name||''}}</span><span>性别：{{genderText(patient?.gender)}}</span><span>年龄：{{age??''}} 岁</span><span>住院号：{{patient?.mrn||''}}</span><span class="grow">诊断：{{diagnosisDisplay}}</span></div>
+ <div class="insertion-row"><strong>穿刺部位：</strong>
+  <label><input type="radio" name="site-{{page.index}}" value="RIGHT_FEMORAL" [(ngModel)]="insertionSite" (change)="onExtraChanged()">右侧股动脉</label>
+  <label><input type="radio" name="site-{{page.index}}" value="LEFT_FEMORAL" [(ngModel)]="insertionSite" (change)="onExtraChanged()">左侧股动脉</label>
+  <label><input type="radio" name="site-{{page.index}}" value="OTHER" [(ngModel)]="insertionSite" (change)="onExtraChanged()"></label><input class="artery-input" [(ngModel)]="otherArtery" (focus)="insertionSite='OTHER'" (input)="onExtraChanged()" (blur)="saveExtraNow()"><span>动脉</span>
+  <strong>导管置入长度(cm)：</strong><input class="length-input" type="number" step="0.1" min="0" [(ngModel)]="catheterLengthCm" (input)="onExtraChanged()" (blur)="saveExtraNow()"><small class="save-state" [class.bad]="extraSaveState==='error'">{{extraSaveState==='saving'?'保存中…':extraSaveState==='saved'?'已保存':extraSaveState==='error'?'保存失败':''}}</small>
+ </div>
+ <table class="iabp-table"><colgroup><col class="group-col"><col class="metric-col"><col *ngFor="let i of columnIndexes" class="value-col"></colgroup>
+  <thead><tr><th colspan="2"></th><th *ngFor="let i of columnIndexes"><span>{{displayDate(timeAt(page,i))}}</span><span>{{displayClock(timeAt(page,i))}}</span></th></tr></thead>
+  <tbody><ng-container *ngFor="let group of groups"><tr *ngFor="let metric of group.metrics;let first=first"><td *ngIf="first" class="group-cell" [attr.rowspan]="group.metrics.length">{{group.name}}</td><td class="metric-cell">{{metric.label}}</td><td *ngFor="let i of columnIndexes">{{metricValue(metric,timeAt(page,i))}}</td></tr></ng-container>
+   <tr><td colspan="2">签名</td><td *ngFor="let i of columnIndexes">{{signatureAt(timeAt(page,i))}}</td></tr></tbody>
+ </table><div class="page-no">第 {{page.index}} 页　共 {{pages.length}} 页</div>
+</div></section>

@@ -12,6 +12,7 @@ import { WpgmFormComponent } from './wpgm-form.component';
 import { EcmoRecordComponent } from './ecmo-record.component';
 import { TransfusionRecordComponent } from './transfusion-record.component';
 import { PiccoRecordComponent } from './picco-record.component';
+import { IabpRecordComponent } from './iabp-record.component';
 
 export const routes: Routes = [
   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
@@ -27,5 +28,6 @@ export const routes: Routes = [
   { path: 'ecmoForm', component: EcmoRecordComponent },
   { path: 'transfusionForm', component: TransfusionRecordComponent },
   { path: 'piccoForm', component: PiccoRecordComponent },
+  { path: 'iabpForm', component: IabpRecordComponent },
   { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
 ];
