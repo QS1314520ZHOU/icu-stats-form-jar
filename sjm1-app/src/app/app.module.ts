@@ -14,6 +14,7 @@ import { IadScoreComponent } from './iad-score.component';
 import { BaetheiScoreComponent } from './baethei-score.component';
 import { PatientFallDangerComponent } from './patient-fall-danger.component';
 import { HealthEducationComponent } from './health-education.component';
+import { WpgmFormComponent } from './wpgm-form.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -28,6 +29,7 @@ import { routes } from './app.routes';
     BaetheiScoreComponent,
     PatientFallDangerComponent,
     HealthEducationComponent,
+    WpgmFormComponent,
   ],
   imports: [
     BrowserModule,

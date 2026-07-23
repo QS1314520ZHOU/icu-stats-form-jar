@@ -1,0 +1,115 @@
+<div class="toolbar no-print">
+  <div class="toolbar-left">
+    <strong>患者物品购买温馨提醒</strong>
+    <span class="selection-status" [class.empty]="selectedCount === 0">
+      已选 {{ selectedCount }} 项
+    </span>
+  </div>
+  <div class="toolbar-right">
+    <button class="btn secondary" type="button" (click)="selectorOpen = true">选择物品</button>
+    <button class="btn secondary" type="button" (click)="clearAll()" [disabled]="!selectedCount">清空</button>
+    <button class="btn primary" type="button" (click)="print()" [disabled]="!selectedCount">打印</button>
+  </div>
+</div>
+
+<main class="sheet" aria-label="重症医学科患者物品购买温馨提醒打印预览">
+  <h1>重症医学科患者物品购买温馨提醒</h1>
+  <div class="notice-copy">
+    <p>尊敬的病员家属：</p>
+    <p class="indent">您好！为了给患者提供一个安全舒适的就医环境，特此说明以下提醒事项，请您知晓，敬请配合！</p>
+    <p>1、重症医学科（ICU）实行24小时无陪护制度，每日探视时间为11:00—11:30，每位患者探视人数不超过2人，中途不交换家属，具体探视要求请参照《重症医学科探视制度》规定。</p>
+    <p>2、请按照以下物品清单为患者准备住院所需用物。<strong>本清单仅展示医护人员勾选的项目。</strong></p>
+  </div>
+
+  <div class="empty-preview no-print" *ngIf="!selectedCount">
+    <div class="empty-icon">✓</div>
+    <strong>尚未选择物品</strong>
+    <span>点击顶部“选择物品”，勾选后将在这里形成打印清单。</span>
+    <button class="btn primary" type="button" (click)="selectorOpen = true">开始选择</button>
+  </div>
+
+  <table class="paper-table" *ngIf="selectedCount">
+    <colgroup>
+      <col class="category-column">
+      <col class="name-column">
+      <col class="quantity-column">
+      <col class="spec-column">
+      <col class="purpose-column">
+    </colgroup>
+    <thead>
+      <tr><th>分类</th><th>物品名称</th><th>数量</th><th>规格</th><th>物品用途</th></tr>
+    </thead>
+    <tbody>
+      <ng-container *ngFor="let category of categories">
+        <ng-container *ngIf="selectedByCategory(category) as rows">
+          <tr *ngFor="let item of rows; let first = first; trackBy: trackById">
+            <td class="category" *ngIf="first" [attr.rowspan]="rows.length">{{ category }}</td>
+            <td>{{ item.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.specification }}</td>
+            <td>{{ item.purpose }}</td>
+          </tr>
+        </ng-container>
+      </ng-container>
+    </tbody>
+  </table>
+
+  <div class="notice-copy footer-copy" *ngIf="selectedCount">
+    <p>3、以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品。</p>
+    <p>4、患者身上不留现金、手机及其它贵重物品，若必须留时，请与医护人员当面交接。</p>
+    <p>5、请注意维护公共环境，请勿在通道座椅上躺卧睡觉，同时请保管好个人财物。</p>
+    <p>6、医院禁止吸烟及任何形式使用明火，通道电源插座禁止连接大功率电器。为了您和家人的安全，请重视消防安全！</p>
+    <p>7、家属在外走廊等候期间，请不要大声喧哗，以免影响患者休息。</p>
+    <p>8、如患者病情变化、转科或生活物品数量不足，医护人员会电话通知您，请保持电话通畅。如有需要请拨打科室电话：023-81915173。</p>
+  </div>
+</main>
+
+<div class="overlay no-print" *ngIf="selectorOpen" (click)="selectorOpen = false">
+  <section class="selector-dialog" role="dialog" aria-modal="true" aria-labelledby="selector-title" (click)="$event.stopPropagation()">
+    <header class="dialog-head">
+      <div>
+        <h2 id="selector-title">选择打印物品</h2>
+        <p>只会在预览和打印中显示已勾选项目</p>
+      </div>
+      <button class="icon-btn" type="button" aria-label="关闭" (click)="selectorOpen = false">×</button>
+    </header>
+
+    <div class="selector-tools">
+      <label class="search-box">
+        <span>搜索</span>
+        <input type="search" [(ngModel)]="keyword" placeholder="物品名称、规格或用途">
+      </label>
+      <div class="quick-actions">
+        <button class="text-btn" type="button" (click)="selectAll()">全选</button>
+        <button class="text-btn danger" type="button" (click)="clearAll()">清空</button>
+      </div>
+    </div>
+
+    <div class="selector-body">
+      <section class="category-card" *ngFor="let category of categories">
+        <label class="category-head">
+          <input type="checkbox" [checked]="categoryAllSelected(category)" (change)="toggleCategory(category, $any($event.target).checked)">
+          <strong>{{ category }}</strong>
+          <span>{{ selectedByCategory(category).length }}/{{ categoryTotal(category) }}</span>
+        </label>
+        <div class="item-grid">
+          <label class="item-option" *ngFor="let item of visibleItems(category); trackBy: trackById" [class.selected]="item.selected">
+            <input type="checkbox" [(ngModel)]="item.selected" (ngModelChange)="onItemChanged()">
+            <span class="item-copy">
+              <strong>{{ item.name }}</strong>
+              <small>{{ item.quantity }} · {{ item.specification }} · {{ item.purpose }}</small>
+            </span>
+          </label>
+        </div>
+      </section>
+    </div>
+
+    <footer class="dialog-foot">
+      <span>已选择 <strong>{{ selectedCount }}</strong> 项</span>
+      <div>
+        <button class="btn secondary" type="button" (click)="selectorOpen = false">关闭</button>
+        <button class="btn primary" type="button" (click)="selectorOpen = false">完成选择</button>
+      </div>
+    </footer>
+  </section>
+</div>
