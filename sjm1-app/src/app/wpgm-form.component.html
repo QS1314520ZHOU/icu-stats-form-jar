@@ -1,10 +1,4 @@
 <div class="toolbar no-print">
-  <div class="toolbar-left">
-    <strong>患者物品购买温馨提醒</strong>
-    <span class="selection-status" [class.empty]="selectedCount === 0">
-      已选 {{ selectedCount }} 项
-    </span>
-  </div>
   <div class="toolbar-right">
     <button class="btn secondary" type="button" (click)="selectorOpen = true">选择物品</button>
     <button class="btn secondary" type="button" (click)="clearAll()" [disabled]="!selectedCount">清空</button>
@@ -18,7 +12,7 @@
     <p>尊敬的病员家属：</p>
     <p class="indent">您好！为了给患者提供一个安全舒适的就医环境，特此说明以下提醒事项，请您知晓，敬请配合！</p>
     <p>1、重症医学科（ICU）实行24小时无陪护制度，每日探视时间为11:00—11:30，每位患者探视人数不超过2人，中途不交换家属，具体探视要求请参照《重症医学科探视制度》规定。</p>
-    <p>2、请按照以下物品清单为患者准备住院所需用物。<strong>本清单仅展示医护人员勾选的项目。</strong></p>
+    <p>2、请按照以下物品清单为患者准备住院所需用物，为方便您购买，部分物品可参照以下图片。</p>
   </div>
 
   <div class="empty-preview no-print" *ngIf="!selectedCount">
@@ -53,6 +47,25 @@
       </ng-container>
     </tbody>
   </table>
+
+  <section class="reference-images" *ngIf="selectedCount" aria-label="部分物品参考图片">
+    <figure class="reference-image-card">
+      <img src="wpgm/fsz.png" alt="翻身枕" />
+      <figcaption>翻身枕</figcaption>
+    </figure>
+    <figure class="reference-image-card">
+      <img src="wpgm/sd.png" alt="水垫48×35CM" />
+      <figcaption>水垫 48×35CM</figcaption>
+    </figure>
+    <figure class="reference-image-card">
+      <img src="wpgm/hld.png" alt="护理垫60×90CM" />
+      <figcaption>护理垫 60×90CM</figcaption>
+    </figure>
+    <figure class="reference-image-card">
+      <img src="wpgm/pmft.png" alt="泡沫敷贴10×10CM" />
+      <figcaption>泡沫敷贴 10×10CM</figcaption>
+    </figure>
+  </section>
 
   <div class="notice-copy footer-copy" *ngIf="selectedCount">
     <p>3、以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品。</p>
