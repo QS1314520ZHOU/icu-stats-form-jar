@@ -125,40 +125,53 @@ export class WpgmFormComponent implements OnInit {
 
   trackById(_: number, item: SupplyItem): string { return item.id; }
 
-  /* ---- 分页 ---- */
+  /* ---- 分页 ----
+   * 结构：第1-2点 → 表格 → 图片 → 第3-8点
+   * 图片必须在所有表格行之后、第3-8点之前出现。
+   * 因此图片+第3-8点始终在最后一页。
+   */
   private paginate(): void {
     const items = this.selectedItems;
 
-    // 0项时仍然生成1页：标题+第1-2点+图片+第3-8点（无表格）
+    // 0项：1页（无表格，其余全有）
     if (!items.length) {
       this.pages = [{ index: 1, items: [], showHeaderNotice: true, showReferenceImages: true, showFooterNotice: true }];
       return;
     }
 
-    const PAGE1_ITEMS = 14;   // 首页含标题/提示/图片/底部提醒
-    const PAGE2_ITEMS = 14;   // 第2页含图片
-    const PAGE_MID_ITEMS = 28; // 中间纯表格页
-    const PAGE_LAST_ITEMS = 22; // 末页含底部提醒
+    const PAGE1_ALL = 12; // 全部内容挤在一页的最大行数
+    const FIRST_CAP = 28; // 首页（标题+第1-2点+表格）容量
+    const LAST_CAP  = 15; // 末页（表格+图片+第3-8点）容量
+    const MID_CAP   = 30; // 纯表格续页容量
 
     const total = items.length;
     const out: RenderPage[] = [];
 
-    if (total <= PAGE1_ITEMS) {
-      out.push({ index: 1, items: [...items], showHeaderNotice: true, showReferenceImages: true, showFooterNotice: true });
-    } else if (total <= PAGE1_ITEMS + PAGE_LAST_ITEMS) {
-      out.push({ index: 1, items: items.slice(0, PAGE1_ITEMS), showHeaderNotice: true, showReferenceImages: true, showFooterNotice: false });
-      out.push({ index: 2, items: items.slice(PAGE1_ITEMS), showHeaderNotice: false, showReferenceImages: false, showFooterNotice: true });
-    } else {
-      out.push({ index: 1, items: items.slice(0, PAGE1_ITEMS), showHeaderNotice: true, showReferenceImages: false, showFooterNotice: false });
-      out.push({ index: 2, items: items.slice(PAGE1_ITEMS, PAGE1_ITEMS + PAGE2_ITEMS), showHeaderNotice: false, showReferenceImages: true, showFooterNotice: false });
-      const rest = items.slice(PAGE1_ITEMS + PAGE2_ITEMS);
-      if (rest.length <= PAGE_LAST_ITEMS) {
-        out.push({ index: 3, items: rest, showHeaderNotice: false, showReferenceImages: false, showFooterNotice: true });
-      } else {
-        out.push({ index: 3, items: rest.slice(0, PAGE_MID_ITEMS), showHeaderNotice: false, showReferenceImages: false, showFooterNotice: false });
-        out.push({ index: 4, items: rest.slice(PAGE_MID_ITEMS), showHeaderNotice: false, showReferenceImages: false, showFooterNotice: true });
+    // 1页搞定
+    if (total <= PAGE1_ALL) {
+      this.pages = [{ index: 1, items: [...items], showHeaderNotice: true, showReferenceImages: true, showFooterNotice: true }];
+      return;
+    }
+
+    // 末页必须包含图片+第3-8点，优先分配末页行数
+    const lastCount = Math.min(total, LAST_CAP);
+    const beforeLast = total - lastCount; // 末页之前的物品数
+
+    // 首页（含第1-2点）及可能的中继页（纯表格）
+    let placed = 0;
+    if (beforeLast > 0) {
+      const firstTake = Math.min(beforeLast, FIRST_CAP);
+      out.push({ index: 1, items: items.slice(0, firstTake), showHeaderNotice: true, showReferenceImages: false, showFooterNotice: false });
+      placed = firstTake;
+      while (placed < beforeLast) {
+        const take = Math.min(MID_CAP, beforeLast - placed);
+        out.push({ index: out.length + 1, items: items.slice(placed, placed + take), showHeaderNotice: false, showReferenceImages: false, showFooterNotice: false });
+        placed += take;
       }
     }
+
+    // 末页 = 剩余表格行 + 图片 + 第3-8点
+    out.push({ index: out.length + 1, items: items.slice(beforeLast), showHeaderNotice: false, showReferenceImages: true, showFooterNotice: true });
 
     this.pages = out;
   }
