@@ -137,13 +137,19 @@ export class WpgmFormComponent implements OnInit {
       return;
     }
 
-    // 固定高度估算（mm），偏保守确保不溢出
+    // 固定高度估算（mm），与当前CSS一致：padding=2.2mm×2, font=10.5pt, line-height=1.45
     const PAGE_H     = 275; // 页面内容可用高度
     const INTRO_H    = 28;  // 标题10mm + 4段文字~18mm
-    const TH_H       = 7;   // 表头单行
-    const ROW_H      = 7;   // 单行（含边框/padding，一般一行足够）
-    const IMAGES_H   = 88;  // 6图两行（34×2+间距+标题+margin）
-    const FOOTER_PER = 9;   // 每条底部提醒（占~1行）
+    const TH_H       = 8;   // 表头单行
+    const ROW_H      = 8;   // 普通单行
+    const ROW_H_LONG = 14;  // 长文本行（规格/用途超长时可能换2-3行）
+    const IMAGES_H   = 91;  // 6图两行（34mm×2+间距+标题+margin）
+    const FOOTER_PER = 9;   // 每条底部提醒
+
+    const estimatedRowH = (item: SupplyItem): number => {
+      const text = item.specification + item.purpose;
+      return text.length > 28 ? ROW_H_LONG : ROW_H;
+    };
 
     const FOOTER_LINES = [
       '3、以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品。',
@@ -160,13 +166,14 @@ export class WpgmFormComponent implements OnInit {
     let used = INTRO_H + TH_H; // 第1页：标题+第1-2点+表头
 
     for (const item of items) {
-      if (used + ROW_H > PAGE_H) {
+      const rh = estimatedRowH(item);
+      if (used + rh > PAGE_H) {
         out.push(cur);
         cur = this.makePage();
         used = TH_H; // 续页只有表头
       }
       cur.items.push(item);
-      used += ROW_H;
+      used += rh;
     }
 
     // ===== 第二阶段：全部表格行结束后放图片 =====
@@ -198,7 +205,7 @@ export class WpgmFormComponent implements OnInit {
     return { index: 0, items: [], showDocumentHeader: false, showReferenceImages: false, showFooterNotice: false };
   }
 
-  /* ---- 打印 ---- */
+  /* ---- 打印（复用屏幕CSS，不覆盖任何尺寸） ---- */
   print(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) { alert('没有可打印的表单'); return; }
@@ -207,71 +214,67 @@ export class WpgmFormComponent implements OnInit {
     allSheets.forEach((s: HTMLElement) => {
       const c = s.cloneNode(true) as HTMLElement;
       c.querySelectorAll('.no-print').forEach(el => el.remove());
-      body += '<section class="print-page">' + c.outerHTML + '</section>';
+      c.style.zoom = '1';
+      c.style.transform = 'none';
+      body += '<div class="print-page">' + c.outerHTML + '</div>';
     });
 
-    const css = `
+    const componentStyles = Array.from(document.querySelectorAll('style'))
+      .map(st => st.textContent || '').join('\n');
+
+    const printCss = `
       @page{size:A4 portrait;margin:0}
       html,body{margin:0;padding:0;background:#fff}
-      .print-page{box-sizing:border-box;width:210mm;height:297mm;overflow:hidden;page-break-after:always;break-after:page;background:#fff}
-      .print-page:last-child{page-break-after:auto;break-after:auto}
-      .sheet{box-sizing:border-box;position:relative;width:210mm;height:297mm;margin:0;padding:8mm 8mm 14mm;box-shadow:none;background:#fff;color:#000;overflow:hidden}
-      h1{margin:0 0 2mm;text-align:center;font-family:SimHei,'黑体',sans-serif;font-size:20pt;line-height:1.35}
-      .notice-copy p{margin:1mm 0;text-align:justify;font-family:'SimSun','宋体',serif}
-      .notice-copy .indent{text-indent:2em}
-      .paper-table{width:100%;margin:4mm 0;border-collapse:collapse;table-layout:fixed;font-size:9.5pt;line-height:1.45;font-family:'SimSun','宋体',serif}
-      .paper-table th,.paper-table td{border:1px solid #000;padding:1.6mm 1.5mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
-      .paper-table th{font-family:SimHei,'黑体',sans-serif;font-weight:700}
-      .paper-table thead{display:table-header-group}
-      .paper-table tr{break-inside:avoid;page-break-inside:avoid}
-      .paper-table .category{font-weight:700}
-      .category-column{width:9%}.name-column{width:18%}.quantity-column{width:11%}.spec-column{width:30%}.purpose-column{width:32%}
-      .reference-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3mm 5mm;margin:4mm 0 5mm;break-inside:avoid;page-break-inside:avoid}
-      .reference-image-card{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;margin:0;break-inside:avoid;page-break-inside:avoid}
-      .reference-image-card img{display:block;width:100%;height:31mm;object-fit:contain;background:#fff}
-      .reference-image-card figcaption{margin-top:1.5mm;text-align:center;font-family:SimHei,"黑体",sans-serif;font-size:9.5pt;font-weight:700;line-height:1.25}
-      .footer-copy{margin-top:4mm}.footer-copy p{break-inside:avoid}
       .no-print{display:none!important}
-      .sheet-pageno{position:absolute;left:8mm;right:8mm;bottom:5mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
+      .print-page{box-sizing:border-box;width:210mm;height:297mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff}
+      .print-page:last-child{break-after:auto;page-break-after:auto}
+      .sheet{width:210mm!important;height:297mm!important;min-height:297mm!important;margin:0!important;padding:8mm 8mm 14mm!important;overflow:hidden!important;box-shadow:none!important;zoom:1!important;transform:none!important}
     `;
 
-    const win = window.open('', '_blank', 'width=900,height=700');
-    if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
-    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
-    win.document.close();
+    const pw = window.open('', '_blank', 'width=900,height=700');
+    if (!pw) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
+    pw.document.write('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>患者物品购买温馨提醒</title><style>' + componentStyles + '</style><style>' + printCss + '</style></head><body>' + body + '</body></html>');
+    pw.document.close();
 
-    const doPrint = () => {
-      const sheets = win!.document.querySelectorAll<HTMLElement>('.sheet');
-      sheets.forEach(sh => { if (sh.scrollHeight > sh.clientHeight + 1) console.warn('Overflow:', sh.scrollHeight - sh.clientHeight); });
-      win!.focus(); win!.print();
-    };
+    this.prepareAndPrint(pw);
+  }
 
-    const ready = () => {
-      const doc = win!.document as any;
-      const run = () => {
-        this.waitForImages(win!.document).then(() => {
-          if (doc.fonts?.ready) {
-            doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); });
-          } else {
-            requestAnimationFrame(() => requestAnimationFrame(doPrint));
-          }
-        });
-      };
-      run();
-    };
+  private async prepareAndPrint(pw: Window): Promise<void> {
+    const doc = pw.document as any;
+    if (doc.fonts?.ready) { await doc.fonts.ready; }
+    await this.waitForImages(pw.document);
+    await new Promise<void>(resolve => { pw.requestAnimationFrame(() => pw.requestAnimationFrame(() => resolve())); });
+    this.validatePrintPages(pw);
+    pw.focus(); pw.print();
+    pw.addEventListener('afterprint', () => { try { pw.close(); } catch { /* ignore */ } }, { once: true });
+  }
 
-    win.addEventListener('afterprint', () => { try { win.close(); } catch(e) { /* ignore */ } });
-    if ((win.document as any).readyState === 'complete') ready();
-    else win.addEventListener('load', ready);
+  private validatePrintPages(pw: Window): boolean {
+    const pages = Array.from(pw.document.querySelectorAll<HTMLElement>('.print-page'));
+    let ok = true;
+    pages.forEach((page, i) => {
+      const sheet = page.querySelector<HTMLElement>('.sheet');
+      const content = page.querySelector<HTMLElement>('.sheet-content');
+      const pn = page.querySelector<HTMLElement>('.sheet-pageno');
+      if (!sheet || !pn) { console.error('第' + (i + 1) + '页结构不完整'); ok = false; return; }
+      if (content && content.scrollHeight > content.clientHeight + 1) {
+        console.error('第' + (i + 1) + '页正文溢出', content.scrollHeight - content.clientHeight); ok = false;
+      }
+      const sr = sheet.getBoundingClientRect();
+      const pr = pn.getBoundingClientRect();
+      if (pr.top < sr.top || pr.bottom > sr.bottom) { console.error('第' + (i + 1) + '页页码越界'); ok = false; }
+      if (sheet.scrollHeight > sheet.clientHeight + 1) { console.warn('第' + (i + 1) + '页溢出', sheet.scrollHeight - sheet.clientHeight); ok = false; }
+    });
+    return ok;
   }
 
   private waitForImages(doc: Document): Promise<void> {
     const images = Array.from(doc.images);
-    return Promise.all(images.map(image => {
-      if (image.complete) return Promise.resolve();
+    return Promise.all(images.map(img => {
+      if (img.complete) return Promise.resolve();
       return new Promise<void>(resolve => {
-        image.addEventListener('load', () => resolve(), { once: true });
-        image.addEventListener('error', () => resolve(), { once: true });
+        img.addEventListener('load', () => resolve(), { once: true });
+        img.addEventListener('error', () => resolve(), { once: true });
       });
     })).then(() => undefined);
   }

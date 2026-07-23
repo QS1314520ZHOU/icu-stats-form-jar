@@ -7,6 +7,7 @@
 </div>
 
 <section class="sheet" *ngFor="let page of pages" [attr.aria-label]="'第' + page.index + '页'">
+  <div class="sheet-content">
   <h1 *ngIf="page.showDocumentHeader">重症医学科患者物品购买温馨提醒</h1>
 
   <div class="notice-copy" *ngIf="page.showDocumentHeader">
@@ -78,6 +79,7 @@
     <p>8、住院期间如患者病情变化、转科或生活物品数量不足等情况，医护人员会电话通知您，请保持电话通畅，以便及时与您取得联系，如有需要请拨打科室电话：023-81915173。</p>
   </div>
 
+  </div>
   <div class="sheet-pageno">第 {{ page.index }} 页　共 {{ pages.length }} 页</div>
 </section>
 
