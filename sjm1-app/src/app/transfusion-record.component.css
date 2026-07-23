@@ -9,6 +9,7 @@
 .btn.danger{border:1px solid #dc2626;background:#fff;color:#dc2626}
 .ps{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font:14px "SimSun","宋体",serif}
 .ps select{min-height:32px;padding:4px 8px;border:1px solid #ccc;background:#fff;font:inherit}
+.as{font-size:12px;color:#7d7a75;white-space:nowrap}.as .ok{color:#46a171}.retry{background:none;border:0;color:#dc2626;cursor:pointer;text-decoration:underline;font:inherit}
 .loading{padding:14px 16px;font-family:"SimSun","宋体",serif}
 .loading.error{color:#b42318}
 

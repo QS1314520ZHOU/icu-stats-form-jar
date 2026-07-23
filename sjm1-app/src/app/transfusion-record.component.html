@@ -1,12 +1,10 @@
 <div class="toolbar no-print"><div class="toolbar-right">
-  <button class="btn" [disabled]="isEditing||loading" (click)="addPage()">新增一页</button>
-  <button class="btn" [disabled]="isEditing||!selectedPage" (click)="startEdit(selectedPage)">编辑本页</button>
-  <button class="btn danger" [disabled]="isEditing||deleting||!selectedPage" (click)="deleteCurrentPage()">{{deleting?'删除中…':'删除本页'}}</button>
-  <button *ngIf="isEditing" class="btn primary" [disabled]="saving" (click)="saveCurrentPage()">{{saving?'保存中…':'保存'}}</button>
-  <button *ngIf="isEditing" class="btn" [disabled]="saving" (click)="cancelEdit()">取消</button>
-  <label class="ps">当前页：<select [(ngModel)]="selectedPageNo" [disabled]="isEditing"><option *ngFor="let p of pages" [ngValue]="p.pageNo">第{{p.pageNo}}页</option></select></label>
-  <label class="ps">打印：<select [(ngModel)]="selectedPrintPage" [disabled]="isEditing"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.pageNo">第{{p.pageNo}}页</option></select></label>
-  <button class="btn primary" [disabled]="isEditing||loading" (click)="print()">打印</button>
+  <button class="btn" [disabled]="loading" (click)="addPage()">新增一页</button>
+  <button class="btn danger" [disabled]="deleting" (click)="deleteCurrentPage()">{{deleting?'删除中…':'删除本页'}}</button>
+  <label class="ps">当前页：<select [ngModel]="selectedPageNo" (ngModelChange)="onSelectedPageChange($event)"><option *ngFor="let p of pages" [ngValue]="p.pageNo">第{{p.pageNo}}页</option></select></label>
+  <label class="ps">打印：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.pageNo">第{{p.pageNo}}页</option></select></label>
+  <span class="as"><span *ngIf="autoSaveState==='dirty'">未保存</span><span *ngIf="autoSaveState==='saving'">保存中…</span><span *ngIf="autoSaveState==='saved'" class="ok">已自动保存</span><button *ngIf="autoSaveState==='error'" class="retry" (click)="retryAutoSave()">自动保存失败，重试</button></span>
+  <button class="btn primary" [disabled]="loading" (click)="print()">打印</button>
 </div></div>
 
 <div class="loading no-print" *ngIf="loading">加载中…</div>
