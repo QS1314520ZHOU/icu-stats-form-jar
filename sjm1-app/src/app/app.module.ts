@@ -17,6 +17,7 @@ import { HealthEducationComponent } from './health-education.component';
 import { WpgmFormComponent } from './wpgm-form.component';
 import { EcmoRecordComponent } from './ecmo-record.component';
 import { TransfusionRecordComponent } from './transfusion-record.component';
+import { PiccoRecordComponent } from './picco-record.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -34,6 +35,7 @@ import { routes } from './app.routes';
     WpgmFormComponent,
     EcmoRecordComponent,
     TransfusionRecordComponent,
+    PiccoRecordComponent,
   ],
   imports: [
     BrowserModule,

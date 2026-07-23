@@ -1,0 +1,22 @@
+<div class="toolbar no-print"><label>打印页码：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option *ngFor="let page of pages" [ngValue]="page.index">第 {{page.index}} 页</option></select></label><button class="btn primary" (click)="print()">打印</button></div>
+<div *ngIf="loading" class="status">加载中…</div><div *ngIf="loadError" class="status error">{{loadError}} <button (click)="load()">重试</button></div>
+<section class="print-page" *ngFor="let page of pages" [class.print-hidden]="selectedPrintPage!==null && selectedPrintPage!==page.index">
+ <div class="sheet">
+  <h1>重钢总医院重症医学科PICCO容量监测参数记录表</h1>
+  <div class="patient-line"><span>姓名：{{patient?.name||''}}</span><span>床号：{{patient?.hisBed||''}}</span><span>住院号：{{patient?.mrn||''}}</span><span class="grow">诊断：{{diagnosisDisplay}}</span></div>
+  <div class="patient-line"><span>性别：{{genderText(patient?.gender)}}</span><span>年龄：{{age??''}} 岁</span><span>身高：{{patient?.height||''}} cm</span><span>体重：{{patient?.weight||''}} kg</span></div>
+  <div class="insertion-row">
+   <strong>穿刺部位：</strong>
+   <label><input type="radio" name="side-{{page.index}}" value="RIGHT" [(ngModel)]="insertionSide" (change)="onExtraChanged()">右侧</label>
+   <label><input type="radio" name="side-{{page.index}}" value="LEFT" [(ngModel)]="insertionSide" (change)="onExtraChanged()">左侧</label>
+   <input class="artery-input" [(ngModel)]="arteryName" (input)="onExtraChanged()" (blur)="saveExtraNow()" aria-label="动脉名称"><span>动脉</span>
+   <strong>导管置入长度(cm)：</strong><input class="length-input" type="number" step="0.1" min="0" [(ngModel)]="catheterLengthCm" (input)="onExtraChanged()" (blur)="saveExtraNow()">
+   <small class="save-state" [class.bad]="extraSaveState==='error'">{{extraSaveState==='saving'?'保存中…':extraSaveState==='saved'?'已保存':extraSaveState==='error'?'保存失败':''}}</small>
+  </div>
+  <table class="picco-table"><colgroup><col class="item-col"><col class="normal-col"><col *ngFor="let i of [0,1,2,3,4,5,6,7]" class="value-col"></colgroup>
+   <thead><tr><th>项目</th><th>正常值（单位）</th><th *ngFor="let i of [0,1,2,3,4,5,6,7]"><span>{{displayDate(timeAt(page,i))}}</span><span>{{displayClock(timeAt(page,i))}}</span></th></tr></thead>
+   <tbody><tr *ngFor="let metric of metrics"><td>{{metric.label}}</td><td>{{metric.normal}}</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">{{metricValue(metric,timeAt(page,i))}}</td></tr>
+   <tr><td colspan="2">签名</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">{{signatureAt(timeAt(page,i))}}</td></tr></tbody>
+  </table><div class="page-no">第 {{page.index}} 页　共 {{pages.length}} 页</div>
+ </div>
+</section>
