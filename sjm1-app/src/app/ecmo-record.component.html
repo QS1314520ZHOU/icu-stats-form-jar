@@ -34,10 +34,10 @@
           <tr *ngFor="let metric of group.metrics; let first = first">
             <td class="group-cell" *ngIf="first" [attr.rowspan]="group.metrics.length">{{ group.name }}</td>
             <td class="metric-cell">{{ metric.label }}</td>
-            <td class="value-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ cellValue(metric.code, timeAt(page, column)) }}</td>
+            <td class="value-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ metricValue(metric, timeAt(page, column)) }}</td>
           </tr>
         </ng-container>
-        <tr class="signature-row"><td colspan="2">签名</td><td *ngFor="let _ of [0,1,2,3,4,5,6,7]"></td></tr>
+        <tr class="signature-row"><td colspan="2">签名</td><td class="signature-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ signatureAt(timeAt(page, column)) }}</td></tr>
       </tbody>
     </table>
 

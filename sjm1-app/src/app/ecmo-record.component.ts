@@ -4,23 +4,21 @@ import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switc
 import { HostPatientService } from './services/host-patient.service';
 
 interface BedsideRecord {
-  id?: string; pid: string; code: string; time: string;
-  strVal?: string; valid: boolean; editUser?: string; editTime?: string;
+  id?: string; pid: string | number; code: string; time: string;
+  strVal?: string; valid: boolean | string | number; editUser?: string; editTime?: string;
+  recordUserName?: string; editUserName?: string;
 }
 
-interface EcmoMetric { label: string; code: string; }
+interface EcmoMetric { label: string; code: string; aliases?: string[]; }
 interface EcmoGroup { name: string; metrics: EcmoMetric[]; }
 
-interface RenderPage {
-  index: number;
-  times: string[];
-  showConsumables: boolean;
-}
+interface RenderPage { index: number; times: string[]; showConsumables: boolean; }
 
 const ECMO_GROUPS: EcmoGroup[] = [
   { name: 'ECMO相关参数', metrics: [
     { label: '治疗模式', code: 'param_ECMOMoShi' }, { label: '治疗状态', code: 'param_治疗状态' },
-    { label: '血流量（L/min）', code: 'param_ECMO_xueLiuLiang' }, { label: '转速', code: 'param_ECMO_IXinBengZhuanSu' },
+    { label: '血流量（L/min）', code: 'param_ECMO_xueLiuLiang' },
+    { label: '转速', code: 'param_ECMO_IXinBengZhuanSu', aliases: ['param_ECMO_lXinBengZhuanSu', 'param_ECMO_iXinBengZhuanSu'] },
     { label: '气流量（L/min）', code: 'param_ECMO_QiLiuLiang' }, { label: 'FiO₂(%)', code: 'param_ECMO_FiO2' },
     { label: '血温℃', code: 'param_bg_Temp' }, { label: '设置水温℃', code: 'param_ShuiXiangTemp_set' },
     { label: '实际水温℃', code: 'param_ShuiXiangTemp_act' }, { label: 'P泵前（mmHg）', code: 'param_P_Beng_MoQian_MoHou' },
@@ -64,11 +62,12 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   private readonly API_ECMO_EXTRA = '/api/v1/icu/ecmo-extra';
   private readonly destroy$ = new Subject<void>();
   private readonly values = new Map<string, string>();
+  private readonly signatures = new Map<string, string>();
   private readonly consumablesSave$ = new Subject<{ pid: string; text: string }>();
   private lastConsumablesDraft: { pid: string; text: string } | null = null;
 
   readonly groups = ECMO_GROUPS;
-  readonly codes = ECMO_GROUPS.flatMap(g => g.metrics.map(m => m.code));
+  readonly codes = Array.from(new Set(ECMO_GROUPS.flatMap(g => g.metrics.flatMap(m => [m.code, ...(m.aliases ?? [])]))));
 
   patient: any = null; account: any = null;
   pid = ''; age: number | null = null; diagnosisDisplay = '';
@@ -89,7 +88,6 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // 自动保存流（800ms防抖）
     this.consumablesSave$.pipe(
       debounceTime(800),
       distinctUntilChanged((prev, cur) => prev.pid === cur.pid && prev.text === cur.text),
@@ -105,27 +103,24 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     ).subscribe(result => {
       if (result.pid !== this.pid) return;
       this.consumablesSaveState = result.ok ? 'saved' : 'error';
-      if (result.ok && this.lastConsumablesDraft?.pid === result.pid && this.lastConsumablesDraft?.text === result.text) {
-        this.lastConsumablesDraft = null;
-      }
+      if (result.ok && this.lastConsumablesDraft?.pid === result.pid && this.lastConsumablesDraft?.text === result.text) this.lastConsumablesDraft = null;
       this.cdr.detectChanges();
     });
 
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(patient => {
-      if (!patient?.id) { this.pid = ''; this.records = []; this.values.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }]; this.cdr.detectChanges(); return; }
+      if (!patient?.id) { this.pid = ''; this.records = []; this.values.clear(); this.signatures.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }]; this.cdr.detectChanges(); return; }
       const nextPid = String(patient.id).trim();
       if (!nextPid) return;
       const prevPid = this.pid;
       this.pid = nextPid;
       this.setPatient(patient);
-      if (nextPid !== prevPid) { this.records = []; this.values.clear(); this.buildPages(); this.load(); this.loadConsumables(nextPid); }
+      if (nextPid !== prevPid) { this.records = []; this.values.clear(); this.signatures.clear(); this.buildPages(); this.load(); this.loadConsumables(nextPid); }
       this.cdr.detectChanges();
     });
   }
 
   ngOnDestroy(): void {
-    // 组件销毁前提交未保存草稿
     if (this.lastConsumablesDraft && this.pid) {
       const body = { pid: this.lastConsumablesDraft.pid, consumablesText: this.lastConsumablesDraft.text, updatedBy: String(this.account?.id || this.account?._id || this.account?.accountId || '') };
       this.http.post(`${this.API_ECMO_EXTRA}/save`, body).subscribe({ error: () => {} });
@@ -140,21 +135,11 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     if (['Female', 'F', '女', '2'].includes(v)) return '女';
     return v;
   }
-
-  private setPatient(patient: any): void {
-    this.patient = patient;
-    this.age = this.calcAge(patient?.birthday);
-    this.diagnosisDisplay = this.formatDiagnosis(patient?.clinicalDiagnosis);
-  }
-
-  private formatDiagnosis(d?: string): string {
-    if (!d) return '';
-    let idx = -1;
-    for (const sep of [';', '；', ',', '，']) { const cur = d.indexOf(sep); if (cur >= 0 && (idx < 0 || cur < idx)) idx = cur; }
-    return idx >= 0 ? d.substring(0, idx).trim() : d.trim();
-  }
+  private setPatient(patient: any): void { this.patient = patient; this.age = this.calcAge(patient?.birthday); this.diagnosisDisplay = this.formatDiagnosis(patient?.clinicalDiagnosis); }
+  private formatDiagnosis(d?: string): string { if (!d) return ''; let idx = -1; for (const sep of [';', '；', ',', '，']) { const cur = d.indexOf(sep); if (cur >= 0 && (idx < 0 || cur < idx)) idx = cur; } return idx >= 0 ? d.substring(0, idx).trim() : d.trim(); }
 
   private norm(v: unknown): string { return String(v ?? '').trim(); }
+  private timeKey(v: unknown): string { return String(v ?? '').trim(); }
 
   /* ---- Bedside数据 ---- */
   load(): void {
@@ -164,22 +149,30 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     this.http.get<BedsideRecord[] | { data?: BedsideRecord[] }>(`${this.API}/listByPid`, { params }).pipe(takeUntil(this.destroy$)).subscribe({
       next: response => {
         const source = Array.isArray(response) ? response : Array.isArray((response as any)?.data) ? (response as any).data : [];
-        this.records = source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && this.codes.includes(this.norm(r.code)));
-        this.buildValueMap(); this.buildPages();
+        const allCodes = new Set(this.codes.map(c => this.norm(c)));
+        this.records = source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && allCodes.has(this.norm(r.code)));
+        this.buildValueMap(); this.buildSignatureMap(); this.buildPages();
         this.loading = false; this.cdr.detectChanges();
       },
       error: e => {
-        this.records = []; this.values.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }];
-        this.loading = false; this.loadError = e?.error?.message || 'ECMO运行记录加载失败，请稍后重试';
+        this.records = []; this.values.clear(); this.signatures.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }];
+        this.loading = false; this.loadError = e?.error?.message || 'ECMO运行记录加载失败';
         this.cdr.detectChanges();
       },
     });
   }
 
-  cellValue(code: string, time: string | undefined): string {
+  /* 别名展开 */
+  private metricCodes(m: EcmoMetric): string[] { return [m.code, ...(m.aliases ?? [])].map(c => this.norm(c)); }
+
+  metricValue(metric: EcmoMetric, time: string | undefined): string {
     if (!time) return '';
-    return this.values.get(this.valueKey(code, time)) || '';
+    for (const c of this.metricCodes(metric)) { const v = this.values.get(this.valueKey(c, time)); if (v !== undefined && v !== null) return v; }
+    return '';
   }
+
+  /* 签名 */
+  signatureAt(time: string | undefined): string { if (!time) return ''; return this.signatures.get(this.timeKey(time)) ?? ''; }
 
   displayTime(time: string | undefined): string {
     if (!time) return '';
@@ -187,23 +180,12 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     const p = (v: number) => String(v).padStart(2, '0');
     return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
-
   timeAt(page: RenderPage, idx: number): string | undefined { return page.times[idx]; }
 
-  /* ---- 耗材登记（自动保存） ---- */
-  onConsumablesInput(value: string): void {
-    this.consumablesText = value;
-    if (!this.pid) return;
-    const draft = { pid: this.pid, text: value };
-    this.lastConsumablesDraft = draft;
-    this.consumablesSaveState = 'idle';
-    this.consumablesSave$.next(draft);
-  }
-
+  /* ---- 耗材 ---- */
+  onConsumablesInput(value: string): void { this.consumablesText = value; if (!this.pid) return; const draft = { pid: this.pid, text: value }; this.lastConsumablesDraft = draft; this.consumablesSaveState = 'idle'; this.consumablesSave$.next(draft); }
   flushConsumablesSave(): void {
-    if (!this.lastConsumablesDraft || !this.pid) return;
-    const draft = this.lastConsumablesDraft;
-    this.lastConsumablesDraft = null;
+    if (!this.lastConsumablesDraft || !this.pid) return; const draft = this.lastConsumablesDraft; this.lastConsumablesDraft = null;
     this.consumablesSaveState = 'saving'; this.cdr.detectChanges();
     const body = { pid: draft.pid, consumablesText: draft.text, updatedBy: String(this.account?.id || this.account?._id || this.account?.accountId || '') };
     this.http.post(`${this.API_ECMO_EXTRA}/save`, body).pipe(takeUntil(this.destroy$)).subscribe({
@@ -211,7 +193,6 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
       error: () => { if (draft.pid === this.pid) { this.consumablesSaveState = 'error'; this.cdr.detectChanges(); } },
     });
   }
-
   private loadConsumables(pid: string): void {
     this.consumablesText = ''; this.consumablesSaveState = 'idle'; this.lastConsumablesDraft = null;
     this.http.get<any>(`${this.API_ECMO_EXTRA}/latest`, { params: { pid } }).pipe(takeUntil(this.destroy$)).subscribe({
@@ -225,7 +206,6 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     const sheets = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.sheet'));
     if (!sheets.length) { alert('没有可打印的表单'); return; }
     if (this.selectedPrintPage !== null && (this.selectedPrintPage < 1 || this.selectedPrintPage > this.pages.length)) { alert('选择的打印页码无效'); return; }
-
     let body = '';
     sheets.forEach((sheet, i) => {
       if (this.selectedPrintPage !== null && i + 1 !== this.selectedPrintPage) return;
@@ -235,56 +215,48 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
       c.querySelectorAll('.no-print').forEach(n => n.remove());
       body += `<div class="print-page">${c.outerHTML}</div>`;
     });
-
     const componentStyles = Array.from(document.querySelectorAll('style')).map(s => s.textContent || '').join('\n');
     const pw = window.open('', '_blank', 'width=900,height=700');
     if (!pw) { alert('打印窗口被拦截'); return; }
     pw.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>ECMO运行护理记录单</title><style>${componentStyles}</style><style>@page{size:A4 portrait;margin:0}html,body{margin:0;padding:0;background:#fff}.no-print{display:none!important}.print-only{display:block!important}.print-page{width:210mm;height:297mm;margin:0;overflow:hidden;break-after:page;page-break-after:always}.print-page:last-child{break-after:auto;page-break-after:auto}.sheet{margin:0!important;box-shadow:none!important}</style></head><body>${body}</body></html>`);
     pw.document.close();
-
-    const run = () => {
-      const doc: any = pw.document;
-      (doc.fonts?.ready || Promise.resolve()).then(() => {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          pw.document.querySelectorAll<HTMLElement>('.sheet').forEach((sh, i) => { if (sh.scrollHeight > sh.clientHeight + 1) console.warn(`第${i + 1}页溢出`, sh.scrollHeight - sh.clientHeight); });
-          pw.focus(); pw.print();
-        }));
-      });
-    };
+    const run = () => { const doc: any = pw.document; (doc.fonts?.ready || Promise.resolve()).then(() => { requestAnimationFrame(() => requestAnimationFrame(() => { pw.document.querySelectorAll<HTMLElement>('.sheet').forEach((sh, i) => { if (sh.scrollHeight > sh.clientHeight + 1) console.warn(`第${i + 1}页溢出`, sh.scrollHeight - sh.clientHeight); }); pw.focus(); pw.print(); })); }); };
     if (pw.document.readyState === 'complete') run(); else pw.addEventListener('load', run, { once: true });
     pw.addEventListener('afterprint', () => { try { pw.close(); } catch { /* ignore */ } }, { once: true });
   }
 
   /* ---- 内部 ---- */
-  private valueKey(code: string, time: string): string { return `${this.norm(code)} ${this.norm(time)}`; }
+  private valueKey(code: unknown, time: unknown): string { return `${this.norm(code)} ${this.timeKey(time)}`; }
+
+  private recordUser(r: BedsideRecord): string { return String(r.recordUserName ?? r.editUserName ?? r.editUser ?? '').trim(); }
 
   private buildValueMap(): void {
     this.values.clear();
     const ordered = [...this.records].sort((a, b) => this.ts(a.time) - this.ts(b.time) || this.ts(a.editTime) - this.ts(b.editTime));
-    for (const r of ordered) { const c = this.norm(r.code); const t = this.norm(r.time); if (!c || !t) continue; this.values.set(`${c} ${t}`, String(r.strVal ?? '')); }
+    for (const r of ordered) { const c = this.norm(r.code); const t = this.timeKey(r.time); if (!c || !t) continue; this.values.set(this.valueKey(c, t), String(r.strVal ?? '')); }
+  }
+
+  private buildSignatureMap(): void {
+    this.signatures.clear();
+    const grouped = new Map<string, BedsideRecord[]>();
+    for (const r of this.records) { const t = this.timeKey(r.time); if (!t) continue; const list = grouped.get(t) ?? []; list.push(r); grouped.set(t, list); }
+    for (const [time, recs] of grouped) {
+      const ordered = [...recs].sort((a, b) => this.ts(a.editTime) - this.ts(b.editTime));
+      const names = ordered.map(r => this.recordUser(r)).filter(Boolean);
+      this.signatures.set(time, names.length ? names[names.length - 1] : '');
+    }
   }
 
   private buildPages(): void {
-    const uniqueTimes = Array.from(new Set(this.records.map(r => String(r.time || '').trim()).filter(Boolean)))
-      .sort((a, b) => this.ts(a) - this.ts(b));
+    const uniqueTimes = Array.from(new Set(this.records.map(r => String(r.time || '').trim()).filter(Boolean))).sort((a, b) => this.ts(a) - this.ts(b));
     const pages: RenderPage[] = [];
-    if (uniqueTimes.length) {
-      for (let i = 0; i < uniqueTimes.length; i += 8) pages.push({ index: 0, times: uniqueTimes.slice(i, i + 8), showConsumables: false });
-    } else {
-      pages.push({ index: 0, times: [], showConsumables: false });
-    }
+    if (uniqueTimes.length) { for (let i = 0; i < uniqueTimes.length; i += 8) pages.push({ index: 0, times: uniqueTimes.slice(i, i + 8), showConsumables: false }); }
+    else { pages.push({ index: 0, times: [], showConsumables: false }); }
     if (pages.length) pages[pages.length - 1].showConsumables = true;
     this.pages = pages.map((p, i) => { p.index = i + 1; return p; });
     this.selectedPrintPage = null;
   }
 
   private ts(v?: string): number { if (!v) return 0; const t = new Date(v).getTime(); return Number.isNaN(t) ? 0 : t; }
-
-  private calcAge(birthday?: string): number | null {
-    if (!birthday) return null;
-    const b = new Date(birthday); if (Number.isNaN(b.getTime())) return null;
-    const n = new Date(); let a = n.getFullYear() - b.getFullYear();
-    if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--;
-    return a >= 0 ? a : null;
-  }
+  private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (Number.isNaN(b.getTime())) return null; const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a >= 0 ? a : null; }
 }

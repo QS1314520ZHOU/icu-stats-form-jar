@@ -30,6 +30,7 @@ h1 { margin: 0 0 2mm; text-align: center; font-family: SimHei, "黑体", sans-se
 .metric-cell { font-size: 8pt; font-weight: 400; white-space: normal; }
 .value-cell { font-size: 8pt; font-weight: 400; white-space: normal; }
 .signature-row td { height: 4.75mm; }
+.signature-cell { font-size: 7.5pt; white-space: normal; }
 
 /* 耗材登记（紧凑，放在末页表格下方） */
 .consumables-section { box-sizing: border-box; position: relative; height: 34mm; margin-top: 2mm; padding: 2mm; border: 1px solid #000; color: #000; font-family: "SimSun", "宋体", serif; overflow: hidden; }
