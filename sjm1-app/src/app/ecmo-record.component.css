@@ -21,14 +21,14 @@ h1 { margin: 0 0 2mm; text-align: center; font-family: SimHei, "黑体", sans-se
 .info-item b, .info-item strong { font-weight: 700; }
 .diagnosis-item { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-/* ECMO表格（压缩行高以确保耗材区同页） */
-.ecmo-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: "SimSun", "宋体", serif; font-size: 8.5pt; line-height: 1.05; color: #000; }
-.ecmo-table th, .ecmo-table td { box-sizing: border-box; height: 4.75mm; padding: 0.35mm 0.6mm; border: 1px solid #000; text-align: center; vertical-align: middle; overflow: hidden; overflow-wrap: anywhere; }
-.ecmo-table th { font-weight: 700; }
+/* ECMO表格（无衬线字体，避免宋体小字重影） */
+.ecmo-table { width: 100%; border-collapse: collapse; table-layout: fixed; color: #000; font-family: "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", Arial, sans-serif; font-size: 8pt; font-weight: 400; line-height: 1.15; text-shadow: none; font-synthesis: none; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: geometricPrecision; }
+.ecmo-table th, .ecmo-table td { box-sizing: border-box; height: 4.75mm; padding: 0.35mm 0.6mm; border: 1px solid #000; text-align: center; vertical-align: middle; overflow: hidden; overflow-wrap: break-word; word-break: break-all; text-shadow: none; }
+.ecmo-table th { font-weight: 600; }
 .group-column { width: 17%; } .metric-column { width: 26%; } .value-column { width: 7.125%; }
-.group-cell { padding: 0.5mm; font-size: 8.5pt; font-weight: 700; white-space: normal; }
-.metric-cell { font-size: 8pt; white-space: normal; }
-.value-cell { font-size: 7.5pt; white-space: normal; }
+.group-cell { padding: 0.5mm; font-size: 8pt; font-weight: 600; white-space: normal; }
+.metric-cell { font-size: 8pt; font-weight: 400; white-space: normal; }
+.value-cell { font-size: 8pt; font-weight: 400; white-space: normal; }
 .signature-row td { height: 4.75mm; }
 
 /* 耗材登记（紧凑，放在末页表格下方） */

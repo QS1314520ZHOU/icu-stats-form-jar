@@ -1,23 +1,15 @@
-import { Component, ElementRef, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, OnInit } from '@angular/core';
 
 export type SupplyCategory = '常规' | '特殊' | '专科' | '失禁';
 
 export interface SupplyItem {
-  id: string;
-  category: SupplyCategory;
-  name: string;
-  quantity: string;
-  specification: string;
-  purpose: string;
-  selected: boolean;
+  id: string; category: SupplyCategory; name: string;
+  quantity: string; specification: string; purpose: string; selected: boolean;
 }
 
 interface RenderPage {
-  index: number;
-  items: SupplyItem[];
-  showDocumentHeader: boolean;
-  showReferenceImages: boolean;
-  showFooterNotice: boolean;
+  index: number; items: SupplyItem[];
+  showDocumentHeader: boolean; showReferenceImages: boolean; showFooterNotice: boolean;
 }
 
 @Component({
@@ -28,9 +20,7 @@ interface RenderPage {
 })
 export class WpgmFormComponent implements OnInit {
   readonly categories: SupplyCategory[] = ['常规', '特殊', '专科', '失禁'];
-  selectorOpen = false;
-  keyword = '';
-  pages: RenderPage[] = [];
+  selectorOpen = false; keyword = ''; pages: RenderPage[] = [];
 
   items: SupplyItem[] = [
     { id:'turning-pillow', category:'常规', name:'翻身枕', quantity:'1个', specification:'R型或等边三角形', purpose:'翻身', selected:false },
@@ -50,7 +40,6 @@ export class WpgmFormComponent implements OnInit {
     { id:'lip-balm', category:'常规', name:'润唇膏', quantity:'1支', specification:'安全型', purpose:'滋润口唇', selected:false },
     { id:'nail-clipper', category:'常规', name:'指甲刀', quantity:'1个', specification:'/', purpose:'个人护理', selected:false },
     { id:'tourniquet', category:'常规', name:'止血带', quantity:'2个', specification:'红色', purpose:'压迫止血', selected:false },
-
     { id:'milk-rice', category:'特殊', name:'牛奶/米粉', quantity:'/', specification:'纯牛奶/婴儿米粉', purpose:'提供能量与营养', selected:false },
     { id:'razor', category:'特殊', name:'剃须刀（男性患者）', quantity:'1个', specification:'安全型', purpose:'个人护理', selected:false },
     { id:'urinal', category:'特殊', name:'尿壶', quantity:'1个', specification:'容积1000ml及以上；带盖、带刻度；男性手提把手式，女性扁平式', purpose:'排泄护理', selected:false },
@@ -59,7 +48,6 @@ export class WpgmFormComponent implements OnInit {
     { id:'shampoo', category:'特殊', name:'洗头液', quantity:'1瓶', specification:'符合国家安全卫生/无刺激', purpose:'头发护理', selected:false },
     { id:'socks', category:'特殊', name:'袜子', quantity:'1双', specification:'透气型', purpose:'保暖', selected:false },
     { id:'hat', category:'特殊', name:'帽子', quantity:'1个', specification:'透气保暖型', purpose:'保暖', selected:false },
-
     { id:'rhubarb', category:'专科', name:'大黄', quantity:'/', specification:'/', purpose:'清肠解毒、改善腹胀、控制感染', selected:false },
     { id:'mirabilite', category:'专科', name:'芒硝', quantity:'/', specification:'/', purpose:'清肠解毒、改善腹胀、控制感染', selected:false },
     { id:'mirabilite-bag', category:'专科', name:'芒硝袋', quantity:'/', specification:'/', purpose:'装芒硝敷腹部', selected:false },
@@ -69,14 +57,20 @@ export class WpgmFormComponent implements OnInit {
     { id:'neck-brace', category:'专科', name:'颈托', quantity:'1个', specification:'医用', purpose:'支撑、保护颈部', selected:false },
     { id:'abdominal-belt', category:'专科', name:'腹带', quantity:'1根', specification:'/', purpose:'减轻伤口疼痛、促进愈合', selected:false },
     { id:'chest-band', category:'专科', name:'多头胸带', quantity:'1根', specification:'改良款', purpose:'固定胸廓，纠正反常呼吸，改善通气', selected:false },
-
     { id:'tampon', category:'失禁', name:'卫生棉条（量多型）', quantity:'1盒', specification:'/', purpose:'用于大便失禁患者', selected:false },
     { id:'skin-protector', category:'失禁', name:'皮肤保护剂', quantity:'1瓶', specification:'/', purpose:'阻隔刺激、保护皮肤', selected:false },
     { id:'safflower-oil', category:'失禁', name:'赛肤润', quantity:'1瓶', specification:'/', purpose:'滋润、保护皮肤', selected:false },
     { id:'stoma-powder', category:'失禁', name:'造口粉', quantity:'1瓶', specification:'/', purpose:'吸收渗液、减轻刺激', selected:false },
   ];
 
-  constructor(private host: ElementRef) {}
+  /* 真实高度缓存 */
+  private readonly measuredRowHeights = new Map<string, number>();
+  private measuredIntroHeight = 28;
+  private measuredTableHeadHeight = 8;
+  private measuredImagesHeight = 91;
+  private repaginateScheduled = false;
+
+  constructor(private host: ElementRef, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     try {
@@ -85,72 +79,53 @@ export class WpgmFormComponent implements OnInit {
       this.items.forEach(item => item.selected = selected.has(item.id));
     } catch { /* ignore */ }
     this.paginate();
+    this.scheduleMeasuredRepagination();
   }
 
   get selectedItems(): SupplyItem[] { return this.items.filter(item => item.selected); }
   get selectedCount(): number { return this.selectedItems.length; }
 
-  visibleItems(category: SupplyCategory): SupplyItem[] {
-    const key = this.keyword.trim().toLowerCase();
-    return this.items.filter(item => item.category === category &&
-      (!key || `${item.name}${item.specification}${item.purpose}`.toLowerCase().includes(key)));
+  visibleItems(c: SupplyCategory): SupplyItem[] {
+    const k = this.keyword.trim().toLowerCase();
+    return this.items.filter(item => item.category === c && (!k || `${item.name}${item.specification}${item.purpose}`.toLowerCase().includes(k)));
   }
+  selectedByCategory(c: SupplyCategory): SupplyItem[] { return this.items.filter(item => item.category === c && item.selected); }
+  pageItemsByCategory(page: RenderPage, c: SupplyCategory): SupplyItem[] { return page.items.filter(item => item.category === c); }
+  categoryTotal(c: SupplyCategory): number { return this.items.filter(item => item.category === c).length; }
+  categoryAllSelected(c: SupplyCategory): boolean { const list = this.visibleItems(c); return list.length > 0 && list.every(item => item.selected); }
 
-  selectedByCategory(category: SupplyCategory): SupplyItem[] {
-    return this.items.filter(item => item.category === category && item.selected);
-  }
-
-  pageItemsByCategory(page: RenderPage, category: SupplyCategory): SupplyItem[] {
-    return page.items.filter(item => item.category === category);
-  }
-
-  categoryTotal(category: SupplyCategory): number {
-    return this.items.filter(item => item.category === category).length;
-  }
-
-  categoryAllSelected(category: SupplyCategory): boolean {
-    const list = this.visibleItems(category);
-    return list.length > 0 && list.every(item => item.selected);
-  }
-
-  toggleCategory(category: SupplyCategory, checked: boolean): void {
-    this.visibleItems(category).forEach(item => item.selected = checked);
-    this.persistSelection();
-  }
-
-  selectAll(): void { this.items.forEach(item => item.selected = true); this.persistSelection(); }
-  clearAll(): void { this.items.forEach(item => item.selected = false); this.persistSelection(); }
-  onItemChanged(): void { this.persistSelection(); }
+  toggleCategory(c: SupplyCategory, checked: boolean): void { this.visibleItems(c).forEach(item => item.selected = checked); this.afterChange(); }
+  selectAll(): void { this.items.forEach(item => item.selected = true); this.afterChange(); }
+  clearAll(): void { this.items.forEach(item => item.selected = false); this.afterChange(); }
+  onItemChanged(): void { this.afterChange(); }
   trackById(_: number, item: SupplyItem): string { return item.id; }
 
-  /* ---- 分页：三阶段（表格→图片→第3-8点） ----
-   * 使用固定 mm 估算值，不依赖浏览器字体测量。
-   * A4 内容区 275mm = 297 - 8(top pad) - 14(bottom pad + page number)
-   */
+  private afterChange(): void {
+    localStorage.setItem('wpgmForm.selectedIds', JSON.stringify(this.selectedItems.map(item => item.id)));
+    this.paginate();
+    this.scheduleMeasuredRepagination();
+  }
+
+  /* ---- 分页（初始固定估算 + 渲染后真实测量重分页） ---- */
   private paginate(): void {
     const items = this.selectedItems;
-    const out: RenderPage[] = [];
+    if (!items.length) { this.pages = [{ index: 1, items: [], showDocumentHeader: true, showReferenceImages: true, showFooterNotice: true }]; return; }
 
-    // 0项：1页无表格
-    if (!items.length) {
-      this.pages = [{ index: 1, items: [], showDocumentHeader: true, showReferenceImages: true, showFooterNotice: true }];
-      return;
-    }
+    const PAGE_H = 275;
+    const FIRST_MARGIN = 10;  // table上下margin合计
+    const CONT_MARGIN = 5;
+    const SAFE = 2;           // 页码安全区
 
-    // 固定高度估算（mm），与当前CSS一致：padding=2.2mm×2, font=10.5pt, line-height=1.45
-    const PAGE_H     = 275; // 页面内容可用高度
-    const INTRO_H    = 28;  // 标题10mm + 4段文字~18mm
-    const TH_H       = 8;   // 表头单行
-    const ROW_H      = 7.5; // 普通单行
-    const ROW_H_LONG = 11;  // 长文本行（单列超24字符）
-    const IMAGES_H   = 91;  // 6图两行
+    const introH = this.measuredIntroHeight;
+    const thH = this.measuredTableHeadHeight;
+    const imagesH = this.measuredImagesHeight;
     const FOOTER_PER = 9;
 
     const estimatedRowH = (item: SupplyItem): number => {
       const maxCol = Math.max(item.name.length, item.specification.length, item.purpose.length);
-      if (maxCol > 24) return ROW_H_LONG;
+      if (maxCol > 24) return 11;
       if (maxCol > 14) return 9;
-      return ROW_H;
+      return 7.5;
     };
 
     const FOOTER_LINES = [
@@ -162,53 +137,101 @@ export class WpgmFormComponent implements OnInit {
       '8、住院期间如患者病情变化、转科或生活物品数量不足等情况，医护人员会电话通知您，请保持电话通畅，以便及时与您取得联系，如有需要请拨打科室电话：023-81915173。',
     ];
 
-    // ===== 第一阶段：逐行填表，不预留图片/底部空间 =====
-    let cur = this.makePage();
-    cur.showDocumentHeader = true;
-    let used = INTRO_H + TH_H; // 第1页：标题+第1-2点+表头
+    const USABLE = PAGE_H - SAFE;
+    const out: RenderPage[] = [];
+
+    let cur = this.makePage(); cur.showDocumentHeader = true;
+    let used = introH + thH + FIRST_MARGIN;
 
     for (const item of items) {
-      const rh = estimatedRowH(item);
-      if (used + rh > PAGE_H) {
-        out.push(cur);
-        cur = this.makePage();
-        used = TH_H; // 续页只有表头
-      }
-      cur.items.push(item);
-      used += rh;
+      const rh = this.measuredRowHeights.get(item.id) ?? estimatedRowH(item);
+      if (used + rh > USABLE) { out.push(cur); cur = this.makePage(); used = thH + CONT_MARGIN; }
+      cur.items.push(item); used += rh;
     }
 
-    // ===== 第二阶段：全部表格行结束后放图片 =====
-    if (used + IMAGES_H > PAGE_H) {
-      out.push(cur);
-      cur = this.makePage();
-      used = 0;
-    }
-    cur.showReferenceImages = true;
-    used += IMAGES_H;
+    if (used + imagesH > USABLE) { out.push(cur); cur = this.makePage(); used = 0; }
+    cur.showReferenceImages = true; used += imagesH;
 
-    // ===== 第三阶段：图片之后放第3-8点 =====
     for (const line of FOOTER_LINES) {
-      const lineH = line.length > 60 ? FOOTER_PER * 2 : FOOTER_PER;
-      if (used + lineH > PAGE_H) {
-        out.push(cur);
-        cur = this.makePage();
-        used = 0;
-      }
-      used += lineH;
+      const lh = line.length > 60 ? FOOTER_PER * 2 : FOOTER_PER;
+      if (used + lh > USABLE) { out.push(cur); cur = this.makePage(); used = 0; }
+      used += lh;
     }
-    cur.showFooterNotice = true;
-    out.push(cur);
-
+    cur.showFooterNotice = true; out.push(cur);
     this.pages = out.map((p, i) => { p.index = i + 1; return p; });
   }
 
-  private makePage(): RenderPage {
-    return { index: 0, items: [], showDocumentHeader: false, showReferenceImages: false, showFooterNotice: false };
+  private makePage(): RenderPage { return { index: 0, items: [], showDocumentHeader: false, showReferenceImages: false, showFooterNotice: false }; }
+
+  /* ---- 渲染后真实测量+重新分页 ---- */
+  private pxPerMm(): number {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;left:-100000px;top:0;width:100mm;height:1px;visibility:hidden;pointer-events:none';
+    document.body.appendChild(probe);
+    const v = probe.getBoundingClientRect().width / 100;
+    probe.remove();
+    return v || (96 / 25.4);
   }
 
-  /* ---- 打印（复用屏幕CSS，不覆盖任何尺寸） ---- */
+  private async measureRenderedContent(): Promise<boolean> {
+    const doc = document as any;
+    if (doc.fonts?.ready) { await doc.fonts.ready; }
+    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    const ppm = this.pxPerMm();
+    let changed = false;
+
+    const rows = Array.from((this.host.nativeElement as HTMLElement).querySelectorAll('tr.supply-row[data-item-id]')) as HTMLElement[];
+    for (const row of rows) {
+      const id = row.dataset['itemId']; if (!id) continue;
+      const h = row.getBoundingClientRect().height / ppm;
+      if (!Number.isFinite(h) || h <= 0) continue;
+      const old = this.measuredRowHeights.get(id);
+      if (old === undefined || Math.abs(old - h) > 0.3) { this.measuredRowHeights.set(id, Math.ceil(h * 10) / 10); changed = true; }
+    }
+
+    const introEls = Array.from((this.host.nativeElement as HTMLElement).querySelectorAll('[data-measure-block="intro"]'));
+    if (introEls.length) { const v = introEls.reduce((s, el) => s + el.getBoundingClientRect().height, 0) / ppm; if (Math.abs(this.measuredIntroHeight - v) > 0.3) { this.measuredIntroHeight = v; changed = true; } }
+
+    const th = (this.host.nativeElement as HTMLElement).querySelector('[data-measure-block="table-head"]') as HTMLElement | null;
+    if (th) { const v = th.getBoundingClientRect().height / ppm; if (Math.abs(this.measuredTableHeadHeight - v) > 0.3) { this.measuredTableHeadHeight = v; changed = true; } }
+
+    const imgs = (this.host.nativeElement as HTMLElement).querySelector('[data-measure-block="images"]') as HTMLElement | null;
+    if (imgs) { const v = imgs.getBoundingClientRect().height / ppm; if (Math.abs(this.measuredImagesHeight - v) > 0.3) { this.measuredImagesHeight = v; changed = true; } }
+
+    return changed;
+  }
+
+  private scheduleMeasuredRepagination(): void {
+    if (this.repaginateScheduled) return;
+    this.repaginateScheduled = true;
+    queueMicrotask(async () => {
+      try {
+        for (let pass = 0; pass < 4; pass++) {
+          const changed = await this.measureRenderedContent();
+          if (!changed && pass > 0) break;
+          this.paginate(); this.cdr.detectChanges();
+          await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+        }
+        this.validateVisibleRows();
+      } finally { this.repaginateScheduled = false; }
+    });
+  }
+
+  private validateVisibleRows(): void {
+    const expected = this.selectedItems.map(item => item.id);
+    const rendered = Array.from((this.host.nativeElement as HTMLElement).querySelectorAll('tr.supply-row[data-item-id]')) as HTMLElement[];
+    const renderedIds = rendered.map(r => r.dataset['itemId']).filter((id): id is string => !!id);
+    const missing = expected.filter(id => !renderedIds.includes(id));
+    const dups = renderedIds.filter((id, i) => renderedIds.indexOf(id) !== i);
+    if (missing.length || dups.length) console.error('物品分页校验失败', { expected, renderedIds, missing, dups });
+    Array.from((this.host.nativeElement as HTMLElement).querySelectorAll('.sheet-content')).forEach((sh, i) => {
+      if (sh.scrollHeight > sh.clientHeight + 1) console.error(`第${i + 1}页溢出`, { scroll: sh.scrollHeight, client: sh.clientHeight, over: sh.scrollHeight - sh.clientHeight });
+    });
+  }
+
+  /* ---- 打印 ---- */
   print(): void {
+    this.validateVisibleRows();
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) { alert('没有可打印的表单'); return; }
 
@@ -216,28 +239,17 @@ export class WpgmFormComponent implements OnInit {
     allSheets.forEach((s: HTMLElement) => {
       const c = s.cloneNode(true) as HTMLElement;
       c.querySelectorAll('.no-print').forEach(el => el.remove());
-      c.style.zoom = '1';
-      c.style.transform = 'none';
+      c.style.zoom = '1'; c.style.transform = 'none';
       body += '<div class="print-page">' + c.outerHTML + '</div>';
     });
 
-    const componentStyles = Array.from(document.querySelectorAll('style'))
-      .map(st => st.textContent || '').join('\n');
-
-    const printCss = `
-      @page{size:A4 portrait;margin:0}
-      html,body{margin:0;padding:0;background:#fff}
-      .no-print{display:none!important}
-      .print-page{box-sizing:border-box;width:210mm;height:297mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff}
-      .print-page:last-child{break-after:auto;page-break-after:auto}
-      .sheet{width:210mm!important;height:297mm!important;min-height:297mm!important;margin:0!important;padding:8mm 8mm 14mm!important;overflow:hidden!important;box-shadow:none!important;zoom:1!important;transform:none!important}
-    `;
+    const componentStyles = Array.from(document.querySelectorAll('style')).map(st => st.textContent || '').join('\n');
+    const printCss = `@page{size:A4 portrait;margin:0}html,body{margin:0;padding:0;background:#fff}.no-print{display:none!important}.print-page{box-sizing:border-box;width:210mm;height:297mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff}.print-page:last-child{break-after:auto;page-break-after:auto}.sheet{width:210mm!important;height:297mm!important;min-height:297mm!important;margin:0!important;padding:8mm 8mm 14mm!important;overflow:hidden!important;box-shadow:none!important;zoom:1!important;transform:none!important}`;
 
     const pw = window.open('', '_blank', 'width=900,height=700');
-    if (!pw) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
+    if (!pw) { alert('打印窗口被拦截'); return; }
     pw.document.write('<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>患者物品购买温馨提醒</title><style>' + componentStyles + '</style><style>' + printCss + '</style></head><body>' + body + '</body></html>');
     pw.document.close();
-
     this.prepareAndPrint(pw);
   }
 
@@ -245,44 +257,13 @@ export class WpgmFormComponent implements OnInit {
     const doc = pw.document as any;
     if (doc.fonts?.ready) { await doc.fonts.ready; }
     await this.waitForImages(pw.document);
-    await new Promise<void>(resolve => { pw.requestAnimationFrame(() => pw.requestAnimationFrame(() => resolve())); });
-    this.validatePrintPages(pw);
+    await new Promise<void>(r => pw.requestAnimationFrame(() => pw.requestAnimationFrame(() => r())));
+    Array.from(pw.document.querySelectorAll<HTMLElement>('.sheet-content')).forEach((sh, i) => { if (sh.scrollHeight > sh.clientHeight + 1) console.error(`打印第${i + 1}页溢出`, sh.scrollHeight - sh.clientHeight); });
     pw.focus(); pw.print();
     pw.addEventListener('afterprint', () => { try { pw.close(); } catch { /* ignore */ } }, { once: true });
   }
 
-  private validatePrintPages(pw: Window): boolean {
-    const pages = Array.from(pw.document.querySelectorAll<HTMLElement>('.print-page'));
-    let ok = true;
-    pages.forEach((page, i) => {
-      const sheet = page.querySelector<HTMLElement>('.sheet');
-      const content = page.querySelector<HTMLElement>('.sheet-content');
-      const pn = page.querySelector<HTMLElement>('.sheet-pageno');
-      if (!sheet || !pn) { console.error('第' + (i + 1) + '页结构不完整'); ok = false; return; }
-      if (content && content.scrollHeight > content.clientHeight + 1) {
-        console.error('第' + (i + 1) + '页正文溢出', content.scrollHeight - content.clientHeight); ok = false;
-      }
-      const sr = sheet.getBoundingClientRect();
-      const pr = pn.getBoundingClientRect();
-      if (pr.top < sr.top || pr.bottom > sr.bottom) { console.error('第' + (i + 1) + '页页码越界'); ok = false; }
-      if (sheet.scrollHeight > sheet.clientHeight + 1) { console.warn('第' + (i + 1) + '页溢出', sheet.scrollHeight - sheet.clientHeight); ok = false; }
-    });
-    return ok;
-  }
-
   private waitForImages(doc: Document): Promise<void> {
-    const images = Array.from(doc.images);
-    return Promise.all(images.map(img => {
-      if (img.complete) return Promise.resolve();
-      return new Promise<void>(resolve => {
-        img.addEventListener('load', () => resolve(), { once: true });
-        img.addEventListener('error', () => resolve(), { once: true });
-      });
-    })).then(() => undefined);
-  }
-
-  private persistSelection(): void {
-    localStorage.setItem('wpgmForm.selectedIds', JSON.stringify(this.selectedItems.map(item => item.id)));
-    this.paginate();
+    return Promise.all(Array.from(doc.images).map(img => img.complete ? Promise.resolve() : new Promise<void>(r => { img.addEventListener('load', () => r(), { once: true }); img.addEventListener('error', () => r(), { once: true }); }))).then(() => undefined);
   }
 }

@@ -8,9 +8,9 @@
 
 <section class="sheet" *ngFor="let page of pages" [class.continuation-sheet]="!page.showDocumentHeader" [attr.aria-label]="'第' + page.index + '页'">
   <div class="sheet-content">
-  <h1 *ngIf="page.showDocumentHeader">重症医学科患者物品购买温馨提醒</h1>
+  <h1 *ngIf="page.showDocumentHeader" data-measure-block="intro">重症医学科患者物品购买温馨提醒</h1>
 
-  <div class="notice-copy" *ngIf="page.showDocumentHeader">
+  <div class="notice-copy" *ngIf="page.showDocumentHeader" data-measure-block="intro">
     <p>尊敬的病员家属：</p>
     <p class="indent">您好！为了给患者提供一个安全舒适的就医环境，特此说明以下提醒事项，请您知晓，敬请配合！</p>
     <p>1、重症医学科（ICU）实行24小时无陪护制度，每日探视时间为11:00—11:30，每位患者探视人数不超过2人，中途不交换家属，具体探视要求请参照《重症医学科探视制度》规定。</p>
@@ -25,13 +25,13 @@
       <col class="spec-column">
       <col class="purpose-column">
     </colgroup>
-    <thead>
+    <thead data-measure-block="table-head">
       <tr><th>分类</th><th>物品名称</th><th>数量</th><th>规格</th><th>物品用途</th></tr>
     </thead>
     <tbody>
       <ng-container *ngFor="let category of categories">
         <ng-container *ngIf="pageItemsByCategory(page, category) as rows">
-          <tr *ngFor="let item of rows; let first = first; trackBy: trackById">
+          <tr *ngFor="let item of rows; let first = first; trackBy: trackById" class="supply-row" [attr.data-item-id]="item.id">
             <td class="category" *ngIf="first" [attr.rowspan]="rows.length">{{ category }}</td>
             <td>{{ item.name }}</td>
             <td>{{ item.quantity }}</td>
@@ -43,7 +43,7 @@
     </tbody>
   </table>
 
-  <section class="reference-images" *ngIf="page.showReferenceImages" aria-label="部分物品参考图片">
+  <section class="reference-images" *ngIf="page.showReferenceImages" aria-label="部分物品参考图片" data-measure-block="images">
     <figure class="reference-image-card">
       <img src="wpgm/fsz.png" alt="翻身枕" />
       <figcaption>翻身枕</figcaption>

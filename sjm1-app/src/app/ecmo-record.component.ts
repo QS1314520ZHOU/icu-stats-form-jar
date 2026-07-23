@@ -113,11 +113,14 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
 
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(patient => {
-      if (!patient?.id) return;
+      if (!patient?.id) { this.pid = ''; this.records = []; this.values.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }]; this.cdr.detectChanges(); return; }
       const nextPid = String(patient.id).trim();
       if (!nextPid) return;
+      const prevPid = this.pid;
+      this.pid = nextPid;
       this.setPatient(patient);
-      if (nextPid !== this.pid) { this.pid = nextPid; this.load(); this.loadConsumables(nextPid); }
+      if (nextPid !== prevPid) { this.records = []; this.values.clear(); this.buildPages(); this.load(); this.loadConsumables(nextPid); }
+      this.cdr.detectChanges();
     });
   }
 
@@ -140,7 +143,6 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
 
   private setPatient(patient: any): void {
     this.patient = patient;
-    this.pid = String(patient?.id || '').trim();
     this.age = this.calcAge(patient?.birthday);
     this.diagnosisDisplay = this.formatDiagnosis(patient?.clinicalDiagnosis);
   }
@@ -152,14 +154,17 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     return idx >= 0 ? d.substring(0, idx).trim() : d.trim();
   }
 
+  private norm(v: unknown): string { return String(v ?? '').trim(); }
+
   /* ---- Bedside数据 ---- */
   load(): void {
     if (!this.pid) return;
     this.loading = true; this.loadError = '';
     const params = new HttpParams().set('pid', this.pid).set('codes', this.codes.join(','));
-    this.http.get<BedsideRecord[]>(`${this.API}/listByPid`, { params }).pipe(takeUntil(this.destroy$)).subscribe({
-      next: records => {
-        this.records = (Array.isArray(records) ? records : []).filter(r => r.valid === true && r.pid === this.pid && this.codes.includes(r.code));
+    this.http.get<BedsideRecord[] | { data?: BedsideRecord[] }>(`${this.API}/listByPid`, { params }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: response => {
+        const source = Array.isArray(response) ? response : Array.isArray((response as any)?.data) ? (response as any).data : [];
+        this.records = source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && this.codes.includes(this.norm(r.code)));
         this.buildValueMap(); this.buildPages();
         this.loading = false; this.cdr.detectChanges();
       },
@@ -173,7 +178,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
 
   cellValue(code: string, time: string | undefined): string {
     if (!time) return '';
-    return this.values.get(`${code} ${time}`) || '';
+    return this.values.get(this.valueKey(code, time)) || '';
   }
 
   displayTime(time: string | undefined): string {
@@ -251,10 +256,12 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   }
 
   /* ---- 内部 ---- */
+  private valueKey(code: string, time: string): string { return `${this.norm(code)} ${this.norm(time)}`; }
+
   private buildValueMap(): void {
     this.values.clear();
     const ordered = [...this.records].sort((a, b) => this.ts(a.time) - this.ts(b.time) || this.ts(a.editTime) - this.ts(b.editTime));
-    for (const r of ordered) { if (!r.code || !r.time) continue; this.values.set(`${r.code} ${r.time}`, String(r.strVal ?? '')); }
+    for (const r of ordered) { const c = this.norm(r.code); const t = this.norm(r.time); if (!c || !t) continue; this.values.set(`${c} ${t}`, String(r.strVal ?? '')); }
   }
 
   private buildPages(): void {
