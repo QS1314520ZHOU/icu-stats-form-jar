@@ -9,6 +9,7 @@ import { BaetheiScoreComponent } from './baethei-score.component';
 import { PatientFallDangerComponent } from './patient-fall-danger.component';
 import { HealthEducationComponent } from './health-education.component';
 import { WpgmFormComponent } from './wpgm-form.component';
+import { EcmoRecordComponent } from './ecmo-record.component';
 
 export const routes: Routes = [
   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
@@ -21,5 +22,6 @@ export const routes: Routes = [
   { path: 'patientFallDangerForm', component: PatientFallDangerComponent },
   { path: 'jkjyForm', component: HealthEducationComponent },
   { path: 'wpgmForm', component: WpgmFormComponent },
+  { path: 'ecmoForm', component: EcmoRecordComponent },
   { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
 ];

@@ -15,6 +15,7 @@ import { BaetheiScoreComponent } from './baethei-score.component';
 import { PatientFallDangerComponent } from './patient-fall-danger.component';
 import { HealthEducationComponent } from './health-education.component';
 import { WpgmFormComponent } from './wpgm-form.component';
+import { EcmoRecordComponent } from './ecmo-record.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -30,6 +31,7 @@ import { routes } from './app.routes';
     PatientFallDangerComponent,
     HealthEducationComponent,
     WpgmFormComponent,
+    EcmoRecordComponent,
   ],
   imports: [
     BrowserModule,

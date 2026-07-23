@@ -1,0 +1,60 @@
+<div class="toolbar no-print">
+  <div class="toolbar-right">
+    <button class="btn secondary" type="button" (click)="load()" [disabled]="loading || !pid">{{ loading ? "加载中…" : "刷新" }}</button>
+    <label class="page-select">打印页码：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option *ngFor="let page of pages" [ngValue]="page.index">第 {{ page.index }} 页</option></select></label>
+    <button class="btn primary" type="button" (click)="print()">打印</button>
+  </div>
+</div>
+
+<div class="loading no-print" *ngIf="loading">加载中…</div>
+<div class="loading error no-print" *ngIf="loadError">{{ loadError }} <button class="text-button" type="button" (click)="load()">重试</button></div>
+
+<div class="print-page" *ngFor="let page of pages">
+  <section class="sheet">
+    <h1>重钢总医院重症医学科 ECMO运行护理记录单</h1>
+
+    <div class="patient-line">
+      <span>床号：<strong>{{ patient?.hisBed || "" }}</strong></span>
+      <span>姓名：<strong>{{ patient?.name || "" }}</strong></span>
+      <span>性别：<strong>{{ patient?.gender || patient?.sex || "" }}</strong></span>
+      <span>年龄：<strong>{{ age ?? "" }}</strong></span>
+    </div>
+
+    <div class="patient-line patient-line-second">
+      <span>住院号：<strong>{{ patient?.mrn || "" }}</strong></span>
+      <span class="diagnosis">诊断：<strong>{{ patient?.diagnosis || patient?.diagnose || "" }}</strong></span>
+    </div>
+
+    <table class="ecmo-table">
+      <colgroup>
+        <col class="group-column" />
+        <col class="metric-column" />
+        <col class="value-column" *ngFor="let _ of [0,1,2,3,4,5,6,7]" />
+      </colgroup>
+
+      <thead>
+        <tr>
+          <th colspan="2">项目/时间</th>
+          <th *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ displayTime(timeAt(page, column)) }}</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <ng-container *ngFor="let group of groups">
+          <tr *ngFor="let metric of group.metrics; let first = first">
+            <td class="group-cell" *ngIf="first" [attr.rowspan]="group.metrics.length">{{ group.name }}</td>
+            <td class="metric-cell">{{ metric.label }}</td>
+            <td class="value-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ cellValue(metric.code, timeAt(page, column)) }}</td>
+          </tr>
+        </ng-container>
+
+        <tr class="signature-row">
+          <td colspan="2">签名</td>
+          <td *ngFor="let _ of [0,1,2,3,4,5,6,7]"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="sheet-pageno">第 {{ page.index }} 页　共 {{ pages.length }} 页</div>
+  </section>
+</div>
