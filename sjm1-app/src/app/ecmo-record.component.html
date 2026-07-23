@@ -9,52 +9,58 @@
 <div class="loading no-print" *ngIf="loading">加载中…</div>
 <div class="loading error no-print" *ngIf="loadError">{{ loadError }} <button class="text-button" type="button" (click)="load()">重试</button></div>
 
-<div class="print-page" *ngFor="let page of pages">
-  <section class="sheet">
-    <h1>重钢总医院重症医学科 ECMO运行护理记录单</h1>
+<!-- 时间数据页 -->
+<ng-container *ngFor="let page of pages">
+  <div class="print-page" *ngIf="page.type === 'record'">
+    <section class="sheet">
+      <h1>重钢总医院重症医学科 ECMO运行护理记录单</h1>
 
-    <div class="patient-line">
-      <span>床号：<strong>{{ patient?.hisBed || "" }}</strong></span>
-      <span>姓名：<strong>{{ patient?.name || "" }}</strong></span>
-      <span>性别：<strong>{{ patient?.gender || patient?.sex || "" }}</strong></span>
-      <span>年龄：<strong>{{ age ?? "" }}</strong></span>
-    </div>
+      <div class="patient-info-row">
+        <span class="info-item"><b>床号：</b>{{ patient?.hisBed || "" }}</span>
+        <span class="info-item"><b>姓名：</b>{{ patient?.name || "" }}</span>
+        <span class="info-item"><b>性别：</b>{{ genderText(patient?.gender) }}</span>
+        <span class="info-item"><b>年龄：</b>{{ age ?? "" }}</span>
+        <span class="info-item"><b>住院号：</b>{{ patient?.mrn || "" }}</span>
+        <span class="info-item diagnosis-item"><b>诊断：</b>{{ diagnosisDisplay }}</span>
+      </div>
 
-    <div class="patient-line patient-line-second">
-      <span>住院号：<strong>{{ patient?.mrn || "" }}</strong></span>
-      <span class="diagnosis">诊断：<strong>{{ patient?.diagnosis || patient?.diagnose || "" }}</strong></span>
-    </div>
+      <table class="ecmo-table">
+        <colgroup>
+          <col class="group-column" /><col class="metric-column" />
+          <col class="value-column" *ngFor="let _ of [0,1,2,3,4,5,6,7]" />
+        </colgroup>
+        <thead>
+          <tr><th colspan="2">项目/时间</th><th *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ displayTime(timeAt(page, column)) }}</th></tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let group of groups">
+            <tr *ngFor="let metric of group.metrics; let first = first">
+              <td class="group-cell" *ngIf="first" [attr.rowspan]="group.metrics.length">{{ group.name }}</td>
+              <td class="metric-cell">{{ metric.label }}</td>
+              <td class="value-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ cellValue(metric.code, timeAt(page, column)) }}</td>
+            </tr>
+          </ng-container>
+          <tr class="signature-row"><td colspan="2">签名</td><td *ngFor="let _ of [0,1,2,3,4,5,6,7]"></td></tr>
+        </tbody>
+      </table>
 
-    <table class="ecmo-table">
-      <colgroup>
-        <col class="group-column" />
-        <col class="metric-column" />
-        <col class="value-column" *ngFor="let _ of [0,1,2,3,4,5,6,7]" />
-      </colgroup>
+      <div class="sheet-pageno">第 {{ page.index }} 页　共 {{ pages.length }} 页</div>
+    </section>
+  </div>
 
-      <thead>
-        <tr>
-          <th colspan="2">项目/时间</th>
-          <th *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ displayTime(timeAt(page, column)) }}</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        <ng-container *ngFor="let group of groups">
-          <tr *ngFor="let metric of group.metrics; let first = first">
-            <td class="group-cell" *ngIf="first" [attr.rowspan]="group.metrics.length">{{ group.name }}</td>
-            <td class="metric-cell">{{ metric.label }}</td>
-            <td class="value-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ cellValue(metric.code, timeAt(page, column)) }}</td>
-          </tr>
-        </ng-container>
-
-        <tr class="signature-row">
-          <td colspan="2">签名</td>
-          <td *ngFor="let _ of [0,1,2,3,4,5,6,7]"></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="sheet-pageno">第 {{ page.index }} 页　共 {{ pages.length }} 页</div>
-  </section>
-</div>
+  <!-- 耗材使用登记页 -->
+  <div class="print-page" *ngIf="page.type === 'consumables'">
+    <section class="sheet">
+      <div class="consumables-section">
+        <div class="consumables-title">耗材使用登记：</div>
+        <textarea class="consumables-input no-print" [(ngModel)]="consumablesText" rows="12" placeholder="请输入耗材名称、规格、数量等信息"></textarea>
+        <div class="consumables-print-value print-only">{{ consumablesText }}</div>
+        <div class="consumables-actions no-print">
+          <span class="save-message" [class.error]="consumablesSaveError">{{ consumablesSaveMessage }}</span>
+          <button class="btn primary" type="button" (click)="saveConsumables()" [disabled]="savingConsumables || !pid">{{ savingConsumables ? "保存中…" : "保存耗材登记" }}</button>
+        </div>
+      </div>
+      <div class="sheet-pageno">第 {{ page.index }} 页　共 {{ pages.length }} 页</div>
+    </section>
+  </div>
+</ng-container>
