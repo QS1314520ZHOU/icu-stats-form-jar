@@ -98,8 +98,8 @@ export class WpgmFormComponent implements OnInit {
       const selected = new Set(saved);
       this.items.forEach(item => item.selected = selected.has(item.id));
     } catch { /* ignore */ }
-    // 延迟测量，等DOM就绪
-    setTimeout(() => { this.measureHeights(); this.paginate(); }, 50);
+    this.measureHeights();
+    this.paginate();
   }
 
   get selectedItems(): SupplyItem[] { return this.items.filter(item => item.selected); }
