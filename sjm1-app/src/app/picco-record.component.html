@@ -15,7 +15,7 @@
   </div>
   <table class="picco-table"><colgroup><col class="item-col"><col class="normal-col"><col *ngFor="let i of [0,1,2,3,4,5,6,7]" class="value-col"></colgroup>
    <thead><tr><th>项目</th><th>正常值（单位）</th><th *ngFor="let i of [0,1,2,3,4,5,6,7]"><span>{{displayDate(timeAt(page,i))}}</span><span>{{displayClock(timeAt(page,i))}}</span></th></tr></thead>
-   <tbody><tr *ngFor="let metric of metrics"><td>{{metric.label}}</td><td>{{metric.normal}}</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">{{metricValue(metric,timeAt(page,i))}}</td></tr>
+   <tbody><tr *ngFor="let metric of metrics"><td [attr.colspan]="metric.normal ? null : 2">{{metric.label}}</td><td *ngIf="metric.normal">{{metric.normal}}</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">{{metricValue(metric,timeAt(page,i))}}</td></tr>
    <tr><td colspan="2">签名</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">{{signatureAt(timeAt(page,i))}}</td></tr></tbody>
   </table><div class="page-no">第 {{page.index}} 页　共 {{pages.length}} 页</div>
  </div>
