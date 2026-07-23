@@ -2,15 +2,8 @@
   <div class="toolbar-right">
     <button class="btn secondary" type="button" (click)="selectorOpen = true">选择物品</button>
     <button class="btn secondary" type="button" (click)="clearAll()" [disabled]="!selectedCount">清空</button>
-    <button class="btn primary" type="button" (click)="print()" [disabled]="!selectedCount">打印</button>
+    <button class="btn primary" type="button" (click)="print()">打印</button>
   </div>
-</div>
-
-<div class="empty-preview no-print" *ngIf="!selectedCount">
-  <div class="empty-icon">✓</div>
-  <strong>尚未选择物品</strong>
-  <span>点击顶部"选择物品"，勾选后将在这里形成打印清单。</span>
-  <button class="btn primary" type="button" (click)="selectorOpen = true">开始选择</button>
 </div>
 
 <section class="sheet" *ngFor="let page of pages" [attr.aria-label]="'第' + page.index + '页'">
@@ -24,7 +17,7 @@
     <p>2、请按照以下物品清单为患者准备住院所需用物，为方便您购买，部分物品可参照以下图片。</p>
   </div>
 
-  <table class="paper-table">
+  <table class="paper-table" *ngIf="page.items.length > 0">
     <colgroup>
       <col class="category-column">
       <col class="name-column">
@@ -81,9 +74,9 @@
     <p>3、以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品。</p>
     <p>4、患者身上不留现金、手机及其它贵重物品，若必须留时，请与医护人员当面交接。</p>
     <p>5、请注意维护公共环境，请勿在通道座椅上躺卧睡觉，同时请保管好个人财物。</p>
-    <p>6、医院禁止吸烟及任何形式使用明火，通道电源插座禁止连接大功率电器。为了您和家人的安全，请重视消防安全！</p>
+    <p>6、医院禁止吸烟及任何形式使用明火，通道电源插座禁止连接大功率电器，插座上不能有裸露的电源线，请及时将充电电源线取下。为了您和家人的安全，请重视消防安全！</p>
     <p>7、家属在外走廊等候期间，请不要大声喧哗，以免影响患者休息。</p>
-    <p>8、如患者病情变化、转科或生活物品数量不足，医护人员会电话通知您，请保持电话通畅。如有需要请拨打科室电话：023-81915173。</p>
+    <p>8、住院期间如患者病情变化、转科或生活物品数量不足等情况，医护人员会电话通知您，请保持电话通畅，以便及时与您取得联系，如有需要请拨打科室电话：023-81915173。</p>
   </div>
 
   <div class="sheet-pageno">第 {{ page.index }} 页　共 {{ pages.length }} 页</div>

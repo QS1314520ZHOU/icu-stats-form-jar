@@ -128,7 +128,12 @@ export class WpgmFormComponent implements OnInit {
   /* ---- 分页 ---- */
   private paginate(): void {
     const items = this.selectedItems;
-    if (!items.length) { this.pages = []; return; }
+
+    // 0项时仍然生成1页：标题+第1-2点+图片+第3-8点（无表格）
+    if (!items.length) {
+      this.pages = [{ index: 1, items: [], showHeaderNotice: true, showReferenceImages: true, showFooterNotice: true }];
+      return;
+    }
 
     const PAGE1_ITEMS = 14;   // 首页含标题/提示/图片/底部提醒
     const PAGE2_ITEMS = 14;   // 第2页含图片
@@ -160,8 +165,6 @@ export class WpgmFormComponent implements OnInit {
 
   /* ---- 打印（参考health-education实现） ---- */
   print(): void {
-    if (!this.selectedCount) { alert('请先选择需要展示和打印的物品'); return; }
-
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) { alert('没有可打印的表单'); return; }
 
