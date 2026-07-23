@@ -6,7 +6,7 @@
   </div>
 </div>
 
-<section class="sheet" *ngFor="let page of pages" [attr.aria-label]="'第' + page.index + '页'">
+<section class="sheet" *ngFor="let page of pages" [class.continuation-sheet]="!page.showDocumentHeader" [attr.aria-label]="'第' + page.index + '页'">
   <div class="sheet-content">
   <h1 *ngIf="page.showDocumentHeader">重症医学科患者物品购买温馨提醒</h1>
 

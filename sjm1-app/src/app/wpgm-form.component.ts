@@ -141,14 +141,16 @@ export class WpgmFormComponent implements OnInit {
     const PAGE_H     = 275; // 页面内容可用高度
     const INTRO_H    = 28;  // 标题10mm + 4段文字~18mm
     const TH_H       = 8;   // 表头单行
-    const ROW_H      = 8;   // 普通单行
-    const ROW_H_LONG = 14;  // 长文本行（规格/用途超长时可能换2-3行）
-    const IMAGES_H   = 91;  // 6图两行（34mm×2+间距+标题+margin）
-    const FOOTER_PER = 9;   // 每条底部提醒
+    const ROW_H      = 7.5; // 普通单行
+    const ROW_H_LONG = 11;  // 长文本行（单列超24字符）
+    const IMAGES_H   = 91;  // 6图两行
+    const FOOTER_PER = 9;
 
     const estimatedRowH = (item: SupplyItem): number => {
-      const text = item.specification + item.purpose;
-      return text.length > 28 ? ROW_H_LONG : ROW_H;
+      const maxCol = Math.max(item.name.length, item.specification.length, item.purpose.length);
+      if (maxCol > 24) return ROW_H_LONG;
+      if (maxCol > 14) return 9;
+      return ROW_H;
     };
 
     const FOOTER_LINES = [
