@@ -1,84 +1,116 @@
-<div class="toolbar no-print">
-  <div class="toolbar-right">
-    <button type="button" class="btn secondary" [disabled]="isEditing || loading" (click)="addPage()">新增一页</button>
-    <button type="button" class="btn secondary" [disabled]="isEditing || !selectedPage" (click)="startEdit(selectedPage)">编辑本页</button>
-    <button type="button" class="btn secondary danger" [disabled]="isEditing || deleting || !selectedPage" (click)="deleteCurrentPage()">{{ deleting ? '删除中…' : '删除本页' }}</button>
-    <button *ngIf="isEditing" type="button" class="btn primary" [disabled]="saving" (click)="saveCurrentPage()">{{ saving ? '保存中…' : '保存' }}</button>
-    <button *ngIf="isEditing" type="button" class="btn secondary" [disabled]="saving" (click)="cancelEdit()">取消</button>
-    <label class="page-select">当前页：<select [(ngModel)]="selectedPageNo" [disabled]="isEditing"><option *ngFor="let p of pages" [ngValue]="p.pageNo">第 {{ p.pageNo }} 页</option></select></label>
-    <label class="page-select">打印页码：<select [(ngModel)]="selectedPrintPage" [disabled]="isEditing"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.pageNo">第 {{ p.pageNo }} 页</option></select></label>
-    <button type="button" class="btn primary" [disabled]="isEditing || loading" (click)="print()">打印</button>
-  </div>
-</div>
+<div class="toolbar no-print"><div class="toolbar-right">
+  <button class="btn" [disabled]="isEditing||loading" (click)="addPage()">新增一页</button>
+  <button class="btn" [disabled]="isEditing||!selectedPage" (click)="startEdit(selectedPage)">编辑本页</button>
+  <button class="btn danger" [disabled]="isEditing||deleting||!selectedPage" (click)="deleteCurrentPage()">{{deleting?'删除中…':'删除本页'}}</button>
+  <button *ngIf="isEditing" class="btn primary" [disabled]="saving" (click)="saveCurrentPage()">{{saving?'保存中…':'保存'}}</button>
+  <button *ngIf="isEditing" class="btn" [disabled]="saving" (click)="cancelEdit()">取消</button>
+  <label class="ps">当前页：<select [(ngModel)]="selectedPageNo" [disabled]="isEditing"><option *ngFor="let p of pages" [ngValue]="p.pageNo">第{{p.pageNo}}页</option></select></label>
+  <label class="ps">打印：<select [(ngModel)]="selectedPrintPage" [disabled]="isEditing"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.pageNo">第{{p.pageNo}}页</option></select></label>
+  <button class="btn primary" [disabled]="isEditing||loading" (click)="print()">打印</button>
+</div></div>
 
 <div class="loading no-print" *ngIf="loading">加载中…</div>
-<div class="loading error no-print" *ngIf="loadError">{{ loadError }}</div>
+<div class="loading error no-print" *ngIf="loadError">{{loadError}}</div>
 
 <section class="sheet" *ngFor="let page of pages">
   <h1>重钢总医院输血记录单</h1>
 
-  <div class="patient-info-row">
-    <span class="info-item"><b>科室：</b>{{ patient?.dept || '' }}</span>
-    <span class="info-item"><b>床号：</b>{{ patient?.hisBed || '' }}</span>
-    <span class="info-item"><b>姓名：</b>{{ patient?.name || '' }}</span>
-    <span class="info-item"><b>性别：</b>{{ genderText(patient?.gender) }}</span>
-    <span class="info-item"><b>年龄：</b>{{ age ?? '' }}</span>
-    <span class="info-item"><b>住院号：</b>{{ patient?.mrn || '' }}</span>
-  </div>
-  <div class="patient-info-row second">
-    <span class="info-item"><b>血型：</b>{{ patient?.bloodType || '' }}</span>
-    <span class="info-item"><b>RH(D)：</b>{{ patient?.rhType || '' }}</span>
-    <span class="info-item diagnosis-item"><b>诊断：</b>{{ diagnosisDisplay }}</span>
-  </div>
-
-  <table class="tx-table">
-    <thead>
-      <tr><th colspan="2">项目</th><th *ngFor="let item of page.items; let i = index">血液制品 {{ i + 1 }}</th></tr>
-    </thead>
+  <table class="tx">
+    <colgroup>
+      <col class="c-phase"><col class="c-item">
+      <col class="c-sub"><col class="c-sub2">
+      <col class="c-sub"><col class="c-sub3">
+      <col class="c-sub"><col class="c-sub4">
+    </colgroup>
     <tbody>
-      <tr><td colspan="2">血液制品相关信息（条码粘贴处）</td><td *ngFor="let item of page.items">{{ item.product.productType }} {{ item.product.bagNo }} {{ item.product.dose }}{{ item.product.doseUnit }}</td></tr>
-      <tr><td colspan="2">领血日期及时间</td><td *ngFor="let item of page.items">{{ fmtDateTime(item.receiveAt) }}</td></tr>
-      <tr><td colspan="2">领血人</td><td *ngFor="let item of page.items">{{ signerName(item, 'receiver') }}</td></tr>
-      <tr><td colspan="2">输血前60分钟内生命体征 T P R BP</td><td *ngFor="let item of page.items">{{ item.preVitals.temperature }} {{ item.preVitals.pulse }} {{ item.preVitals.respiration }} {{ item.preVitals.systolic }}/{{ item.preVitals.diastolic }}</td></tr>
-      <tr><td colspan="2">血液制品有效期</td><td *ngFor="let item of page.items">{{ fmtDateTime(item.product.expiresAt) }}</td></tr>
-      <tr><td colspan="2">血液外观质量</td><td *ngFor="let item of page.items">{{ item.appearance }}</td></tr>
-      <tr><td colspan="2">交叉配血结果</td><td *ngFor="let item of page.items">{{ item.crossMatch }}</td></tr>
-      <tr><td colspan="2">输血装置及通道符合要求</td><td *ngFor="let item of page.items">{{ item.deviceQualified }}</td></tr>
-      <tr><td colspan="2">输血前用生理盐水冲洗管道</td><td *ngFor="let item of page.items">{{ item.salineBefore }}</td></tr>
-      <tr><td colspan="2">血袋标签、配血报告、患者身份一致</td><td *ngFor="let item of page.items">{{ item.identityMatched }}</td></tr>
-      <tr><td colspan="2">床旁核对者双签名</td><td *ngFor="let item of page.items">{{ signerName(item, 'bedsideVerifier1') }} {{ signerName(item, 'bedsideVerifier2') }}</td></tr>
-      <tr><td colspan="2">开始输血日期及时间</td><td *ngFor="let item of page.items">{{ fmtDateTime(item.startAt) }}</td></tr>
-      <tr><td colspan="2">慢速滴注15分钟反应</td><td *ngFor="let item of page.items">{{ item.slowReaction }} {{ signerName(item, 'slowReactionSigner') }}</td></tr>
-      <tr><td colspan="2">输血开始15分钟内生命体征</td><td *ngFor="let item of page.items">{{ item.after15Vitals.temperature }} {{ item.after15Vitals.pulse }} {{ item.after15Vitals.respiration }} {{ item.after15Vitals.systolic }}/{{ item.after15Vitals.diastolic }}</td></tr>
-      <tr><td colspan="2">滴注速度</td><td *ngFor="let item of page.items">{{ item.dripRate }}</td></tr>
-      <tr><td colspan="2">输血过程中反应</td><td *ngFor="let item of page.items">{{ item.duringReaction }} {{ signerName(item, 'duringReactionSigner') }}</td></tr>
-      <tr><td colspan="2">输血后用生理盐水冲洗管道</td><td *ngFor="let item of page.items">{{ item.salineAfter }}</td></tr>
-      <tr><td colspan="2">输血器材无害化处理</td><td *ngFor="let item of page.items">{{ item.harmlessDisposal }}</td></tr>
-      <tr><td colspan="2">输血结束后60分钟内生命体征</td><td *ngFor="let item of page.items">{{ item.postVitals.temperature }} {{ item.postVitals.pulse }} {{ item.postVitals.respiration }} {{ item.postVitals.systolic }}/{{ item.postVitals.diastolic }}</td></tr>
-      <tr><td colspan="2">输血结束日期及时间</td><td *ngFor="let item of page.items">{{ fmtDateTime(item.endAt) }} {{ signerName(item, 'endSigner') }}</td></tr>
-      <tr><td colspan="2">输血后1小时不良反应</td><td *ngFor="let item of page.items">{{ item.adverseReaction }}</td></tr>
-      <tr><td colspan="2">记录者</td><td *ngFor="let item of page.items">{{ signerName(item, 'recorder') }}</td></tr>
+      <!-- Row 1: patient info -->
+      <tr class="r-pat"><td colspan="8"><div class="pl"><span>科室：{{patient?.dept||''}}</span><span>床号：{{patient?.hisBed||''}}</span><span>姓名：{{patient?.name||''}}</span><span>性别：{{genderText(patient?.gender)}}</span><span>年龄：{{age??''}}</span></div></td></tr>
+      <!-- Row 2: patient info 2 -->
+      <tr class="r-pat"><td colspan="8"><div class="pl"><span>住院号：{{patient?.mrn||''}}</span><span>血型：{{patient?.bloodType||''}} 型</span><span>RH（D）{{patient?.rhType||''}} 性</span><span class="dx">诊断：{{diagnosisDisplay}}</span></div></td></tr>
+      <!-- Row 3: table header -->
+      <tr class="r-hdr"><th colspan="2">项目</th><th colspan="6">查对内容及观察记录</th></tr>
+
+      <!-- ===== 输血前 rowspan=14 ===== -->
+      <tr class="r-prod"><th rowspan="14" class="phase"><span>输</span><span>血</span><span>前</span></th><th rowspan="4" class="prod-t">血液制品相关信息<br>（条码粘贴处）</th>
+        <td colspan="2">血袋号：{{page.items[0].product.bagNo}}</td><td colspan="2">血袋号：{{page.items[1].product.bagNo}}</td><td colspan="2">血袋号：{{page.items[2].product.bagNo}}</td></tr>
+      <tr class="r-prod"><td colspan="2">供血者血型：{{page.items[0].product.aboType}} 型 RH（D）{{page.items[0].product.rhType}} 性</td><td colspan="2">供血者血型：{{page.items[1].product.aboType}} 型 RH（D）{{page.items[1].product.rhType}} 性</td><td colspan="2">供血者血型：{{page.items[2].product.aboType}} 型 RH（D）{{page.items[2].product.rhType}} 性</td></tr>
+      <tr class="r-prod"><td colspan="2">种类：{{page.items[0].product.productType}}</td><td colspan="2">种类：{{page.items[1].product.productType}}</td><td colspan="2">种类：{{page.items[2].product.productType}}</td></tr>
+      <tr class="r-prod"><td colspan="2">剂量：{{page.items[0].product.dose}}{{page.items[0].product.doseUnit}}</td><td colspan="2">剂量：{{page.items[1].product.dose}}{{page.items[1].product.doseUnit}}</td><td colspan="2">剂量：{{page.items[2].product.dose}}{{page.items[2].product.doseUnit}}</td></tr>
+
+      <!-- Row 8: 领血时间 -->
+      <tr class="r-std"><td>领血日期及时间</td><td colspan="2">{{fmtDateTime(page.items[0].receiveAt)}}</td><td colspan="2">{{fmtDateTime(page.items[1].receiveAt)}}</td><td colspan="2">{{fmtDateTime(page.items[2].receiveAt)}}</td></tr>
+      <!-- Row 9: 领血人 -->
+      <tr class="r-std"><td>领血人</td><td colspan="2">{{signerName(page.items[0],'receiver')}}</td><td colspan="2">{{signerName(page.items[1],'receiver')}}</td><td colspan="2">{{signerName(page.items[2],'receiver')}}</td></tr>
+      <!-- Row 10: 输血前生命体征 -->
+      <tr class="r-vital"><td>输血前60分钟内<br>生命体征</td>
+        <td colspan="2">T{{page.items[0].preVitals.temperature}}℃ P{{page.items[0].preVitals.pulse}}次/分<br>R{{page.items[0].preVitals.respiration}}次/分 BP{{page.items[0].preVitals.systolic}}/{{page.items[0].preVitals.diastolic}}mmHg</td>
+        <td colspan="2">T{{page.items[1].preVitals.temperature}}℃ P{{page.items[1].preVitals.pulse}}次/分<br>R{{page.items[1].preVitals.respiration}}次/分 BP{{page.items[1].preVitals.systolic}}/{{page.items[1].preVitals.diastolic}}mmHg</td>
+        <td colspan="2">T{{page.items[2].preVitals.temperature}}℃ P{{page.items[2].preVitals.pulse}}次/分<br>R{{page.items[2].preVitals.respiration}}次/分 BP{{page.items[2].preVitals.systolic}}/{{page.items[2].preVitals.diastolic}}mmHg</td></tr>
+      <!-- Row 11: 有效期 -->
+      <tr class="r-std"><td>血液制品有效期</td><td colspan="2">{{fmtDateTime(page.items[0].product.expiresAt)}}</td><td colspan="2">{{fmtDateTime(page.items[1].product.expiresAt)}}</td><td colspan="2">{{fmtDateTime(page.items[2].product.expiresAt)}}</td></tr>
+      <!-- Row 12: 外观 -->
+      <tr class="r-std"><td>血液外观质量是否正常</td><td colspan="2">☑正常 □不正常</td><td colspan="2">☑正常 □不正常</td><td colspan="2">☑正常 □不正常</td></tr>
+      <!-- Row 13: 交叉配血 -->
+      <tr class="r-std"><td>交叉配血结果</td><td colspan="2">☑相合 □不相合</td><td colspan="2">☑相合 □不相合</td><td colspan="2">☑相合 □不相合</td></tr>
+      <!-- Row 14: 装置通道 -->
+      <tr class="r-std"><td>输血装置及通道符合要求</td><td colspan="2">☑是 □否</td><td colspan="2">☑是 □否</td><td colspan="2">☑是 □否</td></tr>
+      <!-- Row 15: 盐水冲洗前 -->
+      <tr class="r-std"><td>输血前用生理盐水冲洗管道</td><td colspan="2">☑是 □否</td><td colspan="2">☑是 □否</td><td colspan="2">☑是 □否</td></tr>
+      <!-- Row 16: 身份核对 -->
+      <tr class="r-std"><td>血袋标签、配血报告、患者<br>身份核对三者是否一致</td><td colspan="2">☑一致 □不一致</td><td colspan="2">☑一致 □不一致</td><td colspan="2">☑一致 □不一致</td></tr>
+      <!-- Row 17: 床旁核对双签名 -->
+      <tr class="r-std"><td>床旁核对者双签名</td><td colspan="2">{{signerName(page.items[0],'bedsideVerifier1')}} {{signerName(page.items[0],'bedsideVerifier2')}}</td><td colspan="2">{{signerName(page.items[1],'bedsideVerifier1')}} {{signerName(page.items[1],'bedsideVerifier2')}}</td><td colspan="2">{{signerName(page.items[2],'bedsideVerifier1')}} {{signerName(page.items[2],'bedsideVerifier2')}}</td></tr>
+
+      <!-- ===== 输血中 rowspan=5 ===== -->
+      <tr class="r-std"><th rowspan="5" class="phase"><span>输</span><span>血</span><span>中</span></th><td>开始输血日期及时间</td><td colspan="2">{{fmtDateTime(page.items[0].startAt)}}</td><td colspan="2">{{fmtDateTime(page.items[1].startAt)}}</td><td colspan="2">{{fmtDateTime(page.items[2].startAt)}}</td></tr>
+      <!-- Row 19: 慢速滴注反应+签名（拆6子列） -->
+      <tr class="r-react"><td>先慢速滴注15分钟，观察<br>患者全身及局部的反应</td>
+        <td>☑无 □有</td><td>{{signerName(page.items[0],'slowReactionSigner')}}</td>
+        <td>☑无 □有</td><td>{{signerName(page.items[1],'slowReactionSigner')}}</td>
+        <td>☑无 □有</td><td>{{signerName(page.items[2],'slowReactionSigner')}}</td></tr>
+      <!-- Row 20: 15分钟生命体征 -->
+      <tr class="r-vital"><td>输血开始后15分钟内<br>生命体征</td>
+        <td colspan="2">T{{page.items[0].after15Vitals.temperature}}℃ P{{page.items[0].after15Vitals.pulse}}<br>R{{page.items[0].after15Vitals.respiration}} BP{{page.items[0].after15Vitals.systolic}}/{{page.items[0].after15Vitals.diastolic}}</td>
+        <td colspan="2">T{{page.items[1].after15Vitals.temperature}}℃ P{{page.items[1].after15Vitals.pulse}}<br>R{{page.items[1].after15Vitals.respiration}} BP{{page.items[1].after15Vitals.systolic}}/{{page.items[1].after15Vitals.diastolic}}</td>
+        <td colspan="2">T{{page.items[2].after15Vitals.temperature}}℃ P{{page.items[2].after15Vitals.pulse}}<br>R{{page.items[2].after15Vitals.respiration}} BP{{page.items[2].after15Vitals.systolic}}/{{page.items[2].after15Vitals.diastolic}}</td></tr>
+      <!-- Row 21: 滴速 -->
+      <tr class="r-std"><td>滴注速度（滴/分）</td><td colspan="2">{{page.items[0].dripRate}}</td><td colspan="2">{{page.items[1].dripRate}}</td><td colspan="2">{{page.items[2].dripRate}}</td></tr>
+      <!-- Row 22: 输血过程反应 -->
+      <tr class="r-react"><td>输血过程中观察患者<br>全身及局部的反应</td>
+        <td>☑无 □有</td><td>{{signerName(page.items[0],'duringReactionSigner')}}</td>
+        <td>☑无 □有</td><td>{{signerName(page.items[1],'duringReactionSigner')}}</td>
+        <td>☑无 □有</td><td>{{signerName(page.items[2],'duringReactionSigner')}}</td></tr>
+
+      <!-- ===== 输血后 rowspan=6 ===== -->
+      <tr class="r-std"><th rowspan="6" class="phase"><span>输</span><span>血</span><span>后</span></th><td>输血后用生理盐水冲洗管道</td><td colspan="2">☑是 □否</td><td colspan="2">☑是 □否</td><td colspan="2">☑是 □否</td></tr>
+      <tr class="r-std"><td>输血器材无害化处理</td><td colspan="2">☑是 □否</td><td colspan="2">☑是 □否</td><td colspan="2">☑是 □否</td></tr>
+      <!-- Row 25: 输血后生命体征 -->
+      <tr class="r-vital"><td>输血结束后60分钟内<br>生命体征</td>
+        <td colspan="2">T{{page.items[0].postVitals.temperature}}℃ P{{page.items[0].postVitals.pulse}}<br>R{{page.items[0].postVitals.respiration}} BP{{page.items[0].postVitals.systolic}}/{{page.items[0].postVitals.diastolic}}</td>
+        <td colspan="2">T{{page.items[1].postVitals.temperature}}℃ P{{page.items[1].postVitals.pulse}}<br>R{{page.items[1].postVitals.respiration}} BP{{page.items[1].postVitals.systolic}}/{{page.items[1].postVitals.diastolic}}</td>
+        <td colspan="2">T{{page.items[2].postVitals.temperature}}℃ P{{page.items[2].postVitals.pulse}}<br>R{{page.items[2].postVitals.respiration}} BP{{page.items[2].postVitals.systolic}}/{{page.items[2].postVitals.diastolic}}</td></tr>
+      <!-- Row 26: 结束时间+签名 -->
+      <tr class="r-std"><td>输血结束日期及时间/签名</td><td colspan="2">{{fmtDateTime(page.items[0].endAt)}} {{signerName(page.items[0],'endSigner')}}</td><td colspan="2">{{fmtDateTime(page.items[1].endAt)}} {{signerName(page.items[1],'endSigner')}}</td><td colspan="2">{{fmtDateTime(page.items[2].endAt)}} {{signerName(page.items[2],'endSigner')}}</td></tr>
+      <!-- Row 27: 不良反应 -->
+      <tr class="r-react"><td>患者输血后1小时全身及<br>局部有无输血不良反应</td>
+        <td>☑无 □有</td><td></td>
+        <td>☑无 □有</td><td></td>
+        <td>☑无 □有</td><td></td></tr>
+      <!-- Row 28: 记录者 -->
+      <tr class="r-std"><td>记录者</td><td colspan="2">{{signerName(page.items[0],'recorder')}}</td><td colspan="2">{{signerName(page.items[1],'recorder')}}</td><td colspan="2">{{signerName(page.items[2],'recorder')}}</td></tr>
     </tbody>
   </table>
 
-  <div class="sheet-pageno">第 {{ page.pageNo }} 页　共 {{ pages.length }} 页</div>
+  <div class="remark">备注：如有不良反应，另见护理记录单。</div>
+  <div class="pno">第 {{page.pageNo}} 页　共 {{pages.length}} 页</div>
 </section>
 
-<!-- 血液制品选择弹框 -->
 <div class="overlay no-print" *ngIf="productDialogOpen" (click)="closeProductDialog()">
-  <section class="dialog product-dialog" (click)="$event.stopPropagation()">
-    <div class="dialog-head"><h2>血液制品相关信息</h2><button class="icon-btn" (click)="closeProductDialog()">×</button></div>
-    <div class="dialog-body">
-      <div *ngIf="productLoading">加载中…</div>
-      <div *ngIf="!productLoading && !availableProducts.length" class="hint">暂未同步到可选择的血液制品，请手工填写。</div>
-      <div *ngFor="let p of availableProducts" class="product-option" (click)="selectAvailableProduct(p)">{{ p.productType }} {{ p.bagNo }} {{ p.dose }}{{ p.doseUnit }}</div>
-      <label>血袋号：<input [(ngModel)]="productDraft.bagNo"></label>
-      <label>ABO血型：<input [(ngModel)]="productDraft.aboType"></label>
-      <label>RH：<input [(ngModel)]="productDraft.rhType"></label>
-      <label>品种：<input [(ngModel)]="productDraft.productType"></label>
-      <label>剂量：<input [(ngModel)]="productDraft.dose"> <input [(ngModel)]="productDraft.doseUnit" placeholder="单位"></label>
-      <label>有效期：<input type="datetime-local" [(ngModel)]="productDraft.expiresAt"></label>
-    </div>
-    <div class="dialog-foot"><button class="btn secondary" (click)="closeProductDialog()">取消</button><button class="btn primary" (click)="confirmProduct()">确定</button></div>
-  </section>
+  <section class="dialog" (click)="$event.stopPropagation()"><div class="dh"><h2>血液制品相关信息</h2><button class="ic" (click)="closeProductDialog()">×</button></div>
+  <div class="db"><div *ngIf="productLoading">加载中…</div><div *ngIf="!productLoading&&!availableProducts.length" class="hint">暂未同步到可选择的血液制品，请手工填写。</div>
+  <div *ngFor="let p of availableProducts" class="po" (click)="selectAvailableProduct(p)">{{p.productType}} {{p.bagNo}}</div>
+  <label>血袋号：<input [(ngModel)]="productDraft.bagNo"></label><label>ABO血型：<input [(ngModel)]="productDraft.aboType"></label><label>RH：<input [(ngModel)]="productDraft.rhType"></label>
+  <label>种类：<input [(ngModel)]="productDraft.productType"></label><label>剂量：<input [(ngModel)]="productDraft.dose"><input [(ngModel)]="productDraft.doseUnit" placeholder="单位"></label>
+  <label>有效期：<input type="datetime-local" [(ngModel)]="productDraft.expiresAt"></label></div>
+  <div class="df"><button class="btn" (click)="closeProductDialog()">取消</button><button class="btn primary" (click)="confirmProduct()">确定</button></div></section>
 </div>
