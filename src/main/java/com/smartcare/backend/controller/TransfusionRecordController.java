@@ -17,7 +17,17 @@ public class TransfusionRecordController {
 
     @GetMapping("/byPid")
     public ResponseEntity<TransfusionRecord> byPid(@RequestParam String pid) {
-        return service.findByPid(pid).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+        return service.findByPid(pid)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.ok(emptyRecord(pid)));
+    }
+
+    private TransfusionRecord emptyRecord(String pid) {
+        TransfusionRecord r = new TransfusionRecord();
+        r.setPid(pid);
+        r.setPages(java.util.Collections.emptyList());
+        r.setValid(true);
+        return r;
     }
 
     @PostMapping("/savePage")

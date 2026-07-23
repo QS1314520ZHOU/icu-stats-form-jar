@@ -34,6 +34,7 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
   selectedPageNo = 1; selectedPrintPage: number | null = null;
   loading = false; saving = false; deleting = false; loadError = '';
   editingPageId: string | null = null; private editSnapshot: TransfusionPage | null = null; private editingNewPage = false;
+  private defaultPlaceholderPageId: string | null = null;
   accounts: AccountOption[] = [];
   productDialogOpen = false; productTarget: { pageId: string; itemIndex: number } | null = null;
   productDraft: BloodProductSnapshot = this.emptyProduct(); productLoading = false; availableProducts: BloodProductSnapshot[] = [];
@@ -60,11 +61,15 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
   }
 
   private fetchRecord(pid: string) {
-    this.loading = true;
+    this.loading = true; this.loadError = '';
     return this.http.get<TransfusionRecord>(`${this.API}/byPid`, { params: { pid } }).pipe(
-      catchError((e: HttpErrorResponse) => { if (e.status === 404) return of(null); this.loadError = e.error?.message || '加载失败'; return of(null); }),
-      tap(r => { if (pid !== this.pid) return; if (r?.pid === pid) this.applyRecord(r); else { this.record = null; this.pages = [this.emptyPage(1)]; } }),
-      finalize(() => { this.loading = false; this.cdr.detectChanges(); }));
+      catchError((e: HttpErrorResponse) => {
+        if (e.status === 404) return of(null);
+        if (pid === this.pid) this.loadError = e.error?.message || '输血记录加载失败，当前展示空白表单';
+        return of(null);
+      }),
+      tap(r => { if (pid !== this.pid) return; if (r && r.pid === pid && Array.isArray(r.pages) && r.pages.length > 0) this.applyRecord(r); else this.showDefaultBlankPage(); }),
+      finalize(() => { if (pid === this.pid) { this.loading = false; this.cdr.detectChanges(); } }));
   }
 
   private applyRecord(r: TransfusionRecord): void {
@@ -76,12 +81,19 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
     this.selectedPrintPage = null;
   }
 
-  addPage(): void { if (!this.pid || this.isEditing) return; const p = this.emptyPage(this.pages.length + 1); this.pages = [...this.pages, p]; this.selectedPageNo = p.pageNo; this.editingNewPage = true; this.editingPageId = p.pageId; this.editSnapshot = null; }
+  addPage(): void {
+    if (!this.pid || this.isEditing) return;
+    const existingDraft = this.pages.find(p => p.persisted !== true);
+    if (existingDraft) { this.selectedPageNo = existingDraft.pageNo; this.startEdit(existingDraft); return; }
+    const p = this.emptyPage(this.pages.length + 1); this.pages = [...this.pages, p]; this.selectedPageNo = p.pageNo; this.editingNewPage = true; this.editingPageId = p.pageId; this.editSnapshot = null;
+  }
   startEdit(page: TransfusionPage | null): void { if (!page || this.isEditing) return; this.selectedPageNo = page.pageNo; this.editSnapshot = structuredClone(page); this.editingNewPage = page.persisted !== true; this.editingPageId = page.pageId; }
   cancelEdit(): void {
     if (!this.editingPageId) return;
-    if (this.editingNewPage) { this.pages = this.pages.filter(p => p.pageId !== this.editingPageId).map((p, i) => ({ ...p, pageNo: i + 1 })); if (!this.pages.length) this.pages = [this.emptyPage(1)]; this.selectedPageNo = Math.min(this.selectedPageNo, this.pages.length); }
-    else if (this.editSnapshot) { this.pages = this.pages.map(p => p.pageId === this.editingPageId ? structuredClone(this.editSnapshot!) : p); }
+    if (this.editingNewPage && this.editingPageId !== this.defaultPlaceholderPageId) {
+      this.pages = this.pages.filter(p => p.pageId !== this.editingPageId).map((p, i) => ({ ...p, pageNo: i + 1 })); if (!this.pages.length) this.pages = [this.emptyPage(1)];
+      this.selectedPageNo = Math.min(this.selectedPageNo, this.pages.length);
+    } else if (this.editSnapshot) { this.pages = this.pages.map(p => p.pageId === this.editingPageId ? structuredClone(this.editSnapshot!) : p); }
     this.closeEditing();
   }
 
@@ -121,8 +133,17 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
   private loadAvailableProducts(): void { this.productLoading = true; this.http.get<BloodProductSnapshot[]>('/api/v1/icu/transfusion-products/available', { params: { pid: this.pid } }).pipe(finalize(() => { this.productLoading = false; this.cdr.detectChanges(); }), takeUntil(this.destroy$)).subscribe({ next: r => { this.availableProducts = Array.isArray(r) ? r : []; }, error: () => { this.availableProducts = []; } }); }
 
   private loadAccounts(): void { this.http.get<any[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$)).subscribe({ next: rows => { const src = Array.isArray(rows) ? rows : []; this.accounts = src.map(r => ({ accountId: String(r?.accountId ?? r?._id ?? r?.id ?? '').trim(), accountName: String(r?.accountName ?? r?.trueName ?? r?.name ?? '').trim(), username: String(r?.username ?? r?.loginName ?? '').trim(), code: String(r?.code ?? r?.jobNumber ?? '').trim() })).filter(a => !!a.accountId && !!a.accountName); }, error: () => { this.accounts = []; } }); }
-  private emptyPage(no: number): TransfusionPage { return { pageId: `draft-${crypto.randomUUID()}`, pageNo: no, items: [this.emptyItem(), this.emptyItem(), this.emptyItem()], persisted: false }; }
-  private normalizePage(page: TransfusionPage): TransfusionPage { const items = (Array.isArray(page.items) ? page.items.slice(0, 3) : []); while (items.length < 3) items.push(this.emptyItem()); return { ...page, pageId: page.pageId || `draft-${crypto.randomUUID()}`, items: items.map(i => ({ ...this.emptyItem(), ...i, product: { ...this.emptyProduct(), ...(i.product || {}) }, preVitals: { ...this.emptyVitals(), ...(i.preVitals || {}) }, after15Vitals: { ...this.emptyVitals(), ...(i.after15Vitals || {}) }, postVitals: { ...this.emptyVitals(), ...(i.postVitals || {}) } })) }; }
+  private createDraftPageId(): string {
+    try { const co = globalThis.crypto as (Crypto & { randomUUID?: () => string }) | undefined; if (co && typeof co.randomUUID === 'function') return `draft-${co.randomUUID()}`; } catch { /* fallback */ }
+    return ['draft', Date.now().toString(36), Math.random().toString(36).slice(2), Math.random().toString(36).slice(2)].join('-');
+  }
+
+  private showDefaultBlankPage(): void {
+    const page = this.emptyPage(1); this.record = null; this.defaultPlaceholderPageId = page.pageId; this.pages = [page]; this.selectedPageNo = 1; this.selectedPrintPage = null; this.closeEditing(); this.closeProductDialog();
+  }
+
+  private emptyPage(no: number): TransfusionPage { return { pageId: this.createDraftPageId(), pageNo: no, items: [this.emptyItem(), this.emptyItem(), this.emptyItem()], persisted: false }; }
+  private normalizePage(page: TransfusionPage): TransfusionPage { const items = (Array.isArray(page.items) ? page.items.slice(0, 3) : []); while (items.length < 3) items.push(this.emptyItem()); return { ...page, pageId: page.pageId || this.createDraftPageId(), items: items.map(i => ({ ...this.emptyItem(), ...i, product: { ...this.emptyProduct(), ...(i.product || {}) }, preVitals: { ...this.emptyVitals(), ...(i.preVitals || {}) }, after15Vitals: { ...this.emptyVitals(), ...(i.after15Vitals || {}) }, postVitals: { ...this.emptyVitals(), ...(i.postVitals || {}) } })) }; }
   private emptyItem(): TransfusionItem { return { product: this.emptyProduct(), receiveAt: '', receiver: null, preVitals: this.emptyVitals(), appearance: '', crossMatch: '', deviceQualified: '', salineBefore: '', identityMatched: '', bedsideVerifier1: null, bedsideVerifier2: null, startAt: '', slowReaction: '', slowReactionSigner: null, after15Vitals: this.emptyVitals(), dripRate: '', duringReaction: '', duringReactionSigner: null, salineAfter: '', harmlessDisposal: '', postVitals: this.emptyVitals(), endAt: '', endSigner: null, adverseReaction: '', recorder: null }; }
   private emptyVitals(): VitalSigns { return { temperature: '', pulse: '', respiration: '', systolic: '', diastolic: '' }; }
   private emptyProduct(): BloodProductSnapshot { return { bloodProductId: '', source: 'manual', bagNo: '', aboType: '', rhType: '', productType: '', dose: '', doseUnit: '', expiresAt: '' }; }

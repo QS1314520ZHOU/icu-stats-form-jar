@@ -31,6 +31,36 @@
     <span class="info-item diagnosis-item"><b>诊断：</b>{{ diagnosisDisplay }}</span>
   </div>
 
+  <table class="tx-table">
+    <thead>
+      <tr><th colspan="2">项目</th><th *ngFor="let item of page.items; let i = index">血液制品 {{ i + 1 }}</th></tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="2">血液制品相关信息（条码粘贴处）</td><td *ngFor="let item of page.items">{{ item.product.productType }} {{ item.product.bagNo }} {{ item.product.dose }}{{ item.product.doseUnit }}</td></tr>
+      <tr><td colspan="2">领血日期及时间</td><td *ngFor="let item of page.items">{{ fmtDateTime(item.receiveAt) }}</td></tr>
+      <tr><td colspan="2">领血人</td><td *ngFor="let item of page.items">{{ signerName(item, 'receiver') }}</td></tr>
+      <tr><td colspan="2">输血前60分钟内生命体征 T P R BP</td><td *ngFor="let item of page.items">{{ item.preVitals.temperature }} {{ item.preVitals.pulse }} {{ item.preVitals.respiration }} {{ item.preVitals.systolic }}/{{ item.preVitals.diastolic }}</td></tr>
+      <tr><td colspan="2">血液制品有效期</td><td *ngFor="let item of page.items">{{ fmtDateTime(item.product.expiresAt) }}</td></tr>
+      <tr><td colspan="2">血液外观质量</td><td *ngFor="let item of page.items">{{ item.appearance }}</td></tr>
+      <tr><td colspan="2">交叉配血结果</td><td *ngFor="let item of page.items">{{ item.crossMatch }}</td></tr>
+      <tr><td colspan="2">输血装置及通道符合要求</td><td *ngFor="let item of page.items">{{ item.deviceQualified }}</td></tr>
+      <tr><td colspan="2">输血前用生理盐水冲洗管道</td><td *ngFor="let item of page.items">{{ item.salineBefore }}</td></tr>
+      <tr><td colspan="2">血袋标签、配血报告、患者身份一致</td><td *ngFor="let item of page.items">{{ item.identityMatched }}</td></tr>
+      <tr><td colspan="2">床旁核对者双签名</td><td *ngFor="let item of page.items">{{ signerName(item, 'bedsideVerifier1') }} {{ signerName(item, 'bedsideVerifier2') }}</td></tr>
+      <tr><td colspan="2">开始输血日期及时间</td><td *ngFor="let item of page.items">{{ fmtDateTime(item.startAt) }}</td></tr>
+      <tr><td colspan="2">慢速滴注15分钟反应</td><td *ngFor="let item of page.items">{{ item.slowReaction }} {{ signerName(item, 'slowReactionSigner') }}</td></tr>
+      <tr><td colspan="2">输血开始15分钟内生命体征</td><td *ngFor="let item of page.items">{{ item.after15Vitals.temperature }} {{ item.after15Vitals.pulse }} {{ item.after15Vitals.respiration }} {{ item.after15Vitals.systolic }}/{{ item.after15Vitals.diastolic }}</td></tr>
+      <tr><td colspan="2">滴注速度</td><td *ngFor="let item of page.items">{{ item.dripRate }}</td></tr>
+      <tr><td colspan="2">输血过程中反应</td><td *ngFor="let item of page.items">{{ item.duringReaction }} {{ signerName(item, 'duringReactionSigner') }}</td></tr>
+      <tr><td colspan="2">输血后用生理盐水冲洗管道</td><td *ngFor="let item of page.items">{{ item.salineAfter }}</td></tr>
+      <tr><td colspan="2">输血器材无害化处理</td><td *ngFor="let item of page.items">{{ item.harmlessDisposal }}</td></tr>
+      <tr><td colspan="2">输血结束后60分钟内生命体征</td><td *ngFor="let item of page.items">{{ item.postVitals.temperature }} {{ item.postVitals.pulse }} {{ item.postVitals.respiration }} {{ item.postVitals.systolic }}/{{ item.postVitals.diastolic }}</td></tr>
+      <tr><td colspan="2">输血结束日期及时间</td><td *ngFor="let item of page.items">{{ fmtDateTime(item.endAt) }} {{ signerName(item, 'endSigner') }}</td></tr>
+      <tr><td colspan="2">输血后1小时不良反应</td><td *ngFor="let item of page.items">{{ item.adverseReaction }}</td></tr>
+      <tr><td colspan="2">记录者</td><td *ngFor="let item of page.items">{{ signerName(item, 'recorder') }}</td></tr>
+    </tbody>
+  </table>
+
   <div class="sheet-pageno">第 {{ page.pageNo }} 页　共 {{ pages.length }} 页</div>
 </section>
 
