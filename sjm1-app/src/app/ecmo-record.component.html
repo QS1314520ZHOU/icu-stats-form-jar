@@ -27,7 +27,7 @@
         <col class="value-column" *ngFor="let _ of [0,1,2,3,4,5,6,7]" />
       </colgroup>
       <thead>
-        <tr><th colspan="2">项目/时间</th><th *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ displayTime(timeAt(page, column)) }}</th></tr>
+        <tr><th colspan="2">项目/时间</th><th class="time-header" *ngFor="let column of [0,1,2,3,4,5,6,7]"><ng-container *ngIf="timeAt(page, column) as ct"><span class="time-date">{{ displayDate(ct) }}</span><span class="time-clock">{{ displayClock(ct) }}</span></ng-container></th></tr>
       </thead>
       <tbody>
         <ng-container *ngFor="let group of groups">
@@ -38,19 +38,20 @@
           </tr>
         </ng-container>
         <tr class="signature-row"><td colspan="2">签名</td><td class="signature-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ signatureAt(timeAt(page, column)) }}</td></tr>
+        <tr class="consumables-row" *ngIf="page.showConsumables">
+          <td class="consumables-cell" colspan="10">
+            <div class="consumables-title">耗材使用登记：</div>
+            <textarea class="consumables-input no-print" [(ngModel)]="consumablesText" (ngModelChange)="onConsumablesInput($event)" (blur)="flushConsumablesSave()" aria-label="耗材使用登记" placeholder="请输入耗材名称、规格、数量等信息"></textarea>
+            <div class="consumables-print-value print-only">{{ consumablesText }}</div>
+            <div class="autosave-status no-print">
+              <span class="saving" *ngIf="consumablesSaveState === 'saving'">保存中…</span>
+              <span class="saved" *ngIf="consumablesSaveState === 'saved'">已自动保存</span>
+              <span class="error" *ngIf="consumablesSaveState === 'error'">自动保存失败</span>
+            </div>
+          </td>
+        </tr>
       </tbody>
     </table>
-
-    <section class="consumables-section" *ngIf="page.showConsumables">
-      <div class="consumables-title">耗材使用登记：</div>
-      <textarea class="consumables-input no-print" [(ngModel)]="consumablesText" (ngModelChange)="onConsumablesInput($event)" (blur)="flushConsumablesSave()" aria-label="耗材使用登记" placeholder="请输入耗材名称、规格、数量等信息"></textarea>
-      <div class="consumables-print-value print-only">{{ consumablesText }}</div>
-      <div class="autosave-status no-print">
-        <span class="saving" *ngIf="consumablesSaveState === 'saving'">保存中…</span>
-        <span class="saved" *ngIf="consumablesSaveState === 'saved'">已自动保存</span>
-        <span class="error" *ngIf="consumablesSaveState === 'error'">自动保存失败</span>
-      </div>
-    </section>
 
     <div class="sheet-pageno">第 {{ page.index }} 页　共 {{ pages.length }} 页</div>
   </section>

@@ -32,13 +32,20 @@ h1 { margin: 0 0 2mm; text-align: center; font-family: SimHei, "黑体", sans-se
 .signature-row td { height: 4.75mm; }
 .signature-cell { font-size: 7.5pt; white-space: normal; }
 
-/* 耗材登记（紧凑，放在末页表格下方） */
-.consumables-section { box-sizing: border-box; position: relative; height: 34mm; margin-top: 2mm; padding: 2mm; border: 1px solid #000; color: #000; font-family: "SimSun", "宋体", serif; overflow: hidden; }
-.consumables-title { margin: 0 0 1mm; font-size: 10pt; font-weight: 700; line-height: 1.2; }
-.consumables-input { box-sizing: border-box; display: block; width: 100%; height: 23mm; min-height: 23mm; padding: 1.5mm; border: 0; outline: 0; resize: none; overflow-y: auto; background: #fff; color: #000; font: 9.5pt/1.45 "SimSun", "宋体", serif; }
+/* 时间表头两行显示 */
+.time-header { padding: 0.3mm 0.2mm !important; text-align: center; vertical-align: middle; white-space: nowrap; word-break: keep-all; overflow-wrap: normal; line-height: 1.1; }
+.time-date, .time-clock { display: block; width: 100%; text-align: center; white-space: nowrap; word-break: keep-all; overflow-wrap: normal; text-overflow: clip; }
+.time-date { font-size: 7.5pt; font-weight: 600; }
+.time-clock { margin-top: 0.3mm; font-size: 7.5pt; font-weight: 500; }
+
+/* 耗材登记（ECMO主表格内最后一行） */
+.consumables-row { break-inside: avoid; page-break-inside: avoid; }
+.ecmo-table .consumables-row .consumables-cell { box-sizing: border-box; position: relative; height: 34mm; min-height: 34mm; padding: 2mm 3mm !important; border: 1px solid #000; text-align: left; vertical-align: top; overflow: hidden; background: #fff; color: #000; font-family: "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", Arial, sans-serif; }
+.consumables-title { margin: 0 0 1mm; font-size: 9pt; font-weight: 600; line-height: 1.2; }
+.consumables-input { box-sizing: border-box; display: block; width: 100%; height: 23mm; min-height: 23mm; margin: 0; padding: 1mm; border: 0; outline: 0; resize: none; overflow-y: auto; background: transparent; color: #000; font: 9pt/1.4 "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
 .consumables-input:focus { outline: 1px solid #2783de; }
-.consumables-print-value { box-sizing: border-box; width: 100%; height: 23mm; min-height: 23mm; padding: 1.5mm; white-space: pre-wrap; overflow: hidden; overflow-wrap: anywhere; color: #000; font: 9.5pt/1.45 "SimSun", "宋体", serif; }
-.autosave-status { position: absolute; right: 2mm; bottom: 1mm; font: 12px/1.2 "Microsoft YaHei", sans-serif; color: #7d7a75; }
+.consumables-print-value { box-sizing: border-box; width: 100%; height: 23mm; min-height: 23mm; padding: 1mm; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; color: #000; font: 9pt/1.4 "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+.autosave-status { position: absolute; right: 2mm; bottom: 1mm; font-size: 11px; line-height: 1; color: #7d7a75; }
 .autosave-status .saved { color: #46a171; }
 .autosave-status .error { color: #e56458; }
 .print-only { display: none; }
@@ -56,4 +63,7 @@ h1 { margin: 0 0 2mm; text-align: center; font-family: SimHei, "黑体", sans-se
   .print-page:last-child { break-after: auto; page-break-after: auto; }
   .sheet { width: 210mm; height: 297mm; margin: 0; box-shadow: none; }
   .ecmo-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .consumables-row { break-inside: avoid; page-break-inside: avoid; }
+  .ecmo-table .consumables-row .consumables-cell { height: 34mm; min-height: 34mm; padding: 2mm 3mm !important; }
+  .consumables-print-value { display: block !important; height: 23mm; min-height: 23mm; }
 }

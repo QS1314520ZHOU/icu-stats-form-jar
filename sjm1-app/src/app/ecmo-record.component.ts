@@ -173,12 +173,19 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   /* 签名 — 来自宿主SmartCare postMessage的account.trueName */
   signatureAt(time: string | undefined): string { if (!time) return ''; return String(this.account?.trueName ?? '').trim(); }
 
-  displayTime(time: string | undefined): string {
+  displayDate(time: string | undefined): string {
     if (!time) return '';
-    const d = new Date(time); if (Number.isNaN(d.getTime())) return time;
+    const d = this.parseDate(time); if (!d) return '';
     const p = (v: number) => String(v).padStart(2, '0');
-    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }
+  displayClock(time: string | undefined): string {
+    if (!time) return '';
+    const d = this.parseDate(time); if (!d) return '';
+    const p = (v: number) => String(v).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  private parseDate(value: string | undefined): Date | null { if (!value) return null; const d = new Date(value); return Number.isNaN(d.getTime()) ? null : d; }
   timeAt(page: RenderPage, idx: number): string | undefined { return page.times[idx]; }
 
   /* ---- 耗材 ---- */
