@@ -43,11 +43,6 @@ a:focus-visible{outline:2px solid #2783de;outline-offset:2px;border-radius:2px}
 <tbody id="nursing-tbody"></tbody>
 </table></div></div>
 
-<h2>ICU 治疗记录系统</h2>
-<div class="card"><div class="table-wrap"><table>
-<thead><tr><th>系统名称</th><th>访问路径</th><th>保存数据</th></tr></thead>
-<tbody id="icu-tbody"></tbody>
-</table></div></div>
 </div>
 
 <script>
@@ -70,18 +65,8 @@ var nursingForms = [
   {name:'健康教育记录单',path:'/form/jkjyForm',data:['HealthEducationRecord']},
   {name:'住院患者物品管理表',path:'/form/wpgmForm',data:[]},
   {name:'ECMO 运行护理记录单',path:'/form/ecmoForm',data:['Bedside','EcmoRecordExtra']},
-  {name:'输血记录单',path:'/form/transfusionForm',data:['TransfusionRecord']}
-];
-
-var icuSystems = [
-  {name:'CRRT 护理记录系统',path:'/crrt',data:['CrrtRecord']},
-  {name:'CVC 护理记录系统',path:'/cvc',data:['CvcRecord']},
-  {name:'呼吸治疗记录系统',path:'/rm',data:['RmRecord']},
-  {name:'PiCCO 监测记录系统',path:'/picco',data:['PiccoRecord']},
-  {name:'IABP 护理记录系统',path:'/iabp',data:['IabpRecord']},
-  {name:'血浆置换记录系统',path:'/pe',data:['PeRecord']},
-  {name:'血液灌流记录系统',path:'/hp',data:['HpRecord']},
-  {name:'Protein A 免疫吸附记录系统',path:'/protein-a',data:['ProteinARecord']}
+  {name:'输血记录单',path:'/form/transfusionForm',data:['TransfusionRecord']},
+  {name:'PICCO 容量监测参数记录表',path:'/form/piccoForm',data:['Bedside','PiccoRecordExtra']}
 ];
 
 function renderRows(containerId, list) {
@@ -94,7 +79,6 @@ function renderRows(containerId, list) {
 }
 
 renderRows('nursing-tbody', nursingForms);
-renderRows('icu-tbody', icuSystems);
 </script>
 </body>
 </html>
