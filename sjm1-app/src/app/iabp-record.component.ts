@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
-import { bedsideTimeValue, formatBedsideHourMinute, formatBedsideMonthDay } from './form-date.util';
+import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 
 interface BedsideRecord { pid:string|number; code:string; time:string; strVal?:string; valid:boolean|string|number; editUser?:string; }
 interface IabpMetric { label:string; code:string; }
@@ -51,7 +51,8 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
  private readonly destroy$=new Subject<void>();
  private readonly extraSave$=new Subject<void>();
  private readonly values=new Map<string,string>();
- private signatureRecords:Array<{time:string;instant:number;editUser:string}>=[];
+ private signatureRecords:Array<{time:string;instant:number;editUser:string}>=[]=[];
+ private accountNameMap=new Map<string,string>();
 
  readonly groups=IABP_GROUPS;
  readonly metricCodes=IABP_GROUPS.flatMap(g=>g.metrics.map(m=>m.code));
@@ -79,33 +80,42 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
   this.values.clear();this.signatureRecords=[];
   const allowed=new Set(this.metricCodes.map(c=>this.nm(c)));
   const timeSet=new Set<string>();
+  const editUserIds=new Set<string>();
   records.forEach(r=>{
    const pid=this.nm(r.pid),code=this.nm(r.code),time=this.nm(r.time);
    const ok=r.valid===true||r.valid===1||r.valid==='1'||String(r.valid).toLowerCase()==='true';
    if(!ok||pid!==this.pid||!time)return;
-   if(code==='param_Yishi'){const user=this.nm(r.editUser);if(user){this.signatureRecords.push({time,instant:bedsideTimeValue(time),editUser:user});}}
+   if(code==='param_Yishi'){const user=this.nm(r.editUser);if(user){this.signatureRecords.push({time,instant:databaseTimeValue(time),editUser:user});editUserIds.add(user);}}
    else if(allowed.has(code)){this.values.set(`${code}@@${time}`,this.nm(r.strVal));timeSet.add(time);}
   });
   this.signatureRecords.sort((a,b)=>a.instant-b.instant);
-  const times=[...timeSet].sort((a,b)=>bedsideTimeValue(a)-bedsideTimeValue(b));
+  const times=[...timeSet].sort((a,b)=>databaseTimeValue(a)-databaseTimeValue(b));
   this.pages=[];
   for(let i=0;i<times.length;i+=11)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+11)});
   if(!this.pages.length)this.pages=[{index:1,times:[]}];
+  if(editUserIds.size)this.loadAccountNames([...editUserIds]);
  }
  metricValue(m:IabpMetric,time?:string):string{return time?this.values.get(`${this.nm(m.code)}@@${this.nm(time)}`)??'':'';}
  timeAt(p:RenderPage,i:number):string|undefined{return p.times[i];}
  signatureAt(time?:string):string{
   if(!time)return'';
-  const target=bedsideTimeValue(time);
+  const target=databaseTimeValue(time);
   if(!Number.isFinite(target))return'';
   for(let i=this.signatureRecords.length-1;i>=0;i--){
    const s=this.signatureRecords[i];
-   if(s.instant<=target&&s.editUser)return s.editUser;
+   if(s.instant<=target&&s.editUser)return this.accountNameMap.get(s.editUser)||s.editUser;
   }
   return'';
  }
- displayDate(v?:string):string{return formatBedsideMonthDay(v);}
- displayClock(v?:string):string{return formatBedsideHourMinute(v);}
+ displayDate(v?:string):string{return formatShanghaiMonthDay(v);}
+ displayClock(v?:string):string{return formatShanghaiHourMinute(v);}
+ private loadAccountNames(ids:string[]):void{
+  if(!ids.length)return;
+  const params=new HttpParams().set('ids',ids.join(','));
+  this.http.get<any[]>('/api/v1/icu/accounts/listByIds',{params}).pipe(takeUntil(this.destroy$)).subscribe({
+   next:rows=>{(Array.isArray(rows)?rows:[]).forEach(r=>{const id=this.nm(r?.accountId??r?._id??r?.id);const name=this.nm(r?.accountName??r?.trueName??r?.name);if(id)id&&name?this.accountNameMap.set(id,name):null;});this.cdr.detectChanges();},
+   error:()=>{}});
+ }
  genderText(v:any):string{return['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
  onExtraChanged():void{if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
  saveExtraNow():void{this.onExtraChanged();}

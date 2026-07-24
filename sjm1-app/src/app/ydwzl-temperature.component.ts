@@ -18,7 +18,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
-import { bedsideTimeValue, formatBedsideDate, formatBedsideHourMinute } from './form-date.util';
+import { databaseTimeValue, formatShanghaiDate, formatShanghaiHourMinute } from './form-date.util';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -579,8 +579,8 @@ private paginate(): void {
     return age >= 0 ? age : null;
   }
 
-  fmtDate(v?: string): string { return formatBedsideDate(v); }
-  fmtTime(v?: string): string { return formatBedsideHourMinute(v); }
+  fmtDate(v?: string): string { return formatShanghaiDate(v); }
+  fmtTime(v?: string): string { return formatShanghaiHourMinute(v); }
   fmtDateTime(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
@@ -589,5 +589,5 @@ private paginate(): void {
     return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
-  private ts(v?: string): number { return bedsideTimeValue(v); }
+  private ts(v?: string): number { return databaseTimeValue(v); }
 }

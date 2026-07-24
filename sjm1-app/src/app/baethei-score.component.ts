@@ -11,6 +11,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { measureRowCapacity } from './form-measure.util';
 
 /* ============================= 配置区 ============================= */
@@ -640,28 +641,13 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }
   }
 
-  fmtDate(v?: string): string {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return v;
-    const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  }
-  fmtTime(v?: string): string {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return '';
-    const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  }
+  fmtDate(v?: string): string { return formatShanghaiDate(v) || ''; }
+  fmtTime(v?: string): string { return formatShanghaiTime(v) || ''; }
 
   private num(v: any): number | null {
     if (v === null || v === undefined || v === '') return null;
     const n = Number(v);
     return isNaN(n) ? null : n;
   }
-  private ts(v?: string): number {
-    const t = v ? new Date(v).getTime() : 0;
-    return isNaN(t) ? 0 : t;
-  }
+  private ts(v?: string): number { return databaseTimeValue(v); }
 }

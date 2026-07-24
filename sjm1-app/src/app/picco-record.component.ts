@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
-import { bedsideTimeValue, formatBedsideHourMinute, formatBedsideMonthDay } from './form-date.util';
+import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; editUser?: string; }
 interface PiccoMetric { label: string; normal: string; code: string; }
@@ -36,7 +36,8 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  private readonly destroy$=new Subject<void>();
  private readonly extraSave$=new Subject<void>();
  private readonly values=new Map<string,string>();
- private signatureRecords:Array<{time:string;instant:number;editUser:string}>=[] = [];
+ private signatureRecords:Array<{time:string;instant:number;editUser:string}>=[];
+ private accountNameMap=new Map<string,string>();
  readonly metrics=PICCO_METRICS;
  readonly metricCodes=PICCO_METRICS.map(x=>x.code);
  readonly queryCodes=Array.from(new Set([...this.metricCodes,'param_Yishi']));
@@ -52,12 +53,13 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
  private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatureRecords=[];this.pages=[{index:1,times:[]}];}
  load():void{if(!this.pid)return;this.loading=true;this.loadError='';const params=new HttpParams().set('pid',this.pid).set('codes',this.queryCodes.join(','));this.http.get<BedsideRecord[]|{data:BedsideRecord[]}>(`${this.API}/listByPid`,{params}).pipe(takeUntil(this.destroy$)).subscribe({next:r=>{const src=Array.isArray(r)?r:(r.data||[]);this.build(src.filter(x=>x.valid===true&&String(x.pid)===this.pid));this.loading=false;this.cdr.detectChanges();},error:e=>{this.loadError=e?.error?.message||'PICCO记录加载失败';this.loading=false;this.build([]);this.cdr.detectChanges();}});}
- private build(records:BedsideRecord[]):void{this.values.clear();this.signatureRecords=[];const allowed=new Set(this.metricCodes);const timeSet=new Set<string>();records.forEach(r=>{const code=String(r.code||'').trim(),time=String(r.time||'').trim();if(code==='param_Yishi'){const user=String(r.editUser||'').trim();if(user){this.signatureRecords.push({time,instant:bedsideTimeValue(time),editUser:user});}}else if(allowed.has(code)&&time){this.values.set(`${code}@@${time}`,String(r.strVal??''));timeSet.add(time);}});this.signatureRecords.sort((a,b)=>a.instant-b.instant);const times=[...timeSet].sort((a,b)=>bedsideTimeValue(a)-bedsideTimeValue(b));this.pages=[];for(let i=0;i<times.length;i+=8)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+8)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
+ private build(records:BedsideRecord[]):void{this.values.clear();this.signatureRecords=[];const allowed=new Set(this.metricCodes);const timeSet=new Set<string>();records.forEach(r=>{const code=String(r.code||'').trim(),time=String(r.time||'').trim();if(code==='param_Yishi'){const user=String(r.editUser||'').trim();if(user){this.signatureRecords.push({time,instant:databaseTimeValue(time),editUser:user});}}else if(allowed.has(code)&&time){this.values.set(`${code}@@${time}`,String(r.strVal??''));timeSet.add(time);}});this.signatureRecords.sort((a,b)=>a.instant-b.instant);const times=[...timeSet].sort((a,b)=>databaseTimeValue(a)-databaseTimeValue(b));this.pages=[];for(let i=0;i<times.length;i+=8)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+8)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
  metricValue(m:PiccoMetric,time?:string):string{return time?this.values.get(`${m.code}@@${time}`)||'':'';}
- signatureAt(time?:string):string{if(!time)return'';const target=bedsideTimeValue(time);if(!Number.isFinite(target))return'';for(let i=this.signatureRecords.length-1;i>=0;i--){const s=this.signatureRecords[i];if(s.instant<=target&&s.editUser)return s.editUser;}return'';}
+ signatureAt(time?:string):string{if(!time)return'';const target=databaseTimeValue(time);if(!Number.isFinite(target))return'';for(let i=this.signatureRecords.length-1;i>=0;i--){const s=this.signatureRecords[i];if(s.instant<=target&&s.editUser)return this.accountNameMap.get(s.editUser)||s.editUser;}return'';}
+ private loadAccountNames(ids:string[]):void{if(!ids.length)return;const params=new HttpParams().set('ids',ids.join(','));this.http.get<any[]>('/api/v1/icu/accounts/listByIds',{params}).pipe(takeUntil(this.destroy$)).subscribe({next:rows=>{(Array.isArray(rows)?rows:[]).forEach(r=>{const id=String(r?.accountId??r?._id??r?.id??'').trim();const name=String(r?.accountName??r?.trueName??r?.name??'').trim();if(id&&name)this.accountNameMap.set(id,name);});this.cdr.detectChanges();},error:()=>{}});}
  timeAt(p:RenderPage,i:number):string|undefined{return p.times[i];}
- displayDate(v?:string):string{return formatBedsideMonthDay(v);}
- displayClock(v?:string):string{return formatBedsideHourMinute(v);}
+ displayDate(v?:string):string{return formatShanghaiMonthDay(v);}
+ displayClock(v?:string):string{return formatShanghaiHourMinute(v);}
  genderText(v:any):string{return ['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
  onExtraChanged():void{if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
  saveExtraNow():void{this.onExtraChanged();}

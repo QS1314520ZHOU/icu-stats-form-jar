@@ -7,6 +7,7 @@ import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnI
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { measureRowCapacity } from './form-measure.util';
 
 const SCORE_TYPE = 'patientFallDangerLJRMYY';
@@ -495,10 +496,10 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     if (!x) return ''; let i = -1; for (const s of [';', '；', ',', '，']) { const j = x.indexOf(s); if (j >= 0 && (i < 0 || j < i)) i = j; }
     return i >= 0 ? x.substring(0, i).trim() : x.trim();
   }
-  fmtDate(v?: string): string { if (!v) return ''; const d = new Date(v); if (Number.isNaN(d.getTime())) return v; const p = (n: number) => `${n}`.padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
-  fmtTime(v?: string): string { if (!v) return ''; const d = new Date(v); if (Number.isNaN(d.getTime())) return ''; const p = (n: number) => `${n}`.padStart(2, '0'); return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+  fmtDate(v?: string): string { return formatShanghaiDate(v) || ''; }
+  fmtTime(v?: string): string { return formatShanghaiTime(v) || ''; }
   private num(v: any): number | null { if (v === null || v === undefined || v === '') return null; const n = Number(v); return isNaN(n) ? null : n; }
-  private ts(v?: string): number { const t = v ? new Date(v).getTime() : 0; return isNaN(t) ? 0 : t; }
+  private ts(v?: string): number { return databaseTimeValue(v); }
 
   onPrint(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];

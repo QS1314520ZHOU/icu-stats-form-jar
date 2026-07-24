@@ -24,6 +24,7 @@ import {
   tap,
 } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { databaseTimeValue, formatShanghaiDateTime } from './form-date.util';
 
 /* ============================= 配置区 ============================= */
 
@@ -530,16 +531,7 @@ private paginate(): void {
     if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }
   }
 
-  fmtDateTime(v?: string): string {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return v;
-    const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  }
+  fmtDateTime(v?: string): string { return formatShanghaiDateTime(v) || v || ''; }
 
-  private ts(v?: string): number {
-    const t = v ? new Date(v).getTime() : 0;
-    return isNaN(t) ? 0 : t;
-  }
+  private ts(v?: string): number { return databaseTimeValue(v); }
 }

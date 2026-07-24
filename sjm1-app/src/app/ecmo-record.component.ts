@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
-import { bedsideTimeValue, formatBedsideHourMinute, formatBedsideMonthDay } from './form-date.util';
+import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 
 interface BedsideRecord {
   id?: string; pid: string | number; code: string; time: string;
@@ -70,6 +70,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   readonly codes = Array.from(new Set(ECMO_GROUPS.flatMap(g => g.metrics.flatMap(m => [m.code, ...(m.aliases ?? [])]))));
   readonly queryCodes = Array.from(new Set([...this.codes, 'param_Yishi']));
   private signatureRecords: Array<{time: string; instant: number; editUser: string}> = [];
+  private accountNameMap = new Map<string, string>();
 
   patient: any = null; account: any = null;
   pid = ''; age: number | null = null; diagnosisDisplay = '';
@@ -155,13 +156,15 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
         const allCodes = new Set(this.queryCodes.map(c => this.norm(c)));
         this.records = source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && allCodes.has(this.norm(r.code)));
         // extract param_Yishi signatures
+        const editUserIds = new Set<string>();
         source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && this.norm(r.code) === 'param_Yishi')
           .forEach(r => {
             const user = this.norm(r.editUser);
             const time = this.norm(r.time);
-            if (user && time) this.signatureRecords.push({ time, instant: bedsideTimeValue(time), editUser: user });
+            if (user && time) { this.signatureRecords.push({ time, instant: databaseTimeValue(time), editUser: user }); editUserIds.add(user); }
           });
         this.signatureRecords.sort((a, b) => a.instant - b.instant);
+        if (editUserIds.size) this.loadAccountNames([...editUserIds]);
         this.buildValueMap(); this.buildPages();
         this.loading = false; this.cdr.detectChanges();
       },
@@ -185,17 +188,17 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   /* 签名 — 来自bedside param_Yishi.editUser */
   signatureAt(time: string | undefined): string {
     if (!time) return '';
-    const target = bedsideTimeValue(time);
+    const target = databaseTimeValue(time);
     if (!Number.isFinite(target)) return '';
     for (let i = this.signatureRecords.length - 1; i >= 0; i--) {
       const s = this.signatureRecords[i];
-      if (s.instant <= target && s.editUser) return s.editUser;
+      if (s.instant <= target && s.editUser) return this.accountNameMap.get(s.editUser) || s.editUser;
     }
     return '';
   }
 
-  displayDate(time: string | undefined): string { return formatBedsideMonthDay(time); }
-  displayClock(time: string | undefined): string { return formatBedsideHourMinute(time); }
+  displayDate(time: string | undefined): string { return formatShanghaiMonthDay(time); }
+  displayClock(time: string | undefined): string { return formatShanghaiHourMinute(time); }
   timeAt(page: RenderPage, idx: number): string | undefined { return page.times[idx]; }
 
   /* ---- 耗材 ---- */
@@ -250,6 +253,15 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     for (const r of ordered) { const c = this.norm(r.code); const t = this.timeKey(r.time); if (!c || !t) continue; this.values.set(this.valueKey(c, t), String(r.strVal ?? '')); }
   }
 
+  private loadAccountNames(ids: string[]): void {
+    if (!ids.length) return;
+    const params = new HttpParams().set('ids', ids.join(','));
+    this.http.get<any[]>('/api/v1/icu/accounts/listByIds', { params }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: rows => { (Array.isArray(rows) ? rows : []).forEach(r => { const id = this.norm(r?.accountId ?? r?._id ?? r?.id); const name = this.norm(r?.accountName ?? r?.trueName ?? r?.name); if (id && name) this.accountNameMap.set(id, name); }); this.cdr.detectChanges(); },
+      error: () => {}
+    });
+  }
+
   private buildPages(): void {
     const uniqueTimes = Array.from(new Set(this.records.map(r => String(r.time || '').trim()).filter(Boolean))).sort((a, b) => this.ts(a) - this.ts(b));
     const pages: RenderPage[] = [];
@@ -260,6 +272,6 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     this.selectedPrintPage = null;
   }
 
-  private ts(v?: string): number { return bedsideTimeValue(v); }
+  private ts(v?: string): number { return databaseTimeValue(v); }
   private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (Number.isNaN(b.getTime())) return null; const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a >= 0 ? a : null; }
 }
