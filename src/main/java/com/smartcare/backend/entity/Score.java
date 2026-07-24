@@ -17,6 +17,7 @@ public class Score {
     private String inputUserId;
     private String inputUser;
     private String remarks;
+    private String ohter;
     private List<NurseMeasure> nurseMeasureList;
     private ToleranceScore toleranceScore;
     private CommitSuicideScore commitSuicideScore;
@@ -218,6 +219,8 @@ public class Score {
     public void setCommitSuicideScore(CommitSuicideScore commitSuicideScore) { this.commitSuicideScore = commitSuicideScore; }
     public String getRemarks() { return remarks; }
     public void setRemarks(String remarks) { this.remarks = remarks; }
+    public String getOhter() { return ohter; }
+    public void setOhter(String ohter) { this.ohter = ohter; }
     public IncontinenceScore getIncontinenceScore() { return incontinenceScore; }
     public void setIncontinenceScore(IncontinenceScore incontinenceScore) { this.incontinenceScore = incontinenceScore; }
     public SelfCareAbility getSelfCareAbility() { return selfCareAbility; }
