@@ -13,7 +13,7 @@ type SaveState='idle'|'saving'|'saved'|'error';
 const IABP_GROUPS:IabpGroup[]=[
  {name:'监测数据',metrics:[
   {label:'心率',code:'param_iabp心率'},
-  {label:'反搏压 mmHg',code:'param_反搏压'},
+  {label:'反搏压 mmHg',code:'param_反博压'},
   {label:'收缩压 mmHg',code:'param_iabp收缩压'},
   {label:'舒张压 mmHg',code:'param_iabp舒张压'},
   {label:'平均动脉压 mmHg',code:'param_iabp平均压'},
@@ -22,7 +22,7 @@ const IABP_GROUPS:IabpGroup[]=[
   {label:'操作模式（Q4H）',code:'param_触发模式'},
   {label:'触发信号（Q4H）',code:'param_触发信号'},
   {label:'压力调整（Q4H）',code:'param_压力调整'},
-  {label:'反搏辅助频率（Q4H）',code:'param_反搏辅助频率'},
+  {label:'反搏辅助频率（Q4H）',code:'param_反博辅助频率'},
  ]},
  {name:'传感器',metrics:[
   {label:'导管冲洗与校零（Q4H）',code:'param_是否正确执行冲洗导管与校零'},
