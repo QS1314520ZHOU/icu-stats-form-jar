@@ -192,7 +192,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     if (!Number.isFinite(target)) return '';
     for (let i = this.signatureRecords.length - 1; i >= 0; i--) {
       const s = this.signatureRecords[i];
-      if (s.instant <= target && s.editUser) return this.accountNameMap.get(s.editUser) || s.editUser;
+      if (s.instant <= target && s.editUser) return this.accountNameMap.get(s.editUser) || '';
     }
     return '';
   }

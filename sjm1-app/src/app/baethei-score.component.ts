@@ -649,5 +649,5 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     const n = Number(v);
     return isNaN(n) ? null : n;
   }
-  private ts(v?: string): number { return databaseTimeValue(v); }
+  private ts(v?: string): number { return databaseTimeValue(v) || 0; }
 }

@@ -51,7 +51,7 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
  private readonly destroy$=new Subject<void>();
  private readonly extraSave$=new Subject<void>();
  private readonly values=new Map<string,string>();
- private signatureRecords:Array<{time:string;instant:number;editUser:string}>=[]=[];
+ private signatureRecords:Array<{time:string;instant:number;editUser:string}>=[];
  private accountNameMap=new Map<string,string>();
 
  readonly groups=IABP_GROUPS;
@@ -103,7 +103,7 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
   if(!Number.isFinite(target))return'';
   for(let i=this.signatureRecords.length-1;i>=0;i--){
    const s=this.signatureRecords[i];
-   if(s.instant<=target&&s.editUser)return this.accountNameMap.get(s.editUser)||s.editUser;
+   if(s.instant<=target&&s.editUser)return this.accountNameMap.get(s.editUser)||'';
   }
   return'';
  }

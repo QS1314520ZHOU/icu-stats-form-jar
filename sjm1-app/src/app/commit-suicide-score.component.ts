@@ -533,5 +533,5 @@ private paginate(): void {
 
   fmtDateTime(v?: string): string { return formatShanghaiDateTime(v) || v || ''; }
 
-  private ts(v?: string): number { return databaseTimeValue(v); }
+  private ts(v?: string): number { return databaseTimeValue(v) || 0; }
 }

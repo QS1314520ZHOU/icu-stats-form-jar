@@ -499,7 +499,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   fmtDate(v?: string): string { return formatShanghaiDate(v) || ''; }
   fmtTime(v?: string): string { return formatShanghaiTime(v) || ''; }
   private num(v: any): number | null { if (v === null || v === undefined || v === '') return null; const n = Number(v); return isNaN(n) ? null : n; }
-  private ts(v?: string): number { return databaseTimeValue(v); }
+  private ts(v?: string): number { return databaseTimeValue(v) || 0; }
 
   onPrint(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];

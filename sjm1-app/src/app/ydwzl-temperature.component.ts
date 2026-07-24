@@ -342,6 +342,21 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     const kept = [...map.values()].filter(col => !!(col.body || col.water || col.cool || col.warm));
     this.columns = kept.sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
+    // 签名：收集param_Yishi记录，按业务规则向前匹配
+    const yishiRecords = this.records
+      .filter(r => r.code === CODE_YISHI && r.editUser && r.time)
+      .map(r => ({ instant: databaseTimeValue(r.time), editUser: r.editUser! }))
+      .sort((a, b) => a.instant - b.instant);
+
+    for (const col of this.columns) {
+      const targetInstant = databaseTimeValue(col.time);
+      if (!Number.isFinite(targetInstant)) continue;
+      for (let i = yishiRecords.length - 1; i >= 0; i--) {
+        const s = yishiRecords[i];
+        if (s.instant <= targetInstant && s.editUser) { col.signUserId = s.editUser; break; }
+      }
+    }
+
     // 降温/复温措施 → 圈号推导，收集"其他"文本
     const coolOthers = new Set<string>();
     const warmOthers = new Set<string>();
