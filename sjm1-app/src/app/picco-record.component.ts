@@ -25,7 +25,7 @@ const PICCO_METRICS: PiccoMetric[] = [
  {label:'SVV（每搏量变异）',normal:'≤10%',code:'param_SVV(每搏量变异)'},
  {label:'TB（血液温度）',normal:'℃',code:'param_TB(血液温度)'},
  {label:'ITBI（胸腔内血容积指数）',normal:'850–1000 ml/㎡',code:'param_ITBI(胸腔内血容积指数)'},
- {label:'LCSWI（左心每搏作功指数）',normal:'50–62',code:'param_LCSWI(左心每搏作功指数)'},
+ {label:'LCSWI（左心每搏作功指数）',normal:'50–62',code:'param_LCSWI(左心每搏作做功指数)'},
  {label:'CFI（心功能指数）',normal:'4.5–6.5 L/min',code:'param_CFI(心功能指数)'},
  {label:'被动抬腿试验',normal:'',code:'param_被动抬腿试验'},
 ];
