@@ -23,6 +23,7 @@
 .pec{cursor:pointer;transition:background .15s}.pec:hover{background:#eef6ff}
 .dual{display:flex;gap:2px;min-width:0;width:100%}.dual select{min-width:0;width:50%;flex:1 1 0}
 .tx input:focus,.tx select:focus{outline:1px solid #2783de;outline-offset:-1px}
+.adverse-reaction-options{display:flex;width:100%;min-width:0;align-items:center;justify-content:center;gap:2mm;white-space:nowrap}.adverse-reaction-options .pr{flex:0 0 auto;margin:0}
 .loading{padding:14px 16px;font-family:"SimSun","宋体",serif}
 .loading.error{color:#b42318}
 
