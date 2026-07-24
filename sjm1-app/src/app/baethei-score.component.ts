@@ -50,7 +50,7 @@ interface SelfCareAbility {
 interface ScoreRecord {
   _id?: string; pid?: string; time?: string; scoreType?: string;
   total?: number; conclusion?: string; valid?: boolean;
-  inputUserId?: string; inputUser?: string; remarks?: string;
+  inputUserId?: string; inputUser?: string; ohter?: string; remarks?: string;
   selfCareAbility?: SelfCareAbility;
 }
 interface BarthelRow {
@@ -58,7 +58,7 @@ interface BarthelRow {
   scores: Record<string, number | null>;
   total: number | null;
   grade: string;
-  remarks: string;
+  other: string;
   signUserId?: string;
   signName?: string;
 }
@@ -143,7 +143,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
               <td *ngFor="let it of ITEMS">{{ r ? itemVal(r, it.key) : '' }}</td>
               <td class="total-col">{{ r && r.total !== null ? r.total : '' }}</td>
               <td class="grade-col">{{ r ? r.grade : '' }}</td>
-              <td class="other-cell">{{ r ? r.remarks : '' }}</td>
+              <td class="other-cell"><div class="other-value">{{ r ? r.other : '' }}</div></td>
               <td class="sign-col">{{ r ? (r.signName || '') : '' }}</td>
             </tr>
 
@@ -189,11 +189,12 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .record-table { width:100%; border-collapse:collapse; font-family:'SimSun', '宋体', serif; font-size:9pt; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:2px 1px; word-break:break-all; height:28px; vertical-align:middle; }
     .record-table th { background:transparent; font-weight:700; }
-    .record-table th,
-    .record-table td { color:#000; }
+    .record-table th,.record-table td { color:#000; }
     .record-table th { font-weight:700; }
-    .record-table tr.data-row td { font-weight:400; }
-    .date-col { width:56px; }
+    .record-table tr.data-row td { font-weight:400; min-height:28px; height:auto; vertical-align:middle; }
+    .record-table tr.data-row { break-inside:avoid; page-break-inside:avoid; }
+    .record-table th.date-col,.record-table td.date-col { overflow:hidden; white-space:normal; word-break:normal; }
+    .date-col { width:72px; min-width:72px; }
     .item-label-col { width:58px; }
     .item-col { width:auto; }
     .total-col { width:38px; }
@@ -208,8 +209,9 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .legend-blank { background:#f7f7f7; }
     .legend-total { background:#f7f7f7; }
 
-    .dt-date,.dt-time { display:block; white-space:nowrap; line-height:1.25; }
-    .other-cell { text-align:left; padding-left:5px; }
+    .dt-date,.dt-time { display:block; width:100%; white-space:nowrap; word-break:normal; overflow-wrap:normal; text-align:center; line-height:1.25; }
+    .other-cell { text-align:left; padding:3px 5px; white-space:normal; word-break:break-word; overflow-wrap:anywhere; line-height:1.3; overflow:visible; }
+    .other-value { min-height:22px; display:flex; align-items:center; white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
 
     .footnote { margin-top:6px; margin-bottom:10mm; font-family:'SimSun', '宋体', serif; font-size:9.5pt; line-height:1.3; text-align:left; }
     .footnote .fn { padding-left:2em; text-indent:-2em; margin:1px 0; }
@@ -259,7 +261,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   /** 屏蔽的系统账号（按 trueName 精确匹配） */
   private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
 
-  maxRowsPerPage = 12;
+  readonly maxRowsPerPage = 10;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -346,7 +348,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
           scores,
           total: this.num(r.total),
           grade: this.gradeOf(r.conclusion || ''),
-          remarks: r.remarks || '',
+          other: String(r.ohter ?? '').trim(),
           signUserId: r.inputUserId,
           signName: r.inputUser || '',
         } as BarthelRow;
@@ -397,50 +399,105 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private async autoPaginate(): Promise<void> {
-    try {
-      const title = this.hospitalName + '住院患者日常生活能力评估单';
-      const fixedHtml = '<div class="sheet-head"><div class="title-line">' + title + '</div></div>' +
-        '<div class="patient-info-row"><span class="info-item"><b>病区：</b>' + this.deptName + '</span></div>' +
-        '<table class="record-table"><thead><tr><th class="date-col" rowspan="6">日期时间</th>' +
-        '<th colspan="12">日常生活能力评估（Barthel 指数）</th>' +
-        '<th class="grade-col" rowspan="6">分级</th><th class="other-col" rowspan="6">其他</th><th class="sign-col" rowspan="6">签名</th></tr>' +
-        '<tr><th class="item-label-col">项目</th><th>进食</th><th>洗浴</th><th>修饰</th><th>穿[脱]衣</th><th>控制大便</th><th>控制小便</th><th>如厕</th><th>床椅移动</th><th>平地行走</th><th>上下楼梯</th><th class="total-col">总分</th></tr>' +
-        '<tr class="legend-row"><th class="legend-level">完全独立</th><td>10</td><td>5</td><td>5</td><td>10</td><td>10</td><td>10</td><td>10</td><td>15</td><td>15</td><td>10</td><td class="legend-total"></td></tr>' +
-        '<tr class="legend-row"><th class="legend-level">需部分帮助</th><td>5</td><td>0</td><td>0</td><td>5</td><td>5偶尔</td><td>5偶尔</td><td>5</td><td>10</td><td>10</td><td>5</td><td class="legend-total"></td></tr>' +
-        '<tr class="legend-row"><th class="legend-level">需极大帮助</th><td>0</td><td></td><td></td><td>0</td><td>0失控</td><td>0失控</td><td>0</td><td>5</td><td>5</td><td>0</td><td class="legend-total"></td></tr>' +
-        '<tr class="legend-row"><th class="legend-level">完全依赖</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>0</td><td>0</td><td></td><td class="legend-total"></td></tr>' +
-        '</thead></table>' +
-        '<div class="footnote"><div>备注：</div></div>';
-      const rowHtml = '<table class="record-table"><tr class="data-row"><td class="date-cell"><span class="dt-date">2026-01-01</span><span class="dt-time">12:00:00</span></td>' +
-        '<td class="item-label-col"></td><td>10</td><td>5</td><td>5</td><td>10</td><td>10</td><td>10</td><td>10</td><td>15</td><td>15</td><td>10</td><td class="total-col">100</td>' +
-        '<td class="grade-col">无依赖</td><td class="other-cell"></td><td class="sign-col"></td></tr></table>';
-      const capacity = await measureRowCapacity(fixedHtml, rowHtml, { safetyMargin: 8 });
-      this.maxRowsPerPage = Math.max(5, Math.min(12, capacity));
-    } catch(e) { /* keep fallback */ }
-    this.paginate();
+    // 测量固定区域高度
+    const fixedHeight = await this.measureFixedHeight();
+    const rowHeights = await this.measureAllRowHeights();
+    this.paginateWithHeights(fixedHeight, rowHeights);
     this.cdr.detectChanges();
   }
 
-  private paginate(): void {
-    const per = this.maxRowsPerPage;
+  private paginateWithHeights(fixedHeight: number, rowHeights: Map<string, number>): void {
+    const A4_H = 210 * (96 / 25.4); // A4横向高度 px
+    const PAGE_PAD = 22; // 上下padding
+    const FOOTER = 80; // 备注+审核签名+页码
+    const available = A4_H - PAGE_PAD - fixedHeight - FOOTER;
+    const MIN_ROW_H = 28;
+    const MAX_ROWS = this.maxRowsPerPage;
     const pages: RenderPage[] = [];
-    if (!this.rows.length) {
-      pages.push({ index: 1, rows: [] });
-    } else {
-      for (let i = 0; i < this.rows.length; i += per) {
-        pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) });
+    let curRows: BarthelRow[] = [];
+    let usedH = 0;
+    for (const row of this.rows) {
+      const rh = rowHeights.get(row.time) || MIN_ROW_H;
+      const reachCount = curRows.length >= MAX_ROWS;
+      const exceedHeight = curRows.length > 0 && usedH + rh > available;
+      if (reachCount || exceedHeight) {
+        pages.push({ index: pages.length + 1, rows: curRows });
+        curRows = [];
+        usedH = 0;
       }
+      curRows.push(row);
+      usedH += rh;
     }
-    this.pages = pages;
-    if (this.selectedPage !== null && this.selectedPage > pages.length) {
-      this.selectedPage = null;
+    if (curRows.length) pages.push({ index: pages.length + 1, rows: curRows });
+    if (!pages.length) pages.push({ index: 1, rows: [] });
+    this.pages = pages.map((p, i) => ({ ...p, index: i + 1 }));
+    if (this.selectedPage !== null && this.selectedPage > this.pages.length) this.selectedPage = null;
+  }
+
+  private async measureFixedHeight(): Promise<number> {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:-99999px;top:0;visibility:hidden;width:297mm;pointer-events:none;font-family:SimSun,宋体,serif;font-size:9pt';
+    el.innerHTML = `<div style="text-align:center;font:700 24pt SimHei,黑体,sans-serif;line-height:1.35">${this.hospitalName}住院患者日常生活能力评估单</div>
+      <div style="display:flex;gap:16px;font-size:13pt;line-height:1.3"><span>病区：</span><span>姓名：</span><span>床号：</span><span>住院号：</span><span>年龄：</span><span>性别：</span><span>诊断：</span></div>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:9pt"><thead>
+      <tr><th style="border:1px solid #000;padding:2px 1px;height:28px;width:72px" rowspan="6">日期时间</th><th style="border:1px solid #000;padding:2px 1px;height:28px" colspan="12">日常生活能力评估（Barthel 指数）</th><th style="border:1px solid #000;padding:2px 1px;height:28px" rowspan="6">分级</th><th style="border:1px solid #000;padding:2px 1px;height:28px" rowspan="6">其他</th><th style="border:1px solid #000;padding:2px 1px;height:28px" rowspan="6">签名</th></tr>
+      <tr><th style="border:1px solid #000;padding:2px 1px;height:28px">项目</th><th style="border:1px solid #000;height:28px">进食</th><th style="border:1px solid #000;height:28px">洗浴</th><th style="border:1px solid #000;height:28px">修饰</th><th style="border:1px solid #000;height:28px">穿[脱]衣</th><th style="border:1px solid #000;height:28px">控制大便</th><th style="border:1px solid #000;height:28px">控制小便</th><th style="border:1px solid #000;height:28px">如厕</th><th style="border:1px solid #000;height:28px">床椅移动</th><th style="border:1px solid #000;height:28px">平地行走</th><th style="border:1px solid #000;height:28px">上下楼梯</th><th style="border:1px solid #000;height:28px">总分</th></tr>
+      <tr><th style="border:1px solid #000;height:28px">完全独立</th><td style="border:1px solid #000;height:28px">10</td><td>5</td><td>5</td><td>10</td><td>10</td><td>10</td><td>10</td><td>15</td><td>15</td><td>10</td><td style="border:1px solid #000;height:28px"></td></tr>
+      <tr><th style="border:1px solid #000;height:28px">需部分帮助</th><td style="border:1px solid #000;height:28px">5</td><td>0</td><td>0</td><td>5</td><td>5偶尔</td><td>5偶尔</td><td>5</td><td>10</td><td>10</td><td>5</td><td style="border:1px solid #000;height:28px"></td></tr>
+      <tr><th style="border:1px solid #000;height:28px">需极大帮助</th><td style="border:1px solid #000;height:28px">0</td><td></td><td></td><td>0</td><td>0失控</td><td>0失控</td><td>0</td><td>5</td><td>5</td><td>0</td><td style="border:1px solid #000;height:28px"></td></tr>
+      <tr><th style="border:1px solid #000;height:28px">完全依赖</th><td style="border:1px solid #000;height:28px"></td><td></td><td></td><td></td><td></td><td></td><td></td><td>0</td><td>0</td><td></td><td style="border:1px solid #000;height:28px"></td></tr>
+      </thead></table>
+      <div style="margin-top:6px;font-size:9.5pt;line-height:1.3">备注：</div>`;
+    document.body.appendChild(el);
+    const h = el.getBoundingClientRect().height;
+    document.body.removeChild(el);
+    return this.pxToMm(h);
+  }
+
+  private async measureAllRowHeights(): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-99999px;top:0;visibility:hidden;width:297mm;pointer-events:none;font-family:SimSun,宋体,serif;font-size:9pt';
+    const table = document.createElement('table');
+    table.style.cssText = 'width:100%;border-collapse:collapse;table-layout:fixed;font-size:9pt';
+    table.innerHTML = '<tbody id="measure-body"></tbody>';
+    container.appendChild(table);
+    document.body.appendChild(container);
+    const tbody = container.querySelector('#measure-body')!;
+    for (const row of this.rows) {
+      const tr = document.createElement('tr');
+      tr.className = 'data-row';
+      tr.innerHTML = `<td class="date-cell" style="border:1px solid #000;padding:2px 1px;width:72px;text-align:center;vertical-align:middle"><span class="dt-date" style="display:block;text-align:center;line-height:1.25">${this.fmtDate(row.time)}</span><span class="dt-time" style="display:block;text-align:center;line-height:1.25">${this.fmtTime(row.time)}</span></td>
+        <td style="border:1px solid #000;height:28px"></td>
+        ${ITEMS.map(it => `<td style="border:1px solid #000;height:28px;text-align:center">${this.itemVal(row, it.key)}</td>`).join('')}
+        <td style="border:1px solid #000;height:28px;text-align:center">${row.total ?? ''}</td>
+        <td style="border:1px solid #000;height:28px;text-align:center">${row.grade}</td>
+        <td class="other-cell" style="border:1px solid #000;text-align:left;padding:3px 5px;white-space:normal;word-break:break-word;overflow-wrap:anywhere"><div style="min-height:22px;display:flex;align-items:center;white-space:normal;word-break:break-word">${row.other || ''}</div></td>
+        <td style="border:1px solid #000;height:28px;text-align:center">${row.signName || ''}</td>`;
+      tbody.appendChild(tr);
+      const h = tr.getBoundingClientRect().height;
+      map.set(row.time, this.pxToMm(h));
     }
+    document.body.removeChild(container);
+    return map;
+  }
+
+  private pxToMm(px: number): number {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;left:-99999px;width:100mm;height:1px;visibility:hidden';
+    document.body.appendChild(probe);
+    const ppm = probe.getBoundingClientRect().width / 100;
+    document.body.removeChild(probe);
+    return ppm > 0 ? px / ppm : px / (96 / 25.4);
   }
 
   pagePaddedRows(page: RenderPage): (BarthelRow | null)[] {
-    const result: (BarthelRow | null)[] = page.rows.slice(0, this.maxRowsPerPage);
-    while (result.length < this.maxRowsPerPage) result.push(null);
-    return result;
+    const rows = page.rows.slice();
+    const MAX_ROWS = this.maxRowsPerPage;
+    if (rows.length < MAX_ROWS) {
+      for (let i = rows.length; i < MAX_ROWS; i++) rows.push(null as any);
+    }
+    return rows;
   }
 
   private fitScale(): void {
