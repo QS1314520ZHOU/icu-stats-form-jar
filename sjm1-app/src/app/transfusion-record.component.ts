@@ -128,6 +128,23 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
 
   onDiscreteChange(page: TransfusionPage): void { this.onPageChanged(page); this.flushPageSave(page); }
 
+  setItemValue(page: TransfusionPage, item: TransfusionItem, field: keyof TransfusionItem, value: unknown): void {
+    (item as any)[field] = value ?? '';
+    this.onPageChanged(page);
+    this.flushPageSave(page);
+  }
+
+  setVitalValue(page: TransfusionPage, vitals: VitalSigns, field: keyof VitalSigns, value: string): void {
+    vitals[field] = value ?? '';
+    this.onPageChanged(page);
+  }
+
+  setSignerAndSave(page: TransfusionPage, item: TransfusionItem, field: keyof TransfusionItem, accountId: string): void {
+    this.setSigner(item, field, accountId);
+    this.onPageChanged(page);
+    this.flushPageSave(page);
+  }
+
   onSelectedPageChange(next: number): void { const cur = this.selectedPage; if (cur && this.dirtyPageIds.has(cur.pageId)) this.flushPageSave(cur); this.selectedPageNo = Number(next); }
 
   print(): void {
