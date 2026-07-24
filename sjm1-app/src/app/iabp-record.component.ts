@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
+import { bedsideTimeValue, formatBedsideHourMinute, formatBedsideMonthDay } from './form-date.util';
 
 interface BedsideRecord { pid:string|number; code:string; time:string; strVal?:string; valid:boolean|string|number; }
 interface IabpMetric { label:string; code:string; }
@@ -66,12 +67,12 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
  private reset():void{this.pid='';this.patient=null;this.values.clear();this.pages=[{index:1,times:[]}];}
  load():void{if(!this.pid)return;this.loading=true;this.loadError='';const params=new HttpParams().set('pid',this.pid).set('codes',this.codes.join(','));this.http.get<BedsideRecord[]|{data?:BedsideRecord[]}>(`${this.API}/listByPid`,{params}).pipe(takeUntil(this.destroy$)).subscribe({next:r=>{const src=Array.isArray(r)?r:(r.data||[]);this.build(src.filter(x=>x.valid===true&&String(x.pid)===this.pid));this.loading=false;this.cdr.detectChanges();},error:e=>{this.loadError=e?.error?.message||'IABP记录加载失败';this.loading=false;this.build([]);this.cdr.detectChanges();}});}
  private norm(v:unknown):string{return String(v??'').trim();}
-private build(records:BedsideRecord[]):void{this.values.clear();const allowed=new Set(this.codes.map(c=>this.norm(c)));const timeSet=new Set<string>();records.forEach(r=>{const pid=this.norm(r.pid),code=this.norm(r.code),time=this.norm(r.time);const ok=r.valid===true||r.valid===1||r.valid==='1'||String(r.valid).toLowerCase()==='true';if(ok&&pid===this.pid&&allowed.has(code)&&time){this.values.set(`${code}@@${time}`,this.norm(r.strVal));timeSet.add(time);}});const times=[...timeSet].sort((a,b)=>new Date(a).getTime()-new Date(b).getTime());this.pages=[];for(let i=0;i<times.length;i+=11)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+11)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
+private build(records:BedsideRecord[]):void{this.values.clear();const allowed=new Set(this.codes.map(c=>this.norm(c)));const timeSet=new Set<string>();records.forEach(r=>{const pid=this.norm(r.pid),code=this.norm(r.code),time=this.norm(r.time);const ok=r.valid===true||r.valid===1||r.valid==='1'||String(r.valid).toLowerCase()==='true';if(ok&&pid===this.pid&&allowed.has(code)&&time){this.values.set(`${code}@@${time}`,this.norm(r.strVal));timeSet.add(time);}});const times=[...timeSet].sort((a,b)=>bedsideTimeValue(a)-bedsideTimeValue(b));this.pages=[];for(let i=0;i<times.length;i+=11)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+11)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
  metricValue(m:IabpMetric,time?:string):string{return time?this.values.get(`${this.norm(m.code)}@@${this.norm(time)}`)??'':'';}
  timeAt(p:RenderPage,i:number):string|undefined{return p.times[i];}
  signatureAt(time?:string):string{return time?String(this.account?.trueName||''):'';}
- displayDate(v?:string):string{const d=v?new Date(v):null;return d&&!isNaN(d.getTime())?`${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:'';}
- displayClock(v?:string):string{const d=v?new Date(v):null;return d&&!isNaN(d.getTime())?`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'';}
+ displayDate(v?:string):string{return formatBedsideMonthDay(v);}
+ displayClock(v?:string):string{return formatBedsideHourMinute(v);}
  genderText(v:any):string{return ['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
  onExtraChanged():void{if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
  saveExtraNow():void{this.onExtraChanged();}

@@ -10,7 +10,7 @@
   <strong>导管置入长度(cm)：</strong><input class="length-input" type="number" step="0.1" min="0" [(ngModel)]="catheterLengthCm" (input)="onExtraChanged()" (blur)="saveExtraNow()"><small class="save-state" [class.bad]="extraSaveState==='error'">{{extraSaveState==='saving'?'保存中…':extraSaveState==='saved'?'已保存':extraSaveState==='error'?'保存失败':''}}</small>
  </div>
  <table class="iabp-table"><colgroup><col class="group-col"><col class="metric-col"><col *ngFor="let i of columnIndexes" class="value-col"></colgroup>
-  <thead><tr><th colspan="2"></th><th *ngFor="let i of columnIndexes"><span>{{displayDate(timeAt(page,i))}}</span><span>{{displayClock(timeAt(page,i))}}</span></th></tr></thead>
+  <thead><tr><th colspan="2" class="diagonal-time-header"><span class="diagonal-content-label">监测及记录内容</span><span class="diagonal-time-label">时间</span></th><th *ngFor="let i of columnIndexes"><span>{{displayDate(timeAt(page,i))}}</span><span>{{displayClock(timeAt(page,i))}}</span></th></tr></thead>
   <tbody><ng-container *ngFor="let group of groups"><tr *ngFor="let metric of group.metrics;let first=first"><td *ngIf="first" class="group-cell" [attr.rowspan]="group.metrics.length">{{group.name}}</td><td class="metric-cell">{{metric.label}}</td><td *ngFor="let i of columnIndexes">{{metricValue(metric,timeAt(page,i))}}</td></tr></ng-container>
    <tr><td colspan="2">签名</td><td *ngFor="let i of columnIndexes">{{signatureAt(timeAt(page,i))}}</td></tr></tbody>
  </table><div class="page-no">第 {{page.index}} 页　共 {{pages.length}} 页</div>

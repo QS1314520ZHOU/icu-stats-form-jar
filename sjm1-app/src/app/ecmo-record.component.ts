@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
+import { bedsideTimeValue, formatBedsideHourMinute, formatBedsideMonthDay } from './form-date.util';
 
 interface BedsideRecord {
   id?: string; pid: string | number; code: string; time: string;
@@ -173,19 +174,8 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   /* 签名 — 来自宿主SmartCare postMessage的account.trueName */
   signatureAt(time: string | undefined): string { if (!time) return ''; return String(this.account?.trueName ?? '').trim(); }
 
-  displayDate(time: string | undefined): string {
-    if (!time) return '';
-    const d = this.parseDate(time); if (!d) return '';
-    const p = (v: number) => String(v).padStart(2, '0');
-    return `${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  }
-  displayClock(time: string | undefined): string {
-    if (!time) return '';
-    const d = this.parseDate(time); if (!d) return '';
-    const p = (v: number) => String(v).padStart(2, '0');
-    return `${p(d.getHours())}:${p(d.getMinutes())}`;
-  }
-  private parseDate(value: string | undefined): Date | null { if (!value) return null; const d = new Date(value); return Number.isNaN(d.getTime()) ? null : d; }
+  displayDate(time: string | undefined): string { return formatBedsideMonthDay(time); }
+  displayClock(time: string | undefined): string { return formatBedsideHourMinute(time); }
   timeAt(page: RenderPage, idx: number): string | undefined { return page.times[idx]; }
 
   /* ---- 耗材 ---- */
@@ -250,6 +240,6 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     this.selectedPrintPage = null;
   }
 
-  private ts(v?: string): number { if (!v) return 0; const t = new Date(v).getTime(); return Number.isNaN(t) ? 0 : t; }
+  private ts(v?: string): number { return bedsideTimeValue(v); }
   private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (Number.isNaN(b.getTime())) return null; const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a >= 0 ? a : null; }
 }

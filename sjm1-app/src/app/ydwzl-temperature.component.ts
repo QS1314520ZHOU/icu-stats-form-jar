@@ -18,6 +18,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { bedsideTimeValue, formatBedsideDate, formatBedsideHourMinute } from './form-date.util';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -578,20 +579,8 @@ private paginate(): void {
     return age >= 0 ? age : null;
   }
 
-  fmtDate(v?: string): string {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return v;
-    const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  }
-  fmtTime(v?: string): string {
-    if (!v) return '';
-    const d = new Date(v);
-    if (Number.isNaN(d.getTime())) return '';
-    const p = (n: number) => `${n}`.padStart(2, '0');
-    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  }
+  fmtDate(v?: string): string { return formatBedsideDate(v); }
+  fmtTime(v?: string): string { return formatBedsideHourMinute(v); }
   fmtDateTime(v?: string): string {
     if (!v) return '';
     const d = new Date(v);
@@ -600,8 +589,5 @@ private paginate(): void {
     return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
 
-  private ts(v?: string): number {
-    const t = v ? new Date(v).getTime() : 0;
-    return isNaN(t) ? 0 : t;
-  }
+  private ts(v?: string): number { return bedsideTimeValue(v); }
 }

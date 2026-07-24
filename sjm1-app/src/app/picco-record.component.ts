@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
+import { bedsideTimeValue, formatBedsideHourMinute, formatBedsideMonthDay } from './form-date.util';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; }
 interface PiccoMetric { label: string; normal: string; code: string; }
@@ -23,7 +24,7 @@ const PICCO_METRICS: PiccoMetric[] = [
  {label:'SVV（每搏量变异）',normal:'≤10%',code:'param_SVV(每搏量变异)'},
  {label:'TB（血液温度）',normal:'℃',code:'param_TB(血液温度)'},
  {label:'ITBI（胸腔内血容积指数）',normal:'850–1000 ml/㎡',code:'param_ITBI(胸腔内血容积指数)'},
- {label:'LCSWI（左心每搏作功指数）',normal:'50–62',code:'param_LCSWI(左心每搏作功指数)'},
+ {label:'LCSWI（左心每搏作功指数）',normal:'50–62',code:'param_LCSWI(左心每搏作做功指数)'},
  {label:'CFI（心功能指数）',normal:'4.5–6.5 L/min',code:'param_CFI(心功能指数)'},
  {label:'被动抬腿试验',normal:'',code:'param_被动抬腿试验'},
 ];
@@ -49,12 +50,12 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
  private reset():void{this.pid='';this.patient=null;this.values.clear();this.pages=[{index:1,times:[]}];}
  load():void{if(!this.pid)return;this.loading=true;this.loadError='';const params=new HttpParams().set('pid',this.pid).set('codes',this.codes.join(','));this.http.get<BedsideRecord[]|{data:BedsideRecord[]}>(`${this.API}/listByPid`,{params}).pipe(takeUntil(this.destroy$)).subscribe({next:r=>{const src=Array.isArray(r)?r:(r.data||[]);this.build(src.filter(x=>x.valid===true&&String(x.pid)===this.pid));this.loading=false;this.cdr.detectChanges();},error:e=>{this.loadError=e?.error?.message||'PICCO记录加载失败';this.loading=false;this.build([]);this.cdr.detectChanges();}});}
- private build(records:BedsideRecord[]):void{this.values.clear();const codeSet=new Set(this.codes);const timeSet=new Set<string>();records.forEach(r=>{const code=String(r.code||'').trim(),time=String(r.time||'').trim();if(codeSet.has(code)&&time){this.values.set(`${code}@@${time}`,String(r.strVal??''));timeSet.add(time);}});const times=[...timeSet].sort((a,b)=>new Date(a).getTime()-new Date(b).getTime());this.pages=[];for(let i=0;i<times.length;i+=8)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+8)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
+ private build(records:BedsideRecord[]):void{this.values.clear();const codeSet=new Set(this.codes);const timeSet=new Set<string>();records.forEach(r=>{const code=String(r.code||'').trim(),time=String(r.time||'').trim();if(codeSet.has(code)&&time){this.values.set(`${code}@@${time}`,String(r.strVal??''));timeSet.add(time);}});const times=[...timeSet].sort((a,b)=>bedsideTimeValue(a)-bedsideTimeValue(b));this.pages=[];for(let i=0;i<times.length;i+=8)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+8)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
  metricValue(m:PiccoMetric,time?:string):string{return time?this.values.get(`${m.code}@@${time}`)||'':'';}
  signatureAt(time?:string):string{return time?String(this.account?.trueName||''):'';}
  timeAt(p:RenderPage,i:number):string|undefined{return p.times[i];}
- displayDate(v?:string):string{const d=v?new Date(v):null;return d&&!isNaN(d.getTime())?`${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`:'';}
- displayClock(v?:string):string{const d=v?new Date(v):null;return d&&!isNaN(d.getTime())?`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`:'';}
+ displayDate(v?:string):string{return formatBedsideMonthDay(v);}
+ displayClock(v?:string):string{return formatBedsideHourMinute(v);}
  genderText(v:any):string{return ['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
  onExtraChanged():void{if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
  saveExtraNow():void{this.onExtraChanged();}
