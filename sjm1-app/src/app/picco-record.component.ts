@@ -4,7 +4,7 @@ import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switc
 import { HostPatientService } from './services/host-patient.service';
 import { bedsideTimeValue, formatBedsideHourMinute, formatBedsideMonthDay } from './form-date.util';
 
-interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; }
+interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; editUser?: string; }
 interface PiccoMetric { label: string; normal: string; code: string; }
 interface RenderPage { index: number; times: string[]; }
 type SaveState = 'idle'|'saving'|'saved'|'error';
@@ -36,8 +36,10 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  private readonly destroy$=new Subject<void>();
  private readonly extraSave$=new Subject<void>();
  private readonly values=new Map<string,string>();
+ private signatureRecords:Array<{time:string;instant:number;editUser:string}>=[] = [];
  readonly metrics=PICCO_METRICS;
- readonly codes=PICCO_METRICS.map(x=>x.code);
+ readonly metricCodes=PICCO_METRICS.map(x=>x.code);
+ readonly queryCodes=Array.from(new Set([...this.metricCodes,'param_Yishi']));
  patient:any=null; account:any=null; pid=''; age:number|null=null; diagnosisDisplay='';
  loading=false; loadError=''; pages:RenderPage[]=[{index:1,times:[]}]; selectedPrintPage:number|null=null;
  insertionSide:''|'RIGHT'|'LEFT'=''; arteryName=''; catheterLengthCm:number|null=null; extraSaveState:SaveState='idle';
@@ -48,11 +50,11 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;} const next=String(p.id).trim();this.patient=p;this.pid=next;this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
- private reset():void{this.pid='';this.patient=null;this.values.clear();this.pages=[{index:1,times:[]}];}
- load():void{if(!this.pid)return;this.loading=true;this.loadError='';const params=new HttpParams().set('pid',this.pid).set('codes',this.codes.join(','));this.http.get<BedsideRecord[]|{data:BedsideRecord[]}>(`${this.API}/listByPid`,{params}).pipe(takeUntil(this.destroy$)).subscribe({next:r=>{const src=Array.isArray(r)?r:(r.data||[]);this.build(src.filter(x=>x.valid===true&&String(x.pid)===this.pid));this.loading=false;this.cdr.detectChanges();},error:e=>{this.loadError=e?.error?.message||'PICCO记录加载失败';this.loading=false;this.build([]);this.cdr.detectChanges();}});}
- private build(records:BedsideRecord[]):void{this.values.clear();const codeSet=new Set(this.codes);const timeSet=new Set<string>();records.forEach(r=>{const code=String(r.code||'').trim(),time=String(r.time||'').trim();if(codeSet.has(code)&&time){this.values.set(`${code}@@${time}`,String(r.strVal??''));timeSet.add(time);}});const times=[...timeSet].sort((a,b)=>bedsideTimeValue(a)-bedsideTimeValue(b));this.pages=[];for(let i=0;i<times.length;i+=8)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+8)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
+ private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatureRecords=[];this.pages=[{index:1,times:[]}];}
+ load():void{if(!this.pid)return;this.loading=true;this.loadError='';const params=new HttpParams().set('pid',this.pid).set('codes',this.queryCodes.join(','));this.http.get<BedsideRecord[]|{data:BedsideRecord[]}>(`${this.API}/listByPid`,{params}).pipe(takeUntil(this.destroy$)).subscribe({next:r=>{const src=Array.isArray(r)?r:(r.data||[]);this.build(src.filter(x=>x.valid===true&&String(x.pid)===this.pid));this.loading=false;this.cdr.detectChanges();},error:e=>{this.loadError=e?.error?.message||'PICCO记录加载失败';this.loading=false;this.build([]);this.cdr.detectChanges();}});}
+ private build(records:BedsideRecord[]):void{this.values.clear();this.signatureRecords=[];const allowed=new Set(this.metricCodes);const timeSet=new Set<string>();records.forEach(r=>{const code=String(r.code||'').trim(),time=String(r.time||'').trim();if(code==='param_Yishi'){const user=String(r.editUser||'').trim();if(user){this.signatureRecords.push({time,instant:bedsideTimeValue(time),editUser:user});}}else if(allowed.has(code)&&time){this.values.set(`${code}@@${time}`,String(r.strVal??''));timeSet.add(time);}});this.signatureRecords.sort((a,b)=>a.instant-b.instant);const times=[...timeSet].sort((a,b)=>bedsideTimeValue(a)-bedsideTimeValue(b));this.pages=[];for(let i=0;i<times.length;i+=8)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+8)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
  metricValue(m:PiccoMetric,time?:string):string{return time?this.values.get(`${m.code}@@${time}`)||'':'';}
- signatureAt(time?:string):string{return time?String(this.account?.trueName||''):'';}
+ signatureAt(time?:string):string{if(!time)return'';const target=bedsideTimeValue(time);if(!Number.isFinite(target))return'';for(let i=this.signatureRecords.length-1;i>=0;i--){const s=this.signatureRecords[i];if(s.instant<=target&&s.editUser)return s.editUser;}return'';}
  timeAt(p:RenderPage,i:number):string|undefined{return p.times[i];}
  displayDate(v?:string):string{return formatBedsideMonthDay(v);}
  displayClock(v?:string):string{return formatBedsideHourMinute(v);}

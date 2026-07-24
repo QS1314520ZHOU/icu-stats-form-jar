@@ -4,7 +4,7 @@ import { Subject, catchError, debounceTime, map, of, switchMap, takeUntil, tap }
 import { HostPatientService } from './services/host-patient.service';
 import { bedsideTimeValue, formatBedsideHourMinute, formatBedsideMonthDay } from './form-date.util';
 
-interface BedsideRecord { pid:string|number; code:string; time:string; strVal?:string; valid:boolean|string|number; }
+interface BedsideRecord { pid:string|number; code:string; time:string; strVal?:string; valid:boolean|string|number; editUser?:string; }
 interface IabpMetric { label:string; code:string; }
 interface IabpGroup { name:string; metrics:IabpMetric[]; }
 interface RenderPage { index:number; times:string[]; }
@@ -51,8 +51,11 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
  private readonly destroy$=new Subject<void>();
  private readonly extraSave$=new Subject<void>();
  private readonly values=new Map<string,string>();
+ private signatureRecords:Array<{time:string;instant:number;editUser:string}>=[];
+
  readonly groups=IABP_GROUPS;
- readonly codes=IABP_GROUPS.flatMap(g=>g.metrics.map(m=>m.code));
+ readonly metricCodes=IABP_GROUPS.flatMap(g=>g.metrics.map(m=>m.code));
+ readonly queryCodes=Array.from(new Set([...this.metricCodes,'param_Yishi']));
  readonly columnIndexes=[0,1,2,3,4,5,6,7,8,9,10];
  patient:any=null;account:any=null;pid='';age:number|null=null;diagnosisDisplay='';
  loading=false;loadError='';pages:RenderPage[]=[{index:1,times:[]}];selectedPrintPage:number|null=null;
@@ -64,20 +67,51 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
   this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;}this.patient=p;this.pid=String(p.id).trim();this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
- private reset():void{this.pid='';this.patient=null;this.values.clear();this.pages=[{index:1,times:[]}];}
- load():void{if(!this.pid)return;this.loading=true;this.loadError='';const params=new HttpParams().set('pid',this.pid).set('codes',this.codes.join(','));this.http.get<BedsideRecord[]|{data?:BedsideRecord[]}>(`${this.API}/listByPid`,{params}).pipe(takeUntil(this.destroy$)).subscribe({next:r=>{const src=Array.isArray(r)?r:(r.data||[]);this.build(src.filter(x=>x.valid===true&&String(x.pid)===this.pid));this.loading=false;this.cdr.detectChanges();},error:e=>{this.loadError=e?.error?.message||'IABP记录加载失败';this.loading=false;this.build([]);this.cdr.detectChanges();}});}
- private norm(v:unknown):string{return String(v??'').trim();}
-private build(records:BedsideRecord[]):void{this.values.clear();const allowed=new Set(this.codes.map(c=>this.norm(c)));const timeSet=new Set<string>();records.forEach(r=>{const pid=this.norm(r.pid),code=this.norm(r.code),time=this.norm(r.time);const ok=r.valid===true||r.valid===1||r.valid==='1'||String(r.valid).toLowerCase()==='true';if(ok&&pid===this.pid&&allowed.has(code)&&time){this.values.set(`${code}@@${time}`,this.norm(r.strVal));timeSet.add(time);}});const times=[...timeSet].sort((a,b)=>bedsideTimeValue(a)-bedsideTimeValue(b));this.pages=[];for(let i=0;i<times.length;i+=11)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+11)});if(!this.pages.length)this.pages=[{index:1,times:[]}];}
- metricValue(m:IabpMetric,time?:string):string{return time?this.values.get(`${this.norm(m.code)}@@${this.norm(time)}`)??'':'';}
+ private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatureRecords=[];this.pages=[{index:1,times:[]}];}
+ load():void{
+  if(!this.pid)return;this.loading=true;this.loadError='';
+  const params=new HttpParams().set('pid',this.pid).set('codes',this.queryCodes.join(','));
+  this.http.get<BedsideRecord[]|{data?:BedsideRecord[]}>(`${this.API}/listByPid`,{params}).pipe(takeUntil(this.destroy$)).subscribe({
+   next:r=>{const src=Array.isArray(r)?r:(r.data||[]);this.build(src.filter(x=>x.valid===true&&String(x.pid)===this.pid));this.loading=false;this.cdr.detectChanges();},
+   error:e=>{this.loadError=e?.error?.message||'IABP记录加载失败';this.loading=false;this.build([]);this.cdr.detectChanges();}});
+ }
+ private build(records:BedsideRecord[]):void{
+  this.values.clear();this.signatureRecords=[];
+  const allowed=new Set(this.metricCodes.map(c=>this.nm(c)));
+  const timeSet=new Set<string>();
+  records.forEach(r=>{
+   const pid=this.nm(r.pid),code=this.nm(r.code),time=this.nm(r.time);
+   const ok=r.valid===true||r.valid===1||r.valid==='1'||String(r.valid).toLowerCase()==='true';
+   if(!ok||pid!==this.pid||!time)return;
+   if(code==='param_Yishi'){const user=this.nm(r.editUser);if(user){this.signatureRecords.push({time,instant:bedsideTimeValue(time),editUser:user});}}
+   else if(allowed.has(code)){this.values.set(`${code}@@${time}`,this.nm(r.strVal));timeSet.add(time);}
+  });
+  this.signatureRecords.sort((a,b)=>a.instant-b.instant);
+  const times=[...timeSet].sort((a,b)=>bedsideTimeValue(a)-bedsideTimeValue(b));
+  this.pages=[];
+  for(let i=0;i<times.length;i+=11)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+11)});
+  if(!this.pages.length)this.pages=[{index:1,times:[]}];
+ }
+ metricValue(m:IabpMetric,time?:string):string{return time?this.values.get(`${this.nm(m.code)}@@${this.nm(time)}`)??'':'';}
  timeAt(p:RenderPage,i:number):string|undefined{return p.times[i];}
- signatureAt(time?:string):string{return time?String(this.account?.trueName||''):'';}
+ signatureAt(time?:string):string{
+  if(!time)return'';
+  const target=bedsideTimeValue(time);
+  if(!Number.isFinite(target))return'';
+  for(let i=this.signatureRecords.length-1;i>=0;i--){
+   const s=this.signatureRecords[i];
+   if(s.instant<=target&&s.editUser)return s.editUser;
+  }
+  return'';
+ }
  displayDate(v?:string):string{return formatBedsideMonthDay(v);}
  displayClock(v?:string):string{return formatBedsideHourMinute(v);}
- genderText(v:any):string{return ['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
+ genderText(v:any):string{return['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
  onExtraChanged():void{if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
  saveExtraNow():void{this.onExtraChanged();}
  private loadExtra():void{this.insertionSite='';this.otherArtery='';this.catheterLengthCm=null;this.http.get<any>(`${this.EXTRA}/latest`,{params:{pid:this.pid}}).pipe(takeUntil(this.destroy$),catchError(()=>of(null))).subscribe(d=>{if(d?.valid===true){this.insertionSite=d.insertionSite||'';this.otherArtery=d.otherArtery||'';this.catheterLengthCm=d.catheterLengthCm??null;}this.cdr.detectChanges();});}
  print():void{window.print();}
+ private nm(v:unknown):string{return String(v??'').trim();}
  private calcAge(v:any):number|null{if(!v)return null;const d=new Date(v);if(isNaN(d.getTime()))return null;const n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
  private formatDiagnosis(v?:string):string{return v?v.split(/[;；,，]/)[0].trim():'';}
 }

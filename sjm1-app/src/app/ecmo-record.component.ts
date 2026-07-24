@@ -68,6 +68,8 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
 
   readonly groups = ECMO_GROUPS;
   readonly codes = Array.from(new Set(ECMO_GROUPS.flatMap(g => g.metrics.flatMap(m => [m.code, ...(m.aliases ?? [])]))));
+  readonly queryCodes = Array.from(new Set([...this.codes, 'param_Yishi']));
+  private signatureRecords: Array<{time: string; instant: number; editUser: string}> = [];
 
   patient: any = null; account: any = null;
   pid = ''; age: number | null = null; diagnosisDisplay = '';
@@ -145,12 +147,21 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   load(): void {
     if (!this.pid) return;
     this.loading = true; this.loadError = '';
-    const params = new HttpParams().set('pid', this.pid).set('codes', this.codes.join(','));
+    const params = new HttpParams().set('pid', this.pid).set('codes', this.queryCodes.join(','));
     this.http.get<BedsideRecord[] | { data?: BedsideRecord[] }>(`${this.API}/listByPid`, { params }).pipe(takeUntil(this.destroy$)).subscribe({
       next: response => {
         const source = Array.isArray(response) ? response : Array.isArray((response as any)?.data) ? (response as any).data : [];
-        const allCodes = new Set(this.codes.map(c => this.norm(c)));
+        this.signatureRecords = [];
+        const allCodes = new Set(this.queryCodes.map(c => this.norm(c)));
         this.records = source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && allCodes.has(this.norm(r.code)));
+        // extract param_Yishi signatures
+        source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && this.norm(r.code) === 'param_Yishi')
+          .forEach(r => {
+            const user = this.norm(r.editUser);
+            const time = this.norm(r.time);
+            if (user && time) this.signatureRecords.push({ time, instant: bedsideTimeValue(time), editUser: user });
+          });
+        this.signatureRecords.sort((a, b) => a.instant - b.instant);
         this.buildValueMap(); this.buildPages();
         this.loading = false; this.cdr.detectChanges();
       },
@@ -171,8 +182,17 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  /* 签名 — 来自宿主SmartCare postMessage的account.trueName */
-  signatureAt(time: string | undefined): string { if (!time) return ''; return String(this.account?.trueName ?? '').trim(); }
+  /* 签名 — 来自bedside param_Yishi.editUser */
+  signatureAt(time: string | undefined): string {
+    if (!time) return '';
+    const target = bedsideTimeValue(time);
+    if (!Number.isFinite(target)) return '';
+    for (let i = this.signatureRecords.length - 1; i >= 0; i--) {
+      const s = this.signatureRecords[i];
+      if (s.instant <= target && s.editUser) return s.editUser;
+    }
+    return '';
+  }
 
   displayDate(time: string | undefined): string { return formatBedsideMonthDay(time); }
   displayClock(time: string | undefined): string { return formatBedsideHourMinute(time); }
