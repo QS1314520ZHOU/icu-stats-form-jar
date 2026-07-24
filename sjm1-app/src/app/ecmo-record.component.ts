@@ -7,13 +7,12 @@ import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } f
 interface BedsideRecord {
   id?: string; pid: string | number; code: string; time: string;
   strVal?: string; valid: boolean | string | number; editUser?: string; editTime?: string;
-  recordUserName?: string; editUserName?: string;
 }
 
 interface EcmoMetric { label: string; code: string; aliases?: string[]; }
 interface EcmoGroup { name: string; metrics: EcmoMetric[]; }
 
-interface RenderPage { index: number; times: string[]; showConsumables: boolean; }
+interface RenderPage { index: number; timeInstants: number[]; showConsumables: boolean; }
 
 const ECMO_GROUPS: EcmoGroup[] = [
   { name: 'ECMO相关参数', metrics: [
@@ -53,10 +52,8 @@ const ECMO_GROUPS: EcmoGroup[] = [
 type ConsumablesSaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 @Component({
-  standalone: false,
-  selector: 'app-ecmo-record',
-  templateUrl: './ecmo-record.component.html',
-  styleUrls: ['./ecmo-record.component.css'],
+  standalone: false, selector: 'app-ecmo-record',
+  templateUrl: './ecmo-record.component.html', styleUrls: ['./ecmo-record.component.css'],
 })
 export class EcmoRecordComponent implements OnInit, OnDestroy {
   private readonly API = '/api/v1/icu/bedside';
@@ -69,7 +66,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   readonly groups = ECMO_GROUPS;
   readonly codes = Array.from(new Set(ECMO_GROUPS.flatMap(g => g.metrics.flatMap(m => [m.code, ...(m.aliases ?? [])]))));
   readonly queryCodes = Array.from(new Set([...this.codes, 'param_Yishi']));
-  private signatureRecords: Array<{time: string; instant: number; editUser: string}> = [];
+  private yishiRecords: Array<{instant: number; editUser: string}> = [];
   private accountNameMap = new Map<string, string>();
 
   patient: any = null; account: any = null;
@@ -77,7 +74,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
 
   loading = false; loadError = '';
   records: BedsideRecord[] = [];
-  pages: RenderPage[] = [{ index: 1, times: [], showConsumables: true }];
+  pages: RenderPage[] = [{ index: 1, timeInstants: [], showConsumables: true }];
   selectedPrintPage: number | null = null;
 
   consumablesText = '';
@@ -112,13 +109,13 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
 
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(patient => {
-      if (!patient?.id) { this.pid = ''; this.records = []; this.values.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }]; this.cdr.detectChanges(); return; }
+      if (!patient?.id) { this.pid = ''; this.records = []; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.pages = [{ index: 1, timeInstants: [], showConsumables: true }]; this.cdr.detectChanges(); return; }
       const nextPid = String(patient.id).trim();
       if (!nextPid) return;
       const prevPid = this.pid;
       this.pid = nextPid;
       this.setPatient(patient);
-      if (nextPid !== prevPid) { this.records = []; this.values.clear(); this.buildPages(); this.load(); this.loadConsumables(nextPid); }
+      if (nextPid !== prevPid) { this.records = []; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.buildPages(); this.load(); this.loadConsumables(nextPid); }
       this.cdr.detectChanges();
     });
   }
@@ -141,8 +138,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   private setPatient(patient: any): void { this.patient = patient; this.age = this.calcAge(patient?.birthday); this.diagnosisDisplay = this.formatDiagnosis(patient?.clinicalDiagnosis); }
   private formatDiagnosis(d?: string): string { if (!d) return ''; let idx = -1; for (const sep of [';', '；', ',', '，']) { const cur = d.indexOf(sep); if (cur >= 0 && (idx < 0 || cur < idx)) idx = cur; } return idx >= 0 ? d.substring(0, idx).trim() : d.trim(); }
 
-  private norm(v: unknown): string { return String(v ?? '').trim(); }
-  private timeKey(v: unknown): string { return String(v ?? '').trim(); }
+  private nm(v: unknown): string { return String(v ?? '').trim(); }
 
   /* ---- Bedside数据 ---- */
   load(): void {
@@ -152,54 +148,74 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     this.http.get<BedsideRecord[] | { data?: BedsideRecord[] }>(`${this.API}/listByPid`, { params }).pipe(takeUntil(this.destroy$)).subscribe({
       next: response => {
         const source = Array.isArray(response) ? response : Array.isArray((response as any)?.data) ? (response as any).data : [];
-        this.signatureRecords = [];
-        const allCodes = new Set(this.queryCodes.map(c => this.norm(c)));
-        this.records = source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && allCodes.has(this.norm(r.code)));
-        // extract param_Yishi signatures
-        const editUserIds = new Set<string>();
-        source.filter(r => r.valid === true && this.norm(r.pid) === this.pid && this.norm(r.code) === 'param_Yishi')
-          .forEach(r => {
-            const user = this.norm(r.editUser);
-            const time = this.norm(r.time);
-            if (user && time) { this.signatureRecords.push({ time, instant: databaseTimeValue(time), editUser: user }); editUserIds.add(user); }
-          });
-        this.signatureRecords.sort((a, b) => a.instant - b.instant);
-        if (editUserIds.size) this.loadAccountNames([...editUserIds]);
-        this.buildValueMap(); this.buildPages();
+        this.build(source);
         this.loading = false; this.cdr.detectChanges();
       },
       error: e => {
-        this.records = []; this.values.clear(); this.pages = [{ index: 1, times: [], showConsumables: true }];
+        this.records = []; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear();
+        this.pages = [{ index: 1, timeInstants: [], showConsumables: true }];
         this.loading = false; this.loadError = e?.error?.message || 'ECMO运行记录加载失败';
         this.cdr.detectChanges();
       },
     });
   }
 
-  /* 别名展开 */
-  private metricCodes(m: EcmoMetric): string[] { return [m.code, ...(m.aliases ?? [])].map(c => this.norm(c)); }
+  private build(source: BedsideRecord[]): void {
+    this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear();
+    const metricSet = new Set(this.codes.map(c => this.nm(c)));
+    const instantSet = new Set<number>();
+    const editUserIds = new Set<string>();
 
-  metricValue(metric: EcmoMetric, time: string | undefined): string {
-    if (!time) return '';
-    for (const c of this.metricCodes(metric)) { const v = this.values.get(this.valueKey(c, time)); if (v !== undefined && v !== null) return v; }
+    source.forEach(r => {
+      const pid = this.nm(r.pid), code = this.nm(r.code), time = this.nm(r.time);
+      const ok = r.valid === true || r.valid === 1 || r.valid === '1' || String(r.valid).toLowerCase() === 'true';
+      if (!ok || pid !== this.pid || !code || !time) return;
+      const instant = databaseTimeValue(time);
+      if (!Number.isFinite(instant)) return;
+      if (code === 'param_Yishi') {
+        const user = this.nm(r.editUser);
+        if (user) { this.yishiRecords.push({ instant, editUser: user }); editUserIds.add(user); }
+      } else if (metricSet.has(code)) {
+        instantSet.add(instant);
+        this.values.set(`${code}@@${instant}`, String(r.strVal ?? ''));
+      }
+    });
+
+    this.yishiRecords.sort((a, b) => a.instant - b.instant);
+    const timeInstants = [...instantSet].sort((a, b) => a - b);
+    this.pages = [];
+    for (let i = 0; i < timeInstants.length; i += 8) {
+      this.pages.push({ index: 0, timeInstants: timeInstants.slice(i, i + 8), showConsumables: false });
+    }
+    if (!this.pages.length) this.pages.push({ index: 0, timeInstants: [], showConsumables: false });
+    if (this.pages.length) this.pages[this.pages.length - 1].showConsumables = true;
+    this.pages = this.pages.map((p, i) => { p.index = i + 1; return p; });
+    this.selectedPrintPage = null;
+    if (editUserIds.size) this.loadAccountNames([...editUserIds]);
+  }
+
+  /* 别名展开 */
+  private metricCodes(m: EcmoMetric): string[] { return [m.code, ...(m.aliases ?? [])].map(c => this.nm(c)); }
+
+  metricValue(metric: EcmoMetric, instant: number | undefined): string {
+    if (instant === undefined || !Number.isFinite(instant)) return '';
+    for (const c of this.metricCodes(metric)) { const v = this.values.get(`${c}@@${instant}`); if (v !== undefined && v !== null) return v; }
     return '';
   }
 
-  /* 签名 — 来自bedside param_Yishi.editUser */
-  signatureAt(time: string | undefined): string {
-    if (!time) return '';
-    const target = databaseTimeValue(time);
-    if (!Number.isFinite(target)) return '';
-    for (let i = this.signatureRecords.length - 1; i >= 0; i--) {
-      const s = this.signatureRecords[i];
-      if (s.instant <= target && s.editUser) return this.accountNameMap.get(s.editUser) || '';
+  /* 签名 */
+  signatureAt(instant: number | undefined): string {
+    if (instant === undefined || !Number.isFinite(instant)) return '';
+    for (let i = this.yishiRecords.length - 1; i >= 0; i--) {
+      const s = this.yishiRecords[i];
+      if (s.instant <= instant && s.editUser) return this.accountNameMap.get(s.editUser) || '';
     }
     return '';
   }
 
-  displayDate(time: string | undefined): string { return formatShanghaiMonthDay(time); }
-  displayClock(time: string | undefined): string { return formatShanghaiHourMinute(time); }
-  timeAt(page: RenderPage, idx: number): string | undefined { return page.times[idx]; }
+  displayDate(instant: number | undefined): string { return instant !== undefined ? formatShanghaiMonthDay(instant) : ''; }
+  displayClock(instant: number | undefined): string { return instant !== undefined ? formatShanghaiHourMinute(instant) : ''; }
+  instantAt(page: RenderPage, idx: number): number | undefined { return page.timeInstants[idx]; }
 
   /* ---- 耗材 ---- */
   onConsumablesInput(value: string): void { this.consumablesText = value; if (!this.pid) return; const draft = { pid: this.pid, text: value }; this.lastConsumablesDraft = draft; this.consumablesSaveState = 'idle'; this.consumablesSave$.next(draft); }
@@ -217,6 +233,15 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     this.http.get<any>(`${this.API_ECMO_EXTRA}/latest`, { params: { pid } }).pipe(takeUntil(this.destroy$)).subscribe({
       next: data => { if (pid !== this.pid) return; this.consumablesText = data?.valid === true ? String(data.consumablesText || '') : ''; this.consumablesSaveState = 'idle'; this.cdr.detectChanges(); },
       error: () => { if (pid === this.pid) { this.consumablesText = ''; this.consumablesSaveState = 'error'; this.cdr.detectChanges(); } },
+    });
+  }
+
+  private loadAccountNames(ids: string[]): void {
+    if (!ids.length) return;
+    const params = new HttpParams().set('ids', ids.join(','));
+    this.http.get<any[]>('/api/v1/icu/accounts/listByIds', { params }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: rows => { (Array.isArray(rows) ? rows : []).forEach(r => { const id = this.nm(r?.accountId ?? r?._id ?? r?.id); const name = this.nm(r?.accountName ?? r?.trueName ?? r?.name); if (id && name) this.accountNameMap.set(id, name); }); this.cdr.detectChanges(); },
+      error: () => {}
     });
   }
 
@@ -245,33 +270,6 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   }
 
   /* ---- 内部 ---- */
-  private valueKey(code: unknown, time: unknown): string { return `${this.norm(code)} ${this.timeKey(time)}`; }
-
-  private buildValueMap(): void {
-    this.values.clear();
-    const ordered = [...this.records].sort((a, b) => this.ts(a.time) - this.ts(b.time) || this.ts(a.editTime) - this.ts(b.editTime));
-    for (const r of ordered) { const c = this.norm(r.code); const t = this.timeKey(r.time); if (!c || !t) continue; this.values.set(this.valueKey(c, t), String(r.strVal ?? '')); }
-  }
-
-  private loadAccountNames(ids: string[]): void {
-    if (!ids.length) return;
-    const params = new HttpParams().set('ids', ids.join(','));
-    this.http.get<any[]>('/api/v1/icu/accounts/listByIds', { params }).pipe(takeUntil(this.destroy$)).subscribe({
-      next: rows => { (Array.isArray(rows) ? rows : []).forEach(r => { const id = this.norm(r?.accountId ?? r?._id ?? r?.id); const name = this.norm(r?.accountName ?? r?.trueName ?? r?.name); if (id && name) this.accountNameMap.set(id, name); }); this.cdr.detectChanges(); },
-      error: () => {}
-    });
-  }
-
-  private buildPages(): void {
-    const uniqueTimes = Array.from(new Set(this.records.map(r => String(r.time || '').trim()).filter(Boolean))).sort((a, b) => this.ts(a) - this.ts(b));
-    const pages: RenderPage[] = [];
-    if (uniqueTimes.length) { for (let i = 0; i < uniqueTimes.length; i += 8) pages.push({ index: 0, times: uniqueTimes.slice(i, i + 8), showConsumables: false }); }
-    else { pages.push({ index: 0, times: [], showConsumables: false }); }
-    if (pages.length) pages[pages.length - 1].showConsumables = true;
-    this.pages = pages.map((p, i) => { p.index = i + 1; return p; });
-    this.selectedPrintPage = null;
-  }
-
-  private ts(v?: string): number { return databaseTimeValue(v); }
+  private buildPages(): void { this.pages = [{ index: 1, timeInstants: [], showConsumables: true }]; }
   private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (Number.isNaN(b.getTime())) return null; const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a >= 0 ? a : null; }
 }

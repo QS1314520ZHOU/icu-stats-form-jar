@@ -27,17 +27,17 @@
         <col class="value-column" *ngFor="let _ of [0,1,2,3,4,5,6,7]" />
       </colgroup>
       <thead>
-        <tr><th colspan="2">项目/时间</th><th class="time-header" *ngFor="let column of [0,1,2,3,4,5,6,7]"><ng-container *ngIf="timeAt(page, column) as ct"><span class="time-date">{{ displayDate(ct) }}</span><span class="time-clock">{{ displayClock(ct) }}</span></ng-container></th></tr>
+        <tr><th colspan="2">项目/时间</th><th class="time-header" *ngFor="let column of [0,1,2,3,4,5,6,7]"><ng-container *ngIf="instantAt(page, column) as ct"><span class="time-date">{{ displayDate(ct) }}</span><span class="time-clock">{{ displayClock(ct) }}</span></ng-container></th></tr>
       </thead>
       <tbody>
         <ng-container *ngFor="let group of groups">
           <tr *ngFor="let metric of group.metrics; let first = first">
             <td class="group-cell" *ngIf="first" [attr.rowspan]="group.metrics.length">{{ group.name }}</td>
             <td class="metric-cell">{{ metric.label }}</td>
-            <td class="value-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ metricValue(metric, timeAt(page, column)) }}</td>
+            <td class="value-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ metricValue(metric, instantAt(page, column)) }}</td>
           </tr>
         </ng-container>
-        <tr class="signature-row"><td colspan="2">签名</td><td class="signature-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ signatureAt(timeAt(page, column)) }}</td></tr>
+        <tr class="signature-row"><td colspan="2">签名</td><td class="signature-cell" *ngFor="let column of [0,1,2,3,4,5,6,7]">{{ signatureAt(instantAt(page, column)) }}</td></tr>
         <tr class="consumables-row" *ngIf="page.showConsumables">
           <td class="consumables-cell" colspan="10">
             <div class="consumables-title">耗材使用登记：</div>
