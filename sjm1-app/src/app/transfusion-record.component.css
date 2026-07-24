@@ -18,7 +18,7 @@
 .pr{display:inline-flex;align-items:center;gap:1px;margin:0 2px;cursor:pointer;font:inherit}.pr input{width:auto;height:auto;margin:0;cursor:pointer}.pr span{white-space:nowrap}
 .vi{box-sizing:border-box;width:8mm;height:4mm;padding:0;border:0;border-bottom:1px solid #000;border-radius:0;outline:0;background:transparent;text-align:center;font:inherit;flex:1 1 0;min-width:0;max-width:10mm}.vi.bp{width:6mm;max-width:8mm}
 .vl{box-sizing:border-box;display:flex;flex-direction:column;gap:1px;align-items:center;width:100%;min-width:0;max-width:100%;overflow:hidden}
-.vlr{box-sizing:border-box;display:flex;align-items:center;gap:1px;white-space:nowrap;font-size:7.5pt;width:100%;min-width:0;max-width:100%;flex-wrap:nowrap;overflow:hidden}
+.vlr{box-sizing:border-box;display:flex;align-items:center;gap:1px;white-space:nowrap;width:100%;min-width:0;max-width:100%;flex-wrap:nowrap;overflow:hidden}
 .dri{box-sizing:border-box;width:100%;min-width:0;max-width:100%;height:5mm;padding:0 1mm;border:0;border-bottom:1px solid #000;border-radius:0;outline:0;background:transparent;text-align:center;font:inherit}
 .pec{cursor:pointer;transition:background .15s}.pec:hover{background:#eef6ff}
 .dual{display:flex;gap:2px;min-width:0;width:100%}.dual select{min-width:0;width:50%;flex:1 1 0}
@@ -57,7 +57,7 @@ h1{margin:0 0 2.5mm;text-align:center;font:700 18pt SimHei,"黑体",sans-serif;l
 .r-std td,.r-std th{height:6.88mm;font-size:9pt}
 
 /* vitals rows */
-.r-vital td{height:12.35mm;font-size:8.5pt;line-height:1.2}
+.r-vital td,.r-vital .vl,.r-vital .vlr,.r-vital span,.r-vital input{font-family:"SimSun","宋体","Noto Serif CJK SC",serif;font-size:9pt;font-weight:400;font-style:normal;line-height:1.15}
 
 /* reaction rows */
 .r-react td{height:12.35mm;font-size:9pt}

@@ -45,15 +45,23 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
 
   constructor(private readonly http: HttpClient, private readonly hostPatient: HostPatientService, private readonly cdr: ChangeDetectorRef, private readonly host: ElementRef) {}
 
+  private beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+    if (this.autoSaveState === 'dirty' || this.autoSaveState === 'saving' || this.saveInFlight || this.dirtyPageIds.size > 0) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  };
+
   ngOnInit(): void {
     this.loadAccounts();
+    window.addEventListener('beforeunload', this.beforeUnloadHandler);
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(filter(Boolean), map(p => ({ p, pid: String(p.id || '').trim() })), filter(x => !!x.pid),
       distinctUntilChanged((a, b) => a.pid === b.pid),
       tap(({ p, pid }) => { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; } this.closeProductDialog(); this.patient = p; this.pid = pid; this.age = this.calcAge(p.birthday); this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis); this.record = null; this.pages = []; this.dirtyPageIds.clear(); this.localRevision = 0; this.savedRevision = 0; this.autoSaveState = 'idle'; this.saveInFlight = false; this.saveAgainAfterCurrent = false; this.selectedPageNo = 1; this.selectedPrintPage = null; this.loadError = ''; }),
       switchMap(({ pid }) => this.fetchRecord(pid)), takeUntil(this.destroy$)).subscribe();
   }
-  ngOnDestroy(): void { if (this.saveTimer) clearTimeout(this.saveTimer); this.destroy$.next(); this.destroy$.complete(); }
+  ngOnDestroy(): void { window.removeEventListener('beforeunload', this.beforeUnloadHandler); if (this.saveTimer) clearTimeout(this.saveTimer); this.destroy$.next(); this.destroy$.complete(); }
 
   get selectedPage(): TransfusionPage | null { return this.pages.find(p => p.pageNo === this.selectedPageNo) || null; }
 
@@ -117,6 +125,8 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
       error: (e: HttpErrorResponse) => { if (e.status === 409) alert('记录已被其他人员修改'); else alert(e.error?.message || '删除失败'); }
     });
   }
+
+  onDiscreteChange(page: TransfusionPage): void { this.onPageChanged(page); this.flushPageSave(page); }
 
   onSelectedPageChange(next: number): void { const cur = this.selectedPage; if (cur && this.dirtyPageIds.has(cur.pageId)) this.flushPageSave(cur); this.selectedPageNo = Number(next); }
 
