@@ -187,6 +187,7 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     .sheet-pageno{position:absolute;left:12mm;right:12mm;bottom:6mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:13pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
     @media screen{.sheet{zoom:var(--sheet-scale,1)}}
     @media print{
+      @page{size:A4 landscape;margin:0}
       :host{height:auto;overflow:visible}
       .no-print{display:none!important}
       .no-print-input{display:none!important}
