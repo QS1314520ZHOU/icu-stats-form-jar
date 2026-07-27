@@ -69,11 +69,11 @@ interface RenderPage { index: number; rows: BradenRow[]; }
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}住院患者压力性损伤评估及措施记录单</div>
           <div class="patient-info-row">
-            <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
+            <span class="info-item"><b>科室：</b>{{patient?.dept || patient?.deptName || patient?.departmentName || patient?.wardName || ''}}</span>
             <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
-            <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
-            <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
-            <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
+            <span class="info-item"><b>床号：</b>{{patient?.hisBed || patient?.bedNo || ''}}</span>
+            <span class="info-item"><b>住院号：</b>{{patient?.mrn || patient?.hospitalNo || ''}}</span>
+            <span class="info-item"><b>年龄：</b>{{age ?? patient?.age ?? ''}}</span>
             <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
             <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
           </div>
@@ -246,22 +246,21 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
     this.hostPatient.patient$.pipe(
       filter(p => !!p),
       map(p => ({ p, pid: this.getPatientPid(p) })),
-      tap(({ pid }) => { if (pid !== this.__lastPid) this.__lastPid = pid; }),
-      distinctUntilChanged((a, b) => a.pid === b.pid),
+      distinctUntilChanged((a, b) => a.pid === b.pid && a.p?.name === b.p?.name && a.p?.hisBed === b.p?.hisBed && a.p?.mrn === b.p?.mrn),
       tap(({ p, pid }) => {
         this.resetForm();
         this.patient = p;
         this.pid = pid;
         this.age = this.calcAge(p.birthday);
         this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis || p.diagnosis);
-      }),
-      switchMap(({ pid }) => {
         if (!pid) {
           this.loading = false;
           this.pages = [{ index: 1, rows: [] }];
           this.cdr.detectChanges();
-          return [];
         }
+      }),
+      switchMap(({ pid }) => {
+        if (!pid) return of(null);
         return this.loadFromServer(pid);
       }),
       takeUntil(this.destroy$),
@@ -322,7 +321,7 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
         total: this.num(r.total),
         risk: r.conclusion || '',
         other: String(r.ohter ?? '').trim(),
-        nurseMeasureList: r.nurseMeasureList || [],
+        nurseMeasureList: r.nurseMeasureList || (r as any).measuresList || [],
         signUserId: r.inputUserId,
         signName: r.inputUser || '',
       }))

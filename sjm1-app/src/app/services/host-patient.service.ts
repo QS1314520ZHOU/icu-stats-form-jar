@@ -19,9 +19,14 @@ export class HostPatientService {
     if (raw.account) this.accountSubject.next(raw.account);
   }
 
+  private getPatientPid(p: any): string {
+    return String(
+      p?.id ?? p?._id ?? p?.pid ?? p?.patientId ?? p?.patientID ?? p?.patient?.id ?? p?.patient?._id ?? ''
+    ).trim();
+  }
+
   getPid(): string | null {
-    const p = this.patientSubject.value;
-    const id = p && p.id != null ? String(p.id).trim() : '';
+    const id = this.getPatientPid(this.patientSubject.value);
     return id || null;
   }
 
