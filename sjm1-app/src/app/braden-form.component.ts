@@ -123,7 +123,7 @@ interface RenderPage { index: number; rows: BradenRow[]; }
             <input class="fill-input date-input no-print-input" [(ngModel)]="resultDate" (ngModelChange)="scheduleSaveExtra()" placeholder="年/月/日" />
             <span class="print-only fill-val">{{resultDate}}</span>
           </span>
-          <span class="rl-item pressure-radio">发送院内压疮：
+          <span class="rl-item pressure-radio">发生院内压疮：
             <label><input class="no-print-input" type="radio" name="hospitalPressureSore" value="是" [(ngModel)]="hospitalPressureSore" (ngModelChange)="scheduleSaveExtra()" /><span class="screen-only">是</span><span class="print-only">{{hospitalPressureSore === '是' ? '☑' : '☐'}}是</span></label>
             <label><input class="no-print-input" type="radio" name="hospitalPressureSore" value="否" [(ngModel)]="hospitalPressureSore" (ngModelChange)="scheduleSaveExtra()" /><span class="screen-only">否</span><span class="print-only">{{hospitalPressureSore === '否' ? '☑' : '☐'}}否</span></label>
           </span>
@@ -222,7 +222,7 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
   resultDate = '';
   hospitalPressureSore = '';
 
-  maxRowsPerPage = 17;
+  maxRowsPerPage = 10;
 
   private pid = '';
   private extraId: string | null = null;
@@ -329,13 +329,6 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
       .sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
     this.rows = rows;
-
-    // Default result/date from latest record (only if not already set by extra)
-    const latest = rows[rows.length - 1];
-    if (latest) {
-      if (!this.resultText) this.resultText = latest.risk || '';
-      if (!this.resultDate) this.resultDate = this.fmtDate(latest.time);
-    }
 
     const userIds = [...new Set(rows.map(r => r.signUserId).filter(Boolean) as string[])];
     if (userIds.length) {
