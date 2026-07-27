@@ -28,15 +28,16 @@ const BRADEN_ITEMS: BradenItem[] = [
 ];
 
 const MEASURE_COLUMNS = [
-  { key:'bedClean',title:'床单元整洁',match:['bao10chi17chuang1pu2he19yi6ku5qing4jie14'] },
-  { key:'skinClean',title:'皮肤清洁',match:['bao11chi2pi19fu17qing17jie19'] },
-  { key:'airBed',title:'气垫床',match:['gei0yu5qi12dian13chuang16'] },
-  { key:'pressureRelief',title:'减压用具',match:['gei2yu9jian12ya6yong1ju12'] },
-  { key:'transparentPatch',title:'局部贴透明贴',match:['ju11bu11tie5tou0ming1tie17'] },
-  { key:'nutrition',title:'营养支持',match:['jia2qiang17ying9yang5'] },
-  { key:'other',title:'其他',match:['qi17ta5'] },
-  { key:'vsd',title:'VSD负压吸引',match:['VSD3fu6ya14xi16yin11'] },
-  { key:'dressing',title:'换药',match:['huan13yao2'] },
+  { key:'turnOver',title:'定时翻身',match:['bao10chi17chuang1pu2he19yi6ku5qing4jie14'],showMeasures:'1' },
+  { key:'bedCleanDry',title:'床单元整洁干燥',match:['bao11chi2pi19fu17qing17jie19'],showMeasures:'2' },
+  { key:'airOrWaterMattress',title:'使用气垫床或水垫',match:['ding5shi2fan10shen2'],showMeasures:'3' },
+  { key:'dressing',title:'使用敷料',match:['gei0yu5qi12dian13chuang16'],showMeasures:'4' },
+  { key:'nutrition',title:'营养支持',match:['gei2yu9jian12ya6yong1ju12'],showMeasures:'5' },
+  { key:'avoidShear',title:'避免拖、拉、推，防剪切力',match:['ju11bu11tie5tou0ming1tie17'],showMeasures:'6' },
+  { key:'healthEducation',title:'健康教育',match:['jia2qiang17ying9yang5'],showMeasures:'7' },
+  { key:'incontinenceCare',title:'两便失禁护理',match:['qi17ta5'],showMeasures:'8' },
+  { key:'deviceRelated',title:'避免医疗器械相关性压疮因素',match:['VSD3fu6ya14xi16yin11'],showMeasures:'9' },
+  { key:'changeDressing',title:'换药',match:['huan13yao2'],showMeasures:'10' },
 ];
 
 const FOOT_NOTES = [
@@ -46,7 +47,7 @@ const FOOT_NOTES = [
   '有重要改变24小时内再次评估；高度危险、极高度危险保护护士长及伤口小组，采取预防措施，建立翻身卡并记录，评估与记录至少1次/天。',
 ];
 
-interface ScoreRecord { time?: string; scoreType?: string; total?: number; conclusion?: string; valid?: boolean; inputUserId?: string; inputUser?: string; ohter?: string; nurseMeasureList?: any[]; bradenScore?: Record<string, any>; }
+interface ScoreRecord { time?: any; scoreType?: string; total?: number; conclusion?: string; valid?: boolean; inputUserId?: string; inputUser?: string; ohter?: string; nurseMeasureList?: any[]; bradenScore?: Record<string, any>; }
 interface BradenRow { time: string; score: Record<string, any>; total: number | null; risk: string; other: string; nurseMeasureList: any[]; signUserId?: string; signName?: string; }
 interface RenderPage { index: number; rows: BradenRow[]; }
 
@@ -85,7 +86,6 @@ interface RenderPage { index: number; rows: BradenRow[]; }
               <th colspan="7" class="group-head">压疮风险评估</th>
               <th rowspan="6" class="total-col">总分</th>
               <th rowspan="6" class="risk-col">风险等级</th>
-              <th rowspan="6" class="measure-head narrow"><span class="vtext">定时翻身</span></th>
               <th [attr.colspan]="MEASURE_COLUMNS.length" class="group-head">预防压疮护理措施</th>
               <th rowspan="6" class="other-col">其他</th>
               <th rowspan="6" class="sign-col">签名</th>
@@ -107,7 +107,6 @@ interface RenderPage { index: number; rows: BradenRow[]; }
               <td *ngFor="let item of BRADEN_ITEMS" class="score-cell">{{r ? bradenValue(r, item.field) : ''}}</td>
               <td class="total-col">{{r && r.total !== null ? r.total : ''}}</td>
               <td class="risk-col">{{r ? r.risk : ''}}</td>
-              <td class="measure-cell">{{r ? turnOverCheck(r) : ''}}</td>
               <ng-container *ngFor="let m of MEASURE_COLUMNS"><td class="measure-cell">{{r ? measureCheck(r, m) : ''}}</td></ng-container>
               <td class="other-cell">{{r ? r.other : ''}}</td>
               <td class="sign-col">{{r ? (r.signName || '') : ''}}</td>
@@ -166,13 +165,12 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     .score-cell{width:54px;min-width:54px;font-size:9pt}
     .total-col{width:28px;min-width:28px}
     .risk-col{width:42px;min-width:42px}
-    .measure-head{width:26px;min-width:26px;height:86px}
-    .measure-head.narrow{width:26px;min-width:26px}
-    .measure-cell{width:26px;min-width:26px;font-size:10pt}
-    .other-col{width:90px;min-width:90px}
-    .other-cell{width:90px;min-width:90px;text-align:center;padding-left:2px}
+    .measure-head{width:42px;min-width:42px;height:92px}
+    .measure-cell{width:42px;min-width:42px;font-size:10pt}
+    .other-col{width:120px;min-width:120px}
+    .other-cell{width:120px;min-width:120px;text-align:center;padding-left:2px}
     .sign-col{width:44px;min-width:44px}
-    .vtext{writing-mode:vertical-rl;text-orientation:upright;white-space:normal;line-height:1.05;letter-spacing:.5px;font-family:'SimSun','宋体',serif;font-size:8.5pt;font-weight:400}
+    .vtext{writing-mode:vertical-rl;text-orientation:mixed;white-space:normal;line-height:1.05;letter-spacing:.5px;font-family:'SimSun','宋体',serif;font-size:10pt;font-weight:400;margin:0 auto}
     .dt-date,.dt-time{display:block;white-space:nowrap;word-break:normal;text-align:center;line-height:1.2}
     .result-line{display:flex;flex-wrap:wrap;gap:70px;margin-top:6px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt}
     .rl-item{display:inline-flex;align-items:center}
@@ -317,7 +315,6 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private buildRows(records: ScoreRecord[]): void {
     const rows: BradenRow[] = records
-      .filter(r => !!r.time)
       .map(r => ({
         time: this.normalizeTime(r.time),
         score: r.bradenScore || {},
@@ -328,6 +325,7 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
         signUserId: r.inputUserId,
         signName: r.inputUser || '',
       }))
+      .filter(r => !!r.time)
       .sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
     this.rows = rows;
