@@ -5,11 +5,15 @@
 import { HttpClient } from '@angular/common/http';
 import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject } from 'rxjs';
-import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
+import { of } from 'rxjs';
+import { debounceTime, distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 
 const SCORE_TYPE = 'bradenScore';
+const FORM_CODE = 'bradenForm';
+const API_EXTRA_LATEST = '/api/v1/icu/fall-danger-extra/latest';
+const API_EXTRA_SAVE = '/api/v1/icu/fall-danger-extra/save';
 
 interface BradenOption { score: number; label: string; }
 interface BradenItem { field: 'feel'|'damp'|'activityAbility'|'moveAbility'|'nutritionAbility'|'frictionAndShear'; title: string; options: BradenOption[]; }
@@ -26,7 +30,6 @@ const BRADEN_ITEMS: BradenItem[] = [
 const MEASURE_COLUMNS = [
   { key:'bedClean',title:'床单元整洁',match:['bao10chi17chuang1pu2he19yi6ku5qing4jie14'] },
   { key:'skinClean',title:'皮肤清洁',match:['bao11chi2pi19fu17qing17jie19'] },
-  { key:'turnOver',title:'定时翻身',match:['ding5shi2fan10shen2'] },
   { key:'airBed',title:'气垫床',match:['gei0yu5qi12dian13chuang16'] },
   { key:'pressureRelief',title:'减压用具',match:['gei2yu9jian12ya6yong1ju12'] },
   { key:'transparentPatch',title:'局部贴透明贴',match:['ju11bu11tie5tou0ming1tie17'] },
@@ -65,12 +68,12 @@ interface RenderPage { index: number; rows: BradenRow[]; }
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}住院患者压力性损伤评估及措施记录单</div>
           <div class="patient-info-row">
-            <span class="info-item"><b>科室：</b>{{patient?.dept || patient?.deptName || ''}}</span>
+            <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
             <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
             <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
             <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
-            <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
             <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
+            <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
             <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
           </div>
         </div>
@@ -78,38 +81,53 @@ interface RenderPage { index: number; rows: BradenRow[]; }
         <table class="record-table">
           <thead>
             <tr>
-              <th rowspan="4" class="date-col">日期　时间</th>
-              <th colspan="24">压疮风险评估</th>
-              <th rowspan="4" class="total-col">总分</th>
-              <th rowspan="4" class="risk-col">风险等级</th>
-              <th colspan="10">预防压疮护理措施</th>
-              <th rowspan="4" class="other-col">其他</th>
-              <th rowspan="4" class="sign-col">签名</th>
+              <th rowspan="6" class="date-col">日期　时间</th>
+              <th colspan="7" class="group-head">压疮风险评估</th>
+              <th rowspan="6" class="total-col">总分</th>
+              <th rowspan="6" class="risk-col">风险等级</th>
+              <th rowspan="6" class="measure-head narrow"><span class="vtext">定时翻身</span></th>
+              <th [attr.colspan]="MEASURE_COLUMNS.length" class="group-head">预防压疮护理措施</th>
+              <th rowspan="6" class="other-col">其他</th>
+              <th rowspan="6" class="sign-col">签名</th>
             </tr>
             <tr>
-              <ng-container *ngFor="let item of BRADEN_ITEMS"><th colspan="4">{{item.title}}</th></ng-container>
-              <ng-container *ngFor="let m of MEASURE_COLUMNS"><th rowspan="3" class="measure-head"><span class="vtext">{{m.title}}</span></th></ng-container>
+              <th class="score-index-col">分值</th>
+              <th *ngFor="let item of BRADEN_ITEMS" class="braden-title-col">{{item.title}}</th>
+              <ng-container *ngFor="let m of MEASURE_COLUMNS"><th rowspan="5" class="measure-head"><span class="vtext">{{m.title}}</span></th></ng-container>
             </tr>
-            <tr><ng-container *ngFor="let item of BRADEN_ITEMS"><th *ngFor="let opt of item.options" class="score-desc">{{opt.score}}</th></ng-container></tr>
-            <tr><ng-container *ngFor="let item of BRADEN_ITEMS"><th *ngFor="let opt of item.options" class="option-head"><span class="vtext">{{opt.label}}</span></th></ng-container></tr>
+            <tr *ngFor="let score of [1, 2, 3, 4]">
+              <th class="score-index-col">{{score}}</th>
+              <th *ngFor="let item of BRADEN_ITEMS" class="braden-desc-col">{{optionLabel(item, score)}}</th>
+            </tr>
           </thead>
           <tbody>
             <tr *ngFor="let r of pagePaddedRows(page)">
               <td class="date-col"><span class="dt-date">{{r ? fmtDate(r.time) : ''}}</span><span class="dt-time">{{r ? fmtTime(r.time) : ''}}</span></td>
-              <ng-container *ngFor="let item of BRADEN_ITEMS"><td *ngFor="let opt of item.options" class="score-cell">{{r ? bradenCheck(r, item.field, opt.score) : ''}}</td></ng-container>
-              <td>{{r && r.total !== null ? r.total : ''}}</td>
-              <td>{{r ? r.risk : ''}}</td>
+              <td class="score-index-col"></td>
+              <td *ngFor="let item of BRADEN_ITEMS" class="score-cell">{{r ? bradenValue(r, item.field) : ''}}</td>
+              <td class="total-col">{{r && r.total !== null ? r.total : ''}}</td>
+              <td class="risk-col">{{r ? r.risk : ''}}</td>
+              <td class="measure-cell">{{r ? turnOverCheck(r) : ''}}</td>
               <ng-container *ngFor="let m of MEASURE_COLUMNS"><td class="measure-cell">{{r ? measureCheck(r, m) : ''}}</td></ng-container>
               <td class="other-cell">{{r ? r.other : ''}}</td>
-              <td>{{r ? (r.signName || '') : ''}}</td>
+              <td class="sign-col">{{r ? (r.signName || '') : ''}}</td>
             </tr>
           </tbody>
         </table>
 
         <div class="result-line">
-          <span class="rl-item">结果：<span class="fill-val">{{resultText}}</span></span>
-          <span class="rl-item">日期：<span class="fill-val">{{resultDate}}</span></span>
-          <span class="rl-item pressure-radio">发送院内压疮：<span>{{hospitalPressureSore === '是' ? '☑' : '☐'}}是</span> <span>{{hospitalPressureSore === '否' ? '☑' : '☐'}}否</span></span>
+          <span class="rl-item">结果：
+            <input class="fill-input result-input no-print-input" [(ngModel)]="resultText" (ngModelChange)="scheduleSaveExtra()" />
+            <span class="print-only fill-val">{{resultText}}</span>
+          </span>
+          <span class="rl-item">日期：
+            <input class="fill-input date-input no-print-input" [(ngModel)]="resultDate" (ngModelChange)="scheduleSaveExtra()" placeholder="年/月/日" />
+            <span class="print-only fill-val">{{resultDate}}</span>
+          </span>
+          <span class="rl-item pressure-radio">发送院内压疮：
+            <label><input class="no-print-input" type="radio" name="hospitalPressureSore" value="是" [(ngModel)]="hospitalPressureSore" (ngModelChange)="scheduleSaveExtra()" /><span class="screen-only">是</span><span class="print-only">{{hospitalPressureSore === '是' ? '☑' : '☐'}}是</span></label>
+            <label><input class="no-print-input" type="radio" name="hospitalPressureSore" value="否" [(ngModel)]="hospitalPressureSore" (ngModelChange)="scheduleSaveExtra()" /><span class="screen-only">否</span><span class="print-only">{{hospitalPressureSore === '否' ? '☑' : '☐'}}否</span></label>
+          </span>
         </div>
 
         <div class="footnote">
@@ -134,33 +152,52 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:20pt;line-height:1.3}
     .patient-info-row{display:flex;align-items:center;width:100%;gap:12px;font-family:'SimSun','宋体',serif;font-size:11pt;font-weight:400;white-space:nowrap;margin:2px 0 4px;color:#000;text-align:left}
     .info-item{flex:0 0 auto;white-space:nowrap}
+    .info-item b{font-weight:700}
     .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
     .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:8.5pt;table-layout:fixed}
-    .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:1px;word-break:break-all;vertical-align:middle;overflow:hidden}
-    .record-table td{height:24px}
-    .date-col{width:70px;min-width:70px;white-space:nowrap;word-break:normal}
-    .total-col{width:28px}
-    .risk-col{width:38px}
-    .other-col{width:80px}
-    .sign-col{width:44px}
-    .score-desc{height:18px;font-size:8.5pt}
-    .option-head{width:27px;height:86px}
-    .measure-head{width:27px;height:92px}
-    .score-cell{width:27px;font-size:9pt}
-    .measure-cell{width:27px;font-size:10pt}
-    .vtext{writing-mode:vertical-rl;text-orientation:upright;white-space:normal;line-height:1.05;letter-spacing:.5px;font-family:'SimSun','宋体',serif;font-size:8.5pt;font-weight:700}
+    .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:1px 2px;word-break:break-all;vertical-align:middle;overflow:hidden;font-weight:400}
+    .record-table th{height:18px;line-height:1.15}
+    .record-table td{height:22px;line-height:1.15}
+    .group-head{height:18px;font-weight:400}
+    .date-col{width:74px;min-width:74px;white-space:nowrap;word-break:normal}
+    .score-index-col{width:24px;min-width:24px}
+    .braden-title-col{width:54px;min-width:54px;font-weight:400}
+    .braden-desc-col{width:54px;min-width:54px;height:18px;line-height:1.1;font-size:8.5pt;white-space:normal}
+    .score-cell{width:54px;min-width:54px;font-size:9pt}
+    .total-col{width:28px;min-width:28px}
+    .risk-col{width:42px;min-width:42px}
+    .measure-head{width:26px;min-width:26px;height:86px}
+    .measure-head.narrow{width:26px;min-width:26px}
+    .measure-cell{width:26px;min-width:26px;font-size:10pt}
+    .other-col{width:90px;min-width:90px}
+    .other-cell{width:90px;min-width:90px;text-align:center;padding-left:2px}
+    .sign-col{width:44px;min-width:44px}
+    .vtext{writing-mode:vertical-rl;text-orientation:upright;white-space:normal;line-height:1.05;letter-spacing:.5px;font-family:'SimSun','宋体',serif;font-size:8.5pt;font-weight:400}
     .dt-date,.dt-time{display:block;white-space:nowrap;word-break:normal;text-align:center;line-height:1.2}
-    .other-cell{text-align:left;padding-left:3px}
     .result-line{display:flex;flex-wrap:wrap;gap:70px;margin-top:6px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt}
     .rl-item{display:inline-flex;align-items:center}
     .pressure-radio{gap:10px}
+    .fill-input{width:130px;padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-family:'SimSun','宋体',serif;font-size:12pt;background:#fff}
+    .date-input{width:120px}
+    .result-input{width:150px}
     .fill-val{min-width:130px;border-bottom:1px solid #000;padding:0 6px;display:inline-block}
+    .print-only{display:none}
+    .screen-only{display:inline}
     .footnote{margin-top:5px;font-family:'SimSun','宋体',serif;font-size:9.5pt;line-height:1.25;text-align:left;margin-bottom:10mm}
     .footnote .fn-title{font-weight:700;display:inline}
     .footnote .fn{margin:0}
     .sheet-pageno{position:absolute;left:12mm;right:12mm;bottom:6mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:13pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
     @media screen{.sheet{zoom:var(--sheet-scale,1)}}
-    @media print{:host{height:auto;overflow:visible}.no-print{display:none!important}.sheet-hidden{display:none!important}.sheet{width:297mm;height:210mm;overflow:hidden;margin:0;box-shadow:none;zoom:1;page-break-after:always}.sheet:last-of-type{page-break-after:auto}}
+    @media print{
+      :host{height:auto;overflow:visible}
+      .no-print{display:none!important}
+      .no-print-input{display:none!important}
+      .sheet-hidden{display:none!important}
+      .sheet{width:297mm;height:210mm;overflow:hidden;margin:0;box-shadow:none;zoom:1;page-break-after:always}
+      .sheet:last-of-type{page-break-after:auto}
+      .print-only{display:inline!important}
+      .screen-only{display:none!important}
+    }
   `],
 })
 export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -189,18 +226,27 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
   maxRowsPerPage = 17;
 
   private pid = '';
+  private extraId: string | null = null;
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
   private __lastPid: string | null = null;
+  private extraSave$ = new Subject<void>();
 
   constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private host: ElementRef) {}
 
   ngOnInit(): void {
     this.loadHospitalName();
+
+    // auto-save debounce
+    this.extraSave$.pipe(
+      debounceTime(500),
+      switchMap(() => this.saveExtra()),
+      takeUntil(this.destroy$),
+    ).subscribe();
+
     this.hostPatient.patient$.pipe(
       filter(p => !!p),
-      map(p => ({ p, pid: String(p.id || '').trim() })),
-      filter(({ pid }) => !!pid),
+      map(p => ({ p, pid: this.getPatientPid(p) })),
       tap(({ pid }) => { if (pid !== this.__lastPid) this.__lastPid = pid; }),
       distinctUntilChanged((a, b) => a.pid === b.pid),
       tap(({ p, pid }) => {
@@ -210,7 +256,15 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.age = this.calcAge(p.birthday);
         this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis || p.diagnosis);
       }),
-      switchMap(({ pid }) => this.loadFromServer(pid)),
+      switchMap(({ pid }) => {
+        if (!pid) {
+          this.loading = false;
+          this.pages = [{ index: 1, rows: [] }];
+          this.cdr.detectChanges();
+          return [];
+        }
+        return this.loadFromServer(pid);
+      }),
       takeUntil(this.destroy$),
     ).subscribe();
   }
@@ -218,16 +272,31 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
   ngAfterViewInit(): void { this.fitScale(); this.ro = new ResizeObserver(() => this.fitScale()); this.ro.observe(this.host.nativeElement); }
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); this.ro?.disconnect(); }
 
+  /** Compatible PID extraction */
+  private getPatientPid(p: any): string {
+    return String(p?.id ?? p?._id ?? p?.pid ?? p?.patientId ?? p?.patientID ?? p?.patient?.id ?? p?.patient?._id ?? '').trim();
+  }
+
+  /** Normalize various time formats to ISO string */
+  private normalizeTime(v: any): string {
+    if (!v) return '';
+    if (typeof v === 'number') { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toISOString(); }
+    if (v instanceof Date) return v.toISOString();
+    if (typeof v === 'object' && v.$date) return this.normalizeTime(v.$date);
+    return String(v);
+  }
+
   private resetForm(): void {
     this.rows = []; this.pages = []; this.selectedPage = null;
     this.resultText = ''; this.resultDate = ''; this.hospitalPressureSore = '';
+    this.extraId = null;
     this.cdr.detectChanges();
   }
 
   private loadHospitalName(): void {
     this.http.get<any>(this.API_HOSPITAL).subscribe({
       next: res => { const name = res?.hospitalName || res?.name || res?.data?.hospitalName || res?.data?.name; if (name) this.hospitalName = String(name); },
-      error: () => { this.hospitalName = '重钢总医院'; },
+      error: () => {},
     });
   }
 
@@ -238,7 +307,11 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
         const list = Array.isArray(res) ? res : res ? [res as any] : [];
         this.buildRows(list.filter(r => r && r.valid === true && r.scoreType === SCORE_TYPE));
       }),
-      finalize(() => { this.loading = false; this.cdr.detectChanges(); }),
+      finalize(() => {
+        this.loading = false;
+        this.loadExtra(pid);
+        this.cdr.detectChanges();
+      }),
     );
   }
 
@@ -246,17 +319,25 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
     const rows: BradenRow[] = records
       .filter(r => !!r.time)
       .map(r => ({
-        time: r.time!, score: r.bradenScore || {},
-        total: this.num(r.total), risk: r.conclusion || '',
+        time: this.normalizeTime(r.time),
+        score: r.bradenScore || {},
+        total: this.num(r.total),
+        risk: r.conclusion || '',
         other: String(r.ohter ?? '').trim(),
         nurseMeasureList: r.nurseMeasureList || [],
-        signUserId: r.inputUserId, signName: r.inputUser || '',
+        signUserId: r.inputUserId,
+        signName: r.inputUser || '',
       }))
       .sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
     this.rows = rows;
+
+    // Default result/date from latest record (only if not already set by extra)
     const latest = rows[rows.length - 1];
-    if (latest) { this.resultText = latest.risk || ''; this.resultDate = this.fmtDate(latest.time); }
+    if (latest) {
+      if (!this.resultText) this.resultText = latest.risk || '';
+      if (!this.resultDate) this.resultDate = this.fmtDate(latest.time);
+    }
 
     const userIds = [...new Set(rows.map(r => r.signUserId).filter(Boolean) as string[])];
     if (userIds.length) {
@@ -272,7 +353,58 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
     } else { this.paginate(); }
   }
 
-  bradenCheck(row: BradenRow, field: BradenItem['field'], score: number): string { return this.num(row.score?.[field]) === score ? String(score) : ''; }
+  /** Load extra data (result/date/hospitalPressureSore) */
+  private loadExtra(pid: string): void {
+    this.http.get<any>(API_EXTRA_LATEST, { params: { pid, formCode: FORM_CODE } }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: d => {
+        if (pid !== this.pid) return;
+        if (d) {
+          this.extraId = d.id || d._id || null;
+          const ej = d.extraJson || {};
+          if (d.resultText || d.result) this.resultText = d.resultText || d.result || '';
+          else if (ej.resultText || ej.result) this.resultText = ej.resultText || ej.result || '';
+          if (d.resultDate) this.resultDate = d.resultDate || '';
+          else if (ej.resultDate) this.resultDate = ej.resultDate || '';
+          if (d.hospitalPressureSore || d.pressureSore) this.hospitalPressureSore = d.hospitalPressureSore || d.pressureSore || '';
+          else if (ej.hospitalPressureSore || ej.pressureSore) this.hospitalPressureSore = ej.hospitalPressureSore || ej.pressureSore || '';
+        }
+        this.cdr.detectChanges();
+      },
+      error: () => {},
+    });
+  }
+
+  scheduleSaveExtra(): void { this.extraSave$.next(); }
+
+  private saveExtra() {
+    if (!this.pid) return of(null);
+    const body: any = {
+      pid: this.pid,
+      formCode: FORM_CODE,
+      result: this.resultText,
+      resultText: this.resultText,
+      resultDate: this.resultDate,
+      hospitalPressureSore: this.hospitalPressureSore,
+      pressureSore: this.hospitalPressureSore,
+      extraJson: {
+        resultText: this.resultText,
+        resultDate: this.resultDate,
+        hospitalPressureSore: this.hospitalPressureSore,
+      },
+    };
+    if (this.extraId) { body.id = this.extraId; body._id = this.extraId; }
+    return this.http.post<any>(API_EXTRA_SAVE, body).pipe(
+      tap(res => { if (res?.id || res?._id) this.extraId = res.id || res._id; }),
+      finalize(() => this.cdr.detectChanges()),
+    );
+  }
+
+  optionLabel(item: BradenItem, score: number): string { return item.options.find(o => o.score === score)?.label || ''; }
+  bradenValue(row: BradenRow, field: BradenItem['field']): string { const n = this.num(row.score?.[field]); return n === null ? '' : String(n); }
+  turnOverCheck(row: BradenRow): string {
+    const list = Array.isArray(row.nurseMeasureList) ? row.nurseMeasureList : [];
+    return list.some(m => m && m.value === true && String(m.code || '').trim().includes('ding5shi2fan10shen2')) ? '√' : '';
+  }
   measureCheck(row: BradenRow, measure: (typeof MEASURE_COLUMNS)[number]): string {
     const list = Array.isArray(row.nurseMeasureList) ? row.nurseMeasureList : [];
     return list.some(m => m && m.value === true && measure.match.some(kw => String(m.code || '').trim().includes(kw))) ? '√' : '';
