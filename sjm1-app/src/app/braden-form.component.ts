@@ -3,10 +3,9 @@
  * 访问路径：/bradenForm
  */
 import { HttpClient } from '@angular/common/http';
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
-import { Subject } from 'rxjs';
-import { of } from 'rxjs';
-import { debounceTime, distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
+import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { of, Subject } from 'rxjs';
+import { catchError, debounceTime, filter, finalize, map, retry, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 
@@ -120,7 +119,7 @@ interface RenderPage { index: number; rows: BradenRow[]; }
             <span class="print-only fill-val">{{resultText}}</span>
           </span>
           <span class="rl-item">日期：
-            <input class="fill-input date-input no-print-input" [(ngModel)]="resultDate" (ngModelChange)="scheduleSaveExtra()" placeholder="年/月/日" />
+            <input class="date-picker no-print-input" type="date" [(ngModel)]="resultDate" (ngModelChange)="scheduleSaveExtra()" />
             <span class="print-only fill-val">{{resultDate}}</span>
           </span>
           <span class="rl-item pressure-radio">发生院内压疮：
@@ -176,7 +175,8 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     .rl-item{display:inline-flex;align-items:center}
     .pressure-radio{gap:10px}
     .fill-input{width:130px;padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-family:'SimSun','宋体',serif;font-size:12pt;background:#fff}
-    .date-input{width:120px}
+    .date-picker{width:125px;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;padding:0 4px;font-family:'SimSun','宋体',serif;font-size:12pt}
+    .date-picker:focus{border:0!important;outline:0!important;box-shadow:none!important}
     .result-input{width:150px}
     .fill-val{min-width:130px;border-bottom:1px solid #000;padding:0 6px;display:inline-block}
     .print-only{display:none}
@@ -208,6 +208,8 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly MEASURE_COLUMNS = MEASURE_COLUMNS;
   readonly FOOT_NOTES = FOOT_NOTES;
 
+  readonly maxRowsPerPage = 12;
+
   loading = true;
   patient: any = null;
   hospitalName = '重钢总医院';
@@ -222,93 +224,152 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
   resultDate = '';
   hospitalPressureSore = '';
 
-  maxRowsPerPage = 10;
-
   private pid = '';
   private extraId: string | null = null;
+  private loadingExtra = false;
   private destroy$ = new Subject<void>();
-  private ro?: ResizeObserver;
-  private __lastPid: string | null = null;
   private extraSave$ = new Subject<void>();
+  private ro?: ResizeObserver;
+  private componentPatient$ = new Subject<any>();
 
-  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private host: ElementRef) {}
+  private bradenHostMessageHandler = (event: MessageEvent) => {
+    const raw: any = event?.data;
+    if (!raw || raw.type !== 'SmartCare' || !raw.patient) return;
+    const pid = this.getPatientPid(raw.patient);
+    if (!pid) return;
+    this.ngZone.run(() => { this.componentPatient$.next(raw.patient); });
+  };
+
+  constructor(
+    private http: HttpClient,
+    private hostPatient: HostPatientService,
+    private cdr: ChangeDetectorRef,
+    private host: ElementRef,
+    private ngZone: NgZone,
+  ) {}
 
   ngOnInit(): void {
     this.loadHospitalName();
+    this.initExtraAutoSave();
 
-    // auto-save debounce
-    this.extraSave$.pipe(
-      debounceTime(500),
-      switchMap(() => this.saveExtra()),
-      takeUntil(this.destroy$),
-    ).subscribe();
+    window.addEventListener('message', this.bradenHostMessageHandler);
 
-    this.hostPatient.patient$.pipe(
+    // 主患者流
+    this.componentPatient$.pipe(
       filter(p => !!p),
       map(p => ({ p, pid: this.getPatientPid(p) })),
-      distinctUntilChanged((a, b) => a.pid === b.pid && a.p?.name === b.p?.name && a.p?.hisBed === b.p?.hisBed && a.p?.mrn === b.p?.mrn),
-      tap(({ p, pid }) => {
-        this.resetForm();
-        this.patient = p;
-        this.pid = pid;
-        this.age = this.calcAge(p.birthday);
-        this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis || p.diagnosis);
-        if (!pid) {
-          this.loading = false;
-          this.pages = [{ index: 1, rows: [] }];
-          this.cdr.detectChanges();
-        }
-      }),
-      switchMap(({ pid }) => {
-        if (!pid) return of(null);
-        return this.loadFromServer(pid);
-      }),
+      filter(x => !!x.pid),
+      switchMap(({ p, pid }) => this.activatePatient(p, pid)),
       takeUntil(this.destroy$),
-    ).subscribe();
+    ).subscribe({
+      error: err => {
+        console.error('[bradenForm] patient stream error', err);
+        this.loading = false;
+        this.ensureBlankPage();
+        this.cdr.detectChanges();
+      },
+    });
+
+    // 转发 HostPatientService 的患者到 componentPatient$
+    this.hostPatient.patient$.pipe(
+      filter(p => !!p),
+      takeUntil(this.destroy$),
+    ).subscribe(p => this.componentPatient$.next(p));
+
+    // 主动读取当前缓存患者
+    const current = this.hostPatient.getPatient();
+    if (current) this.componentPatient$.next(current);
+
+    const buffered = (window as any).__scMsg;
+    if (buffered?.patient) this.componentPatient$.next(buffered.patient);
+
+    if (!current && !buffered?.patient) {
+      try { parent.postMessage({ type: 'SmartCareReady' }, '*'); } catch {}
+    }
   }
 
   ngAfterViewInit(): void { this.fitScale(); this.ro = new ResizeObserver(() => this.fitScale()); this.ro.observe(this.host.nativeElement); }
-  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); this.ro?.disconnect(); }
+  ngOnDestroy(): void { window.removeEventListener('message', this.bradenHostMessageHandler); this.destroy$.next(); this.destroy$.complete(); }
 
-  /** Compatible PID extraction */
   private getPatientPid(p: any): string {
     return String(p?.id ?? p?._id ?? p?.pid ?? p?.patientId ?? p?.patientID ?? p?.patient?.id ?? p?.patient?._id ?? '').trim();
   }
 
-  /** Normalize various time formats to ISO string */
+  private activatePatient(patient: any, pid: string) {
+    this.patient = patient;
+    this.pid = pid;
+    this.age = this.calcAge(patient?.birthday);
+    this.diagnosisDisplay = this.formatDiagnosis(patient?.clinicalDiagnosis || patient?.diagnosis);
+    this.resetPatientData();
+    this.ensureBlankPage();
+    this.loading = true;
+    this.cdr.detectChanges();
+    this.loadExtra(pid);
+    return this.loadFromServer(pid).pipe(
+      catchError(err => {
+        console.error('[bradenForm] score load failed', { pid, err });
+        if (pid === this.pid) { this.rows = []; this.ensureBlankPage(); this.loading = false; this.cdr.detectChanges(); }
+        return of(null);
+      })
+    );
+  }
+
+  private resetPatientData(): void {
+    this.rows = []; this.pages = []; this.selectedPage = null;
+    this.resultText = ''; this.resultDate = ''; this.hospitalPressureSore = '';
+    this.extraId = null;
+  }
+
+  private ensureBlankPage(): void {
+    if (!this.pages.length) { this.pages = [{ index: 1, rows: [] }]; }
+  }
+
   private normalizeTime(v: any): string {
     if (!v) return '';
+    if (typeof v === 'string') return v;
     if (typeof v === 'number') { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toISOString(); }
     if (v instanceof Date) return v.toISOString();
     if (typeof v === 'object' && v.$date) return this.normalizeTime(v.$date);
     return String(v);
   }
 
-  private resetForm(): void {
-    this.rows = []; this.pages = []; this.selectedPage = null;
-    this.resultText = ''; this.resultDate = ''; this.hospitalPressureSore = '';
-    this.extraId = null;
-    this.cdr.detectChanges();
+  private normalizeBradenScore(record: any): Record<string, any> {
+    let score = record?.bradenScore ?? record?.score?.bradenScore ?? record?.data?.bradenScore ?? null;
+    if (typeof score === 'string') { try { score = JSON.parse(score); } catch { score = null; } }
+    if (!score || typeof score !== 'object') { score = { feel: record?.feel, damp: record?.damp, activityAbility: record?.activityAbility, moveAbility: record?.moveAbility, nutritionAbility: record?.nutritionAbility, frictionAndShear: record?.frictionAndShear }; }
+    return {
+      feel: this.num(score?.feel), damp: this.num(score?.damp), activityAbility: this.num(score?.activityAbility),
+      moveAbility: this.num(score?.moveAbility), nutritionAbility: this.num(score?.nutritionAbility), frictionAndShear: this.num(score?.frictionAndShear),
+    };
   }
 
-  private loadHospitalName(): void {
-    this.http.get<any>(this.API_HOSPITAL).subscribe({
-      next: res => { const name = res?.hospitalName || res?.name || res?.data?.hospitalName || res?.data?.name; if (name) this.hospitalName = String(name); },
-      error: () => {},
-    });
+  private extractScoreList(res: any): ScoreRecord[] {
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res?.data)) return res.data;
+    if (Array.isArray(res?.records)) return res.records;
+    if (Array.isArray(res?.content)) return res.content;
+    if (Array.isArray(res?.list)) return res.list;
+    if (res && typeof res === 'object') return [res];
+    return [];
   }
 
   private loadFromServer(pid: string) {
     this.loading = true;
-    return this.http.get<ScoreRecord[]>(this.API_SCORE, { params: { pid, scoreType: SCORE_TYPE } }).pipe(
+    return this.http.get<any>(this.API_SCORE, { params: { pid, scoreType: SCORE_TYPE } }).pipe(
+      retry(2),
       tap(res => {
-        const list = Array.isArray(res) ? res : res ? [res as any] : [];
-        this.buildRows(list.filter(r => r && r.valid === true && r.scoreType === SCORE_TYPE));
+        if (pid !== this.pid) return;
+        const list = this.extractScoreList(res);
+        const validRows = list.filter(r => r && (r.valid === true || String(r.valid) === 'true') && r.scoreType === SCORE_TYPE);
+        this.buildRows(validRows);
+      }),
+      catchError(err => {
+        console.error('[bradenForm] score API failed', { pid, err });
+        if (pid === this.pid) { this.rows = []; this.paginate(); }
+        return of(null);
       }),
       finalize(() => {
-        this.loading = false;
-        this.loadExtra(pid);
-        this.cdr.detectChanges();
+        if (pid === this.pid) { this.loading = false; this.ensureBlankPage(); this.cdr.detectChanges(); }
       }),
     );
   }
@@ -317,9 +378,9 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
     const rows: BradenRow[] = records
       .map(r => ({
         time: this.normalizeTime(r.time),
-        score: r.bradenScore || {},
+        score: this.normalizeBradenScore(r),
         total: this.num(r.total),
-        risk: r.conclusion || '',
+        risk: String(r.conclusion || ''),
         other: String(r.ohter ?? '').trim(),
         nurseMeasureList: r.nurseMeasureList || (r as any).measuresList || [],
         signUserId: r.inputUserId,
@@ -329,73 +390,98 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
       .sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
     this.rows = rows;
+    this.paginate();
+    this.resolveSignerNames(rows);
+  }
 
+  private resolveSignerNames(rows: BradenRow[]): void {
     const userIds = [...new Set(rows.map(r => r.signUserId).filter(Boolean) as string[])];
-    if (userIds.length) {
-      this.http.get<any[]>(this.API_ACCOUNT, { params: { ids: userIds.join(',') } }).subscribe({
+    if (!userIds.length) return;
+    this.http.get<any[]>(this.API_ACCOUNT, { params: { ids: userIds.join(',') } })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
         next: accounts => {
           const nameMap = new Map<string, string>();
-          if (Array.isArray(accounts)) { for (const a of accounts) { const id = a?._id || a?.id || a?.accountId; const name = a?.trueName || a?.accountName || a?.name; if (id && name) nameMap.set(String(id), String(name)); } }
-          for (const row of this.rows) { if (row.signUserId && nameMap.has(row.signUserId)) { row.signName = nameMap.get(row.signUserId) || row.signName; } }
+          if (Array.isArray(accounts)) {
+            for (const a of accounts) {
+              const id = a?._id || a?.id || a?.accountId;
+              const name = a?.trueName || a?.accountName || a?.name;
+              if (id && name) nameMap.set(String(id), String(name));
+            }
+          }
+          for (const row of this.rows) {
+            if (row.signUserId && nameMap.has(row.signUserId)) {
+              row.signName = nameMap.get(row.signUserId) || row.signName;
+            }
+          }
           this.paginate();
+          this.cdr.detectChanges();
         },
-        error: () => { this.paginate(); },
+        error: () => {},
       });
-    } else { this.paginate(); }
   }
 
-  /** Load extra data (result/date/hospitalPressureSore) */
   private loadExtra(pid: string): void {
-    this.http.get<any>(API_EXTRA_LATEST, { params: { pid, formCode: FORM_CODE } }).pipe(takeUntil(this.destroy$)).subscribe({
-      next: d => {
-        if (pid !== this.pid) return;
-        if (d) {
-          this.extraId = d.id || d._id || null;
-          const ej = d.extraJson || {};
-          if (d.resultText || d.result) this.resultText = d.resultText || d.result || '';
-          else if (ej.resultText || ej.result) this.resultText = ej.resultText || ej.result || '';
-          if (d.resultDate) this.resultDate = d.resultDate || '';
-          else if (ej.resultDate) this.resultDate = ej.resultDate || '';
-          if (d.hospitalPressureSore || d.pressureSore) this.hospitalPressureSore = d.hospitalPressureSore || d.pressureSore || '';
-          else if (ej.hospitalPressureSore || ej.pressureSore) this.hospitalPressureSore = ej.hospitalPressureSore || ej.pressureSore || '';
-        }
-        this.cdr.detectChanges();
-      },
-      error: () => {},
-    });
+    this.loadingExtra = true;
+    this.http.get<any>(API_EXTRA_LATEST, { params: { pid, formCode: FORM_CODE } })
+      .pipe(
+        catchError(err => { console.error('[bradenForm] load extra failed', { pid, err }); return of(null); }),
+        finalize(() => { if (pid === this.pid) { this.loadingExtra = false; this.cdr.detectChanges(); } }),
+        takeUntil(this.destroy$),
+      )
+      .subscribe(data => {
+        if (pid !== this.pid || !data) return;
+        this.extraId = data.id ? String(data.id) : null;
+        this.resultText = String(data.result ?? '');
+        this.resultDate = this.normalizeDateInput(data.resultDate);
+        this.hospitalPressureSore = String(data.fell ?? '');
+      });
   }
 
-  scheduleSaveExtra(): void { this.extraSave$.next(); }
+  private initExtraAutoSave(): void {
+    this.extraSave$.pipe(
+      debounceTime(500),
+      filter(() => !!this.pid && !this.loadingExtra),
+      switchMap(() =>
+        this.saveExtra().pipe(catchError(err => { console.error('[bradenForm] autosave failed', err); return of(null); }))
+      ),
+      takeUntil(this.destroy$),
+    ).subscribe();
+  }
+
+  scheduleSaveExtra(): void {
+    if (!this.pid || this.loadingExtra) return;
+    this.extraSave$.next();
+  }
 
   private saveExtra() {
     if (!this.pid) return of(null);
     const body: any = {
       pid: this.pid,
       formCode: FORM_CODE,
-      result: this.resultText,
-      resultText: this.resultText,
-      resultDate: this.resultDate,
-      hospitalPressureSore: this.hospitalPressureSore,
-      pressureSore: this.hospitalPressureSore,
-      extraJson: {
-        resultText: this.resultText,
-        resultDate: this.resultDate,
-        hospitalPressureSore: this.hospitalPressureSore,
-      },
+      result: this.resultText || '',
+      resultDate: this.resultDate || '',
+      fell: this.hospitalPressureSore || '',
     };
-    if (this.extraId) { body.id = this.extraId; body._id = this.extraId; }
+    if (this.extraId) { body.id = this.extraId; }
     return this.http.post<any>(API_EXTRA_SAVE, body).pipe(
-      tap(res => { if (res?.id || res?._id) this.extraId = res.id || res._id; }),
-      finalize(() => this.cdr.detectChanges()),
+      tap(res => { if (res?.id) this.extraId = String(res.id); }),
+      catchError(err => { console.error('[bradenForm] save extra failed', { pid: this.pid, body, err }); return of(null); }),
     );
   }
 
-  optionLabel(item: BradenItem, score: number): string { return item.options.find(o => o.score === score)?.label || ''; }
-  bradenValue(row: BradenRow, field: BradenItem['field']): string { const n = this.num(row.score?.[field]); return n === null ? '' : String(n); }
-  turnOverCheck(row: BradenRow): string {
-    const list = Array.isArray(row.nurseMeasureList) ? row.nurseMeasureList : [];
-    return list.some(m => m && m.value === true && String(m.code || '').trim().includes('ding5shi2fan10shen2')) ? '√' : '';
+  private normalizeDateInput(value: any): string {
+    if (!value) return '';
+    const text = String(value).trim();
+    const direct = text.match(/^\d{4}-\d{2}-\d{2}/);
+    if (direct) return direct[0];
+    const slash = text.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+    if (slash) return [slash[1], slash[2].padStart(2, '0'), slash[3].padStart(2, '0')].join('-');
+    return '';
   }
+
+  optionLabel(item: BradenItem, score: number): string { return item.options.find(o => o.score === score)?.label || ''; }
+  bradenValue(row: BradenRow, field: BradenItem['field']): string { const v = this.num(row?.score?.[field]); return v === null ? '' : String(v); }
   measureCheck(row: BradenRow, measure: (typeof MEASURE_COLUMNS)[number]): string {
     const list = Array.isArray(row.nurseMeasureList) ? row.nurseMeasureList : [];
     return list.some(m => m && m.value === true && measure.match.some(kw => String(m.code || '').trim().includes(kw))) ? '√' : '';
@@ -415,9 +501,24 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
   genderText(g: any): string { const s = String(g ?? '').trim(); if (s === '1' || s === '男' || /^m$/i.test(s) || /^male$/i.test(s)) return '男性'; if (s === '2' || s === '女' || /^f$/i.test(s) || /^female$/i.test(s)) return '女性'; return s; }
   print(): void { window.print(); }
 
+  private loadHospitalName(): void {
+    this.http.get<any>(this.API_HOSPITAL).subscribe({
+      next: res => { const name = res?.hospitalName || res?.name || res?.data?.hospitalName || res?.data?.name; if (name) this.hospitalName = String(name); },
+      error: () => {},
+    });
+  }
+
   private fitScale(): void { try { const w = this.host.nativeElement.clientWidth || window.innerWidth; this.host.nativeElement.style.setProperty('--sheet-scale', String(Math.min(1, Math.max(0.5, (w - 32) / (397 * 3.7795275591))))); } catch {} }
   private calcAge(b: any): number | null { if (!b) return null; const d = new Date(b); if (Number.isNaN(d.getTime())) return null; const n = new Date(); let a = n.getFullYear() - d.getFullYear(); const m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--; return a >= 0 && a < 150 ? a : null; }
   private formatDiagnosis(v: any): string { if (!v) return ''; if (Array.isArray(v)) return v.map(x => typeof x === 'string' ? x : x?.name || x?.diagnosisName || x?.text || '').filter(Boolean).join('、'); if (typeof v === 'object') return v.name || v.diagnosisName || v.text || ''; return String(v); }
-  private num(v: any): number | null { if (v === null || v === undefined || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; }
+  private num(v: any): number | null {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'object') {
+      const c = [v.value, v.$numberInt, v.$numberLong, v.int, v.data];
+      for (const x of c) { if (x !== null && x !== undefined && x !== '') { const n = Number(x); if (Number.isFinite(n)) return n; } }
+    }
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
   private ts(t: string): number { const n = new Date(t).getTime(); return Number.isFinite(n) ? n : 0; }
 }
