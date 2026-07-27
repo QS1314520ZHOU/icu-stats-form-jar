@@ -340,12 +340,22 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private normalizeBradenScore(source: any): Record<BradenItem['field'], number | null> {
-    if (typeof source === 'string') { try { source = JSON.parse(source); } catch { source = {}; } }
+    if (typeof source === 'string') {
+      try { source = JSON.parse(source); } catch {
+        try {
+          const norm = source.replace(/Int32\(\s*["']?(-?\d+)["']?\s*\)/gi, '$1').replace(/NumberInt\(\s*["']?(-?\d+)["']?\s*\)/gi, '$1').replace(/(?:Int64|Long)\(\s*["']?(-?\d+)["']?\s*\)/gi, '$1');
+          source = JSON.parse(norm);
+        } catch { source = {}; }
+      }
+    }
     source = source || {};
-    return {
+    console.log('[bradenForm] normalizeBradenScore input', source, 'types:', typeof source.feel, typeof source.damp);
+    const result = {
       feel: this.num(source.feel), damp: this.num(source.damp), activityAbility: this.num(source.activityAbility),
       moveAbility: this.num(source.moveAbility), nutritionAbility: this.num(source.nutritionAbility), frictionAndShear: this.num(source.frictionAndShear),
     };
+    console.log('[bradenForm] normalized bradenScore', result);
+    return result;
   }
 
   private extractScoreList(res: any): ScoreRecord[] {
@@ -544,6 +554,8 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     if (typeof value === 'object') {
       const c = [value.$numberInt, value.$numberLong, value.value, value.int, value.data];
       for (const x of c) { if (x !== null && x !== undefined && x !== '') { const parsed = this.num(x); if (parsed !== null) return parsed; } }
+      try { const prim = value.valueOf(); if (prim !== value && prim !== null && prim !== undefined) { const p = this.num(prim); if (p !== null) return p; } } catch {}
+      try { const txt = value.toString(); if (txt && txt !== '[object Object]') { const p = this.num(txt); if (p !== null) return p; } } catch {}
     }
     return null;
   }
