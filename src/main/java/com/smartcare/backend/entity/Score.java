@@ -24,6 +24,7 @@ public class Score {
     private IncontinenceScore incontinenceScore;
     private SelfCareAbility selfCareAbility;
     private PatientFallDangerFactorV2 patientFallDangerFactorV2;
+    private BradenScore bradenScore;
 
     public static class NurseMeasure {
         private String code;
@@ -193,6 +194,33 @@ public class Score {
         public void setSylzys(Boolean sylzys) { this.sylzys = sylzys; }
     }
 
+    public static class BradenScore {
+        private Integer feel;
+        private Integer damp;
+        private Integer activityAbility;
+        private Integer moveAbility;
+        private Integer nutritionAbility;
+        private Integer frictionAndShear;
+        private List<?> preventiveMeasure;
+        private List<?> fsjaNurseMeasureList;
+        public Integer getFeel() { return feel; }
+        public void setFeel(Integer feel) { this.feel = feel; }
+        public Integer getDamp() { return damp; }
+        public void setDamp(Integer damp) { this.damp = damp; }
+        public Integer getActivityAbility() { return activityAbility; }
+        public void setActivityAbility(Integer activityAbility) { this.activityAbility = activityAbility; }
+        public Integer getMoveAbility() { return moveAbility; }
+        public void setMoveAbility(Integer moveAbility) { this.moveAbility = moveAbility; }
+        public Integer getNutritionAbility() { return nutritionAbility; }
+        public void setNutritionAbility(Integer nutritionAbility) { this.nutritionAbility = nutritionAbility; }
+        public Integer getFrictionAndShear() { return frictionAndShear; }
+        public void setFrictionAndShear(Integer frictionAndShear) { this.frictionAndShear = frictionAndShear; }
+        public List<?> getPreventiveMeasure() { return preventiveMeasure; }
+        public void setPreventiveMeasure(List<?> preventiveMeasure) { this.preventiveMeasure = preventiveMeasure; }
+        public List<?> getFsjaNurseMeasureList() { return fsjaNurseMeasureList; }
+        public void setFsjaNurseMeasureList(List<?> fsjaNurseMeasureList) { this.fsjaNurseMeasureList = fsjaNurseMeasureList; }
+    }
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getPid() { return pid; }
@@ -227,4 +255,6 @@ public class Score {
     public void setSelfCareAbility(SelfCareAbility selfCareAbility) { this.selfCareAbility = selfCareAbility; }
     public PatientFallDangerFactorV2 getPatientFallDangerFactorV2() { return patientFallDangerFactorV2; }
     public void setPatientFallDangerFactorV2(PatientFallDangerFactorV2 patientFallDangerFactorV2) { this.patientFallDangerFactorV2 = patientFallDangerFactorV2; }
+    public BradenScore getBradenScore() { return bradenScore; }
+    public void setBradenScore(BradenScore bradenScore) { this.bradenScore = bradenScore; }
 }
