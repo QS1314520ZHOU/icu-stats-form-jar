@@ -103,7 +103,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     this.hostPatient.patient$.pipe(
       filter(Boolean), map(p => ({p, pid:String(p.id || '').trim()})), filter(x => !!x.pid),
       distinctUntilChanged((a,b) => a.pid === b.pid),
-      tap(({p,pid}) => { this.closeDialogs(); this.patient=p; this.pid=pid; this.age=this.calcAge(p.birthday); this.records=[]; this.sharedInfo=this.emptySharedInfo(); this.sharedDraft=this.emptySharedInfo(); this.sharedCarrierRecord=null; this.sharedEditing=false; this.paginate(); this.loadError=''; }),
+      tap(({p,pid}) => { this.closeDialogs(); this.patient=p; this.pid=pid; this.age=this.calcAge(p.birthday); this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis); this.records=[]; this.sharedInfo=this.emptySharedInfo(); this.sharedDraft=this.emptySharedInfo(); this.sharedCarrierRecord=null; this.sharedEditing=false; this.paginate(); this.loadError=''; }),
       switchMap(({pid}) => this.fetchRecords(pid)), takeUntil(this.destroy$)
     ).subscribe();
     this.refresh$.pipe(takeUntil(this.destroy$)).subscribe(() => { if(this.pid) this.fetchRecords(this.pid).subscribe(); });
@@ -374,4 +374,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   private toLocalInput(d: Date): string { const p=(n:number)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
   private ts(v?:string):number { const t=v?new Date(v).getTime():0; return Number.isNaN(t)?0:t; }
   private calcAge(v?:string):number|null { if(!v)return null; const b=new Date(v); if(Number.isNaN(b.getTime()))return null; const n=new Date(); let a=n.getFullYear()-b.getFullYear(); if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--; return a>=0?a:null; }
+  genderText(g?: string): string { if (g === 'Male' || g === 'M' || g === '男') return '男'; if (g === 'Female' || g === 'F' || g === '女') return '女'; return g || ''; }
+  diagnosisDisplay = '';
+  private formatDiagnosis(d?: string): string { if (!d) return ''; let idx = -1; for (const s of [';', '；', ',', '，']) { const c = d.indexOf(s); if (c >= 0 && (idx < 0 || c < idx)) idx = c; } return idx >= 0 ? d.substring(0, idx).trim() : d.trim(); }
 }

@@ -129,6 +129,8 @@ interface RenderPage {
           <span class="info-item"><b>姓名：</b>{{ patient?.name || '' }}</span>
           <span class="info-item"><b>床号：</b>{{ patient?.hisBed || '' }}</span>
           <span class="info-item"><b>住院号：</b>{{ patient?.mrn || '' }}</span>
+          <span class="info-item"><b>年龄：</b>{{ age ?? '' }}</span>
+          <span class="info-item"><b>性别：</b>{{ genderText(patient?.gender) }}</span>
           <span class="info-item diagnosis-item"><b>诊断：</b>{{ diagnosisDisplay }}</span>
         </div>
 
@@ -234,6 +236,7 @@ export class CommitSuicideScoreComponent
   patient: any = null;
   deptName = '';
   hospitalName = '重钢总医院';
+  age: number | null = null;
   diagnosisDisplay = '';
 
   readonly items = ITEMS;
@@ -272,6 +275,7 @@ export class CommitSuicideScoreComponent
           this.resetForm();
           this.patient = p;
           this.pid = pid;
+          this.age = this.calcAge(p.birthday);
           this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
         }),
         switchMap(({ pid }) => this.loadFromServer(pid)),
@@ -297,6 +301,7 @@ export class CommitSuicideScoreComponent
     this.rows = [];
     this.pages = [];
     this.selectedPage = null;
+    this.age = null;
     this.diagnosisDisplay = '';
     this.cdr.detectChanges();
   }
@@ -444,6 +449,9 @@ private paginate(): void {
       error: () => {},
     });
   }
+
+  genderText(g?: string): string { if (g === 'Male' || g === 'M' || g === '男') return '男'; if (g === 'Female' || g === 'F' || g === '女') return '女'; return g || ''; }
+  private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (isNaN(b.getTime())) return null; const now = new Date(); let age = now.getFullYear() - b.getFullYear(); if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--; return age >= 0 ? age : null; }
 
   private formatDiagnosis(diagnosis?: string): string {
     if (!diagnosis) return '';
