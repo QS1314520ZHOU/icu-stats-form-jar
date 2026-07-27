@@ -89,21 +89,13 @@ const MARK_OTHER = '⑥';
 
         <!-- 患者信息 -->
         <div class="patient-info-row">
-          <span class="info-item"><b>科室：</b>{{deptName}}</span>
+          <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
           <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
           <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
           <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
           <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
           <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
-        </div>
-
-        <!-- 体温监测方式 -->
-        <div class="monitor-row">
-          <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.anal" (change)="onFieldChange()" /> 肛温</label>
-          <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.bladder" (change)="onFieldChange()" /> 膀胱温</label>
-          <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.blood" (change)="onFieldChange()" /> 血温</label>
-          <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.axillary" (change)="onFieldChange()" /> 腋温</label>
         </div>
 
         <!-- 明细记录表格 -->
@@ -116,8 +108,19 @@ const MARK_OTHER = '⑥';
             <col class="warm-col" />
             <col class="sign-col" />
           </colgroup>
-          <thead>
-            <tr>
+          <tbody>
+            <!-- 体温监测方式 -->
+            <tr class="monitor-row">
+              <td class="monitor-title">体温监测方式</td>
+              <td class="monitor-cell" colspan="5">
+                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.anal" (change)="onFieldChange()" /> 肛温</label>
+                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.bladder" (change)="onFieldChange()" /> 膀胱温</label>
+                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.blood" (change)="onFieldChange()" /> 血温</label>
+                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.axillary" (change)="onFieldChange()" /> 腋温</label>
+              </td>
+            </tr>
+            <!-- 表头行 -->
+            <tr class="detail-header-row">
               <th>日期时间</th>
               <th>亚低温治疗仪体控温度设置（℃）</th>
               <th>亚低温治疗仪水温温度设置（℃）</th>
@@ -125,7 +128,6 @@ const MARK_OTHER = '⑥';
               <th>复温措施</th>
               <th>签名</th>
             </tr>
-          </thead>
           <tbody>
             <tr *ngFor="let c of pagePaddedRows(page)">
               <td>
@@ -186,8 +188,11 @@ const MARK_OTHER = '⑥';
     }
 
     /* 体温监测方式 */
-    .monitor-row { margin:3px 0; font-family:'SimSun', '宋体', serif; font-size:10pt; white-space:nowrap; }
-    .monitor-option { display:inline-flex; align-items:center; margin-right:26px; white-space:nowrap; }
+    .monitor-row td { padding:4px 2px; }
+    .monitor-title { text-align:center; font-weight:700; width:130px; border:1px solid #000; }
+    .monitor-cell { text-align:left !important; padding:4px 8px !important; border:1px solid #000; white-space:nowrap; }
+    .monitor-option { display:inline-flex; align-items:center; margin-right:26px; white-space:nowrap; font-family:'SimSun', '宋体', serif; font-size:9pt; }
+    .detail-header-row th { height:34px; font-weight:700; }
 
     /* 明细表格 */
     .record-table { width:100%; border-collapse:collapse; font-family:'SimSun', '宋体', serif; font-size:9pt; table-layout:fixed; }
@@ -238,7 +243,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
 
   selectedPage: number | null = null;
   readonly rowsPerPage = 15;
-  deptName = '重症医学科';
+  deptName = '';
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;

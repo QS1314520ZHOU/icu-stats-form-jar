@@ -104,7 +104,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
         </div>
 
         <div class="patient-info-row">
-          <span class="info-item"><b>病区：</b>{{deptName}}</span>
+          <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
           <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
           <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
@@ -438,7 +438,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;left:-99999px;top:0;visibility:hidden;width:297mm;pointer-events:none;font-family:SimSun,宋体,serif;font-size:9pt';
     el.innerHTML = `<div style="text-align:center;font:700 24pt SimHei,黑体,sans-serif;line-height:1.35">${this.hospitalName}住院患者日常生活能力评估单</div>
-      <div style="display:flex;gap:16px;font-size:13pt;line-height:1.3"><span>病区：</span><span>姓名：</span><span>床号：</span><span>住院号：</span><span>年龄：</span><span>性别：</span><span>诊断：</span></div>
+      <div style="display:flex;gap:16px;font-size:13pt;line-height:1.3"><span>科室：</span><span>姓名：</span><span>床号：</span><span>住院号：</span><span>年龄：</span><span>性别：</span><span>诊断：</span></div>
       <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:9pt"><thead>
       <tr><th style="border:1px solid #000;padding:2px 1px;height:28px;width:72px" rowspan="6">日期时间</th><th style="border:1px solid #000;padding:2px 1px;height:28px" colspan="12">日常生活能力评估（Barthel 指数）</th><th style="border:1px solid #000;padding:2px 1px;height:28px" rowspan="6">分级</th><th style="border:1px solid #000;padding:2px 1px;height:28px" rowspan="6">其他</th><th style="border:1px solid #000;padding:2px 1px;height:28px" rowspan="6">签名</th></tr>
       <tr><th style="border:1px solid #000;padding:2px 1px;height:28px">项目</th><th style="border:1px solid #000;height:28px">进食</th><th style="border:1px solid #000;height:28px">洗浴</th><th style="border:1px solid #000;height:28px">修饰</th><th style="border:1px solid #000;height:28px">穿[脱]衣</th><th style="border:1px solid #000;height:28px">控制大便</th><th style="border:1px solid #000;height:28px">控制小便</th><th style="border:1px solid #000;height:28px">如厕</th><th style="border:1px solid #000;height:28px">床椅移动</th><th style="border:1px solid #000;height:28px">平地行走</th><th style="border:1px solid #000;height:28px">上下楼梯</th><th style="border:1px solid #000;height:28px">总分</th></tr>

@@ -136,7 +136,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
         </div>
 
         <div class="patient-info-row">
-          <span class="info-item"><b>病区：</b>{{deptName}}</span>
+          <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
           <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
           <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>

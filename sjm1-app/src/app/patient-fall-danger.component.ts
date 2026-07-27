@@ -90,7 +90,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
         <div class="sheet-head"><div class="title-line">{{hospitalName}}跌倒/坠床风险评估及预防措施护理记录单</div></div>
 
         <div class="patient-info-row">
-          <span class="info-item"><b>病区：</b>{{deptName}}</span>
+          <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
           <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
           <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
@@ -389,7 +389,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     try {
       const title = this.hospitalName + '跌倒/坠床风险评估及预防措施护理记录单';
       const fixedHtml = '<div class="sheet-head"><div class="title-line">' + title + '</div></div>' +
-        '<div class="patient-info-row"><span class="info-item"><b>病区：</b>' + this.deptName + '</span></div>' +
+        '<div class="patient-info-row"><span class="info-item"><b>科室：</b>' + (this.patient?.dept || '') + '</span></div>' +
         '<table class="record-table"><thead><tr><th class="date-col" rowspan="4">日期/时间</th>' +
         '<th colspan="2">适用方法</th><th colspan="7">临床判定法</th>' +
         '<th colspan="2">Morse评分量表</th><th class="risk-col" rowspan="4">跌倒风险</th>' +
