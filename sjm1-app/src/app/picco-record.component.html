@@ -2,7 +2,7 @@
 <div *ngIf="loading" class="status">加载中…</div><div *ngIf="loadError" class="status error">{{loadError}} <button (click)="load()">重试</button></div>
 <section class="print-page" *ngFor="let page of pages" [class.print-hidden]="selectedPrintPage!==null && selectedPrintPage!==page.index">
  <div class="sheet">
-  <h1>重钢总医院重症医学科PICCO容量监测参数记录表</h1>
+  <h1>重钢总医院PICCO容量监测参数记录表</h1>
   <div class="patient-line"><span>姓名：{{patient?.name||''}}</span><span>床号：{{patient?.hisBed||''}}</span><span>住院号：{{patient?.mrn||''}}</span><span class="grow">诊断：{{diagnosisDisplay}}</span></div>
   <div class="patient-line"><span>性别：{{genderText(patient?.gender)}}</span><span>年龄：{{age??''}} 岁</span><span>身高：{{patient?.height||''}} cm</span><span>体重：{{patient?.weight||''}} kg</span></div>
   <div class="insertion-row">

@@ -8,7 +8,7 @@
 
 <section class="sheet" *ngFor="let page of pages" [class.continuation-sheet]="!page.showDocumentHeader" [attr.aria-label]="'第' + page.index + '页'">
   <div class="sheet-content">
-  <h1 *ngIf="page.showDocumentHeader" data-measure-block="intro">重症医学科患者物品购买温馨提醒</h1>
+  <h1 *ngIf="page.showDocumentHeader" data-measure-block="intro">患者物品购买温馨提醒</h1>
 
   <div class="notice-copy" *ngIf="page.showDocumentHeader" data-measure-block="intro">
     <p>尊敬的病员家属：</p>

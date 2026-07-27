@@ -241,7 +241,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
 
   loading = true;
   patient: any = null;
-  deptName = '重症医学科';
+  deptName = '';
   hospitalName = '重钢总医院';
   diagnosisDisplay = '';
   age: number | null = null;

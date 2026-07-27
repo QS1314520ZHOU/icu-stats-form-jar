@@ -46,7 +46,7 @@ interface TimeColumn {
 
 interface RenderPage {
   index: number;
-  cols: TimeColumn[];
+  rows: TimeColumn[];
 }
 
 const CODE_T = 'param_T';
@@ -84,86 +84,73 @@ const MARK_OTHER = '⑥';
     <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index">
         <!-- 标题 -->
         <div class="sheet-head">
-          <div class="title-line">{{hospitalName}}重症医学科患者亚低温治疗体温记录单</div>
+          <div class="title-line">{{hospitalName}}患者亚低温治疗体温记录单</div>
         </div>
 
-        <!-- 患者信息：全部在同一排 -->
+        <!-- 患者信息 -->
         <div class="patient-info-row">
-          <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
+          <span class="info-item"><b>科室：</b>{{deptName}}</span>
           <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
-          <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-          <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
+          <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
+          <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
+          <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
           <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
-          <span class="info-item date-item">
-            <!-- <b>日期：</b> -->
-            <input type="date" class="date-input" [(ngModel)]="recordDate" (click)="openNativePicker($event)" (change)="onFieldChange()" />
-          </span>
         </div>
 
-        <!-- 记录表格 -->
-        <table class="record-table">
+        <!-- 体温监测方式 -->
+        <div class="monitor-row">
+          <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.anal" (change)="onFieldChange()" /> 肛温</label>
+          <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.bladder" (change)="onFieldChange()" /> 膀胱温</label>
+          <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.blood" (change)="onFieldChange()" /> 血温</label>
+          <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.axillary" (change)="onFieldChange()" /> 腋温</label>
+        </div>
+
+        <!-- 明细记录表格 -->
+        <table class="record-table ydwzl-detail-table">
           <colgroup>
-            <col class="label-col" />
-            <col *ngFor="let c of pagePaddedCols(page)" class="data-col" />
+            <col class="date-col" />
+            <col class="body-col" />
+            <col class="water-col" />
+            <col class="cool-col" />
+            <col class="warm-col" />
+            <col class="sign-col" />
           </colgroup>
+          <thead>
+            <tr>
+              <th>日期时间</th>
+              <th>亚低温治疗仪体控温度设置（℃）</th>
+              <th>亚低温治疗仪水温温度设置（℃）</th>
+              <th>降温措施</th>
+              <th>复温措施</th>
+              <th>签名</th>
+            </tr>
+          </thead>
           <tbody>
-            <!-- 体温监测方式 -->
-            <tr>
-              <th class="row-label">体温监测方式</th>
-              <td class="monitor-cell" [attr.colspan]="colsPerPage">
-                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.anal" (change)="onFieldChange()" /> 肛温</label>
-                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.bladder" (change)="onFieldChange()" /> 膀胱温</label>
-                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.blood" (change)="onFieldChange()" /> 血温</label>
-                <label class="monitor-option"><input type="checkbox" [(ngModel)]="monitorModes.axillary" (change)="onFieldChange()" /> 腋温</label>
+            <tr *ngFor="let c of pagePaddedRows(page)">
+              <td>
+                <ng-container *ngIf="c">
+                  <span class="dt-date">{{ fmtDate(c.time) }}</span>
+                  <span class="dt-time">{{ fmtTime(c.time) }}</span>
+                </ng-container>
               </td>
-            </tr>
-            <!-- 数据行 -->
-            <tr>
-              <th class="row-label">日期时间</th>
-              <td *ngFor="let c of pagePaddedCols(page)">
-                <div class="dt-date">{{ c ? fmtDate(c.time) : '' }}</div>
-                <div class="dt-time">{{ c ? fmtTime(c.time) : '' }}</div>
-              </td>
-            </tr>
-            <tr>
-              <th class="row-label">体温（℃）</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.T || '') : '' }}</td>
-            </tr>
-            <tr>
-              <th class="row-label">亚低温治疗仪体控温度设置（℃）</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.body || '') : '' }}</td>
-            </tr>
-            <tr>
-              <th class="row-label">亚低温治疗仪水温温度设置（℃）</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.water || '') : '' }}</td>
-            </tr>
-            <tr>
-              <th class="row-label">降温措施</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.coolMark || '') : '' }}</td>
-            </tr>
-            <tr>
-              <th class="row-label">复温措施</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.warmMark || '') : '' }}</td>
-            </tr>
-            <tr>
-              <th class="row-label">护士签名</th>
-              <td *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.signName || '') : '' }}</td>
-            </tr>
-            <!-- 备注 -->
-            <tr>
-              <td class="remark-cell" [attr.colspan]="colsPerPage + 1">
-                <div class="remark-text">
-                  备注：<br>
-                  1、目标温度：33℃-35℃。<br>
-                  2、降温措施：每小时降温＜1℃，达到目标温度前每15分钟测量记录核心温度一次；达到目标温度后每1小时测量核心温度，维持治疗期间每2小时记录核心温度一次；降温措施：①头部冰帽、背部冰毯；②前额、颈部、腋窝及腹股沟区放置冰袋；③降低室温；④血管内降温；⑤冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="coolOther" disabled />。<br>
-                  3、复温：患者意识恢复或治疗结束后复温，每小时记录核心温度一次；缓慢复温，每小时复温≤0.5℃，复温时间≥5小时，12-24小时恢复核心温度36℃-37℃：①复温毯、复温帽；②棉被/毛毯保暖；③提升室温；④血管内复温；⑤停用冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="warmOther" disabled />。<br>
-                  4、注意事项：亚低温治疗期间每2小时翻身、检查皮肤、记录呼吸、心率、血压；密切观察患者有无皮肤冻伤或压力性损伤、电解质紊乱、凝血功能障碍以及心率失常等并发症。
-                </div>
-              </td>
+              <td>{{ c ? (c.body || '') : '' }}</td>
+              <td>{{ c ? (c.water || '') : '' }}</td>
+              <td>{{ c ? (c.coolMark || '') : '' }}</td>
+              <td>{{ c ? (c.warmMark || '') : '' }}</td>
+              <td>{{ c ? (c.signName || '') : '' }}</td>
             </tr>
           </tbody>
         </table>
+
+        <!-- 备注 -->
+        <div class="remark-text">
+          备注：<br>
+          1、目标温度：33℃-35℃。<br>
+          2、降温措施：每小时降温＜1℃，达到目标温度前每15分钟测量记录核心温度一次；达到目标温度后每1小时测量核心温度，维持治疗期间每2小时记录核心温度一次；降温措施：①头部冰帽、背部冰毯；②前额、颈部、腋窝及腹股沟区放置冰袋；③降低室温；④血管内降温；⑤冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="coolOther" disabled />。<br>
+          3、复温：患者意识恢复或治疗结束后复温，每小时记录核心温度一次；缓慢复温，每小时复温≤0.5℃，复温时间≥5小时，12-24小时恢复核心温度36℃-37℃：①复温毯、复温帽；②棉被/毛毯保暖；③提升室温；④血管内复温；⑤停用冬眠合剂；⑥其他 <input class="other-input" type="text" [(ngModel)]="warmOther" disabled />。<br>
+          4、注意事项：亚低温治疗期间每2小时翻身、检查皮肤、记录呼吸、心率、血压；密切观察患者有无皮肤冻伤或压力性损伤、电解质紊乱、凝血功能障碍以及心率失常等并发症。
+        </div>
 
         <!-- 页码 -->
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
@@ -198,21 +185,23 @@ const MARK_OTHER = '⑥';
       background: transparent;
     }
 
-    /* 表格 */
-    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun', '宋体', serif; font-size:9pt; table-layout:fixed; }
-    .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:4px 2px; word-break:break-all; height:34px; }
-    .record-table th { background:transparent; font-weight:700; }
-    .row-label { width:130px; }
-    .label-col { width:130px; }
-    .data-col { width:auto; }
-
     /* 体温监测方式 */
-    .monitor-cell { box-sizing:border-box; text-align:left !important; padding:5px 12px !important; white-space:nowrap; overflow:hidden; }
+    .monitor-row { margin:3px 0; font-family:'SimSun', '宋体', serif; font-size:10pt; white-space:nowrap; }
     .monitor-option { display:inline-flex; align-items:center; margin-right:26px; white-space:nowrap; }
 
+    /* 明细表格 */
+    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun', '宋体', serif; font-size:9pt; table-layout:fixed; }
+    .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:2px 3px; word-break:break-all; height:18px; line-height:1.2; vertical-align:middle; }
+    .record-table th { background:transparent; font-weight:700; height:34px; }
+    .date-col { width:17%; }
+    .body-col { width:17%; }
+    .water-col { width:17%; }
+    .cool-col { width:17%; }
+    .warm-col { width:17%; }
+    .sign-col { width:15%; }
+
     /* 备注 */
-    .remark-cell { box-sizing:border-box; width:100%; text-align:left !important; vertical-align:top; padding:5px 8px !important; font-size:9.5pt; line-height:1.3; white-space:normal; word-break:break-word; margin-bottom:10mm; }
-    .remark-text { text-align:left; line-height:1.5; }
+    .remark-text { text-align:left; line-height:1.5; font-family:'SimSun', '宋体', serif; font-size:9.5pt; margin-top:4px; }
 
     .other-input { border:none; border-bottom:1px solid #000; min-width:120px; font-size:7.5pt; }
     input:disabled,select:disabled { cursor:not-allowed; opacity:.6; }
@@ -248,7 +237,8 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   monitorModes = { anal: false, bladder: false, blood: false, axillary: false };
 
   selectedPage: number | null = null;
-  readonly colsPerPage = 6;
+  readonly rowsPerPage = 15;
+  deptName = '重症医学科';
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -490,13 +480,13 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   }
 
 private paginate(): void {
-    const per = this.colsPerPage;
+    const per = this.rowsPerPage;
     const pages: RenderPage[] = [];
     if (!this.columns.length) {
-      pages.push({ index: 1, cols: [] });
+      pages.push({ index: 1, rows: [] });
     } else {
       for (let i = 0; i < this.columns.length; i += per) {
-        pages.push({ index: pages.length + 1, cols: this.columns.slice(i, i + per) });
+        pages.push({ index: pages.length + 1, rows: this.columns.slice(i, i + per) });
       }
     }
     this.pages = pages;
@@ -505,10 +495,10 @@ private paginate(): void {
     }
   }
 
-  /** 返回恰好 colsPerPage 项的数组 */
-  pagePaddedCols(page: RenderPage): (TimeColumn | null)[] {
-    const result: (TimeColumn | null)[] = page.cols.slice(0, this.colsPerPage);
-    while (result.length < this.colsPerPage) result.push(null);
+  /** 返回恰好 rowsPerPage 项的数组 */
+  pagePaddedRows(page: RenderPage): (TimeColumn | null)[] {
+    const result: (TimeColumn | null)[] = page.rows.slice(0, this.rowsPerPage);
+    while (result.length < this.rowsPerPage) result.push(null);
     return result;
   }
 

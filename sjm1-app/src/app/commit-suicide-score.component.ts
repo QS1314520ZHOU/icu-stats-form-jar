@@ -232,7 +232,7 @@ export class CommitSuicideScoreComponent
 
   loading = true;
   patient: any = null;
-  deptName = '重症医学科';
+  deptName = '';
   hospitalName = '重钢总医院';
   diagnosisDisplay = '';
 
