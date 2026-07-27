@@ -64,7 +64,7 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     <div *ngIf="loading" class="loading no-print">加载中…</div>
 
     <ng-container *ngFor="let page of pages">
-      <section class="sheet" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index">
+      <section class="sheet" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index" [class.last-sheet]="page.index === pages.length">
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}住院患者压力性损伤评估及措施记录单</div>
           <div class="patient-info-row">
@@ -188,13 +188,17 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     @media screen{.sheet{width:calc(100vw - 32px);max-width:297mm;min-width:980px;zoom:1!important;transform:none!important}}
     @media print{
       @page{size:A4 landscape;margin:0}
-      :host{height:auto;overflow:visible}
+      :host{display:block;width:297mm;height:auto;margin:0!important;padding:0!important;overflow:visible}
       .no-print{display:none!important}
       .no-print-input{display:none!important}
       .sheet-hidden{display:none!important}
-      .sheet{width:297mm;height:210mm;overflow:hidden;margin:0;box-shadow:none;zoom:1;transform:none;filter:none;page-break-after:always}
+      .sheet{box-sizing:border-box;width:297mm!important;min-width:0!important;max-width:297mm!important;height:209mm!important;min-height:209mm!important;max-height:209mm!important;margin:0!important;padding:7mm 10mm!important;overflow:hidden!important;zoom:1!important;transform:none!important;filter:none!important;box-shadow:none!important;page-break-before:auto;page-break-inside:avoid;break-inside:avoid-page;page-break-after:always;break-after:page}
+      .sheet.last-sheet{page-break-after:auto!important;break-after:auto!important}
       .record-table,.record-table th,.record-table td{font-family:'SimSun','宋体',serif!important;transform:none!important;filter:none!important;text-shadow:none!important;-webkit-font-smoothing:antialiased}
-      .sheet:last-of-type{page-break-after:auto}
+      .record-table th{height:18px}
+      .record-table td{height:22px}
+      .footnote{margin-bottom:6mm}
+      .result-line{margin-top:5px}
       .print-only{display:inline!important}
       .screen-only{display:none!important}
     }
