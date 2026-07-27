@@ -209,7 +209,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   readonly MEASURE_COLUMNS = MEASURE_COLUMNS;
   readonly FOOT_NOTES = FOOT_NOTES;
 
-  readonly maxRowsPerPage = 12;
+  readonly maxRowsPerPage = 10;
 
   loading = true;
   patient: any = null;
@@ -349,13 +349,10 @@ export class BradenFormComponent implements OnInit, OnDestroy {
       }
     }
     source = source || {};
-    console.log('[bradenForm] normalizeBradenScore input', source, 'types:', typeof source.feel, typeof source.damp);
-    const result = {
+    return {
       feel: this.num(source.feel), damp: this.num(source.damp), activityAbility: this.num(source.activityAbility),
       moveAbility: this.num(source.moveAbility), nutritionAbility: this.num(source.nutritionAbility), frictionAndShear: this.num(source.frictionAndShear),
     };
-    console.log('[bradenForm] normalized bradenScore', result);
-    return result;
   }
 
   private extractScoreList(res: any): ScoreRecord[] {
@@ -393,15 +390,9 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     const rows: BradenRow[] = records
       .map(score => {
         const detail = this.getBradenScoreDetail(score);
-        console.log('[bradenForm] complete score record', score);
-        console.log('[bradenForm] scoreType', score?.scoreType);
-        console.log('[bradenForm] score[scoreType]', (score as any)?.[score?.scoreType || '']);
-        console.log('[bradenForm] braden detail', detail);
-        const normalized = this.normalizeBradenScore(detail);
-        console.log('[bradenForm] normalized braden score', normalized);
         return {
           time: this.normalizeTime(score.time),
-          bradenScore: normalized,
+          bradenScore: this.normalizeBradenScore(detail),
           total: this.num(score.total),
           risk: String(score.conclusion || ''),
           other: String(score.ohter ?? '').trim(),
@@ -413,7 +404,6 @@ export class BradenFormComponent implements OnInit, OnDestroy {
       .filter(r => !!r.time)
       .sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
-    console.log('[bradenForm] final table rows', rows);
     this.rows = rows;
     this.paginate();
     this.resolveSignerNames(rows);
