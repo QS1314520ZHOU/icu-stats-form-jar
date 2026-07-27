@@ -13,6 +13,7 @@ import { EcmoRecordComponent } from './ecmo-record.component';
 import { TransfusionRecordComponent } from './transfusion-record.component';
 import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
+import { BradenFormComponent } from './braden-form.component';
 
 export const routes: Routes = [
   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
@@ -26,6 +27,7 @@ export const routes: Routes = [
   { path: 'jkjyForm', component: HealthEducationComponent },
   { path: 'wpgmForm', component: WpgmFormComponent },
   { path: 'ecmoForm', component: EcmoRecordComponent },
+  { path: 'bradenForm', component: BradenFormComponent },
   { path: 'transfusionForm', component: TransfusionRecordComponent },
   { path: 'piccoForm', component: PiccoRecordComponent },
   { path: 'iabpForm', component: IabpRecordComponent },

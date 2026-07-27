@@ -19,6 +19,7 @@ import { EcmoRecordComponent } from './ecmo-record.component';
 import { TransfusionRecordComponent } from './transfusion-record.component';
 import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
+import { BradenFormComponent } from './braden-form.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -38,6 +39,7 @@ import { routes } from './app.routes';
     TransfusionRecordComponent,
     PiccoRecordComponent,
     IabpRecordComponent,
+    BradenFormComponent,
   ],
   imports: [
     BrowserModule,
