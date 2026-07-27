@@ -3,7 +3,7 @@
  * 访问路径：/bradenForm
  */
 import { HttpClient } from '@angular/common/http';
-import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { of, Subject } from 'rxjs';
 import { catchError, debounceTime, filter, finalize, map, retry, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
@@ -152,24 +152,24 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     .info-item{flex:0 0 auto;white-space:nowrap}
     .info-item b{font-weight:700}
     .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
-    .record-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:8.5pt;font-weight:400;font-style:normal;text-shadow:none;text-rendering:geometricPrecision;-webkit-font-smoothing:antialiased}
-    .record-table th,.record-table td{border:1px solid #000;text-align:center;vertical-align:middle;padding:1px 2px;overflow:hidden;font-family:'SimSun','宋体',serif;font-weight:400;font-style:normal;text-shadow:none;transform:none;filter:none;opacity:1;-webkit-text-stroke:0;-webkit-font-smoothing:antialiased}
+    .record-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:12px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;font-synthesis:none}
+    .record-table th,.record-table td{box-sizing:border-box;border:1px solid #000;text-align:center;vertical-align:middle;padding:1px 2px;overflow:hidden;font-family:'SimSun','宋体',serif;font-size:12px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;font-synthesis:none}
     .record-table th{height:18px;line-height:1.15}
     .record-table td{height:22px;line-height:1.15}
     .group-head{height:18px;font-weight:400}
     .date-col{width:74px;min-width:74px;white-space:nowrap;word-break:normal}
     .score-index-col{width:24px;min-width:24px}
     .braden-title-col{width:54px;min-width:54px;font-weight:400}
-    .braden-desc-col{width:54px;min-width:54px;height:18px;line-height:1.1;font-size:8.5pt;white-space:normal}
-    .score-cell{width:54px;min-width:54px;font-size:9pt}
+    .braden-desc-col{width:54px;min-width:54px;height:18px;line-height:1.1;font-size:12px;white-space:normal}
+    .score-cell{width:54px;min-width:54px;font-size:12px}
     .total-col{width:28px;min-width:28px}
     .risk-col{width:42px;min-width:42px}
     .measure-head{width:42px;min-width:42px;height:92px}
-    .measure-cell{width:42px;min-width:42px;font-size:10pt}
+    .measure-cell{width:42px;min-width:42px;font-size:12px}
     .other-col{width:120px;min-width:120px}
     .other-cell{width:120px;min-width:120px;text-align:center;padding-left:2px}
     .sign-col{width:44px;min-width:44px}
-    .vtext{display:inline-block;writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:1.05;letter-spacing:0;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;font-style:normal;text-shadow:none;transform:none;filter:none;opacity:1;margin:0 auto}
+    .vtext{display:inline-block;writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:14px;letter-spacing:0;font-family:'SimSun','宋体',serif;font-size:12px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;margin:0 auto}
     .dt-date,.dt-time{display:block;white-space:nowrap;word-break:normal;text-align:center;line-height:1.2}
     .result-line{display:flex;flex-wrap:wrap;gap:70px;margin-top:6px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt}
     .rl-item{display:inline-flex;align-items:center}
@@ -185,7 +185,7 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     .footnote .fn-title{font-weight:700;display:inline}
     .footnote .fn{margin:0}
     .sheet-pageno{position:absolute;left:12mm;right:12mm;bottom:6mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:13pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
-    @media screen{.sheet{zoom:var(--sheet-scale,1)}}
+    @media screen{.sheet{width:calc(100vw - 32px);max-width:297mm;min-width:980px;zoom:1!important;transform:none!important}}
     @media print{
       @page{size:A4 landscape;margin:0}
       :host{height:auto;overflow:visible}
@@ -200,7 +200,7 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     }
   `],
 })
-export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
+export class BradenFormComponent implements OnInit, OnDestroy {
   private readonly API_SCORE = '/api/v1/icu/score/listByPid';
   private readonly API_HOSPITAL = '/api/v1/config/hospital';
   private readonly API_ACCOUNT = '/api/v1/icu/accounts/listByIds';
@@ -230,7 +230,6 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadingExtra = false;
   private destroy$ = new Subject<void>();
   private extraSave$ = new Subject<void>();
-  private ro?: ResizeObserver;
   private componentPatient$ = new Subject<any>();
 
   private bradenHostMessageHandler = (event: MessageEvent) => {
@@ -289,7 +288,6 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  ngAfterViewInit(): void { this.fitScale(); this.ro = new ResizeObserver(() => this.fitScale()); this.ro.observe(this.host.nativeElement); }
   ngOnDestroy(): void { window.removeEventListener('message', this.bradenHostMessageHandler); this.destroy$.next(); this.destroy$.complete(); }
 
   private getPatientPid(p: any): string {
@@ -334,8 +332,15 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
     return String(v);
   }
 
+  private getBradenScoreDetail(score: any): any {
+    if (!score || score.scoreType !== SCORE_TYPE) return null;
+    let detail = score?.[score.scoreType] ?? score?.bradenScore ?? score?.score?.bradenScore ?? score?.data?.bradenScore ?? null;
+    if (typeof detail === 'string') { try { detail = JSON.parse(detail); } catch { /* ignore */ } }
+    return detail;
+  }
+
   private normalizeBradenScore(source: any): Record<BradenItem['field'], number | null> {
-    if (typeof source === 'string') { try { source = JSON.parse(source); } catch { source = null; } }
+    if (typeof source === 'string') { try { source = JSON.parse(source); } catch { source = {}; } }
     source = source || {};
     return {
       feel: this.num(source.feel), damp: this.num(source.damp), activityAbility: this.num(source.activityAbility),
@@ -376,22 +381,33 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private buildRows(records: ScoreRecord[]): void {
     const rows: BradenRow[] = records
-      .map(r => ({
-        time: this.normalizeTime(r.time),
-        bradenScore: this.normalizeBradenScore(r.bradenScore),
-        total: this.num(r.total),
-        risk: String(r.conclusion || ''),
-        other: String(r.ohter ?? '').trim(),
-        nurseMeasureList: r.nurseMeasureList || (r as any).measuresList || [],
-        signUserId: r.inputUserId,
-        signName: r.inputUser || '',
-      }))
+      .map(score => {
+        const detail = this.getBradenScoreDetail(score);
+        console.log('[bradenForm] complete score record', score);
+        console.log('[bradenForm] scoreType', score?.scoreType);
+        console.log('[bradenForm] score[scoreType]', (score as any)?.[score?.scoreType || '']);
+        console.log('[bradenForm] braden detail', detail);
+        const normalized = this.normalizeBradenScore(detail);
+        console.log('[bradenForm] normalized braden score', normalized);
+        return {
+          time: this.normalizeTime(score.time),
+          bradenScore: normalized,
+          total: this.num(score.total),
+          risk: String(score.conclusion || ''),
+          other: String(score.ohter ?? '').trim(),
+          nurseMeasureList: (score as any).nurseMeasureList || (score as any).measuresList || [],
+          signUserId: score.inputUserId,
+          signName: score.inputUser || '',
+        };
+      })
       .filter(r => !!r.time)
       .sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
+    console.log('[bradenForm] final table rows', rows);
     this.rows = rows;
     this.paginate();
     this.resolveSignerNames(rows);
+    this.cdr.detectChanges();
   }
 
   private resolveSignerNames(rows: BradenRow[]): void {
@@ -508,17 +524,28 @@ export class BradenFormComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private fitScale(): void { try { const w = this.host.nativeElement.clientWidth || window.innerWidth; const sheetPx = 297 * 96 / 25.4; const scale = Math.min(1, (w - 32) / sheetPx); this.host.nativeElement.style.setProperty('--sheet-scale', String(scale >= 0.98 ? 1 : Math.max(0.65, Math.round(scale * 100) / 100))); } catch {} }
   private calcAge(b: any): number | null { if (!b) return null; const d = new Date(b); if (Number.isNaN(d.getTime())) return null; const n = new Date(); let a = n.getFullYear() - d.getFullYear(); const m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--; return a >= 0 && a < 150 ? a : null; }
   private formatDiagnosis(v: any): string { if (!v) return ''; if (Array.isArray(v)) return v.map(x => typeof x === 'string' ? x : x?.name || x?.diagnosisName || x?.text || '').filter(Boolean).join('、'); if (typeof v === 'object') return v.name || v.diagnosisName || v.text || ''; return String(v); }
-  private num(v: any): number | null {
-    if (v === null || v === undefined || v === '') return null;
-    if (typeof v === 'object') {
-      const c = [v.value, v.$numberInt, v.$numberLong, v.int, v.data];
-      for (const x of c) { if (x !== null && x !== undefined && x !== '') { const n = Number(x); if (Number.isFinite(n)) return n; } }
+  private num(value: any): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if (typeof value === 'string') {
+      const text = value.trim();
+      const direct = Number(text);
+      if (Number.isFinite(direct)) return direct;
+      const int32Match = text.match(/^Int32\(\s*["']?(-?\d+)["']?\s*\)$/i);
+      if (int32Match) return Number(int32Match[1]);
+      const numberIntMatch = text.match(/^NumberInt\(\s*["']?(-?\d+)["']?\s*\)$/i);
+      if (numberIntMatch) return Number(numberIntMatch[1]);
+      const longMatch = text.match(/^(?:Long|Int64)\(\s*["']?(-?\d+)["']?\s*\)$/i);
+      if (longMatch) return Number(longMatch[1]);
+      return null;
     }
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+    if (typeof value === 'object') {
+      const c = [value.$numberInt, value.$numberLong, value.value, value.int, value.data];
+      for (const x of c) { if (x !== null && x !== undefined && x !== '') { const parsed = this.num(x); if (parsed !== null) return parsed; } }
+    }
+    return null;
   }
   private ts(t: string): number { const n = new Date(t).getTime(); return Number.isFinite(n) ? n : 0; }
 }
