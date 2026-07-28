@@ -71,6 +71,15 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   readonly vascularAccessOptions = ['右侧股静脉','左侧股静脉','右侧颈内静脉','左侧颈内静脉','右侧锁骨下静脉','左侧锁骨下静脉','动静脉内瘘','ECMO'];
   readonly treatmentModeOptions = ['CVVH','CVVHD','CVVHDF','SCUF','HP','PE','DPMAS','DFPP','CPFA','ECCO2R'];
   readonly machineConsumableOptions = ['金宝','日机装','山外山','贝朗','M150','血液滤过管路（日机装）','TWT-CBP-02P（山外山）','一次性使用体外循环血路（贝朗）','AV600S','HA330','HA330-II','膜式血浆分离器','BS330','二级膜 EC-50W','ST150','OXIRIS'];
+  readonly machineConsumableRows = [
+    { cells: ['金宝', 'M150', ''] },
+    { cells: ['日机装', '血液滤过管路（日机装）', 'AV600S'] },
+    { cells: ['山外山', 'TWT-CBP-02P（山外山）', 'AV600S'] },
+    { cells: ['贝朗', '一次性使用体外循环血路（贝朗）', 'AV600S'] },
+    { cells: ['HA330', 'HA330-II', '膜式血浆分离器', 'BS330', '二级膜 EC-50W', 'ST150', 'OXIRIS'] },
+  ];
+  readonly replacementCodes = ['B','C','D','E','F','G','H','I'];
+  readonly dialysateCodes = ['b','c','d','e','f','g','h','i'];
   readonly anticoagulationOptions = ['无肝素','肝素钠','低分子肝素','低分子肝素钠','4%枸橼酸钠','10%葡萄糖酸钙','甲磺酸萘莫司他'];
 
   constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {}
@@ -348,6 +357,10 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     };
   }
   private prescriptions(codes: string[]): PrescriptionColumn[] { return codes.map(cd => ({ code: cd, dateTime: '', baseSolution: 4000, potassiumChloride: null, sodiumChloride: null, doctorSignature: null, executionTime: '', nurseSignature: null })); }
+  private padPrescriptions(list: PrescriptionColumn[], codes: string[]): PrescriptionColumn[] {
+    const result = codes.map((code, i) => ({ code, dateTime: '', baseSolution: 4000, potassiumChloride: null, sodiumChloride: null, doctorSignature: null, executionTime: '', nurseSignature: null, ...(list[i] ?? {}) }));
+    return result;
+  }
   private createEmptyOrderItem(): OrderItem { return { dateTime: '', content: '', doctorSignature: null, executionTime: '', nurseSignature: null }; }
 
   private normalizeRecord(rec: CrrtOrderFormRecord): CrrtOrderFormRecord {
@@ -360,8 +373,8 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       dialysateFormulaA: { ...empty.dialysateFormulaA, ...(rec.dialysateFormulaA ?? {}) },
       treatmentPlan: { ...empty.treatmentPlan, ...(rec.treatmentPlan ?? {}) },
       vascularAccess: rec.vascularAccess ?? [], treatmentModes: rec.treatmentModes ?? [], machineConsumables: rec.machineConsumables ?? [],
-      replacementPrescriptions: rec.replacementPrescriptions?.length ? rec.replacementPrescriptions : empty.replacementPrescriptions,
-      dialysatePrescriptions: rec.dialysatePrescriptions?.length ? rec.dialysatePrescriptions : empty.dialysatePrescriptions,
+      replacementPrescriptions: this.padPrescriptions(rec.replacementPrescriptions ?? [], this.replacementCodes),
+      dialysatePrescriptions: this.padPrescriptions(rec.dialysatePrescriptions ?? [], this.dialysateCodes),
       orderItems: rec.orderItems?.length ? rec.orderItems : empty.orderItems,
     };
   }

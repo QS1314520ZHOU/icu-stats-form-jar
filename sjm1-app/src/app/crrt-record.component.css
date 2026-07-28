@@ -1,57 +1,406 @@
-:host { display: block; height: 100vh; overflow: auto; background: #f0f2f5; color: #000; }
-.toolbar { position: sticky; top: 0; z-index: 10; display: flex; justify-content: flex-end; gap: 12px; align-items: center; padding: 10px 18px; background: #fff; border-bottom: 1px solid #ddd; }
-.btn { min-height: 36px; padding: 6px 18px; border: 1px solid #1877d3; border-radius: 4px; cursor: pointer; }
-.btn.primary { background: #1877d3; color: #fff; }
-.ps { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font: 14px "SimSun","宋体",serif; }
-.ps select { min-height: 32px; padding: 4px 8px; border: 1px solid #ccc; background: #fff; font: inherit; }
-.status { padding: 12px 18px; font-family: "SimSun","宋体",serif; }
-.status.error { color: #b42318; }
-.sheet { box-sizing: border-box; position: relative; width: 210mm; height: 297mm; padding: 7mm 7mm 13mm; overflow: hidden; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-family: "SimSun","宋体",serif; color: #000; margin: 16px auto; }
-h1 { margin: 0 0 3mm; text-align: center; font: 700 18pt SimHei,"黑体",sans-serif; }
-.patient-info-row { display: flex; align-items: center; width: 100%; gap: 12px; font-family: "SimSun","宋体",serif; font-size: 10pt; font-weight: 400; white-space: nowrap; margin: 2px 0 4px; color: #000; text-align: left; }
-.info-item { flex: 0 0 auto; white-space: nowrap; }
-.info-item b { font-weight: 700; }
-.diagnosis-item { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+:host {
+  display: block;
+  height: 100vh;
+  overflow: auto;
+  background: #f0f2f5;
+  color: #000;
+}
 
-.crrt-table { width: 100%; border-collapse: collapse; table-layout: fixed; color: #000; font-family: "Microsoft YaHei","Noto Sans CJK SC","PingFang SC",Arial,sans-serif; font-size: 8pt; font-weight: 400; line-height: 1.15; font-synthesis: none; text-shadow: none; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: geometricPrecision; }
-.crrt-table th, .crrt-table td { box-sizing: border-box; height: 8mm; padding: 0.4mm; border: 1px solid #000; text-align: center; vertical-align: middle; overflow: hidden; overflow-wrap: anywhere; font-family: inherit; font-weight: 400; font-style: normal; font-synthesis: none; text-shadow: none; transform: none; filter: none; opacity: 1; }
-.crrt-table th, .crrt-table .group-cell { font-weight: 700; }
-.crrt-table .metric-cell, .crrt-table .value-cell { font-weight: 400; text-shadow: none; }
-.crrt-table th span { display: block; width: 100%; white-space: nowrap; font-weight: inherit; text-shadow: none; }
-.group-col { width: 10%; }
-.metric-col { width: 22%; }
-.value-col { width: 8.5%; }
-.group-cell { padding: 0.5mm; font-size: 8pt; font-weight: 700; white-space: normal; }
-.metric-cell { font-size: 8pt; text-align: center; }
-.value-cell { font-size: 7.5pt; white-space: normal; }
-.time-header { padding: 0.3mm 0.2mm !important; text-align: center; vertical-align: middle; white-space: nowrap; word-break: keep-all; overflow-wrap: normal; line-height: 1.1; }
-.time-date, .time-clock { display: block; width: 100%; text-align: center; white-space: nowrap; word-break: keep-all; overflow-wrap: normal; text-overflow: clip; }
-.time-date { font-size: 7pt; font-weight: 600; }
-.time-clock { margin-top: 0.3mm; font-size: 7pt; font-weight: 500; }
-.signature-row td { height: 8mm; }
-.signature-cell { font-size: 7pt; white-space: normal; }
-.page-no { position: absolute; left: 8mm; right: 8mm; bottom: 5mm; margin: 0; text-align: center; font-size: 10pt; }
-@media print {
-  @page { size: A4 portrait; margin: 0; }
-  :host { display: block; width: 210mm !important; height: auto; overflow: visible; background: #fff; }
-  .no-print { display: none !important; }
+/* ==================== 工具栏 ==================== */
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-height: 50px;
+  padding: 0 16px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+.btn {
+  min-height: 34px;
+  padding: 5px 16px;
+  border: 1px solid #1877d3;
+  border-radius: 4px;
+  font: 14px "SimSun", "宋体", serif;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn.primary {
+  background: #1877d3;
+  color: #fff;
+}
+
+.ps {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font: 14px "SimSun", "宋体", serif;
+}
+
+.ps select {
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  font: inherit;
+}
+
+.status {
+  padding: 12px 18px;
+  font-family: "SimSun", "宋体", serif;
+}
+
+.status.error {
+  color: #b42318;
+}
+
+/* ==================== A4 页面 ==================== */
+
+.sheet {
+  box-sizing: border-box;
+  position: relative;
+  width: 210mm;
+  height: 297mm;
+  margin: 16px auto;
+  padding: 5mm 6mm 10mm;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  color: #000;
+  font-family: "SimSun", "宋体", serif;
+}
+
+h1 {
+  margin: 0 0 1.5mm;
+  text-align: center;
+  color: #000;
+  font: 700 16pt/1.15 SimHei, "黑体", sans-serif;
+  white-space: nowrap;
+}
+
+/* ==================== 患者信息 ==================== */
+
+.patient-info-row {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  margin: 1px 0 2px;
+  color: #000;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 8.5pt;
+  font-weight: 400;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.info-item {
+  flex: 0 0 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.info-item b {
+  font-weight: 700;
+}
+
+.diagnosis-item {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ==================== CRRT 表格 ==================== */
+
+.crrt-table {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: #000;
+  font-family: "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", Arial,
+    sans-serif;
+  font-size: 7.2pt;
+  font-weight: 400;
+  line-height: 1.02;
+  text-shadow: none;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+.crrt-table th,
+.crrt-table td {
+  box-sizing: border-box;
+  height: 5.4mm;
+  min-height: 0;
+  padding: 0.15mm 0.3mm;
+  border: 1px solid #000;
+  overflow: hidden;
+  color: #000;
+  font-family: inherit;
+  font-size: inherit;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.02;
+  text-align: center;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-shadow: none;
+  transform: none;
+  filter: none;
+  opacity: 1;
+}
+
+.crrt-table th,
+.crrt-table .group-cell {
+  font-weight: 700;
+}
+
+.crrt-table .metric-cell,
+.crrt-table .value-cell {
+  font-weight: 400;
+  text-shadow: none;
+}
+
+.crrt-table th span {
+  display: block;
+  width: 100%;
+  font-weight: inherit;
+  white-space: nowrap;
+  text-shadow: none;
+}
+
+/* 10% + 22% + 8 × 8.5% = 100% */
+
+.group-col {
+  width: 10%;
+}
+
+.metric-col {
+  width: 22%;
+}
+
+.value-col {
+  width: 8.5%;
+}
+
+.group-cell {
+  padding: 0.2mm !important;
+  font-size: 7.2pt;
+  font-weight: 700 !important;
+  line-height: 1.02;
+  white-space: normal;
+}
+
+.metric-cell {
+  padding: 0.15mm 0.25mm !important;
+  font-size: 7.1pt;
+  line-height: 1.02;
+  text-align: center;
+  white-space: normal;
+}
+
+.value-cell {
+  padding: 0.1mm 0.2mm !important;
+  font-size: 7pt;
+  line-height: 1.02;
+  white-space: normal;
+}
+
+.time-header {
+  box-sizing: border-box;
+  height: 6mm !important;
+  padding: 0.15mm !important;
+  overflow: hidden;
+  line-height: 1 !important;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+.time-date,
+.time-clock {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  font-size: 6.7pt;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: clip;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+.time-date {
+  font-weight: 600;
+}
+
+.time-clock {
+  margin-top: 0.15mm;
+  font-weight: 500;
+}
+
+.signature-row th,
+.signature-row td {
+  height: 5.4mm;
+  padding: 0.1mm 0.2mm;
+}
+
+.signature-cell {
+  font-size: 6.8pt;
+  line-height: 1.02;
+  white-space: normal;
+}
+
+/* ==================== 页码 ==================== */
+
+.page-no {
+  position: absolute;
+  right: 6mm;
+  bottom: 3mm;
+  left: 6mm;
+  margin: 0;
+  color: #000;
+  font: 8.5pt/1 "SimSun", "宋体", serif;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ==================== 窄屏 ==================== */
+
+@media screen and (max-width: 900px) {
+  :host {
+    overflow: auto;
+  }
+
   .sheet {
-    box-sizing: border-box;
+    margin: 12px;
+  }
+}
+
+/* ==================== 打印 ==================== */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  :host {
+    display: block;
+    width: 210mm !important;
+    height: auto;
+    overflow: visible;
+    background: #fff;
+  }
+
+  .no-print,
+  .toolbar,
+  .status {
+    display: none !important;
+  }
+
+  .sheet {
+    box-sizing: border-box !important;
+    position: relative !important;
+    display: block !important;
     width: 210mm !important;
     max-width: none !important;
-    height: 297mm;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
     margin: 0 !important;
+    padding: 5mm 6mm 10mm !important;
+    overflow: hidden !important;
+    break-after: page !important;
+    page-break-after: always !important;
+    background: #fff !important;
     box-shadow: none !important;
     transform: none !important;
-    page-break-after: always;
-    break-after: page;
+    zoom: 1 !important;
+    filter: none !important;
   }
+
+  .sheet:last-of-type {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
   .crrt-table {
     width: 100% !important;
     max-width: none !important;
-    table-layout: fixed;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    font-size: 7.2pt !important;
+    line-height: 1.02 !important;
     transform: none !important;
+    zoom: 1 !important;
   }
-  .sheet:last-of-type { page-break-after: auto; break-after: auto; }
-  .crrt-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+  .crrt-table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .crrt-table th,
+  .crrt-table td {
+    height: 5.4mm !important;
+    min-height: 0 !important;
+    padding: 0.15mm 0.3mm !important;
+    line-height: 1.02 !important;
+  }
+
+  .crrt-table .time-header {
+    height: 6mm !important;
+    padding: 0.15mm !important;
+  }
+
+  .crrt-table .group-cell {
+    padding: 0.2mm !important;
+    font-size: 7.2pt !important;
+  }
+
+  .crrt-table .metric-cell {
+    padding: 0.15mm 0.25mm !important;
+    font-size: 7.1pt !important;
+  }
+
+  .crrt-table .value-cell {
+    padding: 0.1mm 0.2mm !important;
+    font-size: 7pt !important;
+  }
+
+  .signature-row th,
+  .signature-row td {
+    height: 5.4mm !important;
+  }
+
+  .page-no {
+    bottom: 3mm !important;
+    font-size: 8.5pt !important;
+  }
 }

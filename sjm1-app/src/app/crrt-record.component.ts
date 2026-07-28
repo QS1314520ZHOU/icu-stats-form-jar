@@ -17,7 +17,7 @@ const CRRT_GROUPS: CrrtGroup[] = [
     { label: '治疗状态', code: 'param_CRRT治疗状态' },
   ]},
   { name: '抗凝方式', metrics: [
-    { label: '抗凝剂1名称', code: 'param_抗凝剂' },
+    { label: '抗凝剂1名称', code: 'param_抗凝剂1' },
     { label: '抗凝剂1速度', code: 'param_抗凝剂速度' },
     { label: '抗凝剂2名称', code: 'param_抗凝剂2' },
     { label: '抗凝剂2速度', code: 'param_抗凝剂2速度' },
