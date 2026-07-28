@@ -18,12 +18,19 @@ public class CrrtOrderFormService {
     public Optional<CrrtOrderFormRecord> findById(String id) { return repo.findById(id); }
 
     public CrrtOrderFormRecord save(CrrtOrderFormRecord record, String operatorId) {
-        if (record.getId() == null) {
+        if (record.getId() == null && record.getPid() != null && record.getOrderTime() != null) {
+            if (repo.existsByPidAndOrderTime(record.getPid(), record.getOrderTime())) {
+                throw new DuplicateCrrtOrderTimeException();
+            }
             record.setCreatedBy(operatorId);
             record.setCreatedAt(Instant.now());
         }
         record.setUpdatedBy(operatorId);
         record.setUpdatedAt(Instant.now());
         return repo.save(record);
+    }
+
+    public static class DuplicateCrrtOrderTimeException extends RuntimeException {
+        public DuplicateCrrtOrderTimeException() { super("该医嘱时间已经存在，请选择其他时间。"); }
     }
 }

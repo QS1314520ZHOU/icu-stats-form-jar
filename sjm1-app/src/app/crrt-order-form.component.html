@@ -1,182 +1,163 @@
-<div class="toolbar no-print">
-  <div class="toolbar-right">
-    <label class="ps">医嘱时间：<select [ngModel]="selectedRecordId" (ngModelChange)="onTimeChange($event)" [disabled]="loading || timeOptions.length === 0"><option value="">{{ timeOptions.length ? '请选择' : '暂无' }}</option><option *ngFor="let opt of timeOptions" [value]="opt.id">{{ displayTime(opt.orderTime) }}</option></select></label>
-    <button class="btn primary" type="button" (click)="openCreateDialog()">新增</button>
-    <label class="ps">打印：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option [ngValue]="1">第1页</option><option [ngValue]="2">第2页</option></select></label>
-    <span class="as"><ng-container [ngSwitch]="autoSaveState"><span *ngSwitchCase="'dirty'">未保存</span><span *ngSwitchCase="'saving'">保存中…</span><span *ngSwitchCase="'saved'" class="ok">已自动保存</span><button *ngSwitchCase="'error'" class="retry" (click)="retryAutoSave()">自动保存失败，重试</button></ng-container></span>
-    <button class="btn" type="button" (click)="print()">打印</button>
+<header class="toolbar no-print">
+  <div class="toolbar-left">
+    <label class="ps">医嘱时间：<select [ngModel]="selectedRecordId" (ngModelChange)="onTimeChange($event)" [disabled]="loading || switchingRecord || creating || printingAll"><option value="">{{ timeOptions.length ? '请选择' : '暂无' }}</option><option *ngFor="let o of timeOptions" [value]="o.id">{{ displayTime(o.orderTime) }}</option></select></label>
+    <button type="button" class="btn primary" [disabled]="loading || switchingRecord || creating || printingAll || !pid" (click)="openCreateDialog()">新增</button>
   </div>
-</div>
+  <div class="toolbar-right">
+    <span class="as"><ng-container [ngSwitch]="autoSaveState"><span *ngSwitchCase="'dirty'">未保存</span><span *ngSwitchCase="'saving'">保存中…</span><span *ngSwitchCase="'saved'" class="ok">已自动保存</span><button *ngSwitchCase="'error'" class="retry" (click)="retryAutoSave()">自动保存失败，重试</button></ng-container></span>
+    <label class="ps">打印：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option [ngValue]="1">第1页</option><option [ngValue]="2">第2页</option></select></label>
+    <button class="btn" type="button" (click)="print()">打印</button>
+    <button class="btn" type="button" [disabled]="printingAll || loading || timeOptions.length === 0" (click)="printAllOrders()">{{ printingAll ? '准备打印…' : '一键打印全部' }}</button>
+  </div>
+</header>
 
-<div *ngIf="loading" class="loading no-print">加载中…</div>
+<div *ngIf="loading || switchingRecord" class="loading no-print">加载中…</div>
 <div *ngIf="errorMessage" class="loading error no-print">{{ errorMessage }}</div>
 
-<!-- 第一页 -->
-<div class="print-page" [class.print-hidden]="selectedPrintPage !== null && selectedPrintPage !== 1">
-  <section class="sheet">
-    <h1>重钢总医院重症医学科连续性血液净化治疗医嘱单</h1>
-    <div class="patient-line">
-      <span>床号：<b>{{ record.bedNo || '　' }}</b></span>
-      <span>姓名：<b>{{ record.patientName || '　' }}</b></span>
-      <span>年龄：<b>{{ record.age || '　' }}</b></span>
-      <span>住院号：<b>{{ record.hospitalNo || '　' }}</b></span>
-      <span class="diagnosis">诊断：<b>{{ record.diagnosis || '　' }}</b></span>
+<ng-template #patientInformation let-order>
+  <div class="patient-info">
+    <div class="patient-info-row">
+      <span class="info-item"><b>科室：</b>{{ patient?.dept || order.department || '' }}</span>
+      <span class="info-item"><b>姓名：</b>{{ patient?.name || order.patientName || '' }}</span>
+      <span class="info-item"><b>床号：</b>{{ patient?.hisBed || order.bedNo || '' }}</span>
+      <span class="info-item"><b>住院号：</b>{{ patient?.mrn || order.hospitalNo || '' }}</span>
+      <span class="info-item"><b>年龄：</b>{{ age ?? order.age ?? '' }}</span>
+      <span class="info-item"><b>性别：</b>{{ genderText(patient?.gender) || order.gender || '' }}</span>
     </div>
+    <div class="patient-info-row diagnosis-row">
+      <span class="info-item diagnosis-item"><b>诊断：</b>{{ diagnosisDisplay || order.diagnosis || '' }}</span>
+    </div>
+  </div>
+</ng-template>
 
+<ng-template #crrtOrderPages let-order>
+  <!-- 第一页 -->
+  <section class="sheet crrt-print-page page-one">
+    <h1>重钢总医院重症医学科连续性血液净化治疗医嘱单</h1>
+    <ng-container *ngTemplateOutlet="patientInformation; context: { $implicit: order }"></ng-container>
     <table class="crrt-table">
       <tbody>
-        <!-- 血管通路 + 治疗模式 -->
         <tr>
           <th class="section-title">血管通路</th>
-          <td><div class="option-grid"><label *ngFor="let o of vascularAccessOptions"><input type="checkbox" [checked]="isChecked(record.vascularAccess,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(record.vascularAccess,o,$any($event.target).checked)" (ngModelChange)="onDiscreteChange()" />{{ o }}</label></div></td>
+          <td><div class="option-grid"><label *ngFor="let o of vascularAccessOptions"><input type="checkbox" [checked]="isChecked(order.vascularAccess,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.vascularAccess,o,$any($event.target).checked);onDiscreteChange()" />{{ o }}</label></div></td>
           <th class="section-title">治疗模式</th>
-          <td><div class="option-grid compact"><label *ngFor="let o of treatmentModeOptions"><input type="checkbox" [checked]="isChecked(record.treatmentModes,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(record.treatmentModes,o,$any($event.target).checked)" (ngModelChange)="onDiscreteChange()" />{{ o }}</label></div></td>
+          <td><div class="option-grid compact"><label *ngFor="let o of treatmentModeOptions"><input type="checkbox" [checked]="isChecked(order.treatmentModes,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.treatmentModes,o,$any($event.target).checked);onDiscreteChange()" />{{ o }}</label></div></td>
         </tr>
-        <!-- 机型耗材 -->
         <tr>
           <th class="section-title">机型耗材</th>
-          <td colspan="3"><div class="option-grid consumable"><label *ngFor="let o of machineConsumableOptions"><input type="checkbox" [checked]="isChecked(record.machineConsumables,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(record.machineConsumables,o,$any($event.target).checked)" (ngModelChange)="onDiscreteChange()" />{{ o }}</label></div></td>
+          <td colspan="3"><div class="option-grid consumable"><label *ngFor="let o of machineConsumableOptions"><input type="checkbox" [checked]="isChecked(order.machineConsumables,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables,o,$any($event.target).checked);onDiscreteChange()" />{{ o }}</label></div></td>
         </tr>
-        <!-- 抗凝方式 -->
         <tr>
           <th class="section-title">抗凝方式</th>
           <td colspan="3">
-            <div class="option-grid anticoag"><label *ngFor="let o of anticoagulationOptions"><input type="checkbox" [checked]="isChecked(record.anticoagulation.types,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(record.anticoagulation.types,o,$any($event.target).checked)" (ngModelChange)="onDiscreteChange()" />{{ o }}</label></div>
+            <div class="option-grid anticoag"><label *ngFor="let o of anticoagulationOptions"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,o,$any($event.target).checked);onDiscreteChange()" />{{ o }}</label></div>
             <div class="inline-fields">
-              <label>肝素首量<input type="number" [(ngModel)]="record.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
-              <label>肝素维持量<input type="number" [(ngModel)]="record.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>枸橼酸维持量<input type="number" [(ngModel)]="record.anticoagulation.citrateMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>葡萄糖酸钙维持量<input type="number" [(ngModel)]="record.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>萘莫司他首量<input type="number" [(ngModel)]="record.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
-              <label>萘莫司他维持量<input type="number" [(ngModel)]="record.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+              <label>肝素首量<input type="number" [(ngModel)]="order.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
+              <label>肝素维持量<input type="number" [(ngModel)]="order.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+              <label>枸橼酸维持量<input type="number" [(ngModel)]="order.anticoagulation.citrateMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+              <label>葡萄糖酸钙维持量<input type="number" [(ngModel)]="order.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+              <label>萘莫司他首量<input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
+              <label>萘莫司他维持量<input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
             </div>
           </td>
         </tr>
-        <!-- CBP剂量 + 配方/计划 -->
         <tr>
           <th class="section-title">CBP 剂量</th>
-          <td>
-            <div class="field-list">
-              <label>前置换<input type="number" [(ngModel)]="record.cbpDose.preReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>后置换<input type="number" [(ngModel)]="record.cbpDose.postReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>透析液<input type="number" [(ngModel)]="record.cbpDose.dialysate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>5%碳酸氢钠<input type="number" [(ngModel)]="record.cbpDose.sodiumBicarbonate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>分浆速度<input type="number" [(ngModel)]="record.cbpDose.plasmaSeparationSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>弃浆速度<input type="number" [(ngModel)]="record.cbpDose.plasmaDiscardSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>补浆速度<input type="number" [(ngModel)]="record.cbpDose.plasmaReplacementSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
-              <label>血浆置换总量<input type="number" [(ngModel)]="record.cbpDose.totalPlasmaExchange" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
-            </div>
-          </td>
+          <td><div class="field-list">
+            <label>前置换<input type="number" [(ngModel)]="order.cbpDose.preReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+            <label>后置换<input type="number" [(ngModel)]="order.cbpDose.postReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+            <label>透析液<input type="number" [(ngModel)]="order.cbpDose.dialysate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+            <label>5%碳酸氢钠<input type="number" [(ngModel)]="order.cbpDose.sodiumBicarbonate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+            <label>分浆速度<input type="number" [(ngModel)]="order.cbpDose.plasmaSeparationSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+            <label>弃浆速度<input type="number" [(ngModel)]="order.cbpDose.plasmaDiscardSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+            <label>补浆速度<input type="number" [(ngModel)]="order.cbpDose.plasmaReplacementSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+            <label>血浆置换总量<input type="number" [(ngModel)]="order.cbpDose.totalPlasmaExchange" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
+          </div></td>
           <th class="section-title">配方及计划</th>
           <td>
             <div class="formula-box"><h3>置换液配方 A</h3>
-              <label>基础液<input type="number" [(ngModel)]="record.replacementFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
-              <label>10% KCL<input type="number" [(ngModel)]="record.replacementFormulaA.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />g</label>
-              <label>10% NaCl<input type="number" [(ngModel)]="record.replacementFormulaA.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />g</label>
+              <label>基础液<input type="number" [(ngModel)]="order.replacementFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
+              <label>10% KCL<input type="number" [(ngModel)]="order.replacementFormulaA.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />g</label>
+              <label>10% NaCl<input type="number" [(ngModel)]="order.replacementFormulaA.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />g</label>
             </div>
             <div class="formula-box"><h3>透析液配方 a</h3>
-              <label>基础液<input type="number" [(ngModel)]="record.dialysateFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
-              <label>10% KCL<input type="number" [(ngModel)]="record.dialysateFormulaA.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />g</label>
-              <label>10% NaCl<input type="number" [(ngModel)]="record.dialysateFormulaA.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />g</label>
+              <label>基础液<input type="number" [(ngModel)]="order.dialysateFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml</label>
+              <label>10% KCL<input type="number" [(ngModel)]="order.dialysateFormulaA.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />g</label>
+              <label>10% NaCl<input type="number" [(ngModel)]="order.dialysateFormulaA.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />g</label>
             </div>
             <div class="formula-box"><h3>治疗计划</h3>
-              <label>血流量<input type="number" [(ngModel)]="record.treatmentPlan.bloodFlow" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/min</label>
-              <label>预计治疗时间<input type="number" [(ngModel)]="record.treatmentPlan.estimatedHours" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />h</label>
-              <label>超滤率<input type="number" [(ngModel)]="record.treatmentPlan.ultrafiltrationRate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
+              <label>血流量<input type="number" [(ngModel)]="order.treatmentPlan.bloodFlow" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/min</label>
+              <label>预计治疗时间<input type="number" [(ngModel)]="order.treatmentPlan.estimatedHours" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />h</label>
+              <label>超滤率<input type="number" [(ngModel)]="order.treatmentPlan.ultrafiltrationRate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" />ml/h</label>
             </div>
           </td>
         </tr>
-        <!-- 医嘱时间 + 医生签名 -->
         <tr>
           <th>医嘱时间</th>
-          <td>
-            <span class="screen-only"><input class="full-input" type="datetime-local" [(ngModel)]="record.orderTime" [disabled]="!canEditDoctorField()" (ngModelChange)="onDiscreteChange()" /></span>
-            <span class="print-only">{{ displayTime(record.orderTime) }}</span>
-          </td>
+          <td><span class="screen-only"><input class="full-input" type="datetime-local" [(ngModel)]="order.orderTime" [disabled]="!canEditDoctorField()" (ngModelChange)="onDiscreteChange()" /></span><span class="print-only">{{ displayTime(order.orderTime) }}</span></td>
           <th>医生签名</th>
-          <td>
-            <span class="screen-only"><select class="full-input" [ngModel]="record.doctorSignature?.accountId || ''" [disabled]="!canEditDoctorField()" (ngModelChange)="updateSignature(record,'doctorSignature',$event,doctorAccounts);onDiscreteChange()"><option value="">请选择医生</option><option *ngFor="let a of orderedDoctorAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span>
-            <span class="print-only">{{ record.doctorSignature?.accountName || '' }}</span>
-          </td>
+          <td><span class="screen-only"><select class="full-input" [ngModel]="order.doctorSignature?.accountId || ''" [disabled]="!canEditDoctorField()" (ngModelChange)="updateSignature(order,'doctorSignature',$event,doctorAccounts);onDiscreteChange()"><option value="">请选择医生</option><option *ngFor="let a of orderedDoctorAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ order.doctorSignature?.accountName || '' }}</span></td>
         </tr>
-        <!-- 上机护士 + 核对护士 -->
         <tr>
           <th>上机护士</th>
-          <td>
-            <span class="screen-only"><select class="full-input" [ngModel]="record.machineNurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(record,'machineNurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择护士</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span>
-            <span class="print-only">{{ record.machineNurseSignature?.accountName || '' }}</span>
-          </td>
+          <td><span class="screen-only"><select class="full-input" [ngModel]="order.machineNurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(order,'machineNurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择护士</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ order.machineNurseSignature?.accountName || '' }}</span></td>
           <th>核对护士</th>
-          <td>
-            <span class="screen-only"><select class="full-input" [ngModel]="record.checkNurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(record,'checkNurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择护士</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span>
-            <span class="print-only">{{ record.checkNurseSignature?.accountName || '' }}</span>
-          </td>
+          <td><span class="screen-only"><select class="full-input" [ngModel]="order.checkNurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(order,'checkNurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择护士</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ order.checkNurseSignature?.accountName || '' }}</span></td>
         </tr>
       </tbody>
     </table>
     <div class="sheet-pageno">第 1 页　共 2 页</div>
   </section>
-</div>
 
-<!-- 第二页 -->
-<div class="print-page" [class.print-hidden]="selectedPrintPage !== null && selectedPrintPage !== 2">
-  <section class="sheet">
+  <!-- 第二页 -->
+  <section class="sheet crrt-print-page page-two">
     <h1>重钢总医院重症医学科连续性血液净化治疗医嘱单</h1>
-    <div class="patient-line">
-      <span>床号：<b>{{ record.bedNo || '　' }}</b></span>
-      <span>姓名：<b>{{ record.patientName || '　' }}</b></span>
-      <span>年龄：<b>{{ record.age || '　' }}</b></span>
-      <span>住院号：<b>{{ record.hospitalNo || '　' }}</b></span>
-      <span class="diagnosis">诊断：<b>{{ record.diagnosis || '　' }}</b></span>
-    </div>
+    <ng-container *ngTemplateOutlet="patientInformation; context: { $implicit: order }"></ng-container>
 
-    <!-- 置换液配方 -->
     <h2 class="sub-title">置换液配方</h2>
     <div class="wide-table-wrapper">
       <table class="crrt-table prescription-table">
-        <thead><tr><th>项目</th><th *ngFor="let item of record.replacementPrescriptions; trackBy: trackByIndex">{{ item.code }}</th></tr></thead>
+        <thead><tr><th>项目</th><th *ngFor="let item of order.replacementPrescriptions; trackBy: trackByIndex">{{ item.code }}</th></tr></thead>
         <tbody>
-          <tr><th>日期时间</th><td *ngFor="let item of record.replacementPrescriptions; trackBy: trackByIndex"><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.dateTime" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></span><span class="print-only">{{ displayTime(item.dateTime) }}</span></td></tr>
-          <tr><th>基础液（ml）</th><td *ngFor="let item of record.replacementPrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
-          <tr><th>10% KCL（g）</th><td *ngFor="let item of record.replacementPrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
-          <tr><th>10% NaCl（g）</th><td *ngFor="let item of record.replacementPrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
-          <tr><th>医生签名</th><td *ngFor="let item of record.replacementPrescriptions; trackBy: trackByIndex"><span class="screen-only"><select class="full-input" [ngModel]="item.doctorSignature?.accountId || ''" [disabled]="!canEditDoctorField()" (ngModelChange)="updateSignature(item,'doctorSignature',$event,doctorAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedDoctorAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.doctorSignature?.accountName || '' }}</span></td></tr>
-          <tr><th>执行时间</th><td *ngFor="let item of record.replacementPrescriptions; trackBy: trackByIndex"><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.executionTime" [disabled]="!canEditNurseField()" (ngModelChange)="onDiscreteChange()" /></span><span class="print-only">{{ displayTime(item.executionTime) }}</span></td></tr>
-          <tr><th>护士签名</th><td *ngFor="let item of record.replacementPrescriptions; trackBy: trackByIndex"><span class="screen-only"><select class="full-input" [ngModel]="item.nurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(item,'nurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.nurseSignature?.accountName || '' }}</span></td></tr>
+          <tr><th>日期时间</th><td *ngFor="let item of order.replacementPrescriptions; trackBy: trackByIndex"><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.dateTime" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></span><span class="print-only">{{ displayTime(item.dateTime) }}</span></td></tr>
+          <tr><th>基础液（ml）</th><td *ngFor="let item of order.replacementPrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
+          <tr><th>10% KCL（g）</th><td *ngFor="let item of order.replacementPrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
+          <tr><th>10% NaCl（g）</th><td *ngFor="let item of order.replacementPrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
+          <tr><th>医生签名</th><td *ngFor="let item of order.replacementPrescriptions; trackBy: trackByIndex"><span class="screen-only"><select class="full-input" [ngModel]="item.doctorSignature?.accountId || ''" [disabled]="!canEditDoctorField()" (ngModelChange)="updateSignature(item,'doctorSignature',$event,doctorAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedDoctorAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.doctorSignature?.accountName || '' }}</span></td></tr>
+          <tr><th>执行时间</th><td *ngFor="let item of order.replacementPrescriptions; trackBy: trackByIndex"><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.executionTime" [disabled]="!canEditNurseField()" (ngModelChange)="onDiscreteChange()" /></span><span class="print-only">{{ displayTime(item.executionTime) }}</span></td></tr>
+          <tr><th>护士签名</th><td *ngFor="let item of order.replacementPrescriptions; trackBy: trackByIndex"><span class="screen-only"><select class="full-input" [ngModel]="item.nurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(item,'nurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.nurseSignature?.accountName || '' }}</span></td></tr>
         </tbody>
       </table>
     </div>
 
-    <!-- 透析液配方 -->
     <h2 class="sub-title">透析液配方</h2>
     <div class="wide-table-wrapper">
       <table class="crrt-table prescription-table">
-        <thead><tr><th>项目</th><th *ngFor="let item of record.dialysatePrescriptions; trackBy: trackByIndex">{{ item.code }}</th></tr></thead>
+        <thead><tr><th>项目</th><th *ngFor="let item of order.dialysatePrescriptions; trackBy: trackByIndex">{{ item.code }}</th></tr></thead>
         <tbody>
-          <tr><th>日期时间</th><td *ngFor="let item of record.dialysatePrescriptions; trackBy: trackByIndex"><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.dateTime" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></span><span class="print-only">{{ displayTime(item.dateTime) }}</span></td></tr>
-          <tr><th>基础液（ml）</th><td *ngFor="let item of record.dialysatePrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
-          <tr><th>10% KCL（g）</th><td *ngFor="let item of record.dialysatePrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
-          <tr><th>10% NaCl（g）</th><td *ngFor="let item of record.dialysatePrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
-          <tr><th>医生签名</th><td *ngFor="let item of record.dialysatePrescriptions; trackBy: trackByIndex"><span class="screen-only"><select class="full-input" [ngModel]="item.doctorSignature?.accountId || ''" [disabled]="!canEditDoctorField()" (ngModelChange)="updateSignature(item,'doctorSignature',$event,doctorAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedDoctorAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.doctorSignature?.accountName || '' }}</span></td></tr>
-          <tr><th>执行时间</th><td *ngFor="let item of record.dialysatePrescriptions; trackBy: trackByIndex"><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.executionTime" [disabled]="!canEditNurseField()" (ngModelChange)="onDiscreteChange()" /></span><span class="print-only">{{ displayTime(item.executionTime) }}</span></td></tr>
-          <tr><th>护士签名</th><td *ngFor="let item of record.dialysatePrescriptions; trackBy: trackByIndex"><span class="screen-only"><select class="full-input" [ngModel]="item.nurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(item,'nurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.nurseSignature?.accountName || '' }}</span></td></tr>
+          <tr><th>日期时间</th><td *ngFor="let item of order.dialysatePrescriptions; trackBy: trackByIndex"><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.dateTime" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></span><span class="print-only">{{ displayTime(item.dateTime) }}</span></td></tr>
+          <tr><th>基础液（ml）</th><td *ngFor="let item of order.dialysatePrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
+          <tr><th>10% KCL（g）</th><td *ngFor="let item of order.dialysatePrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
+          <tr><th>10% NaCl（g）</th><td *ngFor="let item of order.dialysatePrescriptions; trackBy: trackByIndex"><input type="number" [(ngModel)]="item.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></td></tr>
+          <tr><th>医生签名</th><td *ngFor="let item of order.dialysatePrescriptions; trackBy: trackByIndex"><span class="screen-only"><select class="full-input" [ngModel]="item.doctorSignature?.accountId || ''" [disabled]="!canEditDoctorField()" (ngModelChange)="updateSignature(item,'doctorSignature',$event,doctorAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedDoctorAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.doctorSignature?.accountName || '' }}</span></td></tr>
+          <tr><th>执行时间</th><td *ngFor="let item of order.dialysatePrescriptions; trackBy: trackByIndex"><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.executionTime" [disabled]="!canEditNurseField()" (ngModelChange)="onDiscreteChange()" /></span><span class="print-only">{{ displayTime(item.executionTime) }}</span></td></tr>
+          <tr><th>护士签名</th><td *ngFor="let item of order.dialysatePrescriptions; trackBy: trackByIndex"><span class="screen-only"><select class="full-input" [ngModel]="item.nurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(item,'nurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.nurseSignature?.accountName || '' }}</span></td></tr>
         </tbody>
       </table>
     </div>
 
-    <!-- 临时医嘱 -->
     <h2 class="sub-title">临时医嘱内容</h2>
     <div class="wide-table-wrapper">
       <table class="crrt-table order-table">
         <thead><tr><th>日期时间</th><th class="order-content-col">医嘱内容</th><th>医生签名</th><th>执行时间</th><th>护士签名</th><th class="action-col screen-only">操作</th></tr></thead>
         <tbody>
-          <tr *ngFor="let item of record.orderItems; let i = index; trackBy: trackByIndex">
+          <tr *ngFor="let item of order.orderItems; let i = index; trackBy: trackByIndex">
             <td><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.dateTime" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></span><span class="print-only">{{ displayTime(item.dateTime) }}</span></td>
             <td><span class="screen-only"><input type="text" class="order-content-input" [(ngModel)]="item.content" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" placeholder="请输入医嘱内容" /></span><span class="print-only">{{ item.content }}</span></td>
             <td><span class="screen-only"><select class="full-input" [ngModel]="item.doctorSignature?.accountId || ''" [disabled]="!canEditDoctorField()" (ngModelChange)="updateSignature(item,'doctorSignature',$event,doctorAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedDoctorAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.doctorSignature?.accountName || '' }}</span></td>
             <td><span class="screen-only"><input type="datetime-local" [(ngModel)]="item.executionTime" [disabled]="!canEditNurseField()" (ngModelChange)="onDiscreteChange()" /></span><span class="print-only">{{ displayTime(item.executionTime) }}</span></td>
             <td><span class="screen-only"><select class="full-input" [ngModel]="item.nurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(item,'nurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select></span><span class="print-only">{{ item.nurseSignature?.accountName || '' }}</span></td>
-            <td class="action-col screen-only"><button type="button" class="btn danger-small" (click)="removeOrderItem(i)" [disabled]="record.orderItems.length <= 1">删除</button></td>
+            <td class="action-col screen-only"><button type="button" class="btn danger-small" (click)="removeOrderItem(i)" [disabled]="order.orderItems.length <= 1">删除</button></td>
           </tr>
         </tbody>
       </table>
@@ -186,6 +167,18 @@
     </div>
     <div class="sheet-pageno">第 2 页　共 2 页</div>
   </section>
+</ng-template>
+
+<!-- 普通界面 -->
+<div class="document-area" [class.print-hidden]="printAllMode">
+  <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: record }"></ng-container>
+</div>
+
+<!-- 一键打印全部 -->
+<div *ngIf="printAllMode" class="print-all-container">
+  <ng-container *ngFor="let rec of printRecords; trackBy: trackRecordById">
+    <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: rec }"></ng-container>
+  </ng-container>
 </div>
 
 <!-- 新增弹框 -->
@@ -193,10 +186,10 @@
   <section class="dialog" (click)="$event.stopPropagation()">
     <div class="dh"><h2>新增 CRRT 医嘱单</h2><button class="ic" (click)="createDialogOpen = false">×</button></div>
     <div class="db">
-      <label>医嘱时间 <em>*</em><input type="datetime-local" [(ngModel)]="createOrderTime" /></label>
+      <label>医嘱时间 <em>*</em><input type="datetime-local" [(ngModel)]="createDraftTime" /></label>
       <div class="dialog-info">患者：{{ record.patientName || '—' }}　床号：{{ record.bedNo || '—' }}　住院号：{{ record.hospitalNo || '—' }}</div>
       <div class="dialog-hint">创建后将进入自动保存模式</div>
-      <div *ngIf="createError" class="dialog-error">{{ createError }}</div>
+      <div *ngIf="createDialogError" class="dialog-error">{{ createDialogError }}</div>
     </div>
     <div class="df"><button class="btn" (click)="createDialogOpen = false">取消</button><button class="btn primary" (click)="confirmCreate()" [disabled]="creating">{{ creating ? '创建中…' : '确定新增' }}</button></div>
   </section>

@@ -36,9 +36,13 @@ public class CrrtOrderFormController {
     }
 
     @PostMapping
-    public ResponseEntity<CrrtOrderFormRecord> create(@RequestBody CrrtOrderFormRecord body, @RequestParam(defaultValue = "") String operatorId) {
+    public ResponseEntity<?> create(@RequestBody CrrtOrderFormRecord body, @RequestParam(defaultValue = "") String operatorId) {
         body.setId(null);
-        return ResponseEntity.ok(service.save(body, operatorId));
+        try {
+            return ResponseEntity.ok(service.save(body, operatorId));
+        } catch (CrrtOrderFormService.DuplicateCrrtOrderTimeException e) {
+            return ResponseEntity.status(409).body(Map.of("message", e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")

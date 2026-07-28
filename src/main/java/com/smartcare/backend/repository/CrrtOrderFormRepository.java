@@ -8,4 +8,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface CrrtOrderFormRepository extends MongoRepository<CrrtOrderFormRecord, String> {
     List<CrrtOrderFormRecord> findByPidOrderByOrderTimeDesc(String pid);
+    boolean existsByPidAndOrderTime(String pid, String orderTime);
 }
