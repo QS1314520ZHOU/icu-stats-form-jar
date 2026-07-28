@@ -33,8 +33,25 @@ h1 { margin: 0 0 3mm; text-align: center; font: 700 18pt SimHei,"黑体",sans-se
 .page-no { position: absolute; left: 8mm; right: 8mm; bottom: 5mm; margin: 0; text-align: center; font-size: 10pt; }
 @media print {
   @page { size: A4 portrait; margin: 0; }
-  :host { height: auto; overflow: visible; background: #fff; }
+  :host { display: block; width: 210mm !important; height: auto; overflow: visible; background: #fff; }
   .no-print { display: none !important; }
-  .sheet { width: 210mm; height: 297mm; margin: 0; box-shadow: none; page-break-after: always; }
-  .sheet:last-of-type { page-break-after: auto; }
+  .sheet {
+    box-sizing: border-box;
+    width: 210mm !important;
+    max-width: none !important;
+    height: 297mm;
+    margin: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    page-break-after: always;
+    break-after: page;
+  }
+  .crrt-table {
+    width: 100% !important;
+    max-width: none !important;
+    table-layout: fixed;
+    transform: none !important;
+  }
+  .sheet:last-of-type { page-break-after: auto; break-after: auto; }
+  .crrt-table tr { break-inside: avoid; page-break-inside: avoid; }
 }

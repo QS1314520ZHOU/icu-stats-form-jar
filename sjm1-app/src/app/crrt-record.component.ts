@@ -106,17 +106,19 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
 
   load(): void {
     if (!this.pid) return;
+    const requestPid = this.pid;
     this.loading = true; this.loadError = '';
     const params = new HttpParams().set('pid', this.pid).set('codes', this.queryCodes.join(','));
     this.http.get<BedsideRecord[] | { data?: BedsideRecord[] }>(`${this.API}/listByPid`, { params })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: r => {
+          if (requestPid !== this.pid) return;
           const src = Array.isArray(r) ? r : (r as any)?.data || [];
           this.build(src.filter((x: any) => { const ok = x.valid === true || x.valid === 1 || x.valid === '1' || String(x.valid).toLowerCase() === 'true'; return ok && String(x.pid ?? '').trim() === this.pid; }));
           this.loading = false; this.cdr.detectChanges();
         },
-        error: e => { this.loadError = e?.error?.message || 'CRRT记录加载失败'; this.loading = false; this.build([]); this.cdr.detectChanges(); },
+        error: e => { if (requestPid !== this.pid) return; this.loadError = e?.error?.message || 'CRRT记录加载失败'; this.loading = false; this.build([]); this.cdr.detectChanges(); },
       });
   }
 
@@ -136,17 +138,23 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
         const user = String(r.editUser ?? '').trim();
         if (user) { this.yishiRecords.push({ instant, editUser: user }); editUserIds.add(user); }
       } else if (metricSet.has(code)) {
+        const value = String(r.strVal ?? '').trim();
+        if (!value) return;
         if (!timeMap.has(instant)) timeMap.set(instant, { instant, rawTime: time });
-        this.values.set(`${code}@@${instant}`, String(r.strVal ?? ''));
+        this.values.set(`${code}@@${instant}`, value);
       }
     });
 
     this.yishiRecords.sort((a, b) => a.instant - b.instant);
 
-    // 汇总：哪些分组有值
-    const hasAnyValue = this.metricCodes.some(c => [...this.values.keys()].some(k => k.startsWith(c + '@@')));
+    // 汇总：哪些参数行有值（per-metric 级别过滤）
+    const metricHasValue = (metric: CrrtMetric): boolean =>
+      [...this.values.entries()].some(([key, value]) => key.startsWith(metric.code + '@@') && value.trim().length > 0);
+    const hasAnyValue = CRRT_GROUPS.some(group => group.metrics.some(metricHasValue));
     this.visibleGroups = hasAnyValue
-      ? CRRT_GROUPS.filter(g => g.metrics.some(m => [...this.values.keys()].some(k => k.startsWith(m.code + '@@'))))
+      ? CRRT_GROUPS
+          .map(group => ({ ...group, metrics: group.metrics.filter(metricHasValue) }))
+          .filter(group => group.metrics.length > 0)
       : CRRT_GROUPS;
 
     const timeInstants = [...timeMap.values()].sort((a, b) => a.instant - b.instant).map(tp => tp.instant);
