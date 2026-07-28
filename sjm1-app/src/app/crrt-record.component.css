@@ -27,19 +27,13 @@
   padding: 5px 16px;
   border: 1px solid #1877d3;
   border-radius: 4px;
+  background: #1877d3;
+  color: #fff;
   font: 14px "SimSun", "宋体", serif;
   cursor: pointer;
 }
 
-.btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.btn.primary {
-  background: #1877d3;
-  color: #fff;
-}
+.btn:disabled { cursor: not-allowed; opacity: 0.55; }
 
 .ps {
   display: inline-flex;
@@ -58,14 +52,8 @@
   font: inherit;
 }
 
-.status {
-  padding: 12px 18px;
-  font-family: "SimSun", "宋体", serif;
-}
-
-.status.error {
-  color: #b42318;
-}
+.status { padding: 12px 18px; font-family: "SimSun", "宋体", serif; }
+.status.error { color: #b42318; }
 
 /* ==================== A4 页面 ==================== */
 
@@ -75,54 +63,68 @@
   width: 210mm;
   height: 297mm;
   margin: 16px auto;
-  padding: 5mm 6mm 10mm;
+  padding: 5.5mm 6.5mm 10mm;
   overflow: hidden;
   background: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   color: #000;
   font-family: "SimSun", "宋体", serif;
+  transform: none !important;
+  zoom: 1 !important;
+  filter: none !important;
 }
 
 h1 {
-  margin: 0 0 1.5mm;
+  margin: 0 0 2mm;
   text-align: center;
   color: #000;
-  font: 700 16pt/1.15 SimHei, "黑体", sans-serif;
+  font: 700 16pt/1.2 SimHei, "黑体", sans-serif;
   white-space: nowrap;
+  text-shadow: none !important;
+  filter: none !important;
 }
 
-/* ==================== 患者信息 ==================== */
+/* ==================== 患者信息（与 jkjyForm 一致） ==================== */
+
+.patient-info {
+  width: 100%;
+  margin: 2px 0 4px;
+  color: #000;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 9pt;
+  font-weight: 400;
+}
 
 .patient-info-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   width: 100%;
-  min-width: 0;
-  gap: 8px;
-  margin: 1px 0 2px;
-  color: #000;
-  font-family: "SimSun", "宋体", serif;
-  font-size: 8.5pt;
-  font-weight: 400;
-  line-height: 1.1;
+  gap: 12px;
+  margin: 1mm 0;
   white-space: nowrap;
+  line-height: 1.15;
 }
 
 .info-item {
   flex: 0 0 auto;
-  min-width: 0;
   white-space: nowrap;
 }
 
 .info-item b {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
   font-weight: 700;
 }
+
+.diagnosis-row { gap: 0; }
 
 .diagnosis-item {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
-  white-space: nowrap;
+  white-space: normal;
   text-overflow: ellipsis;
 }
 
@@ -136,109 +138,86 @@ h1 {
   border-collapse: collapse;
   table-layout: fixed;
   color: #000;
-  font-family: "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", Arial,
-    sans-serif;
-  font-size: 7.2pt;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 7.5pt;
   font-weight: 400;
-  line-height: 1.02;
-  text-shadow: none;
+  line-height: 1.08;
+  text-shadow: none !important;
+  filter: none !important;
+  transform: none;
   font-synthesis: none;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: geometricPrecision;
 }
 
 .crrt-table th,
 .crrt-table td {
   box-sizing: border-box;
-  height: 5.4mm;
+  height: 5.6mm;
   min-height: 0;
-  padding: 0.15mm 0.3mm;
+  padding: 0.45mm 0.55mm;
   border: 1px solid #000;
   overflow: hidden;
   color: #000;
   font-family: inherit;
   font-size: inherit;
-  font-style: normal;
   font-weight: 400;
-  line-height: 1.02;
+  line-height: 1.08;
   text-align: center;
   vertical-align: middle;
   overflow-wrap: anywhere;
   word-break: break-word;
-  text-shadow: none;
-  transform: none;
-  filter: none;
-  opacity: 1;
+  text-shadow: none !important;
+  filter: none !important;
 }
 
-.crrt-table th,
-.crrt-table .group-cell {
-  font-weight: 700;
-}
+.crrt-table th { font-weight: 700; }
+
+.crrt-table .group-cell { font-weight: 700; }
 
 .crrt-table .metric-cell,
-.crrt-table .value-cell {
-  font-weight: 400;
-  text-shadow: none;
-}
+.crrt-table .value-cell { font-weight: 400; }
 
 .crrt-table th span {
   display: block;
   width: 100%;
   font-weight: inherit;
   white-space: nowrap;
-  text-shadow: none;
 }
 
-/* 10% + 22% + 8 × 8.5% = 100% */
+/* 列宽: 10% + 22% + 8×8.5% = 100% */
 
-.group-col {
-  width: 10%;
-}
-
-.metric-col {
-  width: 22%;
-}
-
-.value-col {
-  width: 8.5%;
-}
+.group-col { width: 10%; }
+.metric-col { width: 22%; }
+.value-col { width: 8.5%; }
 
 .group-cell {
-  padding: 0.2mm !important;
-  font-size: 7.2pt;
+  padding: 0.3mm !important;
+  font-size: 7.5pt;
   font-weight: 700 !important;
-  line-height: 1.02;
+  line-height: 1.08;
   white-space: normal;
 }
 
 .metric-cell {
-  padding: 0.15mm 0.25mm !important;
-  font-size: 7.1pt;
-  line-height: 1.02;
+  padding: 0.3mm 0.4mm !important;
+  font-size: 7.4pt;
+  line-height: 1.08;
   text-align: center;
   white-space: normal;
 }
 
 .value-cell {
-  padding: 0.1mm 0.2mm !important;
-  font-size: 7pt;
-  line-height: 1.02;
+  padding: 0.2mm 0.3mm !important;
+  font-size: 7.2pt;
+  line-height: 1.08;
   white-space: normal;
 }
 
 .time-header {
   box-sizing: border-box;
-  height: 6mm !important;
-  padding: 0.15mm !important;
+  height: 6.2mm !important;
+  padding: 0.3mm 0.2mm !important;
   overflow: hidden;
   line-height: 1 !important;
-  text-align: center;
-  vertical-align: middle;
-  white-space: nowrap;
-  overflow-wrap: normal;
-  word-break: keep-all;
 }
 
 .time-date,
@@ -246,33 +225,22 @@ h1 {
   display: block;
   width: 100%;
   overflow: hidden;
-  font-size: 6.7pt;
+  font-size: 6.8pt;
   line-height: 1;
   text-align: center;
   white-space: nowrap;
   text-overflow: clip;
-  overflow-wrap: normal;
-  word-break: keep-all;
 }
 
-.time-date {
-  font-weight: 600;
-}
-
-.time-clock {
-  margin-top: 0.15mm;
-  font-weight: 500;
-}
+.time-date { font-weight: 600; }
+.time-clock { margin-top: 0.15mm; font-weight: 500; }
 
 .signature-row th,
-.signature-row td {
-  height: 5.4mm;
-  padding: 0.1mm 0.2mm;
-}
+.signature-row td { height: 5.8mm; }
 
 .signature-cell {
   font-size: 6.8pt;
-  line-height: 1.02;
+  line-height: 1.08;
   white-space: normal;
 }
 
@@ -293,13 +261,8 @@ h1 {
 /* ==================== 窄屏 ==================== */
 
 @media screen and (max-width: 900px) {
-  :host {
-    overflow: auto;
-  }
-
-  .sheet {
-    margin: 12px;
-  }
+  :host { overflow: auto; }
+  .sheet { margin: 12px; }
 }
 
 /* ==================== 打印 ==================== */
@@ -334,7 +297,7 @@ h1 {
     min-height: 297mm !important;
     max-height: 297mm !important;
     margin: 0 !important;
-    padding: 5mm 6mm 10mm !important;
+    padding: 5.5mm 6.5mm 10mm !important;
     overflow: hidden !important;
     break-after: page !important;
     page-break-after: always !important;
@@ -355,10 +318,11 @@ h1 {
     max-width: none !important;
     border-collapse: collapse !important;
     table-layout: fixed !important;
-    font-size: 7.2pt !important;
-    line-height: 1.02 !important;
+    font-size: 7.5pt !important;
+    line-height: 1.08 !important;
     transform: none !important;
-    zoom: 1 !important;
+    text-shadow: none !important;
+    filter: none !important;
   }
 
   .crrt-table tr {
@@ -368,35 +332,39 @@ h1 {
 
   .crrt-table th,
   .crrt-table td {
-    height: 5.4mm !important;
+    height: 5.6mm !important;
     min-height: 0 !important;
-    padding: 0.15mm 0.3mm !important;
-    line-height: 1.02 !important;
+    padding: 0.45mm 0.55mm !important;
+    line-height: 1.08 !important;
+    text-shadow: none !important;
+    filter: none !important;
+    color: #000 !important;
+    background: #fff !important;
   }
 
   .crrt-table .time-header {
-    height: 6mm !important;
-    padding: 0.15mm !important;
+    height: 6.2mm !important;
+    padding: 0.3mm 0.2mm !important;
   }
 
   .crrt-table .group-cell {
-    padding: 0.2mm !important;
-    font-size: 7.2pt !important;
+    padding: 0.3mm !important;
+    font-size: 7.5pt !important;
   }
 
   .crrt-table .metric-cell {
-    padding: 0.15mm 0.25mm !important;
-    font-size: 7.1pt !important;
+    padding: 0.3mm 0.4mm !important;
+    font-size: 7.4pt !important;
   }
 
   .crrt-table .value-cell {
-    padding: 0.1mm 0.2mm !important;
-    font-size: 7pt !important;
+    padding: 0.2mm 0.3mm !important;
+    font-size: 7.2pt !important;
   }
 
   .signature-row th,
   .signature-row td {
-    height: 5.4mm !important;
+    height: 5.8mm !important;
   }
 
   .page-no {

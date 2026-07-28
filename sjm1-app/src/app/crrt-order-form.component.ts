@@ -76,7 +76,8 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     { cells: ['日机装', '血液滤过管路（日机装）', 'AV600S'] },
     { cells: ['山外山', 'TWT-CBP-02P（山外山）', 'AV600S'] },
     { cells: ['贝朗', '一次性使用体外循环血路（贝朗）', 'AV600S'] },
-    { cells: ['HA330', 'HA330-II', '膜式血浆分离器', 'BS330', '二级膜 EC-50W', 'ST150', 'OXIRIS'] },
+    { cells: ['HA330', 'HA330-II', '膜式血浆分离器', 'BS330'] },
+    { cells: ['二级膜 EC-50W', 'ST150', 'OXIRIS'] },
   ];
   readonly replacementCodes = ['B','C','D','E','F','G','H','I'];
   readonly dialysateCodes = ['b','c','d','e','f','g','h','i'];
