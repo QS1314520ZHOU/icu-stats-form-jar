@@ -1,0 +1,45 @@
+<div class="toolbar no-print"><div class="toolbar-right">
+  <label class="ps">打印页码：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.index">第 {{p.index}} 页</option></select></label>
+  <button class="btn primary" (click)="print()">打印</button>
+</div></div>
+
+<div *ngIf="loading" class="status no-print">加载中…</div>
+<div *ngIf="loadError" class="status error no-print">{{loadError}}</div>
+
+<ng-container *ngFor="let page of pages">
+  <section class="sheet" *ngIf="selectedPrintPage === null || selectedPrintPage === page.index">
+    <h1>重钢总医院连续性血液净化治疗护理记录单</h1>
+
+    <div class="patient-info-row">
+      <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
+      <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
+      <span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
+      <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
+      <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
+      <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
+      <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+    </div>
+
+    <table class="crrt-table">
+      <colgroup>
+        <col class="group-col" /><col class="metric-col" />
+        <col *ngFor="let i of columnIndexes" class="value-col" />
+      </colgroup>
+      <thead>
+        <tr><th colspan="2">项目/时间</th><th class="time-header" *ngFor="let i of columnIndexes"><ng-container *ngIf="instantAt(page,i) as inst"><span class="time-date">{{displayDate(inst)}}</span><span class="time-clock">{{displayClock(inst)}}</span></ng-container></th></tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let group of visibleGroups">
+          <tr *ngFor="let metric of group.metrics; let first = first">
+            <td *ngIf="first" class="group-cell" [attr.rowspan]="group.metrics.length">{{group.name}}</td>
+            <td class="metric-cell">{{metric.label}}</td>
+            <td *ngFor="let i of columnIndexes" class="value-cell">{{metricValue(metric, instantAt(page,i))}}</td>
+          </tr>
+        </ng-container>
+        <tr class="signature-row"><td colspan="2">签名</td><td class="signature-cell" *ngFor="let i of columnIndexes">{{signatureAt(instantAt(page,i))}}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="page-no">第 {{page.index}} 页　共 {{pages.length}} 页</div>
+  </section>
+</ng-container>

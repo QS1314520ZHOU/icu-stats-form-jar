@@ -14,6 +14,7 @@ import { TransfusionRecordComponent } from './transfusion-record.component';
 import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
 import { BradenFormComponent } from './braden-form.component';
+import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
 
 export const routes: Routes = [
@@ -32,6 +33,7 @@ export const routes: Routes = [
   { path: 'transfusionForm', component: TransfusionRecordComponent },
   { path: 'piccoForm', component: PiccoRecordComponent },
   { path: 'iabpForm', component: IabpRecordComponent },
+  { path: 'crrtForm', component: CrrtRecordComponent },
   { path: 'crrtOrderForm', component: CrrtOrderFormComponent },
   { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
 ];

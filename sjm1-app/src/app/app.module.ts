@@ -20,6 +20,7 @@ import { TransfusionRecordComponent } from './transfusion-record.component';
 import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
 import { BradenFormComponent } from './braden-form.component';
+import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { routes } from './app.routes';
 
@@ -41,6 +42,7 @@ import { routes } from './app.routes';
     PiccoRecordComponent,
     IabpRecordComponent,
     BradenFormComponent,
+    CrrtRecordComponent,
     CrrtOrderFormComponent,
   ],
   imports: [
