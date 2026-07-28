@@ -6,6 +6,22 @@
   color: #000;
 }
 
+/* ==================== 全局防重影 ==================== */
+
+.sheet,
+.crrt-table,
+.crrt-table th,
+.crrt-table td,
+input,
+select,
+textarea,
+span,
+label {
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-text-stroke: 0 !important;
+}
+
 /* ==================== 工具栏 ==================== */
 
 .toolbar {
@@ -63,10 +79,10 @@
   width: 210mm;
   height: 297mm;
   margin: 16px auto;
-  padding: 5.5mm 6.5mm 10mm;
+  padding: 5mm 6mm 9mm;
   overflow: hidden;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: none !important;
   color: #000;
   font-family: "SimSun", "宋体", serif;
   transform: none !important;
@@ -75,34 +91,32 @@
 }
 
 h1 {
-  margin: 0 0 2mm;
+  margin: 0 0 1.5mm;
   text-align: center;
   color: #000;
   font: 700 16pt/1.2 SimHei, "黑体", sans-serif;
   white-space: nowrap;
-  text-shadow: none !important;
-  filter: none !important;
 }
 
-/* ==================== 患者信息（与 jkjyForm 一致） ==================== */
+/* ==================== 患者信息（与 crrtOrderForm 一致） ==================== */
 
 .patient-info {
   width: 100%;
   margin: 2px 0 4px;
   color: #000;
   font-family: "SimSun", "宋体", serif;
-  font-size: 9pt;
+  font-size: 13pt;
   font-weight: 400;
+  line-height: 1.2;
 }
 
 .patient-info-row {
   display: flex;
   align-items: center;
   width: 100%;
-  gap: 12px;
-  margin: 1mm 0;
+  gap: 18px;
+  margin: 2px 0;
   white-space: nowrap;
-  line-height: 1.15;
 }
 
 .info-item {
@@ -110,7 +124,8 @@ h1 {
   white-space: nowrap;
 }
 
-.info-item b {
+.info-item b,
+.info-item strong {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
@@ -139,40 +154,33 @@ h1 {
   table-layout: fixed;
   color: #000;
   font-family: "SimSun", "宋体", serif;
-  font-size: 7.5pt;
+  font-size: 7.3pt;
   font-weight: 400;
-  line-height: 1.08;
-  text-shadow: none !important;
-  filter: none !important;
-  transform: none;
-  font-synthesis: none;
+  line-height: 1.05;
 }
 
 .crrt-table th,
 .crrt-table td {
   box-sizing: border-box;
-  height: 5.6mm;
+  height: 5.3mm;
   min-height: 0;
-  padding: 0.45mm 0.55mm;
-  border: 1px solid #000;
+  padding: 0.35mm 0.45mm;
+  border: 1px solid #000 !important;
   overflow: hidden;
   color: #000;
   font-family: inherit;
   font-size: inherit;
   font-weight: 400;
-  line-height: 1.08;
+  line-height: 1.05;
   text-align: center;
   vertical-align: middle;
   overflow-wrap: anywhere;
   word-break: break-word;
-  text-shadow: none !important;
-  filter: none !important;
+  background: #fff;
 }
 
 .crrt-table th { font-weight: 700; }
-
 .crrt-table .group-cell { font-weight: 700; }
-
 .crrt-table .metric-cell,
 .crrt-table .value-cell { font-weight: 400; }
 
@@ -191,30 +199,30 @@ h1 {
 
 .group-cell {
   padding: 0.3mm !important;
-  font-size: 7.5pt;
+  font-size: 7.3pt;
   font-weight: 700 !important;
-  line-height: 1.08;
+  line-height: 1.05;
   white-space: normal;
 }
 
 .metric-cell {
   padding: 0.3mm 0.4mm !important;
-  font-size: 7.4pt;
-  line-height: 1.08;
+  font-size: 7.2pt;
+  line-height: 1.05;
   text-align: center;
   white-space: normal;
 }
 
 .value-cell {
   padding: 0.2mm 0.3mm !important;
-  font-size: 7.2pt;
-  line-height: 1.08;
+  font-size: 7.1pt;
+  line-height: 1.05;
   white-space: normal;
 }
 
 .time-header {
   box-sizing: border-box;
-  height: 6.2mm !important;
+  height: 5.8mm !important;
   padding: 0.3mm 0.2mm !important;
   overflow: hidden;
   line-height: 1 !important;
@@ -225,7 +233,7 @@ h1 {
   display: block;
   width: 100%;
   overflow: hidden;
-  font-size: 6.8pt;
+  font-size: 6.6pt;
   line-height: 1;
   text-align: center;
   white-space: nowrap;
@@ -236,11 +244,11 @@ h1 {
 .time-clock { margin-top: 0.15mm; font-weight: 500; }
 
 .signature-row th,
-.signature-row td { height: 5.8mm; }
+.signature-row td { height: 5.5mm; }
 
 .signature-cell {
-  font-size: 6.8pt;
-  line-height: 1.08;
+  font-size: 6.6pt;
+  line-height: 1.05;
   white-space: normal;
 }
 
@@ -297,7 +305,7 @@ h1 {
     min-height: 297mm !important;
     max-height: 297mm !important;
     margin: 0 !important;
-    padding: 5.5mm 6.5mm 10mm !important;
+    padding: 5mm 6mm 9mm !important;
     overflow: hidden !important;
     break-after: page !important;
     page-break-after: always !important;
@@ -318,11 +326,9 @@ h1 {
     max-width: none !important;
     border-collapse: collapse !important;
     table-layout: fixed !important;
-    font-size: 7.5pt !important;
-    line-height: 1.08 !important;
+    font-size: 7.3pt !important;
+    line-height: 1.05 !important;
     transform: none !important;
-    text-shadow: none !important;
-    filter: none !important;
   }
 
   .crrt-table tr {
@@ -332,39 +338,38 @@ h1 {
 
   .crrt-table th,
   .crrt-table td {
-    height: 5.6mm !important;
+    height: 5.3mm !important;
     min-height: 0 !important;
-    padding: 0.45mm 0.55mm !important;
-    line-height: 1.08 !important;
-    text-shadow: none !important;
-    filter: none !important;
+    padding: 0.35mm 0.45mm !important;
+    line-height: 1.05 !important;
     color: #000 !important;
     background: #fff !important;
+    border: 1px solid #000 !important;
   }
 
   .crrt-table .time-header {
-    height: 6.2mm !important;
+    height: 5.8mm !important;
     padding: 0.3mm 0.2mm !important;
   }
 
   .crrt-table .group-cell {
     padding: 0.3mm !important;
-    font-size: 7.5pt !important;
+    font-size: 7.3pt !important;
   }
 
   .crrt-table .metric-cell {
     padding: 0.3mm 0.4mm !important;
-    font-size: 7.4pt !important;
+    font-size: 7.2pt !important;
   }
 
   .crrt-table .value-cell {
     padding: 0.2mm 0.3mm !important;
-    font-size: 7.2pt !important;
+    font-size: 7.1pt !important;
   }
 
   .signature-row th,
   .signature-row td {
-    height: 5.8mm !important;
+    height: 5.5mm !important;
   }
 
   .page-no {

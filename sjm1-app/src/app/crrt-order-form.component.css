@@ -6,6 +6,29 @@
   color: #000;
 }
 
+/* ==================== 全局防重影 ==================== */
+
+.sheet,
+.crrt-print-page,
+.crrt-table,
+.crrt-table th,
+.crrt-table td,
+.excel-order-table,
+.excel-order-table th,
+.excel-order-table td,
+.cbp-formula-table,
+.cbp-formula-table th,
+.cbp-formula-table td,
+input,
+select,
+textarea,
+span,
+label {
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-text-stroke: 0 !important;
+}
+
 /* ==================== 工具栏 ==================== */
 
 .toolbar {
@@ -46,11 +69,8 @@
 }
 
 .btn:disabled { cursor: not-allowed; opacity: 0.55; }
-
 .btn.primary { border: 1px solid #1890ff; background: #1890ff; color: #fff; }
-
 .btn.secondary { min-height: 30px; padding: 4px 12px; }
-
 .btn.danger { border: 1px solid #dc2626; color: #dc2626; }
 
 .btn.danger-small {
@@ -88,12 +108,9 @@
 
 .as { font-size: 12px; color: #7d7a75; white-space: nowrap; }
 .as .ok { color: #46a171; }
-
 .retry { padding: 0; border: 0; background: none; color: #dc2626; font: inherit; text-decoration: underline; cursor: pointer; }
-
 .loading { padding: 14px 16px; font-family: "SimSun", "宋体", serif; }
 .loading.error { color: #b42318; }
-
 .document-area { display: block; padding: 8px 0; overflow: visible; }
 .print-all-container { display: block; }
 .print-hidden { display: none !important; }
@@ -113,7 +130,7 @@
   padding: 6mm 7mm 12mm;
   overflow: hidden;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: none !important;
   color: #000;
   font-family: "SimSun", "宋体", serif;
   transform: none !important;
@@ -128,8 +145,6 @@
   color: #000;
   font: 700 17pt/1.2 SimHei, "黑体", sans-serif;
   white-space: nowrap;
-  text-shadow: none !important;
-  filter: none !important;
 }
 
 .sheet-pageno {
@@ -144,7 +159,7 @@
   white-space: nowrap;
 }
 
-/* ==================== 患者信息（与 jkjyForm 一致） ==================== */
+/* ==================== 患者信息 ==================== */
 
 .patient-info {
   width: 100%;
@@ -153,6 +168,7 @@
   font-family: "SimSun", "宋体", serif;
   font-size: 13pt;
   font-weight: 400;
+  line-height: 1.2;
 }
 
 .patient-info-row {
@@ -188,36 +204,33 @@
   text-overflow: ellipsis;
 }
 
-/* ==================== 主表格 ==================== */
+/* ==================== 上半部分表格 ==================== */
 
 .crrt-table,
-.excel-order-table {
+.top-table {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   margin: 0;
   border-collapse: collapse;
+  border-spacing: 0;
   table-layout: fixed;
   color: #000;
   font-family: "SimSun", "宋体", serif;
   font-size: 9pt;
   font-weight: 400;
   line-height: 1.2;
-  text-shadow: none !important;
-  filter: none !important;
-  transform: none;
-  font-synthesis: none;
 }
 
 .crrt-table th,
 .crrt-table td,
-.excel-order-table th,
-.excel-order-table td {
+.top-table th,
+.top-table td {
   box-sizing: border-box;
   height: 6mm;
   min-width: 0;
   padding: 0.5mm 1mm;
-  border: 1px solid #000;
+  border: 1px solid #000 !important;
   overflow: hidden;
   color: #000;
   font-family: inherit;
@@ -227,31 +240,29 @@
   vertical-align: middle;
   overflow-wrap: anywhere;
   word-break: break-word;
-  text-shadow: none !important;
-  filter: none !important;
+  background: #fff;
 }
 
 .crrt-table th,
-.excel-order-table th {
+.top-table th {
   background: transparent;
   text-align: center;
   font-weight: 700;
 }
 
 .crrt-table td,
-.excel-order-table td {
+.top-table td {
   text-align: left;
 }
 
 .crrt-table tr,
-.excel-order-table tr {
+.top-table tr {
   break-inside: avoid;
   page-break-inside: avoid;
 }
 
-/* 主表格列宽 */
-.main-table .label-col { width: 16%; }
-.main-table .content-col { width: 34%; }
+.top-label-col { width: 16%; }
+.top-content-col { width: 34%; }
 
 .label-cell {
   text-align: center !important;
@@ -259,13 +270,14 @@
   white-space: normal;
 }
 
-/* ==================== 嵌套表格 ==================== */
+/* ==================== 嵌套表格（抗凝方式） ==================== */
 
 .nested-table {
   box-sizing: border-box;
   width: 100%;
   margin: 0;
   border-collapse: collapse;
+  border-spacing: 0;
   table-layout: fixed;
   border: 0;
   font-family: inherit;
@@ -279,20 +291,13 @@
   height: 5.5mm;
   min-width: 0;
   padding: 0.3mm 0.6mm;
-  border: 1px solid #999;
+  border: 1px solid #000 !important;
   overflow: hidden;
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
   vertical-align: middle;
-}
-
-.nested-table .section-label {
-  height: 5mm;
-  text-align: left;
-  font-weight: 700;
-  font-size: 8.5pt;
-  border-bottom: 1px solid #000;
+  background: #fff;
 }
 
 .nested-table .input-label {
@@ -311,12 +316,7 @@
   white-space: nowrap;
 }
 
-/* 抗凝嵌套列宽 */
 .anticoag-nested { font-size: 8.5pt; }
-.anticoag-nested .anticoag-left-col { width: 22%; }
-.anticoag-nested .anticoag-left-input { width: 28%; }
-.anticoag-nested .anticoag-right-col { width: 28%; }
-.anticoag-nested .anticoag-right-input { width: 22%; }
 
 .anticoag-nested label {
   display: inline-flex;
@@ -333,95 +333,122 @@
   padding: 0;
 }
 
-/* CBP/配方嵌套 */
-.dose-nested .input-label { width: 40%; }
-.dose-nested .input-cell { width: 60%; }
+/* ==================== CBP + 配方统一网格 ==================== */
 
-.formula-nested .input-label { width: 38%; }
-.formula-nested .input-cell { width: 62%; }
+.cbp-formula-table {
+  width: 100%;
+  margin: -1px 0 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: fixed;
+}
 
-/* ==================== 单元格输入控件 ==================== */
+.cbp-formula-table th,
+.cbp-formula-table td {
+  box-sizing: border-box;
+  height: 5.5mm;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid #000 !important;
+  background: #fff;
+  color: #000;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 8pt;
+  line-height: 1.1;
+  vertical-align: middle;
+  text-align: center;
+}
 
-.crrt-table input:not([type="checkbox"]),
-.crrt-table select,
-.crrt-table textarea,
-.excel-order-table input:not([type="checkbox"]),
-.excel-order-table select,
-.excel-order-table textarea,
-.nested-table input:not([type="checkbox"]),
-.nested-table select {
+.cbp-group-col { width: 9%; }
+.cbp-name-col { width: 23%; }
+.cbp-value-col { width: 18%; }
+.formula-group-col { width: 12%; }
+.formula-name-col { width: 22%; }
+.formula-value-col { width: 16%; }
+
+.cbp-group-cell {
+  font-weight: 700 !important;
+  font-size: 9pt;
+  text-align: center !important;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.formula-group-cell {
+  font-weight: 700 !important;
+  font-size: 8pt;
+  text-align: center !important;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.field-label-cell {
+  padding: 0.4mm 0.6mm;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 400;
+}
+
+.value-cell {
+  position: relative;
+  padding: 0 !important;
+  text-align: center;
+  vertical-align: middle;
+  background: #fff;
+}
+
+.formula-input,
+.formula-select {
   box-sizing: border-box;
   display: block;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  height: 100%;
-  min-height: 22px;
+  height: 5.4mm;
+  min-height: 5.4mm;
   margin: 0;
-  padding: 1px 3px;
+  padding: 0.3mm 0.8mm;
   border: 0;
   border-radius: 0;
   outline: 0;
-  background: transparent;
+  background: #fff;
   color: #000;
-  font: inherit;
-  line-height: 1.1;
-  box-shadow: none;
-  text-shadow: none;
+  font: 8pt/1.1 "SimSun", "宋体", serif;
+  text-align: center;
+  box-shadow: none !important;
 }
 
-.crrt-table input:focus,
-.crrt-table select:focus,
-.excel-order-table input:focus,
-.excel-order-table select:focus,
-.nested-table input:focus,
-.nested-table select:focus {
-  outline: 1px solid #2783de;
+.formula-input:focus,
+.formula-select:focus {
+  outline: 1px solid #1677ff;
   outline-offset: -1px;
+  background: #f8fbff;
 }
 
-.crrt-table input:disabled,
-.crrt-table select:disabled,
-.excel-order-table input:disabled,
-.excel-order-table select:disabled,
-.nested-table input:disabled,
-.nested-table select:disabled {
+.formula-input:disabled,
+.formula-select:disabled {
   color: #000;
+  background: #f7f7f7;
   opacity: 1;
   cursor: default;
+  -webkit-text-fill-color: #000;
 }
 
-.crrt-table input[type="number"],
-.excel-order-table input[type="number"],
-.nested-table input[type="number"] {
-  text-align: center;
-}
-
-.crrt-table input[type="datetime-local"],
-.excel-order-table input[type="datetime-local"] {
+.print-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  font-size: 7.5pt;
+  height: 5.4mm;
+  padding: 0.3mm 0.8mm;
+  font: 8pt/1.1 "SimSun", "宋体", serif;
+  text-align: center;
+  color: #000;
 }
 
-.crrt-table select,
-.excel-order-table select {
-  appearance: auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.crrt-table input[type="checkbox"],
-.excel-order-table input[type="checkbox"] {
-  box-sizing: border-box;
-  width: 12px;
-  height: 12px;
-  min-height: 12px;
-  margin: 0 2px 0 0;
-  padding: 0;
-  vertical-align: middle;
+.signature-form-row th {
+  font-weight: 700;
+  font-size: 8.5pt;
 }
 
 /* ==================== 复选框网格 ==================== */
@@ -458,9 +485,31 @@
   padding: 0;
 }
 
-/* ==================== 处方矩阵（第二页） ==================== */
+/* ==================== 第二页连续表单 ==================== */
 
-.prescription-grid { table-layout: fixed; margin-bottom: 2mm; }
+.page-two-form {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.page-two-form > table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.page-two-form > table + table {
+  margin-top: -1px;
+}
+
+/* ==================== 处方矩阵 ==================== */
+
+.prescription-grid {
+  table-layout: fixed;
+}
 
 .prescription-grid .rx-label-col { width: 10%; }
 .prescription-grid .rx-field-col { width: 14%; }
@@ -544,10 +593,100 @@
   margin-top: 4px;
 }
 
-/* ==================== 屏幕/打印切换（防重影） ==================== */
+/* ==================== 单元格输入控件 ==================== */
+
+.crrt-table input:not([type="checkbox"]),
+.crrt-table select,
+.crrt-table textarea,
+.top-table input:not([type="checkbox"]),
+.top-table select,
+.nested-table input:not([type="checkbox"]),
+.nested-table select,
+.prescription-grid input:not([type="checkbox"]),
+.prescription-grid select,
+.order-table input:not([type="checkbox"]),
+.order-table select {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  min-height: 22px;
+  margin: 0;
+  padding: 1px 3px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #000;
+  font: inherit;
+  line-height: 1.1;
+  box-shadow: none;
+}
+
+.crrt-table input:focus,
+.top-table input:focus,
+.nested-table input:focus,
+.prescription-grid input:focus,
+.order-table input:focus,
+.crrt-table select:focus,
+.top-table select:focus {
+  outline: 1px solid #2783de;
+  outline-offset: -1px;
+}
+
+.crrt-table input:disabled,
+.top-table input:disabled,
+.nested-table input:disabled,
+.prescription-grid input:disabled,
+.order-table input:disabled,
+.crrt-table select:disabled,
+.top-table select:disabled {
+  color: #000;
+  opacity: 1;
+  cursor: default;
+}
+
+.crrt-table input[type="number"],
+.top-table input[type="number"],
+.nested-table input[type="number"] {
+  text-align: center;
+}
+
+.crrt-table input[type="datetime-local"],
+.top-table input[type="datetime-local"],
+.prescription-grid input[type="datetime-local"],
+.order-table input[type="datetime-local"] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 7.5pt;
+}
+
+.crrt-table select,
+.top-table select {
+  appearance: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crrt-table input[type="checkbox"],
+.top-table input[type="checkbox"] {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  min-height: 12px;
+  margin: 0 2px 0 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+/* ==================== 屏幕/打印切换 ==================== */
 
 @media screen {
-  .screen-only { display: inline-block !important; }
+  .screen-only { display: block !important; }
   .print-only { display: none !important; }
 }
 
@@ -574,7 +713,6 @@
   overflow: hidden;
   border-radius: 8px;
   background: #fff;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
 }
 
 .dh {
@@ -685,7 +823,9 @@
   }
 
   .print-only {
-    display: inline !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
   }
 
   .document-area,
@@ -725,7 +865,8 @@
   }
 
   .crrt-table,
-  .excel-order-table {
+  .top-table,
+  .cbp-formula-table {
     width: 100% !important;
     max-width: none !important;
     table-layout: fixed !important;
@@ -733,24 +874,26 @@
   }
 
   .crrt-table tr,
-  .excel-order-table tr {
+  .top-table tr,
+  .cbp-formula-table tr {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
 
   .crrt-table th,
   .crrt-table td,
-  .excel-order-table th,
-  .excel-order-table td {
+  .top-table th,
+  .top-table td,
+  .cbp-formula-table th,
+  .cbp-formula-table td {
     background: #fff !important;
     color: #000 !important;
-    text-shadow: none !important;
-    filter: none !important;
+    border: 1px solid #000 !important;
   }
 
   .nested-table { border: 0 !important; }
   .nested-table th,
-  .nested-table td { border-color: #999 !important; }
+  .nested-table td { border: 1px solid #000 !important; }
 
   input,
   select,
@@ -763,7 +906,6 @@
     box-shadow: none !important;
     -webkit-text-fill-color: #000 !important;
     -webkit-text-stroke: 0 !important;
-    text-shadow: none !important;
   }
 
   select {
