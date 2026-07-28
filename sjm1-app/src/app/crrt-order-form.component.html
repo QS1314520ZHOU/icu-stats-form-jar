@@ -58,7 +58,7 @@
         </tr>
         <tr>
           <th class="label-cell">抗凝方式</th>
-          <td colspan="3">
+          <td colspan="3" class="anticoag-host-cell">
             <table class="nested-table anticoag-nested">
               <colgroup><col style="width:18%" /><col style="width:32%" /><col style="width:28%" /><col style="width:22%" /></colgroup>
               <tbody>
@@ -82,12 +82,20 @@
         <col class="cbp-group-col" /><col class="cbp-name-col" /><col class="cbp-value-col" /><col class="formula-group-col" /><col class="formula-name-col" /><col class="formula-value-col" />
       </colgroup>
       <tbody>
+        <!-- 表头行 -->
+        <tr class="cbp-header-row">
+          <th rowspan="10" class="label-cell cbp-group-cell">CBP<br/>剂量</th>
+          <th class="column-header-cell">名称</th>
+          <th class="column-header-cell">参数</th>
+          <th class="formula-header-spacer"></th>
+          <th class="column-header-cell">名称</th>
+          <th class="column-header-cell">参数</th>
+        </tr>
         <!-- CBP剂量 + 置换液配方A -->
         <tr>
-          <th class="label-cell cbp-group-cell" rowspan="8">CBP<br/>剂量</th>
           <td class="field-label-cell">前置换（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.preReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.preReplacement ?? '' }}</span></td>
-          <th class="label-cell formula-group-cell" rowspan="3">置换液<br/>配方 A</th>
+          <th class="label-cell formula-group-cell" rowspan="4">置换液<br/>配方 A</th>
           <td class="field-label-cell">基础液（ml）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.replacementFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.replacementFormulaA.baseSolution ?? '' }}</span></td>
         </tr>
@@ -107,7 +115,7 @@
         <tr>
           <td class="field-label-cell">5%碳酸氢钠（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.sodiumBicarbonate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.sodiumBicarbonate ?? '' }}</span></td>
-          <th class="label-cell formula-group-cell" rowspan="3">透析液<br/>配方 a</th>
+          <th class="label-cell formula-group-cell" rowspan="4">透析液<br/>配方 a</th>
           <td class="field-label-cell">基础液（ml）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.dialysateFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.dialysateFormulaA.baseSolution ?? '' }}</span></td>
         </tr>

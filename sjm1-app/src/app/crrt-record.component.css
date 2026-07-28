@@ -6,7 +6,9 @@
   color: #000;
 }
 
-/* ==================== 全局防重影 ==================== */
+/* =========================================================
+   Global rendering
+   ========================================================= */
 
 .sheet,
 .crrt-table,
@@ -22,7 +24,9 @@ label {
   -webkit-text-stroke: 0 !important;
 }
 
-/* ==================== 工具栏 ==================== */
+/* =========================================================
+   Toolbar
+   ========================================================= */
 
 .toolbar {
   position: sticky;
@@ -34,8 +38,8 @@ label {
   gap: 12px;
   min-height: 50px;
   padding: 0 16px;
-  background: #fff;
   border-bottom: 1px solid #ddd;
+  background: #fff;
 }
 
 .btn {
@@ -45,18 +49,21 @@ label {
   border-radius: 4px;
   background: #1877d3;
   color: #fff;
-  font: 14px "SimSun", "宋体", serif;
+  font: 14px/1.2 "SimSun", "宋体", serif;
   cursor: pointer;
 }
 
-.btn:disabled { cursor: not-allowed; opacity: 0.55; }
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .ps {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  font: 14px/1.2 "SimSun", "宋体", serif;
   white-space: nowrap;
-  font: 14px "SimSun", "宋体", serif;
 }
 
 .ps select {
@@ -68,10 +75,18 @@ label {
   font: inherit;
 }
 
-.status { padding: 12px 18px; font-family: "SimSun", "宋体", serif; }
-.status.error { color: #b42318; }
+.status {
+  padding: 12px 18px;
+  font-family: "SimSun", "宋体", serif;
+}
 
-/* ==================== A4 页面 ==================== */
+.status.error {
+  color: #b42318;
+}
+
+/* =========================================================
+   A4 page
+   ========================================================= */
 
 .sheet {
   box-sizing: border-box;
@@ -92,13 +107,15 @@ label {
 
 h1 {
   margin: 0 0 1.5mm;
-  text-align: center;
   color: #000;
   font: 700 16pt/1.2 SimHei, "黑体", sans-serif;
+  text-align: center;
   white-space: nowrap;
 }
 
-/* ==================== 患者信息（与 crrtOrderForm 一致） ==================== */
+/* =========================================================
+   Patient information
+   ========================================================= */
 
 .patient-info {
   width: 100%;
@@ -126,14 +143,16 @@ h1 {
 
 .info-item b,
 .info-item strong {
+  color: inherit;
   font-family: inherit;
   font-size: inherit;
-  line-height: inherit;
-  color: inherit;
   font-weight: 700;
+  line-height: inherit;
 }
 
-.diagnosis-row { gap: 0; }
+.diagnosis-row {
+  gap: 0;
+}
 
 .diagnosis-item {
   flex: 1 1 auto;
@@ -143,7 +162,9 @@ h1 {
   text-overflow: ellipsis;
 }
 
-/* ==================== CRRT 表格 ==================== */
+/* =========================================================
+   CRRT table — print/base dimensions
+   ========================================================= */
 
 .crrt-table {
   box-sizing: border-box;
@@ -151,6 +172,7 @@ h1 {
   max-width: 100%;
   margin: 0;
   border-collapse: collapse;
+  border-spacing: 0;
   table-layout: fixed;
   color: #000;
   font-family: "SimSun", "宋体", serif;
@@ -167,6 +189,7 @@ h1 {
   padding: 0.35mm 0.45mm;
   border: 1px solid #000 !important;
   overflow: hidden;
+  background: #fff;
   color: #000;
   font-family: inherit;
   font-size: inherit;
@@ -176,13 +199,20 @@ h1 {
   vertical-align: middle;
   overflow-wrap: anywhere;
   word-break: break-word;
-  background: #fff;
 }
 
-.crrt-table th { font-weight: 700; }
-.crrt-table .group-cell { font-weight: 700; }
+.crrt-table th {
+  font-weight: 700;
+}
+
+.crrt-table .group-cell {
+  font-weight: 700;
+}
+
 .crrt-table .metric-cell,
-.crrt-table .value-cell { font-weight: 400; }
+.crrt-table .value-cell {
+  font-weight: 400;
+}
 
 .crrt-table th span {
   display: block;
@@ -191,11 +221,19 @@ h1 {
   white-space: nowrap;
 }
 
-/* 列宽: 10% + 22% + 8×8.5% = 100% */
+/* 10% + 22% + 8 × 8.5% = 100% */
 
-.group-col { width: 10%; }
-.metric-col { width: 22%; }
-.value-col { width: 8.5%; }
+.group-col {
+  width: 10%;
+}
+
+.metric-col {
+  width: 22%;
+}
+
+.value-col {
+  width: 8.5%;
+}
 
 .group-cell {
   padding: 0.3mm !important;
@@ -240,11 +278,19 @@ h1 {
   text-overflow: clip;
 }
 
-.time-date { font-weight: 600; }
-.time-clock { margin-top: 0.15mm; font-weight: 500; }
+.time-date {
+  font-weight: 600;
+}
+
+.time-clock {
+  margin-top: 0.15mm;
+  font-weight: 400;
+}
 
 .signature-row th,
-.signature-row td { height: 5.5mm; }
+.signature-row td {
+  height: 5.5mm;
+}
 
 .signature-cell {
   font-size: 6.6pt;
@@ -252,7 +298,9 @@ h1 {
   white-space: normal;
 }
 
-/* ==================== 页码 ==================== */
+/* =========================================================
+   Page number
+   ========================================================= */
 
 .page-no {
   position: absolute;
@@ -266,14 +314,169 @@ h1 {
   white-space: nowrap;
 }
 
-/* ==================== 窄屏 ==================== */
+/* =========================================================
+   Integer-pixel screen rendering
+   ========================================================= */
 
-@media screen and (max-width: 900px) {
-  :host { overflow: auto; }
-  .sheet { margin: 12px; }
+@media screen {
+  /*
+   * A4 at 96 CSS dpi: 794 × 1123px.
+   *
+   * Horizontal padding:
+   * 21px + 21px.
+   *
+   * Table width:
+   * 794 - 42 = 752px.
+   */
+
+  .sheet {
+    box-sizing: border-box;
+    width: 794px;
+    height: 1123px;
+    min-height: 1123px;
+    max-height: 1123px;
+    padding: 19px 21px 34px;
+    box-shadow: none !important;
+    transform: none !important;
+    zoom: 1 !important;
+    filter: none !important;
+  }
+
+  h1 {
+    margin: 0 0 6px;
+    font-family: SimHei, "黑体", sans-serif;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 26px;
+  }
+
+  .patient-info {
+    margin: 2px 0 4px;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 21px;
+  }
+
+  .patient-info-row {
+    gap: 18px;
+    margin: 2px 0;
+    line-height: 21px;
+  }
+
+  .crrt-table {
+    box-sizing: border-box;
+    width: 752px;
+    max-width: 752px;
+    border-collapse: collapse;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  /*
+   * 76 + 164 + (8 × 64) = 752px.
+   * All vertical borders land on integer CSS pixels.
+   */
+  .group-col {
+    width: 76px;
+  }
+
+  .metric-col {
+    width: 164px;
+  }
+
+  .value-col {
+    width: 64px;
+  }
+
+  .crrt-table th,
+  .crrt-table td {
+    box-sizing: border-box;
+    height: 20px;
+    min-height: 20px;
+    padding: 1px 2px;
+    border: 1px solid #000 !important;
+    background: #fff;
+    color: #000;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 14px;
+  }
+
+  .crrt-table th,
+  .crrt-table .group-cell {
+    font-weight: 700;
+  }
+
+  .crrt-table .group-cell,
+  .crrt-table .metric-cell,
+  .crrt-table .value-cell {
+    height: 20px;
+    padding: 1px 2px !important;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .time-header {
+    height: 22px !important;
+    min-height: 22px !important;
+    padding: 1px !important;
+    line-height: 12px !important;
+  }
+
+  .time-date,
+  .time-clock {
+    width: 100%;
+    font-size: 10px;
+    line-height: 11px;
+  }
+
+  .time-clock {
+    margin-top: 0;
+  }
+
+  .signature-row th,
+  .signature-row td {
+    height: 21px;
+    min-height: 21px;
+  }
+
+  .signature-cell {
+    padding: 1px 2px !important;
+    font-size: 10px;
+    line-height: 12px;
+  }
+
+  .page-no {
+    right: 21px;
+    bottom: 11px;
+    left: 21px;
+    font-size: 11px;
+    line-height: 14px;
+  }
 }
 
-/* ==================== 打印 ==================== */
+/* =========================================================
+   Narrow screens
+   ========================================================= */
+
+@media screen and (max-width: 900px) {
+  :host {
+    overflow: auto;
+  }
+
+  .sheet {
+    margin: 12px;
+  }
+}
+
+/* =========================================================
+   Print
+   ========================================================= */
 
 @media print {
   @page {
@@ -307,13 +510,13 @@ h1 {
     margin: 0 !important;
     padding: 5mm 6mm 9mm !important;
     overflow: hidden !important;
-    break-after: page !important;
-    page-break-after: always !important;
     background: #fff !important;
     box-shadow: none !important;
     transform: none !important;
     zoom: 1 !important;
     filter: none !important;
+    break-after: page !important;
+    page-break-after: always !important;
   }
 
   .sheet:last-of-type {
@@ -325,6 +528,7 @@ h1 {
     width: 100% !important;
     max-width: none !important;
     border-collapse: collapse !important;
+    border-spacing: 0 !important;
     table-layout: fixed !important;
     font-size: 7.3pt !important;
     line-height: 1.05 !important;
@@ -341,10 +545,11 @@ h1 {
     height: 5.3mm !important;
     min-height: 0 !important;
     padding: 0.35mm 0.45mm !important;
-    line-height: 1.05 !important;
-    color: #000 !important;
-    background: #fff !important;
     border: 1px solid #000 !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 7.3pt !important;
+    line-height: 1.05 !important;
   }
 
   .crrt-table .time-header {
@@ -367,13 +572,21 @@ h1 {
     font-size: 7.1pt !important;
   }
 
+  .time-date,
+  .time-clock,
+  .signature-cell {
+    font-size: 6.6pt !important;
+  }
+
   .signature-row th,
   .signature-row td {
     height: 5.5mm !important;
   }
 
   .page-no {
+    right: 6mm !important;
     bottom: 3mm !important;
+    left: 6mm !important;
     font-size: 8.5pt !important;
   }
 }
