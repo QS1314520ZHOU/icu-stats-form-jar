@@ -303,7 +303,6 @@ label {
   min-width: 0;
   padding: 0.5mm 1mm;
   border: 1px solid #000 !important;
-  overflow: hidden;
   background: #fff;
   color: #000;
   font-family: inherit;
@@ -313,6 +312,14 @@ label {
   vertical-align: middle;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.top-table .option-host-cell,
+.top-table .machine-row-cell,
+.top-table .anticoag-option-cell,
+.top-table .anticoag-dose-cell,
+.top-table .anticoag-dose-label {
+  overflow: visible;
 }
 
 .crrt-table th,
@@ -399,110 +406,56 @@ label {
 }
 
 /* =========================================================
-   Anticoagulation table
-   Remove nested table's separate outside frame
+   Anticoagulation section (compact, no nested table)
    ========================================================= */
 
-.anticoag-host-cell,
-.top-table td:has(> .anticoag-nested) {
-  padding: 0 !important;
-  overflow: hidden;
-}
-
-.anticoag-nested {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  border: 0 !important;
-  border-collapse: collapse;
-  border-spacing: 0;
-  table-layout: fixed;
-  background: #fff;
-  font-size: 8.5pt;
-}
-
-.anticoag-nested th,
-.anticoag-nested td {
-  box-sizing: border-box;
-  min-width: 0;
-  padding: 0.3mm 0.6mm;
-  border: 0 !important;
-  border-right: 1px solid #000 !important;
-  border-bottom: 1px solid #000 !important;
-  background: #fff;
-  color: #000;
-  font-family: "SimSun", "宋体", serif;
-  font-weight: 400;
+.anticoag-option-cell {
   vertical-align: middle;
+  padding: 1px 3px !important;
+  height: 24px;
+  min-height: 24px;
+  line-height: 18px;
 }
 
-.anticoag-nested tr:first-child > th,
-.anticoag-nested tr:first-child > td {
-  border-top: 0 !important;
-}
-
-.anticoag-nested tr:last-child > th,
-.anticoag-nested tr:last-child > td {
-  border-bottom: 0 !important;
-}
-
-.anticoag-nested tr > th:first-child,
-.anticoag-nested tr > td:first-child {
-  border-left: 0 !important;
-}
-
-.anticoag-nested tr > th:last-child,
-.anticoag-nested tr > td:last-child {
-  border-right: 0 !important;
-}
-
-.anticoag-nested label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5mm;
-  margin: 0;
-  color: #000;
-  font-family: "SimSun", "宋体", serif;
-  font-size: 8.5pt;
+.anticoag-dose-label {
+  text-align: right !important;
+  padding-right: 3px !important;
+  height: 24px;
+  min-height: 24px;
   font-weight: 400;
   white-space: nowrap;
 }
 
-.anticoag-nested input[type="checkbox"] {
+.anticoag-dose-cell {
+  height: 24px;
+  min-height: 24px;
+  padding: 1px 2px !important;
+}
+
+.anticoag-dose-cell input[type="number"] {
   box-sizing: border-box;
-  flex: 0 0 auto;
-  width: 3mm;
-  height: 3mm;
-  min-height: 3mm;
-  margin: 0;
-  padding: 0;
+  display: inline-block;
+  width: 60%;
+  height: 21px;
+  min-height: 21px;
+  padding: 1px 3px;
+  border: 0;
+  border-bottom: 1px solid #999;
+  background: transparent;
+  font: inherit;
+  text-align: center;
   vertical-align: middle;
 }
 
-.anticoag-nested input:not([type="checkbox"]) {
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 1px 3px;
-  border: 0;
-  border-radius: 0;
-  outline: 0;
-  background: transparent;
-  color: #000;
-  font: inherit;
-  text-align: center;
-  box-shadow: none !important;
+.anticoag-dose-cell input[type="number"]:focus {
+  outline: none;
+  border-bottom-color: #1677ff;
 }
 
-.anticoag-nested input:not([type="checkbox"]):focus {
-  outline: 1px solid #1677ff;
-  outline-offset: -1px;
-  background: #f8fbff;
+.anticoag-dose-cell input[type="number"]:disabled {
+  color: #000;
+  opacity: 1;
+  cursor: default;
 }
 
 /* =========================================================
@@ -705,9 +658,71 @@ label {
 }
 
 /* =========================================================
-   Checkbox grids
+   Checkbox layouts (two-column grid, machine options)
    ========================================================= */
 
+.two-column-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 8px;
+  width: 100%;
+}
+
+.option-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  font-size: 8.5pt;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.checkbox-option input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  min-height: 12px;
+  margin: 0 2px 0 0;
+  padding: 0;
+}
+
+.machine-options {
+  display: grid;
+  align-items: center;
+  width: 100%;
+  column-gap: 10px;
+}
+
+.machine-options-2 {
+  grid-template-columns: 1fr 2fr;
+}
+
+.machine-options-3 {
+  grid-template-columns: 1fr 2.4fr 1fr;
+}
+
+.machine-options-4 {
+  grid-template-columns: 1fr 1fr 1.7fr 1fr;
+}
+
+.machine-options-last {
+  grid-template-columns: 1.6fr 1fr 1fr;
+}
+
+.machine-row-cell {
+  padding: 2px 4px !important;
+}
+
+/* Legacy check-grid (kept for compatibility) */
 .check-grid {
   display: flex;
   align-items: center;
@@ -716,19 +731,6 @@ label {
   gap: 1mm 3mm;
   width: 100%;
   min-width: 0;
-}
-
-.check-grid.two-col {
-  flex-wrap: nowrap;
-  gap: 0;
-}
-
-.check-col {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1mm;
 }
 
 .check-grid label {
@@ -1062,32 +1064,54 @@ label {
     line-height: 16px;
   }
 
-  .anticoag-nested {
+  .anticoag-option-cell {
+    height: 24px;
+    min-height: 24px;
+    padding: 2px 4px !important;
     font-size: 12px;
-    line-height: 16px;
+    line-height: 18px;
   }
 
-  .anticoag-nested th,
-  .anticoag-nested td {
-    height: 22px;
-    min-height: 22px;
-    padding: 1px 3px;
+  .anticoag-dose-label {
+    height: 24px;
+    min-height: 24px;
     font-size: 12px;
-    line-height: 16px;
+    line-height: 18px;
   }
 
-  .anticoag-nested label {
-    gap: 3px;
+  .anticoag-dose-cell {
+    height: 24px;
+    min-height: 24px;
     font-size: 12px;
-    line-height: 16px;
+    line-height: 18px;
   }
 
-  .anticoag-nested input:not([type="checkbox"]) {
+  .anticoag-dose-cell input[type="number"] {
     height: 21px;
     min-height: 21px;
-    padding: 1px 3px;
     font-size: 12px;
     line-height: 19px;
+  }
+
+  .two-column-options {
+    gap: 0 10px;
+  }
+
+  .option-column {
+    gap: 3px;
+  }
+
+  .checkbox-option {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .machine-options {
+    column-gap: 12px;
+  }
+
+  .machine-row-cell {
+    padding: 3px 6px !important;
   }
 
   /*
@@ -1472,40 +1496,24 @@ label {
     color: #000 !important;
   }
 
-  .anticoag-host-cell,
-  .top-table td:has(> .anticoag-nested) {
-    padding: 0 !important;
+  .anticoag-option-cell {
+    height: 24px !important;
+    min-height: 24px !important;
+    padding: 2px 4px !important;
   }
 
-  .anticoag-nested {
-    border: 0 !important;
+  .anticoag-dose-label {
+    height: 24px !important;
+    min-height: 24px !important;
   }
 
-  .anticoag-nested th,
-  .anticoag-nested td {
-    border: 0 !important;
-    border-right: 1px solid #000 !important;
+  .anticoag-dose-cell {
+    height: 24px !important;
+    min-height: 24px !important;
+  }
+
+  .anticoag-dose-cell input[type="number"] {
     border-bottom: 1px solid #000 !important;
-  }
-
-  .anticoag-nested tr:first-child > th,
-  .anticoag-nested tr:first-child > td {
-    border-top: 0 !important;
-  }
-
-  .anticoag-nested tr:last-child > th,
-  .anticoag-nested tr:last-child > td {
-    border-bottom: 0 !important;
-  }
-
-  .anticoag-nested tr > th:first-child,
-  .anticoag-nested tr > td:first-child {
-    border-left: 0 !important;
-  }
-
-  .anticoag-nested tr > th:last-child,
-  .anticoag-nested tr > td:last-child {
-    border-right: 0 !important;
   }
 
   input,

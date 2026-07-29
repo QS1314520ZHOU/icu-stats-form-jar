@@ -69,7 +69,11 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   private savedRevision = 0;
 
   readonly vascularAccessOptions = ['右侧股静脉','左侧股静脉','右侧颈内静脉','左侧颈内静脉','右侧锁骨下静脉','左侧锁骨下静脉','动静脉内瘘','ECMO'];
+  readonly vascularAccessLeft = ['右侧股静脉','右侧颈内静脉','右侧锁骨下静脉','动静脉内瘘'];
+  readonly vascularAccessRight = ['左侧股静脉','左侧颈内静脉','左侧锁骨下静脉','ECMO'];
   readonly treatmentModeOptions = ['CVVH','CVVHD','CVVHDF','SCUF','HP','PE','DPMAS','DFPP','CPFA','ECCO2R'];
+  readonly treatmentModeLeft = ['CVVH','CVVHDF','HP','DPMAS','CPFA'];
+  readonly treatmentModeRight = ['CVVHD','SCUF','PE','DFPP','ECCO2R'];
   readonly machineConsumableOptions = ['金宝','日机装','山外山','贝朗','M150','血液滤过管路（日机装）','TWT-CBP-02P（山外山）','一次性使用体外循环血路（贝朗）','AV600S','HA330','HA330-II','膜式血浆分离器','BS330','二级膜 EC-50W','ST150','OXIRIS'];
   readonly machineConsumableRows: string[][] = [
     ['金宝', 'M150'],

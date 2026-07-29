@@ -42,89 +42,108 @@
         <col class="top-label-col" /><col class="top-content-col" /><col class="top-label-col" /><col class="top-content-col" />
       </colgroup>
       <tbody>
-        <tr>
+        <!-- 血管通路 + 治疗模式 -->
+        <tr class="access-mode-row">
           <th class="label-cell">血管通路</th>
-          <td><div class="check-grid two-col"><div class="check-col"><label *ngFor="let o of vascularAccessLeft"><input type="checkbox" [checked]="isChecked(order.vascularAccess,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.vascularAccess,o,$any($event.target).checked);onDiscreteChange()" />{{ o }}</label></div><div class="check-col"><label *ngFor="let o of vascularAccessRight"><input type="checkbox" [checked]="isChecked(order.vascularAccess,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.vascularAccess,o,$any($event.target).checked);onDiscreteChange()" />{{ o }}</label></div></div></td>
+          <td class="option-host-cell">
+            <div class="two-column-options">
+              <div class="option-column">
+                <label class="checkbox-option" *ngFor="let option of vascularAccessLeft"><input type="checkbox" [checked]="isChecked(order.vascularAccess, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.vascularAccess, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+              </div>
+              <div class="option-column">
+                <label class="checkbox-option" *ngFor="let option of vascularAccessRight"><input type="checkbox" [checked]="isChecked(order.vascularAccess, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.vascularAccess, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+              </div>
+            </div>
+          </td>
           <th class="label-cell">治疗模式</th>
-          <td><div class="check-grid two-col"><div class="check-col"><label *ngFor="let o of treatmentModeLeft"><input type="checkbox" [checked]="isChecked(order.treatmentModes,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.treatmentModes,o,$any($event.target).checked);onDiscreteChange()" />{{ o }}</label></div><div class="check-col"><label *ngFor="let o of treatmentModeRight"><input type="checkbox" [checked]="isChecked(order.treatmentModes,o)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.treatmentModes,o,$any($event.target).checked);onDiscreteChange()" />{{ o }}</label></div></div></td>
+          <td class="option-host-cell">
+            <div class="two-column-options">
+              <div class="option-column">
+                <label class="checkbox-option" *ngFor="let option of treatmentModeLeft"><input type="checkbox" [checked]="isChecked(order.treatmentModes, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.treatmentModes, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+              </div>
+              <div class="option-column">
+                <label class="checkbox-option" *ngFor="let option of treatmentModeRight"><input type="checkbox" [checked]="isChecked(order.treatmentModes, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.treatmentModes, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+              </div>
+            </div>
+          </td>
         </tr>
-        <tr *ngFor="let row of machineConsumableRows; let ri = index">
-          <th *ngIf="ri === 0" class="label-cell" [attr.rowspan]="machineConsumableRows.length">机型耗材</th>
-          <td *ngFor="let cell of row" [attr.colspan]="ri === 0 && row.length < 3 ? 2 : null"><label><input type="checkbox" [checked]="isChecked(order.machineConsumables,cell)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables,cell,$any($event.target).checked);onDiscreteChange()" />{{ cell }}</label></td>
+        <!-- 机型耗材（显式6行） -->
+        <tr class="machine-row">
+          <th rowspan="6" class="label-cell">机型耗材</th>
+          <td colspan="3" class="machine-row-cell">
+            <div class="machine-options machine-options-2">
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[0]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+            </div>
+          </td>
+        </tr>
+        <tr class="machine-row">
+          <td colspan="3" class="machine-row-cell">
+            <div class="machine-options machine-options-3">
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[1]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+            </div>
+          </td>
+        </tr>
+        <tr class="machine-row">
+          <td colspan="3" class="machine-row-cell">
+            <div class="machine-options machine-options-3">
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[2]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+            </div>
+          </td>
+        </tr>
+        <tr class="machine-row">
+          <td colspan="3" class="machine-row-cell">
+            <div class="machine-options machine-options-3">
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[3]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+            </div>
+          </td>
+        </tr>
+        <tr class="machine-row">
+          <td colspan="3" class="machine-row-cell">
+            <div class="machine-options machine-options-4">
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[4]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+            </div>
+          </td>
+        </tr>
+        <tr class="machine-row">
+          <td colspan="3" class="machine-row-cell">
+            <div class="machine-options machine-options-3 machine-options-last">
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[5]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables, option, $any($event.target).checked); onDiscreteChange()" />{{ option }}</label>
+            </div>
+          </td>
+        </tr>
+        <!-- 抗凝方式（紧凑结构） -->
+        <tr>
+          <th class="label-cell" rowspan="6">抗凝方式</th>
+          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'无肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'无肝素',$any($event.target).checked);onDiscreteChange()" />无肝素</label></td>
+          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'肝素钠',$any($event.target).checked);onDiscreteChange()" />肝素钠</label></td>
+          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素',$any($event.target).checked);onDiscreteChange()" />低分子肝素</label></td>
         </tr>
         <tr>
-          <th class="label-cell" rowspan="12">抗凝方式</th>
-          <td colspan="3"><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'无肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'无肝素',$any($event.target).checked);onDiscreteChange()" />无肝素</label></td>
+          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素钠',$any($event.target).checked);onDiscreteChange()" />低分子肝素钠</label></td>
+          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'4%枸橼酸钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'4%枸橼酸钠',$any($event.target).checked);onDiscreteChange()" />4%枸橼酸钠</label></td>
+          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'10%葡萄糖酸钙')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'10%葡萄糖酸钙',$any($event.target).checked);onDiscreteChange()" />10%葡萄糖酸钙</label></td>
         </tr>
         <tr>
-          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'肝素钠',$any($event.target).checked);onDiscreteChange()" />肝素钠</label></td>
-          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素',$any($event.target).checked);onDiscreteChange()" />低分子肝素</label></td>
-          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'10%葡萄糖酸钙')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'10%葡萄糖酸钙',$any($event.target).checked);onDiscreteChange()" />10%葡萄糖酸钙</label></td>
+          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'甲磺酸萘莫司他')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'甲磺酸萘莫司他',$any($event.target).checked);onDiscreteChange()" />甲磺酸萘莫司他</label></td>
+          <td colspan="2"></td>
         </tr>
         <tr>
-          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素钠',$any($event.target).checked);onDiscreteChange()" />低分子肝素钠</label></td>
-          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'4%枸橼酸钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'4%枸橼酸钠',$any($event.target).checked);onDiscreteChange()" />4%枸橼酸钠</label></td>
-          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'甲磺酸萘莫司他')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'甲磺酸萘莫司他',$any($event.target).checked);onDiscreteChange()" />甲磺酸萘莫司他</label></td>
+          <td class="anticoag-dose-label">首量</td>
+          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
+          <td class="anticoag-dose-label">维持量</td>
+          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.citrateMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
         </tr>
         <tr>
-          <td>首量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-          <td>维持量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.citrateMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+          <td class="anticoag-dose-label">维持量</td>
+          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+          <td class="anticoag-dose-label">维持量</td>
+          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
         </tr>
         <tr>
-          <td>维持量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-          <td>维持量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-        </tr>
-        <tr>
-          <td>首量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-          <td>维持量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-        </tr>
-        <tr>
-          <td>维持量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr>
-          <td>首量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr>
-          <td>维持量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr>
-          <td>首量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr>
-          <td>维持量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr>
-          <td>首量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-          <td></td>
-          <td></td>
-        </tr>
-        <tr>
-          <td>维持量</td>
-          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-          <td></td>
-          <td></td>
+          <td class="anticoag-dose-label">首量</td>
+          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
+          <td class="anticoag-dose-label">维持量</td>
+          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
         </tr>
       </tbody>
     </table>
