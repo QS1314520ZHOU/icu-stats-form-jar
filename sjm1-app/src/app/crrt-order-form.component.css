@@ -1739,3 +1739,351 @@ label {
     display: none !important;
   }
 }
+
+/* =========================================================
+   CRRT 医嘱单最终覆盖样式
+   目标：
+   1. 统一表格字体
+   2. 统一屏幕与打印字号
+   3. 日期普通状态格式化显示、聚焦后编辑
+   ========================================================= */
+
+:host {
+  --crrt-font-family: "SimSun", "宋体", serif;
+  --crrt-screen-font-size: 12px;
+  --crrt-print-font-size: 9pt;
+  --crrt-line-height: 1.25;
+}
+
+/* ---------------------------------------------------------
+   统一全部表格基础字体
+   --------------------------------------------------------- */
+
+.crrt-table,
+.top-table,
+.nested-table,
+.anticoag-table,
+.cbp-formula-table,
+.signature-table,
+.prescription-grid,
+.order-table {
+  color: #000;
+  font-family: var(--crrt-font-family) !important;
+  font-size: var(--crrt-screen-font-size) !important;
+  font-weight: 400;
+  line-height: var(--crrt-line-height) !important;
+}
+
+:where(
+  .crrt-table,
+  .top-table,
+  .nested-table,
+  .anticoag-table,
+  .cbp-formula-table,
+  .signature-table,
+  .prescription-grid,
+  .order-table
+) :where(
+  th,
+  td,
+  input,
+  select,
+  textarea,
+  button,
+  label,
+  span,
+  div
+) {
+  font-family: var(--crrt-font-family) !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+:where(
+  .crrt-table,
+  .top-table,
+  .nested-table,
+  .anticoag-table,
+  .cbp-formula-table,
+  .signature-table,
+  .prescription-grid,
+  .order-table
+) :where(
+  input:not([type="checkbox"]),
+  select,
+  textarea
+) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  border-radius: 0;
+  color: #000;
+  font: inherit !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  -webkit-text-fill-color: #000;
+}
+
+.crrt-table th,
+.top-table th,
+.label-cell,
+.cbp-group-cell,
+.formula-group-cell,
+.prescription-grid .rx-group-label,
+.prescription-grid .column-header-cell {
+  font-size: inherit !important;
+  font-weight: 700 !important;
+}
+
+.field-label-cell,
+.value-cell,
+.column-header-cell,
+.formula-input,
+.formula-select,
+.print-value,
+.anticoag-title-cell,
+.anticoag-option-cell,
+.anticoag-dose-cell {
+  font-size: inherit !important;
+  font-weight: 400 !important;
+}
+
+.cbp-formula-table th,
+.cbp-formula-table td,
+.cbp-header-row th,
+.cbp-header-row .cbp-group-cell,
+.cbp-group-cell,
+.formula-group-cell,
+.field-label-cell,
+.formula-input,
+.formula-select,
+.print-value {
+  font-family: var(--crrt-font-family) !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+.checkbox-option,
+.check-grid label,
+.option-column,
+.machine-options {
+  font-family: var(--crrt-font-family) !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+.checkbox-option input[type="checkbox"],
+.check-grid input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  min-height: 12px;
+  margin: 0 3px 0 0;
+  padding: 0;
+}
+
+/* ---------------------------------------------------------
+   datetime 显示态与编辑态
+   --------------------------------------------------------- */
+
+.datetime-cell {
+  position: relative;
+  box-sizing: border-box;
+  padding: 0 !important;
+  overflow: hidden;
+  text-align: center !important;
+  vertical-align: middle;
+}
+
+.datetime-display,
+.datetime-print {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  margin: 0;
+  padding: 2px 1px;
+  overflow: hidden;
+  color: #000;
+  font-family: var(--crrt-font-family) !important;
+  font-size: inherit !important;
+  font-weight: 400;
+  line-height: 1.2 !important;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.datetime-display > span,
+.datetime-print > span {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  font: inherit !important;
+  line-height: inherit !important;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.datetime-editor {
+  box-sizing: border-box;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #000;
+  font: inherit !important;
+  opacity: 0;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+.datetime-cell:focus-within .datetime-display,
+.datetime-cell:focus-within .datetime-print {
+  visibility: hidden;
+}
+
+.datetime-cell:focus-within .datetime-editor {
+  position: absolute;
+  opacity: 1;
+  background: #fff;
+  outline: 1px solid #1677ff;
+  outline-offset: -1px;
+}
+
+.datetime-editor:disabled {
+  color: #000;
+  opacity: 0;
+  cursor: default;
+  -webkit-text-fill-color: #000;
+}
+
+.datetime-cell:has(.datetime-editor:disabled) {
+  pointer-events: none;
+}
+
+.prescription-grid .datetime-row th,
+.prescription-grid .datetime-row td {
+  height: 36px;
+  min-height: 36px;
+}
+
+.order-table .datetime-cell {
+  min-height: 27px;
+}
+
+.order-table .datetime-display,
+.order-table .datetime-print {
+  min-height: 25px;
+}
+
+/* ---------------------------------------------------------
+   屏幕
+   --------------------------------------------------------- */
+
+@media screen {
+  .crrt-table,
+  .top-table,
+  .nested-table,
+  .anticoag-table,
+  .cbp-formula-table,
+  .signature-table,
+  .prescription-grid,
+  .order-table {
+    font-size: var(--crrt-screen-font-size) !important;
+    line-height: 1.25 !important;
+  }
+
+  .datetime-display,
+  .datetime-print {
+    display: flex !important;
+  }
+
+  .datetime-editor {
+    display: block !important;
+  }
+}
+
+/* ---------------------------------------------------------
+   打印
+   --------------------------------------------------------- */
+
+@media print {
+  :host {
+    --crrt-line-height: 1.2;
+  }
+
+  .crrt-table,
+  .top-table,
+  .nested-table,
+  .anticoag-table,
+  .cbp-formula-table,
+  .signature-table,
+  .prescription-grid,
+  .order-table {
+    font-size: var(--crrt-print-font-size) !important;
+    line-height: var(--crrt-line-height) !important;
+  }
+
+  .datetime-editor {
+    display: none !important;
+  }
+
+  .datetime-display,
+  .datetime-print {
+    visibility: visible !important;
+    display: flex !important;
+    min-height: 8mm;
+    padding: 0.4mm 0.2mm;
+    overflow: hidden;
+    background: #fff !important;
+    color: #000 !important;
+    font-size: inherit !important;
+    line-height: 1.2 !important;
+  }
+
+  .prescription-grid .datetime-row th,
+  .prescription-grid .datetime-row td {
+    height: 9mm !important;
+    min-height: 9mm !important;
+  }
+
+  .order-page-one .top-table th,
+  .order-page-one .top-table td {
+    height: 7mm !important;
+  }
+
+  .order-page-one .anticoag-table th,
+  .order-page-one .anticoag-table td {
+    height: 7mm !important;
+    min-height: 7mm !important;
+  }
+
+  .order-page-one .cbp-formula-table th,
+  .order-page-one .cbp-formula-table td {
+    height: 6.5mm !important;
+    min-height: 6.5mm !important;
+  }
+
+  .order-page-one .signature-form-row th,
+  .order-page-one .signature-form-row td {
+    height: 7mm !important;
+    min-height: 7mm !important;
+  }
+}

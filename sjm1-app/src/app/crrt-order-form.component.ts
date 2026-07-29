@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { forkJoin, of, firstValueFrom, Subject } from 'rxjs';
 import { catchError, finalize, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { formatShanghaiDate, formatShanghaiDateMinute, formatShanghaiHourMinute } from './form-date.util';
 
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -329,10 +330,10 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   addOrderItem(): void { this.record.orderItems.push(this.createEmptyOrderItem()); this.onPageChanged(); }
   removeOrderItem(i: number): void { if (this.record.orderItems.length <= 1) return; this.record.orderItems.splice(i, 1); this.onPageChanged(); }
   trackByIndex(index: number): number { return index; }
-  displayTime(value: string): string { if (!value) return ''; const d = new Date(value); if (Number.isNaN(d.getTime())) return value; const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
-  datePart(value: string | null | undefined): string { if (!value) return ''; const d = new Date(value); if (Number.isNaN(d.getTime())) { const t = String(value); return t.length >= 10 ? t.substring(0, 10) : t; } const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
-  timePart(value: string | null | undefined): string { if (!value) return ''; const d = new Date(value); if (Number.isNaN(d.getTime())) { const t = String(value); const m = t.match(/(\d{2}):(\d{2})/); return m ? `${m[1]}:${m[2]}` : ''; } const p = (n: number) => String(n).padStart(2, '0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
-  fmtDateTime(value: string): string { return this.displayTime(value); }
+  displayTime(value: string | null | undefined): string { return formatShanghaiDateMinute(value); }
+  datePart(value: string | null | undefined): string { return formatShanghaiDate(value); }
+  timePart(value: string | null | undefined): string { return formatShanghaiHourMinute(value); }
+  fmtDateTime(value: string | null | undefined): string { return formatShanghaiDateMinute(value); }
   sameMinute(a: string, b: string): boolean { return !!a && !!b && this.displayTime(a).substring(0, 16) === this.displayTime(b).substring(0, 16); }
 
   print(): void { if (this.autoSaveState === 'dirty' || this.saveInFlight) { this.flushAutoSave(); setTimeout(() => window.print(), 400); return; } window.print(); }

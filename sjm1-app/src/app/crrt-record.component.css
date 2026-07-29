@@ -590,3 +590,174 @@ h1 {
     font-size: 8.5pt !important;
   }
 }
+
+/* =========================================================
+   CRRT 护理记录单最终字体覆盖
+   ========================================================= */
+
+:host {
+  --record-font-family: "SimSun", "宋体", serif;
+  --record-screen-font-size: 11px;
+  --record-print-font-size: 7.3pt;
+  --record-line-height: 20px;
+}
+
+.crrt-table {
+  color: #000;
+  font-family: var(--record-font-family) !important;
+  font-size: var(--record-screen-font-size) !important;
+  font-weight: 400;
+  line-height: var(--record-line-height) !important;
+}
+
+.crrt-table :where(
+  th,
+  td,
+  span,
+  div,
+  .group-cell,
+  .metric-cell,
+  .value-cell,
+  .time-header,
+  .time-date,
+  .time-clock,
+  .signature-cell
+) {
+  color: #000;
+  font-family: var(--record-font-family) !important;
+  font-size: inherit !important;
+}
+
+.crrt-table th,
+.crrt-table td,
+.crrt-table .group-cell,
+.crrt-table .metric-cell,
+.crrt-table .value-cell,
+.crrt-table .time-date,
+.crrt-table .time-clock,
+.crrt-table .signature-cell {
+  font-size: inherit !important;
+}
+
+.crrt-table th,
+.crrt-table .group-cell {
+  font-weight: 700 !important;
+}
+
+.crrt-table .metric-cell,
+.crrt-table .value-cell,
+.crrt-table .time-date,
+.crrt-table .time-clock,
+.crrt-table .signature-cell {
+  font-weight: 400 !important;
+}
+
+.time-header {
+  box-sizing: border-box;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 1px !important;
+  overflow: hidden;
+  line-height: 11px !important;
+}
+
+.time-date,
+.time-clock {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: 11px !important;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.time-clock {
+  margin-top: 0;
+}
+
+.signature-cell {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: 1.2 !important;
+}
+
+@media screen {
+  .crrt-table {
+    font-size: var(--record-screen-font-size) !important;
+    line-height: var(--record-line-height) !important;
+  }
+
+  .crrt-table th,
+  .crrt-table td,
+  .crrt-table .group-cell,
+  .crrt-table .metric-cell,
+  .crrt-table .value-cell,
+  .crrt-table .signature-cell {
+    height: 20px;
+    min-height: 20px;
+    padding: 1px 2px !important;
+    font-size: inherit !important;
+    line-height: 20px !important;
+  }
+
+  .time-header {
+    height: 24px !important;
+    min-height: 24px !important;
+    line-height: 11px !important;
+  }
+
+  .time-date,
+  .time-clock {
+    font-size: inherit !important;
+    line-height: 11px !important;
+  }
+}
+
+@media print {
+  .crrt-table {
+    font-size: var(--record-print-font-size) !important;
+    line-height: var(--record-line-height) !important;
+  }
+
+  .crrt-table th,
+  .crrt-table td,
+  .crrt-table .group-cell,
+  .crrt-table .metric-cell,
+  .crrt-table .value-cell,
+  .crrt-table .time-date,
+  .crrt-table .time-clock,
+  .crrt-table .signature-cell {
+    font-family: var(--record-font-family) !important;
+    font-size: inherit !important;
+  }
+
+  .crrt-table th,
+  .crrt-table td,
+  .crrt-table .group-cell,
+  .crrt-table .metric-cell,
+  .crrt-table .value-cell {
+    height: 5.3mm !important;
+    padding: 0.35mm 0.45mm !important;
+    line-height: 20px !important;
+  }
+
+  .time-header {
+    height: 6.5mm !important;
+    min-height: 6.5mm !important;
+    padding: 0.3mm 0.2mm !important;
+  }
+
+  .time-date,
+  .time-clock {
+    font-size: inherit !important;
+    line-height: 1.1 !important;
+  }
+
+  .signature-cell {
+    font-size: inherit !important;
+    line-height: 1.2 !important;
+  }
+}

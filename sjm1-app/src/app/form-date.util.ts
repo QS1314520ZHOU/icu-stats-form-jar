@@ -102,6 +102,10 @@ export function formatShanghaiDateTime(value?: string | number | null): string {
   const p = getShanghaiParts(value);
   return p ? `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}` : '';
 }
+export function formatShanghaiDateMinute(value?: string | number | null): string {
+  const p = getShanghaiParts(value);
+  return p ? `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}` : '';
+}
 export function formatShanghaiTime(value?: string | number | null): string {
   const p = getShanghaiParts(value);
   return p ? `${p.hour}:${p.minute}:${p.second}` : '';
