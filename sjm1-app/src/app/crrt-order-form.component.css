@@ -18,9 +18,9 @@
 .top-table,
 .top-table th,
 .top-table td,
-.nested-table,
-.nested-table th,
-.nested-table td,
+.anticoag-table,
+.anticoag-table th,
+.anticoag-table td,
 .cbp-formula-table,
 .cbp-formula-table th,
 .cbp-formula-table td,
@@ -894,6 +894,49 @@ label {
 }
 
 /* =========================================================
+   Datetime two-line display
+   ========================================================= */
+
+.datetime-cell {
+  padding: 0 !important;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.datetime-print {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 34px;
+  padding: 2px 1px;
+  overflow: visible;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 14px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.datetime-print > span {
+  display: block;
+  width: 100%;
+  font: inherit;
+  line-height: inherit;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.prescription-grid .datetime-row th,
+.prescription-grid .datetime-row td {
+  height: 36px;
+  min-height: 36px;
+}
+
+/* =========================================================
    Temporary orders
    ========================================================= */
 
@@ -1332,6 +1375,18 @@ label {
     line-height: 18px;
   }
 
+  .prescription-grid .datetime-row th,
+  .prescription-grid .datetime-row td {
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .datetime-print {
+    min-height: 34px;
+    font-size: 10px;
+    line-height: 14px;
+  }
+
   .order-table th,
   .order-table td {
     height: 27px;
@@ -1664,6 +1719,20 @@ label {
 
   .order-table .temp-nurse-col {
     width: 12%;
+  }
+
+  .datetime-print {
+    display: flex !important;
+    min-height: 8mm;
+    padding: 0.4mm 0;
+    font-size: 7.5pt;
+    line-height: 1.25;
+  }
+
+  .prescription-grid .datetime-row th,
+  .prescription-grid .datetime-row td {
+    height: 9mm !important;
+    min-height: 9mm !important;
   }
 
   .print-hidden {

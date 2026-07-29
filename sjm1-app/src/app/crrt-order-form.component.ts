@@ -6,17 +6,25 @@ import { HostPatientService } from './services/host-patient.service';
 
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
+interface CheckboxOption { id: string; label: string; }
 interface AccountOption { accountId: string; accountName: string; profession?: string; }
 interface SignatureValue { accountId: string; accountName: string; signedAt?: string | null; }
 interface OrderTimeOption { id: string; orderTime: string; updatedAt?: string; }
 interface PrescriptionColumn { code: string; dateTime: string; baseSolution: number | null; potassiumChloride: number | null; sodiumChloride: number | null; doctorSignature: SignatureValue | null; executionTime: string; nurseSignature: SignatureValue | null; }
 interface OrderItem { dateTime: string; content: string; doctorSignature: SignatureValue | null; executionTime: string; nurseSignature: SignatureValue | null; }
+interface AnticoagulationValue {
+  types: string[];
+  heparinGroupFirstDose: number|null; heparinGroupMaintenance: number|null;
+  lowMolecularSodiumFirstDose: number|null; lowMolecularSodiumMaintenance: number|null;
+  citrateMaintenance: number|null; calciumMaintenance: number|null;
+  nafamostatFirstDose: number|null; nafamostatMaintenance: number|null;
+}
 interface CrrtOrderFormRecord {
   id?: string; version?: number;
   pid: string; department: string; patientName: string; bedNo: string; age: string; gender: string; hospitalNo: string; diagnosis: string;
   orderTime: string;
   vascularAccess: string[]; treatmentModes: string[]; machineConsumables: string[];
-  anticoagulation: { types: string[]; heparinFirstDose: number|null; heparinMaintenance: number|null; citrateMaintenance: number|null; calciumMaintenance: number|null; nafamostatFirstDose: number|null; nafamostatMaintenance: number|null; };
+  anticoagulation: AnticoagulationValue;
   cbpDose: { preReplacement: number|null; postReplacement: number|null; dialysate: number|null; sodiumBicarbonate: number|null; plasmaSeparationSpeed: number|null; plasmaDiscardSpeed: number|null; plasmaReplacementSpeed: number|null; totalPlasmaExchange: number|null; };
   replacementFormulaA: { baseSolution: number|null; potassiumChloride: number|null; sodiumChloride: number|null; };
   dialysateFormulaA: { baseSolution: number|null; potassiumChloride: number|null; sodiumChloride: number|null; };
@@ -75,13 +83,13 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   readonly treatmentModeLeft = ['CVVH','CVVHDF','HP','DPMAS','CPFA'];
   readonly treatmentModeRight = ['CVVHD','SCUF','PE','DFPP','ECCO2R'];
   readonly machineConsumableOptions = ['金宝','日机装','山外山','贝朗','M150','血液滤过管路（日机装）','TWT-CBP-02P（山外山）','一次性使用体外循环血路（贝朗）','AV600S','HA330','HA330-II','膜式血浆分离器','BS330','二级膜 EC-50W','ST150','OXIRIS'];
-  readonly machineConsumableRows: string[][] = [
-    ['金宝', 'M150'],
-    ['日机装', '血液滤过管路（日机装）', 'AV600S'],
-    ['山外山', 'TWT-CBP-02P（山外山）', 'AV600S'],
-    ['贝朗', '一次性使用体外循环血路（贝朗）', 'AV600S'],
-    ['HA330', 'HA330-II', '膜式血浆分离器', 'BS330'],
-    ['二级膜 EC-50W', 'ST150', 'OXIRIS'],
+  readonly machineConsumableRows: ReadonlyArray<ReadonlyArray<CheckboxOption>> = [
+    [{ id: 'machine-gambro', label: '金宝' }, { id: 'filter-m150', label: 'M150' }],
+    [{ id: 'machine-nikkiso', label: '日机装' }, { id: 'circuit-nikkiso', label: '血液滤过管路（日机装）' }, { id: 'av600s-nikkiso', label: 'AV600S' }],
+    [{ id: 'machine-shanwaishan', label: '山外山' }, { id: 'circuit-twt-cbp-02p', label: 'TWT-CBP-02P（山外山）' }, { id: 'av600s-shanwaishan', label: 'AV600S' }],
+    [{ id: 'machine-bbraun', label: '贝朗' }, { id: 'circuit-bbraun', label: '一次性使用体外循环血路（贝朗）' }, { id: 'av600s-bbraun', label: 'AV600S' }],
+    [{ id: 'cartridge-ha330', label: 'HA330' }, { id: 'cartridge-ha330-ii', label: 'HA330-II' }, { id: 'plasma-separator', label: '膜式血浆分离器' }, { id: 'filter-bs330', label: 'BS330' }],
+    [{ id: 'secondary-membrane-ec-50w', label: '二级膜 EC-50W' }, { id: 'filter-st150', label: 'ST150' }, { id: 'filter-oxiris', label: 'OXIRIS' }],
   ];
   readonly replacementCodes = ['B','C','D','E','F','G','H','I'];
   readonly dialysateCodes = ['b','c','d','e','f','g','h','i'];
@@ -322,6 +330,8 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   removeOrderItem(i: number): void { if (this.record.orderItems.length <= 1) return; this.record.orderItems.splice(i, 1); this.onPageChanged(); }
   trackByIndex(index: number): number { return index; }
   displayTime(value: string): string { if (!value) return ''; const d = new Date(value); if (Number.isNaN(d.getTime())) return value; const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+  datePart(value: string | null | undefined): string { if (!value) return ''; const d = new Date(value); if (Number.isNaN(d.getTime())) { const t = String(value); return t.length >= 10 ? t.substring(0, 10) : t; } const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; }
+  timePart(value: string | null | undefined): string { if (!value) return ''; const d = new Date(value); if (Number.isNaN(d.getTime())) { const t = String(value); const m = t.match(/(\d{2}):(\d{2})/); return m ? `${m[1]}:${m[2]}` : ''; } const p = (n: number) => String(n).padStart(2, '0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; }
   fmtDateTime(value: string): string { return this.displayTime(value); }
   sameMinute(a: string, b: string): boolean { return !!a && !!b && this.displayTime(a).substring(0, 16) === this.displayTime(b).substring(0, 16); }
 
@@ -350,7 +360,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     return {
       pid: '', department: '', patientName: '', bedNo: '', age: '', gender: '', hospitalNo: '', diagnosis: '', orderTime: '',
       vascularAccess: [], treatmentModes: [], machineConsumables: [],
-      anticoagulation: { types: [], heparinFirstDose: null, heparinMaintenance: null, citrateMaintenance: null, calciumMaintenance: null, nafamostatFirstDose: null, nafamostatMaintenance: null },
+      anticoagulation: { types: [], heparinGroupFirstDose: null, heparinGroupMaintenance: null, lowMolecularSodiumFirstDose: null, lowMolecularSodiumMaintenance: null, citrateMaintenance: null, calciumMaintenance: null, nafamostatFirstDose: null, nafamostatMaintenance: null },
       cbpDose: { preReplacement: null, postReplacement: null, dialysate: null, sodiumBicarbonate: null, plasmaSeparationSpeed: null, plasmaDiscardSpeed: null, plasmaReplacementSpeed: null, totalPlasmaExchange: null },
       replacementFormulaA: { baseSolution: 4000, potassiumChloride: null, sodiumChloride: null },
       dialysateFormulaA: { baseSolution: 4000, potassiumChloride: null, sodiumChloride: null },
@@ -368,16 +378,51 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   }
   private createEmptyOrderItem(): OrderItem { return { dateTime: '', content: '', doctorSignature: null, executionTime: '', nurseSignature: null }; }
 
+  private normalizeMachineConsumables(values: unknown): string[] {
+    const source = Array.isArray(values) ? values.map(v => String(v)) : [];
+    const legacyMap: Record<string, string[]> = {
+      '金宝': ['machine-gambro'], 'M150': ['filter-m150'],
+      '日机装': ['machine-nikkiso'], '血液滤过管路（日机装）': ['circuit-nikkiso'],
+      '山外山': ['machine-shanwaishan'], 'TWT-CBP-02P（山外山）': ['circuit-twt-cbp-02p'],
+      '贝朗': ['machine-bbraun'], '一次性使用体外循环血路（贝朗）': ['circuit-bbraun'],
+      'HA330': ['cartridge-ha330'], 'HA330-II': ['cartridge-ha330-ii'],
+      '膜式血浆分离器': ['plasma-separator'], 'BS330': ['filter-bs330'],
+      '二级膜 EC-50W': ['secondary-membrane-ec-50w'], 'ST150': ['filter-st150'], 'OXIRIS': ['filter-oxiris'],
+      'AV600S': ['av600s-nikkiso', 'av600s-shanwaishan', 'av600s-bbraun'],
+    };
+    const normalized = source.flatMap(v => {
+      if (['av600s-nikkiso','av600s-shanwaishan','av600s-bbraun'].includes(v)) return [v];
+      return legacyMap[v] ?? [v];
+    });
+    return [...new Set(normalized)];
+  }
+
+  private normalizeAnticoagulation(value: any): AnticoagulationValue {
+    const source = value ?? {};
+    return {
+      types: Array.isArray(source.types) ? source.types.map(String) : [],
+      heparinGroupFirstDose: source.heparinGroupFirstDose ?? source.heparinFirstDose ?? null,
+      heparinGroupMaintenance: source.heparinGroupMaintenance ?? source.heparinMaintenance ?? null,
+      lowMolecularSodiumFirstDose: source.lowMolecularSodiumFirstDose ?? source.heparinFirstDose ?? null,
+      lowMolecularSodiumMaintenance: source.lowMolecularSodiumMaintenance ?? source.heparinMaintenance ?? null,
+      citrateMaintenance: source.citrateMaintenance ?? null,
+      calciumMaintenance: source.calciumMaintenance ?? null,
+      nafamostatFirstDose: source.nafamostatFirstDose ?? null,
+      nafamostatMaintenance: source.nafamostatMaintenance ?? null,
+    };
+  }
+
   private normalizeRecord(rec: CrrtOrderFormRecord): CrrtOrderFormRecord {
     const empty = this.createEmptyRecord();
     return {
       ...empty, ...rec,
-      anticoagulation: { ...empty.anticoagulation, ...(rec.anticoagulation ?? {}) },
+      anticoagulation: this.normalizeAnticoagulation(rec.anticoagulation),
       cbpDose: { ...empty.cbpDose, ...(rec.cbpDose ?? {}) },
       replacementFormulaA: { ...empty.replacementFormulaA, ...(rec.replacementFormulaA ?? {}) },
       dialysateFormulaA: { ...empty.dialysateFormulaA, ...(rec.dialysateFormulaA ?? {}) },
       treatmentPlan: { ...empty.treatmentPlan, ...(rec.treatmentPlan ?? {}) },
-      vascularAccess: rec.vascularAccess ?? [], treatmentModes: rec.treatmentModes ?? [], machineConsumables: rec.machineConsumables ?? [],
+      vascularAccess: rec.vascularAccess ?? [], treatmentModes: rec.treatmentModes ?? [],
+      machineConsumables: this.normalizeMachineConsumables(rec.machineConsumables),
       replacementPrescriptions: this.padPrescriptions(rec.replacementPrescriptions ?? [], this.replacementCodes),
       dialysatePrescriptions: this.padPrescriptions(rec.dialysatePrescriptions ?? [], this.dialysateCodes),
       orderItems: rec.orderItems?.length ? rec.orderItems : empty.orderItems,
