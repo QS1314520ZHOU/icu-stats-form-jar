@@ -5,7 +5,7 @@
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { of, Subject } from 'rxjs';
-import { catchError, debounceTime, filter, finalize, map, retry, switchMap, takeUntil, tap } from 'rxjs/operators';
+import { catchError, filter, finalize, map, retry, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 
@@ -49,6 +49,7 @@ const FOOT_NOTES = [
 interface ScoreRecord { time?: any; scoreType?: string; total?: number; conclusion?: string; valid?: boolean; inputUserId?: string; inputUser?: string; ohter?: string; nurseMeasureList?: any[]; bradenScore?: Record<string, any>; }
 interface BradenRow { time: string; bradenScore: Record<BradenItem['field'], number | null>; total: number | null; risk: string; other: string; nurseMeasureList: any[]; signUserId?: string; signName?: string; }
 interface RenderPage { index: number; rows: BradenRow[]; }
+interface PageExtraData { id: string | null; result: string; resultDate: string; happened: '' | '是' | '否'; loaded: boolean; loading: boolean; }
 
 @Component({
   standalone: false,
@@ -114,18 +115,23 @@ interface RenderPage { index: number; rows: BradenRow[]; }
         </table>
 
         <div class="result-line">
-          <span class="rl-item">结果：
-            <input class="fill-input result-input no-print-input" [(ngModel)]="resultText" (ngModelChange)="scheduleSaveExtra()" />
-            <span class="print-only fill-val">{{resultText}}</span>
-          </span>
-          <span class="rl-item">日期：
-            <input class="date-picker no-print-input" type="date" [(ngModel)]="resultDate" (ngModelChange)="scheduleSaveExtra()" />
-            <span class="print-only fill-val">{{resultDate}}</span>
-          </span>
-          <span class="rl-item pressure-radio">发生院内压疮：
-            <label><input class="no-print-input" type="radio" name="hospitalPressureSore" value="是" [(ngModel)]="hospitalPressureSore" (ngModelChange)="scheduleSaveExtra()" /><span class="screen-only">是</span><span class="print-only">{{hospitalPressureSore === '是' ? '☑' : '☐'}}是</span></label>
-            <label><input class="no-print-input" type="radio" name="hospitalPressureSore" value="否" [(ngModel)]="hospitalPressureSore" (ngModelChange)="scheduleSaveExtra()" /><span class="screen-only">否</span><span class="print-only">{{hospitalPressureSore === '否' ? '☑' : '☐'}}否</span></label>
-          </span>
+          <label class="rl-item">
+            <span>结果：</span>
+            <input class="result-combo screen-only" type="text" [attr.list]="'braden-result-options-' + page.index" [(ngModel)]="pageExtra(page.index).result" (ngModelChange)="scheduleSavePageExtra(page.index)" placeholder="请选择或输入" autocomplete="off" />
+            <datalist [id]="'braden-result-options-' + page.index"><option value="出院"></option><option value="死亡"></option></datalist>
+            <span class="fill-val print-only">{{ pageExtra(page.index).result }}</span>
+          </label>
+          <label class="rl-item">
+            <span>时间：</span>
+            <input class="result-datetime screen-only" type="datetime-local" [(ngModel)]="pageExtra(page.index).resultDate" (ngModelChange)="scheduleSavePageExtra(page.index)" />
+            <span class="fill-val print-only">{{ pageExtra(page.index).resultDate ? pageExtra(page.index).resultDate.replace('T', ' ') : '' }}</span>
+          </label>
+          <div class="rl-item pressure-radio">
+            <span>发生院内压力性损伤：</span>
+            <label class="screen-only"><input type="radio" [name]="'braden-pressure-' + page.index" value="是" [(ngModel)]="pageExtra(page.index).happened" (ngModelChange)="scheduleSavePageExtra(page.index)" /> 是</label>
+            <label class="screen-only"><input type="radio" [name]="'braden-pressure-' + page.index" value="否" [(ngModel)]="pageExtra(page.index).happened" (ngModelChange)="scheduleSavePageExtra(page.index)" /> 否</label>
+            <span class="print-only">是 {{ pageExtra(page.index).happened === '是' ? '☑' : '☐' }}&nbsp;&nbsp;否 {{ pageExtra(page.index).happened === '否' ? '☑' : '☐' }}</span>
+          </div>
         </div>
 
         <div class="footnote">
@@ -181,6 +187,10 @@ interface RenderPage { index: number; rows: BradenRow[]; }
     .fill-val{min-width:130px;border-bottom:1px solid #000;padding:0 6px;display:inline-block}
     .print-only{display:none}
     .screen-only{display:inline}
+    .result-combo{box-sizing:border-box;width:160px;height:28px;padding:2px 26px 2px 6px;border:1px solid #999;border-radius:3px;background:#fff;color:#000;font:inherit}
+    .result-combo:focus{border-color:#1677ff;outline:1px solid #1677ff;outline-offset:-1px}
+    .result-datetime{box-sizing:border-box;width:190px;height:28px;padding:2px 5px;border:1px solid #999;border-radius:3px;background:#fff;color:#000;font:inherit}
+    .result-line input[type="radio"]{width:14px;height:14px;margin:0 3px 0 10px;vertical-align:middle}
     .footnote{margin-top:5px;font-family:'SimSun','宋体',serif;font-size:9.5pt;line-height:1.25;text-align:left;margin-bottom:10mm}
     .footnote .fn-title{font-weight:700;display:inline}
     .footnote .fn{margin:0}
@@ -201,6 +211,7 @@ interface RenderPage { index: number; rows: BradenRow[]; }
       .result-line{margin-top:5px}
       .print-only{display:inline!important}
       .screen-only{display:none!important}
+      .result-combo,.result-datetime,.result-line input[type="radio"]{display:none!important}
     }
   `],
 })
@@ -225,15 +236,12 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  resultText = '';
-  resultDate = '';
-  hospitalPressureSore = '';
+  readonly resultOptions = ['出院', '死亡'];
+  private pageExtraMap = new Map<number, PageExtraData>();
+  private pageSaveTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
   private pid = '';
-  private extraId: string | null = null;
-  private loadingExtra = false;
   private destroy$ = new Subject<void>();
-  private extraSave$ = new Subject<void>();
   private componentPatient$ = new Subject<any>();
 
   private bradenHostMessageHandler = (event: MessageEvent) => {
@@ -254,7 +262,6 @@ export class BradenFormComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadHospitalName();
-    this.initExtraAutoSave();
 
     window.addEventListener('message', this.bradenHostMessageHandler);
 
@@ -307,7 +314,6 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     this.ensureBlankPage();
     this.loading = true;
     this.cdr.detectChanges();
-    this.loadExtra(pid);
     return this.loadFromServer(pid).pipe(
       catchError(err => {
         console.error('[bradenForm] score load failed', { pid, err });
@@ -319,8 +325,9 @@ export class BradenFormComponent implements OnInit, OnDestroy {
 
   private resetPatientData(): void {
     this.rows = []; this.pages = []; this.selectedPage = null;
-    this.resultText = ''; this.resultDate = ''; this.hospitalPressureSore = '';
-    this.extraId = null;
+    this.pageSaveTimers.forEach(timer => clearTimeout(timer));
+    this.pageSaveTimers.clear();
+    this.pageExtraMap.clear();
   }
 
   private ensureBlankPage(): void {
@@ -441,64 +448,89 @@ export class BradenFormComponent implements OnInit, OnDestroy {
       });
   }
 
-  private loadExtra(pid: string): void {
-    this.loadingExtra = true;
-    this.http.get<any>(API_EXTRA_LATEST, { params: { pid, formCode: FORM_CODE } })
+  private loadPageExtra(pageIndex: number): void {
+    if (!this.pid) return;
+    const extra = this.pageExtra(pageIndex);
+    if (extra.loaded || extra.loading) return;
+    const requestPid = this.pid;
+    const formCode = this.pageFormCode(pageIndex);
+    extra.loading = true;
+    this.http.get<any>(API_EXTRA_LATEST, { params: { pid: requestPid, formCode } })
       .pipe(
-        catchError(err => { console.error('[bradenForm] load extra failed', { pid, err }); return of(null); }),
-        finalize(() => { if (pid === this.pid) { this.loadingExtra = false; this.cdr.detectChanges(); } }),
+        catchError(error => {
+          console.error('[bradenForm] load page extra failed', { pid: requestPid, pageIndex, formCode, error });
+          return of(null);
+        }),
+        finalize(() => {
+          if (requestPid !== this.pid) return;
+          const current = this.pageExtraMap.get(pageIndex);
+          if (current) { current.loading = false; current.loaded = true; }
+          this.cdr.detectChanges();
+        }),
         takeUntil(this.destroy$),
       )
       .subscribe(data => {
-        if (pid !== this.pid || !data) return;
-        this.extraId = data.id ? String(data.id) : null;
-        this.resultText = String(data.result ?? '');
-        this.resultDate = this.normalizeDateInput(data.resultDate);
-        this.hospitalPressureSore = String(data.fell ?? '');
+        if (requestPid !== this.pid) return;
+        const current = this.pageExtra(pageIndex);
+        current.id = data?.id ? String(data.id) : null;
+        current.result = String(data?.result ?? '');
+        current.resultDate = this.normalizeDateTimeInput(data?.resultDate);
+        const happened = String(data?.fell ?? '');
+        current.happened = happened === '是' || happened === '否' ? happened : '';
       });
   }
 
-  private initExtraAutoSave(): void {
-    this.extraSave$.pipe(
-      debounceTime(500),
-      filter(() => !!this.pid && !this.loadingExtra),
-      switchMap(() =>
-        this.saveExtra().pipe(catchError(err => { console.error('[bradenForm] autosave failed', err); return of(null); }))
-      ),
-      takeUntil(this.destroy$),
-    ).subscribe();
+  scheduleSavePageExtra(pageIndex: number): void {
+    if (!this.pid) return;
+    const oldTimer = this.pageSaveTimers.get(pageIndex);
+    if (oldTimer) clearTimeout(oldTimer);
+    const timer = setTimeout(() => {
+      this.pageSaveTimers.delete(pageIndex);
+      this.savePageExtra(pageIndex);
+    }, 500);
+    this.pageSaveTimers.set(pageIndex, timer);
   }
 
-  scheduleSaveExtra(): void {
-    if (!this.pid || this.loadingExtra) return;
-    this.extraSave$.next();
-  }
-
-  private saveExtra() {
-    if (!this.pid) return of(null);
+  private savePageExtra(pageIndex: number): void {
+    if (!this.pid) return;
+    const extra = this.pageExtra(pageIndex);
+    if (extra.loading) return;
+    const requestPid = this.pid;
     const body: any = {
-      pid: this.pid,
-      formCode: FORM_CODE,
-      result: this.resultText || '',
-      resultDate: this.resultDate || '',
-      fell: this.hospitalPressureSore || '',
+      pid: requestPid,
+      formCode: this.pageFormCode(pageIndex),
+      result: extra.result.trim(),
+      resultDate: extra.resultDate || '',
+      fell: extra.happened || '',
     };
-    if (this.extraId) { body.id = this.extraId; }
-    return this.http.post<any>(API_EXTRA_SAVE, body).pipe(
-      tap(res => { if (res?.id) this.extraId = String(res.id); }),
-      catchError(err => { console.error('[bradenForm] save extra failed', { pid: this.pid, body, err }); return of(null); }),
-    );
+    if (extra.id) body.id = extra.id;
+    this.http.post<any>(API_EXTRA_SAVE, body)
+      .pipe(
+        catchError(error => {
+          console.error('[bradenForm] save page extra failed', { pageIndex, body, error });
+          return of(null);
+        }),
+        takeUntil(this.destroy$),
+      )
+      .subscribe(response => {
+        if (requestPid !== this.pid) return;
+        if (response?.id) this.pageExtra(pageIndex).id = String(response.id);
+      });
   }
 
-  private normalizeDateInput(value: any): string {
+  private normalizeDateTimeInput(value: any): string {
     if (!value) return '';
     const text = String(value).trim();
-    const direct = text.match(/^\d{4}-\d{2}-\d{2}/);
-    if (direct) return direct[0];
-    const slash = text.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
-    if (slash) return [slash[1], slash[2].padStart(2, '0'), slash[3].padStart(2, '0')].join('-');
-    return '';
+    const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2}))?/);
+    if (!match) return '';
+    const year = match[1];
+    const month = match[2].padStart(2, '0');
+    const day = match[3].padStart(2, '0');
+    const hour = (match[4] || '00').padStart(2, '0');
+    const minute = (match[5] || '00').padStart(2, '0');
+    return `${year}-${month}-${day}T${hour}:${minute}`;
   }
+
 
   optionLabel(item: BradenItem, score: number): string { return item.options.find(o => o.score === score)?.label || ''; }
   bradenValue(row: BradenRow, field: BradenItem['field']): string { const v = this.num(row?.bradenScore?.[field]); return v === null ? '' : String(v); }
@@ -508,12 +540,43 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
   pagePaddedRows(page: RenderPage): (BradenRow | null)[] { const r: (BradenRow | null)[] = page.rows.slice(0, this.maxRowsPerPage); while (r.length < this.maxRowsPerPage) r.push(null); return r; }
 
+  pageExtra(pageIndex: number): PageExtraData {
+    let data = this.pageExtraMap.get(pageIndex);
+    if (!data) {
+      data = { id: null, result: '', resultDate: '', happened: '', loaded: false, loading: false };
+      this.pageExtraMap.set(pageIndex, data);
+    }
+    return data;
+  }
+
+  private pageFormCode(pageIndex: number): string {
+    return `${FORM_CODE}:page:${pageIndex}`;
+  }
+
   private paginate(): void {
-    const per = this.maxRowsPerPage; const pages: RenderPage[] = [];
+    const per = this.maxRowsPerPage;
+    const pages: RenderPage[] = [];
     if (!this.rows.length) { pages.push({ index: 1, rows: [] }); }
     else { for (let i = 0; i < this.rows.length; i += per) { pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) }); } }
     this.pages = pages;
     if (this.selectedPage !== null && this.selectedPage > pages.length) this.selectedPage = null;
+    this.syncPageExtras();
+  }
+
+  private syncPageExtras(): void {
+    const validPageIndexes = new Set(this.pages.map(page => page.index));
+    for (const pageIndex of [...this.pageExtraMap.keys()]) {
+      if (!validPageIndexes.has(pageIndex)) {
+        const timer = this.pageSaveTimers.get(pageIndex);
+        if (timer) clearTimeout(timer);
+        this.pageSaveTimers.delete(pageIndex);
+        this.pageExtraMap.delete(pageIndex);
+      }
+    }
+    for (const page of this.pages) {
+      this.pageExtra(page.index);
+      this.loadPageExtra(page.index);
+    }
   }
 
   fmtDate(time: string): string { return formatShanghaiDate(time); }

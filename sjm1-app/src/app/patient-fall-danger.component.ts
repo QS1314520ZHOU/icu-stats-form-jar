@@ -54,6 +54,7 @@ interface ScoreRecord {
   inputUserId?: string; inputUser?: string; nurseMeasureList?: any[]; patientFallDangerFactorV2?: Record<string, any>;
 }
 interface RenderPage { index: number; rows: FallRow[]; }
+interface PageExtraData { id: string | null; result: string; resultDate: string; happened: '' | '是' | '否'; loaded: boolean; loading: boolean; }
 
 @Component({
   standalone: false,
@@ -165,23 +166,23 @@ interface RenderPage { index: number; rows: FallRow[]; }
         </table>
 
         <div class="result-line">
-          <span class="rl-item">结果：
-            <input class="screen-only fill-txt" type="text" [(ngModel)]="result" (change)="saveExtra()" />
-            <span class="print-only fill-val">{{ result }}</span>
-          </span>
-          <span class="rl-item">日期：
-            <input class="screen-only" type="date"
-                   style="border:none;background:transparent;outline:none;font-size:13px;color:#000;width:140px"
-                   [(ngModel)]="resultDate" (change)="saveExtra()" />
-            <span class="print-only fill-val">{{ resultDate }}</span>
-          </span>
-          <span class="rl-item">是否跌倒：
-            <span class="screen-only">
-              <label class="radio"><input type="radio" [name]="'fell'+page.index" value="是" [(ngModel)]="fell" (ngModelChange)="saveExtra()" /> 是</label>
-              <label class="radio"><input type="radio" [name]="'fell'+page.index" value="否" [(ngModel)]="fell" (ngModelChange)="saveExtra()" /> 否</label>
-            </span>
-            <span class="print-only fill-val">是 {{ fell === '是' ? '☑' : '☐' }}　否 {{ fell === '否' ? '☑' : '☐' }}</span>
-          </span>
+          <label class="rl-item">
+            <span>结果：</span>
+            <input class="result-combo screen-only" type="text" [attr.list]="'fall-result-options-' + page.index" [(ngModel)]="pageExtra(page.index).result" (ngModelChange)="scheduleSavePageExtra(page.index)" placeholder="请选择或输入" autocomplete="off" />
+            <datalist [id]="'fall-result-options-' + page.index"><option value="出院"></option><option value="死亡"></option></datalist>
+            <span class="fill-val print-only">{{ pageExtra(page.index).result }}</span>
+          </label>
+          <label class="rl-item">
+            <span>时间：</span>
+            <input class="result-datetime screen-only" type="datetime-local" [(ngModel)]="pageExtra(page.index).resultDate" (ngModelChange)="scheduleSavePageExtra(page.index)" />
+            <span class="fill-val print-only">{{ pageExtra(page.index).resultDate ? pageExtra(page.index).resultDate.replace('T', ' ') : '' }}</span>
+          </label>
+          <div class="rl-item">
+            <span>是否跌倒：</span>
+            <label class="screen-only"><input type="radio" [name]="'fall-result-' + page.index" value="是" [(ngModel)]="pageExtra(page.index).happened" (ngModelChange)="scheduleSavePageExtra(page.index)" /> 是</label>
+            <label class="screen-only"><input type="radio" [name]="'fall-result-' + page.index" value="否" [(ngModel)]="pageExtra(page.index).happened" (ngModelChange)="scheduleSavePageExtra(page.index)" /> 否</label>
+            <span class="print-only">是 {{ pageExtra(page.index).happened === '是' ? '☑' : '☐' }}&nbsp;&nbsp;否 {{ pageExtra(page.index).happened === '否' ? '☑' : '☐' }}</span>
+          </div>
         </div>
 
         <div class="footnote">
@@ -238,6 +239,10 @@ interface RenderPage { index: number; rows: FallRow[]; }
     .fill-txt { width:160px; padding:2px 6px; border:1px solid #ccc; border-radius:3px; font-size:13px; }
     .fill-date { padding:2px 6px; border:1px solid #ccc; border-radius:3px; font-size:13px; }
     .print-only { display:none; } .fill-val { min-width:120px; border-bottom:1px solid #000; padding:0 6px; }
+    .result-combo{box-sizing:border-box;width:160px;height:28px;padding:2px 26px 2px 6px;border:1px solid #999;border-radius:3px;background:#fff;color:#000;font:inherit}
+    .result-combo:focus{border-color:#1677ff;outline:1px solid #1677ff;outline-offset:-1px}
+    .result-datetime{box-sizing:border-box;width:190px;height:28px;padding:2px 5px;border:1px solid #999;border-radius:3px;background:#fff;color:#000;font:inherit}
+    .result-line input[type="radio"]{width:14px;height:14px;margin:0 3px 0 10px;vertical-align:middle}
 
     .footnote { margin-top:6px; font-family:'SimSun','宋体',serif; font-size:9.5pt; line-height:1.3; text-align:left; margin-bottom:10mm; }
     .footnote .fn-title { font-weight:700; } .footnote .fn { margin:1px 0; }
@@ -248,6 +253,7 @@ interface RenderPage { index: number; rows: FallRow[]; }
       :host { height:auto; overflow:visible; }
       .no-print { display:none !important; }
       .screen-only { display:none !important; } .print-only { display:inline !important; }
+      .result-combo,.result-datetime,.result-line input[type="radio"]{display:none!important}
       .sheet-hidden { display:none !important; }
       .sheet { width:297mm; height:210mm; overflow:hidden; margin:0; box-shadow:none; zoom:1; page-break-after:always; }
       .sheet:last-of-type { page-break-after:auto; }
@@ -280,7 +286,9 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
 
   // 工具栏可选并保存
   auditorName = ''; auditorId = ''; auditorQuery = ''; auditorOpen = false;
-  result = ''; resultDate = ''; fell = '';
+  readonly resultOptions = ['出院', '死亡'];
+  private pageExtraMap = new Map<number, PageExtraData>();
+  private pageSaveTimers = new Map<number, ReturnType<typeof setTimeout>>();
   accountList: { accountId: string; accountName: string }[] = [];
   private blurTimer: any = null;
   private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
@@ -308,7 +316,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
         this.patient = p; this.pid = pid;
         this.age = this.calcAge(p.birthday);
         this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
-        this.loadExtra();
+        this.loadAuditor();
       }),
       switchMap(({ pid }) => this.loadFromServer(pid)),
       takeUntil(this.destroy$),
@@ -326,7 +334,9 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     this.rows = []; this.pages = []; this.selectedPage = null;
     this.diagnosisDisplay = ''; this.age = null;
     this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false;
-    this.result = ''; this.resultDate = ''; this.fell = '';
+    this.pageSaveTimers.forEach(timer => clearTimeout(timer));
+    this.pageSaveTimers.clear();
+    this.pageExtraMap.clear();
     this.cdr.detectChanges();
   }
 
@@ -407,12 +417,42 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     this.cdr.detectChanges();
   }
 
+  pageExtra(pageIndex: number): PageExtraData {
+    let data = this.pageExtraMap.get(pageIndex);
+    if (!data) {
+      data = { id: null, result: '', resultDate: '', happened: '', loaded: false, loading: false };
+      this.pageExtraMap.set(pageIndex, data);
+    }
+    return data;
+  }
+
+  private pageFormCode(pageIndex: number): string {
+    return `${FORM_CODE}:page:${pageIndex}`;
+  }
+
   private paginate(): void {
     const per = this.maxRowsPerPage; const pages: RenderPage[] = [];
     if (!this.rows.length) pages.push({ index: 1, rows: [] });
     else for (let i = 0; i < this.rows.length; i += per) pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) });
     this.pages = pages;
     if (this.selectedPage !== null && this.selectedPage > pages.length) this.selectedPage = null;
+    this.syncPageExtras();
+  }
+
+  private syncPageExtras(): void {
+    const validIndexes = new Set(this.pages.map(page => page.index));
+    for (const pageIndex of [...this.pageExtraMap.keys()]) {
+      if (!validIndexes.has(pageIndex)) {
+        const timer = this.pageSaveTimers.get(pageIndex);
+        if (timer) clearTimeout(timer);
+        this.pageSaveTimers.delete(pageIndex);
+        this.pageExtraMap.delete(pageIndex);
+      }
+    }
+    for (const page of this.pages) {
+      this.pageExtra(page.index);
+      this.loadPageExtra(page.index);
+    }
   }
   pagePaddedRows(page: RenderPage): (FallRow | null)[] {
     const result: (FallRow | null)[] = page.rows.slice(0, this.maxRowsPerPage);
@@ -439,8 +479,26 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   }
   onAuditorFocus(): void { if (this.blurTimer) { clearTimeout(this.blurTimer); this.blurTimer = null; } this.auditorOpen = true; this.auditorQuery = ''; }
   onAuditorBlur(): void { this.blurTimer = setTimeout(() => { this.auditorOpen = false; this.auditorQuery = this.auditorName; this.cdr.detectChanges(); }, 150); }
-  selectAuditor(a: { accountId: string; accountName: string }): void { this.auditorName = a.accountName; this.auditorId = a.accountId; this.auditorQuery = a.accountName; this.auditorOpen = false; this.saveExtra(); }
-  clearAuditor(): void { this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false; this.saveExtra(); }
+  selectAuditor(a: { accountId: string; accountName: string }): void { this.auditorName = a.accountName; this.auditorId = a.accountId; this.auditorQuery = a.accountName; this.auditorOpen = false; this.saveAuditor(); }
+  clearAuditor(): void { this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false; this.saveAuditor(); }
+  private saveAuditor(): void {
+    if (!this.pid) return;
+    this.http.post(this.API_EXTRA_SAVE, {
+      pid: this.pid, formCode: FORM_CODE,
+      auditorId: this.auditorId, auditorName: this.auditorName,
+    }).subscribe({ next: () => {}, error: (e) => console.error('[fall] saveAuditor failed', e) });
+  }
+  private loadAuditor(): void {
+    if (!this.pid) return;
+    this.http.get<any>(this.API_EXTRA_LATEST, { params: { pid: this.pid, formCode: FORM_CODE } }).subscribe({
+      next: (d) => {
+        if (d) { this.auditorName = d.auditorName || ''; this.auditorId = d.auditorId || ''; }
+        this.auditorQuery = this.auditorName;
+        this.cdr.detectChanges();
+      },
+      error: () => this.cdr.detectChanges(),
+    });
+  }
 
   private loadAccountList(): void {
     this.http.get<any[]>(this.API_ACCOUNT_ALL).subscribe({
@@ -453,26 +511,77 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       error: (e) => console.error('[fall] loadAccountList failed', e),
     });
   }
-  private loadExtra(): void {
-    this.http.get<any>(this.API_EXTRA_LATEST, { params: { pid: this.pid, formCode: FORM_CODE } }).subscribe({
-      next: (d) => {
-        if (d) {
-          this.auditorName = d.auditorName || ''; this.auditorId = d.auditorId || '';
-          this.result = d.result || ''; this.resultDate = d.resultDate || ''; this.fell = d.fell || '';
-        }
-        this.auditorQuery = this.auditorName;
-        this.cdr.detectChanges();
-      },
-      error: () => this.cdr.detectChanges(),
-    });
-  }
-  saveExtra(): void {
+  private loadPageExtra(pageIndex: number): void {
     if (!this.pid) return;
-    this.http.post(this.API_EXTRA_SAVE, {
-      pid: this.pid, formCode: FORM_CODE,
-      auditorId: this.auditorId, auditorName: this.auditorName,
-      result: this.result, resultDate: this.resultDate, fell: this.fell,
-    }).subscribe({ next: () => {}, error: (e) => console.error('[fall] saveExtra failed', e) });
+    const extra = this.pageExtra(pageIndex);
+    if (extra.loaded || extra.loading) return;
+    const requestPid = this.pid;
+    extra.loading = true;
+    this.http.get<any>(this.API_EXTRA_LATEST, { params: { pid: requestPid, formCode: this.pageFormCode(pageIndex) } })
+      .pipe(
+        finalize(() => {
+          if (requestPid !== this.pid) return;
+          const current = this.pageExtraMap.get(pageIndex);
+          if (current) { current.loading = false; current.loaded = true; }
+          this.cdr.detectChanges();
+        }),
+        takeUntil(this.destroy$),
+      )
+      .subscribe({
+        next: data => {
+          if (requestPid !== this.pid) return;
+          const current = this.pageExtra(pageIndex);
+          current.id = data?.id ? String(data.id) : null;
+          current.result = String(data?.result ?? '');
+          current.resultDate = this.normalizeDateTimeInput(data?.resultDate);
+          const happened = String(data?.fell ?? '');
+          current.happened = happened === '是' || happened === '否' ? happened : '';
+        },
+        error: error => { console.error('[fall] load page extra failed', { pageIndex, error }); },
+      });
+  }
+
+  scheduleSavePageExtra(pageIndex: number): void {
+    if (!this.pid) return;
+    const previous = this.pageSaveTimers.get(pageIndex);
+    if (previous) clearTimeout(previous);
+    const timer = setTimeout(() => {
+      this.pageSaveTimers.delete(pageIndex);
+      this.savePageExtra(pageIndex);
+    }, 500);
+    this.pageSaveTimers.set(pageIndex, timer);
+  }
+
+  private savePageExtra(pageIndex: number): void {
+    if (!this.pid) return;
+    const extra = this.pageExtra(pageIndex);
+    const body: any = {
+      pid: this.pid,
+      formCode: this.pageFormCode(pageIndex),
+      result: extra.result.trim(),
+      resultDate: extra.resultDate || '',
+      fell: extra.happened || '',
+    };
+    if (extra.id) body.id = extra.id;
+    this.http.post<any>(this.API_EXTRA_SAVE, body)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: response => { if (response?.id) this.pageExtra(pageIndex).id = String(response.id); },
+        error: error => { console.error('[fall] save page extra failed', { pageIndex, body, error }); },
+      });
+  }
+
+  private normalizeDateTimeInput(value: any): string {
+    if (!value) return '';
+    const text = String(value).trim();
+    const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2}))?/);
+    if (!match) return '';
+    const year = match[1];
+    const month = match[2].padStart(2, '0');
+    const day = match[3].padStart(2, '0');
+    const hour = (match[4] || '00').padStart(2, '0');
+    const minute = (match[5] || '00').padStart(2, '0');
+    return `${year}-${month}-${day}T${hour}:${minute}`;
   }
 
   /* ===== 通用 ===== */
