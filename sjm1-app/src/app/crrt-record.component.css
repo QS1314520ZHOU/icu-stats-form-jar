@@ -178,7 +178,7 @@ h1 {
   font-family: "SimSun", "宋体", serif;
   font-size: 7.3pt;
   font-weight: 400;
-  line-height: 1.05;
+  line-height: 23px;
 }
 
 .crrt-table th,
@@ -194,7 +194,7 @@ h1 {
   font-family: inherit;
   font-size: inherit;
   font-weight: 400;
-  line-height: 1.05;
+  line-height:23px;
   text-align: center;
   vertical-align: middle;
   overflow-wrap: anywhere;

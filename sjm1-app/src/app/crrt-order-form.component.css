@@ -1172,14 +1172,6 @@ label {
     gap: 4px 11px;
   }
 
-  .check-grid.two-col {
-    gap: 0;
-  }
-
-  .check-col {
-    gap: 2px;
-  }
-
   .check-grid label {
     gap: 3px;
     font-size: 12px;
