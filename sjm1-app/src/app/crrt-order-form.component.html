@@ -147,31 +147,30 @@
         <col class="cbp-group-col" /><col class="cbp-name-col" /><col class="cbp-value-col" /><col class="formula-group-col" /><col class="formula-name-col" /><col class="formula-value-col" />
       </colgroup>
       <tbody>
-        <!-- 第1行：表头 -->
+        <!-- 第1行：表头 + 置换液配方A -->
         <tr class="cbp-header-row">
           <th rowspan="10" class="label-cell cbp-group-cell">CBP<br/>剂量</th>
           <th class="column-header-cell">名称</th>
           <th class="column-header-cell">参数</th>
-          <th class="formula-header-spacer"></th>
+          <th class="label-cell formula-group-cell" rowspan="4">置换液<br/>配方<br/>（A）</th>
           <th class="column-header-cell">名称</th>
           <th class="column-header-cell">参数</th>
         </tr>
-        <!-- 第2行：前置换 + 置换液配方A基础液 -->
+        <!-- 第2行：前置换 + 基础液 -->
         <tr>
           <td class="field-label-cell">前置换（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.preReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.preReplacement ?? '' }}</span></td>
-          <th class="label-cell formula-group-cell" rowspan="3">置换液<br/>配方<br/>（A）</th>
           <td class="field-label-cell">基础液（ml）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.replacementFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.replacementFormulaA.baseSolution ?? '' }}</span></td>
         </tr>
-        <!-- 第3行：后置换 + 置换液KCL -->
+        <!-- 第3行：后置换 + 10%KCL -->
         <tr>
           <td class="field-label-cell">后置换（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.postReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.postReplacement ?? '' }}</span></td>
           <td class="field-label-cell">10%KCL（g）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.replacementFormulaA.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.replacementFormulaA.potassiumChloride ?? '' }}</span></td>
         </tr>
-        <!-- 第4行：透析液 + 置换液NaCl -->
+        <!-- 第4行：透析液 + 10%NaCl -->
         <tr>
           <td class="field-label-cell">透析液（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.dialysate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.dialysate ?? '' }}</span></td>
