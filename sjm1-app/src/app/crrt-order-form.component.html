@@ -50,50 +50,81 @@
         </tr>
         <tr *ngFor="let row of machineConsumableRows; let ri = index">
           <th *ngIf="ri === 0" class="label-cell" [attr.rowspan]="machineConsumableRows.length">机型耗材</th>
-          <td *ngFor="let ci of machineConsumableColumnIndexes"><div class="check-grid"><ng-container *ngFor="let cell of getColumnCells(row, ci)"><label><input type="checkbox" [checked]="isChecked(order.machineConsumables,cell)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables,cell,$any($event.target).checked);onDiscreteChange()" />{{ cell }}</label></ng-container></div></td>
+          <td *ngFor="let cell of row" [attr.colspan]="ri === 0 && row.length < 3 ? 2 : null"><label><input type="checkbox" [checked]="isChecked(order.machineConsumables,cell)" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.machineConsumables,cell,$any($event.target).checked);onDiscreteChange()" />{{ cell }}</label></td>
         </tr>
         <tr>
-          <th class="label-cell">抗凝方式</th>
-          <td colspan="3" class="anticoag-host-cell">
-            <table class="nested-table anticoag-nested">
-              <colgroup><col style="width:25%" /><col style="width:25%" /><col style="width:25%" /><col style="width:25%" /></colgroup>
-              <tbody>
-                <tr>
-                  <td colspan="4"><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'无肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'无肝素',$any($event.target).checked);onDiscreteChange()" />无肝素</label></td>
-                </tr>
-                <tr>
-                  <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'肝素钠',$any($event.target).checked);onDiscreteChange()" />肝素钠</label></td>
-                  <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素',$any($event.target).checked);onDiscreteChange()" />低分子肝素</label></td>
-                  <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'10%葡萄糖酸钙')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'10%葡萄糖酸钙',$any($event.target).checked);onDiscreteChange()" />10%葡萄糖酸钙</label></td>
-                  <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'4%枸橼酸钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'4%枸橼酸钠',$any($event.target).checked);onDiscreteChange()" />4%枸橼酸钠</label></td>
-                </tr>
-                <tr>
-                  <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素钠',$any($event.target).checked);onDiscreteChange()" />低分子肝素钠</label></td>
-                  <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'甲磺酸萘莫司他')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'甲磺酸萘莫司他',$any($event.target).checked);onDiscreteChange()" />甲磺酸萘莫司他</label></td>
-                  <td></td>
-                  <td></td>
-                </tr>
-                <tr>
-                  <td>首量</td>
-                  <td><input type="number" [(ngModel)]="order.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-                  <td>维持量</td>
-                  <td><input type="number" [(ngModel)]="order.anticoagulation.citrateMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-                </tr>
-                <tr>
-                  <td>维持量</td>
-                  <td><input type="number" [(ngModel)]="order.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-                  <td>维持量</td>
-                  <td><input type="number" [(ngModel)]="order.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-                </tr>
-                <tr>
-                  <td>首量</td>
-                  <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-                  <td>维持量</td>
-                  <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-                </tr>
-              </tbody>
-            </table>
-          </td>
+          <th class="label-cell" rowspan="12">抗凝方式</th>
+          <td colspan="3"><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'无肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'无肝素',$any($event.target).checked);onDiscreteChange()" />无肝素</label></td>
+        </tr>
+        <tr>
+          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'肝素钠',$any($event.target).checked);onDiscreteChange()" />肝素钠</label></td>
+          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素',$any($event.target).checked);onDiscreteChange()" />低分子肝素</label></td>
+          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'10%葡萄糖酸钙')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'10%葡萄糖酸钙',$any($event.target).checked);onDiscreteChange()" />10%葡萄糖酸钙</label></td>
+        </tr>
+        <tr>
+          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素钠',$any($event.target).checked);onDiscreteChange()" />低分子肝素钠</label></td>
+          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'4%枸橼酸钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'4%枸橼酸钠',$any($event.target).checked);onDiscreteChange()" />4%枸橼酸钠</label></td>
+          <td><label><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'甲磺酸萘莫司他')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'甲磺酸萘莫司他',$any($event.target).checked);onDiscreteChange()" />甲磺酸萘莫司他</label></td>
+        </tr>
+        <tr>
+          <td>首量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
+          <td>维持量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.citrateMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+        </tr>
+        <tr>
+          <td>维持量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+          <td>维持量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+        </tr>
+        <tr>
+          <td>首量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
+          <td>维持量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+        </tr>
+        <tr>
+          <td>维持量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>首量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>维持量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>首量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>维持量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>首量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>维持量</td>
+          <td><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+          <td></td>
+          <td></td>
         </tr>
       </tbody>
     </table>
@@ -195,7 +226,7 @@
 
   <!-- ==================== 第二页 ==================== -->
   <section class="sheet crrt-print-page page-two" *ngIf="selectedPrintPage === null || selectedPrintPage === 2">
-    <h1>重钢总医院重症医学科连续性血液净化治疗医嘱单</h1>
+    <h1>重钢总医院连续性血液净化治疗医嘱单</h1>
     <ng-container *ngTemplateOutlet="patientInformation; context: { $implicit: order }"></ng-container>
 
     <div class="page-two-form">
