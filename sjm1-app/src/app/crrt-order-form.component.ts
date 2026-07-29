@@ -69,14 +69,19 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   private savedRevision = 0;
 
   readonly vascularAccessOptions = ['右侧股静脉','左侧股静脉','右侧颈内静脉','左侧颈内静脉','右侧锁骨下静脉','左侧锁骨下静脉','动静脉内瘘','ECMO'];
+  readonly vascularAccessLeft = ['右侧股静脉','右侧颈内静脉','右侧锁骨下静脉','动静脉内瘘'];
+  readonly vascularAccessRight = ['左侧股静脉','左侧颈内静脉','左侧锁骨下静脉','ECMO'];
   readonly treatmentModeOptions = ['CVVH','CVVHD','CVVHDF','SCUF','HP','PE','DPMAS','DFPP','CPFA','ECCO2R'];
+  readonly treatmentModeLeft = ['CVVH','CVVHDF','HP','DPMAS','CPFA'];
+  readonly treatmentModeRight = ['CVVHD','SCUF','PE','DFPP','ECCO2R'];
   readonly machineConsumableOptions = ['金宝','日机装','山外山','贝朗','M150','血液滤过管路（日机装）','TWT-CBP-02P（山外山）','一次性使用体外循环血路（贝朗）','AV600S','HA330','HA330-II','膜式血浆分离器','BS330','二级膜 EC-50W','ST150','OXIRIS'];
+  readonly machineConsumableColumnIndexes = [0, 1, 2];
   readonly machineConsumableRows = [
-    { cells: ['金宝', 'M150', ''] },
+    { cells: ['金宝', 'M150'] },
     { cells: ['日机装', '血液滤过管路（日机装）', 'AV600S'] },
     { cells: ['山外山', 'TWT-CBP-02P（山外山）', 'AV600S'] },
     { cells: ['贝朗', '一次性使用体外循环血路（贝朗）', 'AV600S'] },
-    { cells: ['HA330', 'HA330-II', '膜式血浆分离器', 'BS330'] },
+    { cells: ['HA330', 'HA330-II', '膜式血浆分离器', 'BS330', '二级膜 EC-50W', 'ST150', 'OXIRIS'] },
     { cells: ['二级膜 EC-50W', 'ST150', 'OXIRIS'] },
   ];
   readonly replacementCodes = ['B','C','D','E','F','G','H','I'];
@@ -317,6 +322,10 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   addOrderItem(): void { this.record.orderItems.push(this.createEmptyOrderItem()); this.onPageChanged(); }
   removeOrderItem(i: number): void { if (this.record.orderItems.length <= 1) return; this.record.orderItems.splice(i, 1); this.onPageChanged(); }
   trackByIndex(index: number): number { return index; }
+  getColumnCells(row: { cells: string[] }, colIndex: number): string[] {
+    const perCol = Math.ceil(row.cells.length / 3);
+    return row.cells.slice(colIndex * perCol, (colIndex + 1) * perCol).filter(c => !!c);
+  }
   displayTime(value: string): string { if (!value) return ''; const d = new Date(value); if (Number.isNaN(d.getTime())) return value; const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
   fmtDateTime(value: string): string { return this.displayTime(value); }
   sameMinute(a: string, b: string): boolean { return !!a && !!b && this.displayTime(a).substring(0, 16) === this.displayTime(b).substring(0, 16); }

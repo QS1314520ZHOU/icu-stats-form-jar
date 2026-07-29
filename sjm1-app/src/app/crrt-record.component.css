@@ -441,8 +441,8 @@ h1 {
 
   .signature-row th,
   .signature-row td {
-    height: 21px;
-    min-height: 21px;
+    height: 20px;
+    min-height: 20px;
   }
 
   .signature-cell {
