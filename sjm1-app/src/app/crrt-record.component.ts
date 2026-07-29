@@ -3,7 +3,7 @@ import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@an
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
-import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
+import { databaseTimeValue, formatShanghaiDate, formatShanghaiHourMinute } from './form-date.util';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; editUser?: string; }
 interface CrrtMetric { label: string; code: string; unit?: string; }
@@ -183,7 +183,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
     return '';
   }
 
-  displayDate(instant: number | undefined): string { return instant !== undefined ? formatShanghaiMonthDay(instant) : ''; }
+  displayDate(instant: number | undefined): string { return instant !== undefined ? formatShanghaiDate(instant) : ''; }
   displayClock(instant: number | undefined): string { return instant !== undefined ? formatShanghaiHourMinute(instant) : ''; }
   instantAt(page: RenderPage, idx: number): number | undefined { return page.timeInstants[idx]; }
 
