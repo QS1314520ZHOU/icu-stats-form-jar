@@ -315,10 +315,7 @@ label {
 }
 
 .top-table .option-host-cell,
-.top-table .machine-row-cell,
-.top-table .anticoag-option-cell,
-.top-table .anticoag-dose-cell,
-.top-table .anticoag-dose-label {
+.top-table .machine-row-cell {
   overflow: visible;
 }
 
@@ -406,16 +403,43 @@ label {
 }
 
 /* =========================================================
-   Anticoagulation section (5-row compact structure)
+   Anticoagulation table (independent 5-column table)
    ========================================================= */
 
-.anticoag-row > th,
-.anticoag-row > td {
+.anticoag-table {
+  box-sizing: border-box;
+  width: 100%;
+  margin: -1px 0 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: fixed;
+  color: #000;
+  font-family: "SimSun", "宋体", serif;
+}
+
+.anticoag-table th,
+.anticoag-table td {
   box-sizing: border-box;
   height: 24px;
   min-height: 24px;
   padding: 1px 4px;
+  border: 1px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 12px;
+  line-height: 18px;
   vertical-align: middle;
+}
+
+.anticoag-title-col { width: 9.08%; }
+.anticoag-left-drug-col { width: 18.16%; }
+.anticoag-left-dose-col { width: 27.24%; }
+.anticoag-right-drug-col { width: 18.16%; }
+.anticoag-right-dose-col { width: 27.36%; }
+
+.anticoag-title-cell {
+  font-weight: 400;
+  text-align: center;
 }
 
 .anticoag-option-cell {
@@ -431,16 +455,21 @@ label {
 }
 
 .anticoag-dose-cell {
-  display: table-cell;
   padding: 0 4px !important;
+  text-align: center;
   white-space: nowrap;
+}
+
+.anticoag-dose-cell .dose-label {
+  display: inline-block;
+  min-width: 42px;
   text-align: center;
 }
 
 .anticoag-dose-cell input[type="number"] {
-  display: inline-block;
   box-sizing: border-box;
-  width: 70px;
+  display: inline-block;
+  width: 76px;
   height: 20px;
   min-height: 20px;
   margin: 0 3px;
@@ -448,9 +477,10 @@ label {
   border: 0;
   border-bottom: 1px solid #000;
   background: transparent;
+  font: inherit;
+  line-height: 19px;
   text-align: center;
   vertical-align: middle;
-  font: inherit;
 }
 
 .anticoag-dose-cell input[type="number"]:focus {
@@ -466,13 +496,11 @@ label {
 
 .anticoag-dose-cell .dose-unit {
   display: inline-block;
-  min-width: 30px;
-  font-size: 11px;
+  min-width: 32px;
   text-align: left;
 }
 
 .anticoag-empty-cell {
-  height: 24px;
   background: #fff;
 }
 
@@ -1101,8 +1129,19 @@ label {
     line-height: 16px;
   }
 
-  .anticoag-row > th,
-  .anticoag-row > td {
+  .anticoag-table {
+    width: 738px;
+    max-width: 738px;
+  }
+
+  .anticoag-title-col { width: 67px; }
+  .anticoag-left-drug-col { width: 134px; }
+  .anticoag-left-dose-col { width: 201px; }
+  .anticoag-right-drug-col { width: 134px; }
+  .anticoag-right-dose-col { width: 202px; }
+
+  .anticoag-table th,
+  .anticoag-table td {
     height: 24px;
     min-height: 24px;
     padding: 2px 6px;
@@ -1121,7 +1160,7 @@ label {
   }
 
   .anticoag-dose-cell input[type="number"] {
-    width: 70px;
+    width: 76px;
     height: 20px;
     min-height: 20px;
     font-size: 12px;
@@ -1521,6 +1560,7 @@ label {
 
   .crrt-table,
   .top-table,
+  .anticoag-table,
   .cbp-formula-table,
   .page-two-form,
   .page-two-form > table {
@@ -1532,6 +1572,7 @@ label {
 
   .crrt-table tr,
   .top-table tr,
+  .anticoag-table tr,
   .cbp-formula-table tr {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
@@ -1541,6 +1582,8 @@ label {
   .crrt-table td,
   .top-table th,
   .top-table td,
+  .anticoag-table th,
+  .anticoag-table td,
   .cbp-formula-table th,
   .cbp-formula-table td {
     border: 1px solid #000 !important;
@@ -1548,11 +1591,17 @@ label {
     color: #000 !important;
   }
 
-  .anticoag-row > th,
-  .anticoag-row > td {
+  .anticoag-table {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .anticoag-table th,
+  .anticoag-table td {
     height: 24px !important;
     min-height: 24px !important;
     padding: 1px 4px !important;
+    border: 1px solid #000 !important;
   }
 
   .anticoag-dose-cell input[type="number"] {
