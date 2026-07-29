@@ -111,99 +111,96 @@
             </div>
           </td>
         </tr>
-        <!-- 抗凝方式（紧凑结构） -->
-        <tr>
-          <th class="label-cell" rowspan="6">抗凝方式</th>
-          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'无肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'无肝素',$any($event.target).checked);onDiscreteChange()" />无肝素</label></td>
-          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'肝素钠',$any($event.target).checked);onDiscreteChange()" />肝素钠</label></td>
-          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素',$any($event.target).checked);onDiscreteChange()" />低分子肝素</label></td>
-        </tr>
-        <tr>
-          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素钠',$any($event.target).checked);onDiscreteChange()" />低分子肝素钠</label></td>
+        <!-- 抗凝方式（5行紧凑结构） -->
+        <tr class="anticoag-row">
+          <th class="label-cell" rowspan="5">抗凝<br/>方式</th>
+          <td class="anticoag-option-cell" colspan="2"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'无肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'无肝素',$any($event.target).checked);onDiscreteChange()" />无肝素</label></td>
           <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'4%枸橼酸钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'4%枸橼酸钠',$any($event.target).checked);onDiscreteChange()" />4%枸橼酸钠</label></td>
+          <td class="anticoag-dose-cell">维持量<input type="number" [(ngModel)]="order.anticoagulation.citrateMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="dose-unit">ml/h</span></td>
+        </tr>
+        <tr class="anticoag-row">
+          <td class="anticoag-option-cell" rowspan="2"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'肝素钠',$any($event.target).checked);onDiscreteChange()" />肝素钠</label><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素',$any($event.target).checked);onDiscreteChange()" />低分子肝素</label></td>
+          <td class="anticoag-dose-cell">首量<input type="number" [(ngModel)]="order.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="dose-unit">ml</span></td>
           <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'10%葡萄糖酸钙')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'10%葡萄糖酸钙',$any($event.target).checked);onDiscreteChange()" />10%葡萄糖酸钙</label></td>
+          <td class="anticoag-dose-cell">维持量<input type="number" [(ngModel)]="order.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="dose-unit">ml/h</span></td>
         </tr>
-        <tr>
-          <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'甲磺酸萘莫司他')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'甲磺酸萘莫司他',$any($event.target).checked);onDiscreteChange()" />甲磺酸萘莫司他</label></td>
-          <td colspan="2"></td>
+        <tr class="anticoag-row">
+          <td class="anticoag-dose-cell">维持量<input type="number" [(ngModel)]="order.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="dose-unit">ml/h</span></td>
+          <td class="anticoag-option-cell" rowspan="2"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'甲磺酸萘莫司他')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'甲磺酸萘莫司他',$any($event.target).checked);onDiscreteChange()" />甲磺酸萘莫司他</label></td>
+          <td class="anticoag-dose-cell">首量<input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="dose-unit">ml</span></td>
         </tr>
-        <tr>
-          <td class="anticoag-dose-label">首量</td>
-          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-          <td class="anticoag-dose-label">维持量</td>
-          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.citrateMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+        <tr class="anticoag-row">
+          <td class="anticoag-option-cell" rowspan="2"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素钠',$any($event.target).checked);onDiscreteChange()" />低分子肝素钠</label></td>
+          <td class="anticoag-dose-cell">首量<input type="number" [(ngModel)]="order.anticoagulation.heparinFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="dose-unit">ml</span></td>
+          <td class="anticoag-dose-cell">维持量<input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="dose-unit">ml/h</span></td>
         </tr>
-        <tr>
-          <td class="anticoag-dose-label">维持量</td>
-          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-          <td class="anticoag-dose-label">维持量</td>
-          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
-        </tr>
-        <tr>
-          <td class="anticoag-dose-label">首量</td>
-          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml</td>
-          <td class="anticoag-dose-label">维持量</td>
-          <td class="anticoag-dose-cell"><input type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /> ml/h</td>
+        <tr class="anticoag-row">
+          <td class="anticoag-dose-cell">维持量<input type="number" [(ngModel)]="order.anticoagulation.heparinMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="dose-unit">ml/h</span></td>
+          <td colspan="2" class="anticoag-empty-cell"></td>
         </tr>
       </tbody>
     </table>
 
-    <!-- 下半部分：CBP剂量 + 配方及治疗计划（统一6列网格） -->
+    <!-- 下半部分：CBP剂量 + 配方及治疗计划（统一6列网格，10行） -->
     <table class="crrt-table cbp-formula-table">
       <colgroup>
         <col class="cbp-group-col" /><col class="cbp-name-col" /><col class="cbp-value-col" /><col class="formula-group-col" /><col class="formula-name-col" /><col class="formula-value-col" />
       </colgroup>
       <tbody>
-        <!-- 表头行 -->
+        <!-- 第1行：表头 -->
         <tr class="cbp-header-row">
-          <th rowspan="11" class="label-cell cbp-group-cell">CBP<br/>剂量</th>
+          <th rowspan="10" class="label-cell cbp-group-cell">CBP<br/>剂量</th>
           <th class="column-header-cell">名称</th>
           <th class="column-header-cell">参数</th>
           <th class="formula-header-spacer"></th>
           <th class="column-header-cell">名称</th>
           <th class="column-header-cell">参数</th>
         </tr>
-        <!-- CBP剂量 + 置换液配方A -->
+        <!-- 第2行：前置换 + 置换液配方A基础液 -->
         <tr>
           <td class="field-label-cell">前置换（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.preReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.preReplacement ?? '' }}</span></td>
-          <th class="label-cell formula-group-cell" rowspan="4">置换液<br/>配方 A</th>
+          <th class="label-cell formula-group-cell" rowspan="3">置换液<br/>配方<br/>（A）</th>
           <td class="field-label-cell">基础液（ml）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.replacementFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.replacementFormulaA.baseSolution ?? '' }}</span></td>
         </tr>
+        <!-- 第3行：后置换 + 置换液KCL -->
         <tr>
           <td class="field-label-cell">后置换（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.postReplacement" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.postReplacement ?? '' }}</span></td>
-          <td class="field-label-cell">10% KCL（g）</td>
+          <td class="field-label-cell">10%KCL（g）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.replacementFormulaA.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.replacementFormulaA.potassiumChloride ?? '' }}</span></td>
         </tr>
+        <!-- 第4行：透析液 + 置换液NaCl -->
         <tr>
           <td class="field-label-cell">透析液（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.dialysate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.dialysate ?? '' }}</span></td>
-          <td class="field-label-cell">10% NaCl（g）</td>
+          <td class="field-label-cell">10%NaCl（g）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.replacementFormulaA.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.replacementFormulaA.sodiumChloride ?? '' }}</span></td>
         </tr>
-        <!-- CBP剂量续 + 透析液配方a -->
+        <!-- 第5行：5%碳酸氢钠 + 透析液配方a基础液 -->
         <tr>
           <td class="field-label-cell">5%碳酸氢钠（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.sodiumBicarbonate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.sodiumBicarbonate ?? '' }}</span></td>
-          <th class="label-cell formula-group-cell" rowspan="4">透析液<br/>配方 a</th>
+          <th class="label-cell formula-group-cell" rowspan="3">透析液<br/>配方<br/>（a）</th>
           <td class="field-label-cell">基础液（ml）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.dialysateFormulaA.baseSolution" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.dialysateFormulaA.baseSolution ?? '' }}</span></td>
         </tr>
+        <!-- 第6行：分浆速度 + 透析液KCL -->
         <tr>
           <td class="field-label-cell">分浆速度（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.plasmaSeparationSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.plasmaSeparationSpeed ?? '' }}</span></td>
-          <td class="field-label-cell">10% KCL（g）</td>
+          <td class="field-label-cell">10%KCL（g）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.dialysateFormulaA.potassiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.dialysateFormulaA.potassiumChloride ?? '' }}</span></td>
         </tr>
+        <!-- 第7行：弃浆速度 + 透析液NaCl -->
         <tr>
           <td class="field-label-cell">弃浆速度（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.plasmaDiscardSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.plasmaDiscardSpeed ?? '' }}</span></td>
-          <td class="field-label-cell">10% NaCl（g）</td>
+          <td class="field-label-cell">10%NaCl（g）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.dialysateFormulaA.sodiumChloride" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.dialysateFormulaA.sodiumChloride ?? '' }}</span></td>
         </tr>
-        <!-- CBP剂量续 + 治疗计划 -->
+        <!-- 第8行：补浆速度 + 治疗计划血流量 -->
         <tr>
           <td class="field-label-cell">补浆速度（ml/h）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.plasmaReplacementSpeed" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.plasmaReplacementSpeed ?? '' }}</span></td>
@@ -211,30 +208,39 @@
           <td class="field-label-cell">血流量（ml/min）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.treatmentPlan.bloodFlow" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.treatmentPlan.bloodFlow ?? '' }}</span></td>
         </tr>
+        <!-- 第9行：血浆置换总量 + 预计治疗时间 -->
         <tr>
           <td class="field-label-cell">血浆置换总量（ml）</td>
           <td class="value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.cbpDose.totalPlasmaExchange" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.cbpDose.totalPlasmaExchange ?? '' }}</span></td>
           <td class="field-label-cell">预计治疗时间（h）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" step="0.5" [(ngModel)]="order.treatmentPlan.estimatedHours" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.treatmentPlan.estimatedHours ?? '' }}</span></td>
         </tr>
-        <!-- 治疗计划最后一行 -->
+        <!-- 第10行：空白 + 超滤率 -->
         <tr>
           <td class="field-label-cell"></td>
           <td class="value-cell"></td>
           <td class="field-label-cell">超滤率（ml/h）</td>
           <td class="value-cell formula-value-cell"><input class="screen-only formula-input" type="number" [(ngModel)]="order.treatmentPlan.ultrafiltrationRate" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /><span class="print-only print-value">{{ order.treatmentPlan.ultrafiltrationRate ?? '' }}</span></td>
         </tr>
-        <!-- 签名行 -->
+      </tbody>
+    </table>
+
+    <!-- 签名行（独立于CBP剂量rowspan） -->
+    <table class="crrt-table signature-table">
+      <colgroup>
+        <col class="sig-label-col" /><col class="sig-value-col" /><col class="sig-label-col" /><col class="sig-value-col" />
+      </colgroup>
+      <tbody>
         <tr class="signature-form-row">
-          <th colspan="2">医嘱时间</th>
+          <th>医嘱时间</th>
           <td class="value-cell"><input class="screen-only formula-input" type="datetime-local" [(ngModel)]="order.orderTime" [disabled]="!canEditDoctorField()" (ngModelChange)="onDiscreteChange()" /><span class="print-only print-value">{{ displayTime(order.orderTime) }}</span></td>
-          <th colspan="2">医生签名</th>
+          <th>医生签名</th>
           <td class="value-cell formula-value-cell"><select class="screen-only formula-select" [ngModel]="order.doctorSignature?.accountId || ''" [disabled]="!canEditDoctorField()" (ngModelChange)="updateSignature(order,'doctorSignature',$event,doctorAccounts);onDiscreteChange()"><option value="">请选择医生</option><option *ngFor="let a of orderedDoctorAccounts" [value]="a.accountId">{{ a.accountName }}</option></select><span class="print-only print-value">{{ order.doctorSignature?.accountName || '' }}</span></td>
         </tr>
         <tr class="signature-form-row">
-          <th colspan="2">上机护士</th>
+          <th>上机护士</th>
           <td class="value-cell"><select class="screen-only formula-select" [ngModel]="order.machineNurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(order,'machineNurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择护士</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select><span class="print-only print-value">{{ order.machineNurseSignature?.accountName || '' }}</span></td>
-          <th colspan="2">核对护士</th>
+          <th>核对护士</th>
           <td class="value-cell formula-value-cell"><select class="screen-only formula-select" [ngModel]="order.checkNurseSignature?.accountId || ''" [disabled]="!canEditNurseField()" (ngModelChange)="updateSignature(order,'checkNurseSignature',$event,nurseAccounts);onDiscreteChange()"><option value="">请选择护士</option><option *ngFor="let a of orderedNurseAccounts" [value]="a.accountId">{{ a.accountName }}</option></select><span class="print-only print-value">{{ order.checkNurseSignature?.accountName || '' }}</span></td>
         </tr>
       </tbody>

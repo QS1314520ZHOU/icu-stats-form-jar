@@ -406,45 +406,51 @@ label {
 }
 
 /* =========================================================
-   Anticoagulation section (compact, no nested table)
+   Anticoagulation section (5-row compact structure)
    ========================================================= */
 
-.anticoag-option-cell {
-  vertical-align: middle;
-  padding: 1px 3px !important;
+.anticoag-row > th,
+.anticoag-row > td {
+  box-sizing: border-box;
   height: 24px;
   min-height: 24px;
-  line-height: 18px;
+  padding: 1px 4px;
+  vertical-align: middle;
 }
 
-.anticoag-dose-label {
-  text-align: right !important;
-  padding-right: 3px !important;
-  height: 24px;
-  min-height: 24px;
-  font-weight: 400;
+.anticoag-option-cell {
+  text-align: left;
+}
+
+.anticoag-option-cell .checkbox-option {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+  margin: 0;
   white-space: nowrap;
 }
 
 .anticoag-dose-cell {
-  height: 24px;
-  min-height: 24px;
-  padding: 1px 2px !important;
+  display: table-cell;
+  padding: 0 4px !important;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .anticoag-dose-cell input[type="number"] {
-  box-sizing: border-box;
   display: inline-block;
-  width: 60%;
-  height: 21px;
-  min-height: 21px;
-  padding: 1px 3px;
+  box-sizing: border-box;
+  width: 70px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0 3px;
+  padding: 0 2px;
   border: 0;
-  border-bottom: 1px solid #999;
+  border-bottom: 1px solid #000;
   background: transparent;
-  font: inherit;
   text-align: center;
   vertical-align: middle;
+  font: inherit;
 }
 
 .anticoag-dose-cell input[type="number"]:focus {
@@ -456,6 +462,18 @@ label {
   color: #000;
   opacity: 1;
   cursor: default;
+}
+
+.anticoag-dose-cell .dose-unit {
+  display: inline-block;
+  min-width: 30px;
+  font-size: 11px;
+  text-align: left;
+}
+
+.anticoag-empty-cell {
+  height: 24px;
+  background: #fff;
 }
 
 /* =========================================================
@@ -649,12 +667,31 @@ label {
 
 .signature-form-row th,
 .signature-form-row td {
-  height: 6mm;
+  height: 24px;
+  min-height: 24px;
 }
 
 .signature-form-row th {
   font-size: 8.5pt;
-  font-weight: 700;
+  font-weight: 400;
+  text-align: center;
+}
+
+/* Signature table (separate from CBP) */
+.signature-table {
+  width: 100%;
+  margin: -1px 0 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.sig-label-col {
+  width: 16%;
+}
+
+.sig-value-col {
+  width: 34%;
 }
 
 /* =========================================================
@@ -1064,33 +1101,48 @@ label {
     line-height: 16px;
   }
 
-  .anticoag-option-cell {
+  .anticoag-row > th,
+  .anticoag-row > td {
     height: 24px;
     min-height: 24px;
-    padding: 2px 4px !important;
+    padding: 2px 6px;
     font-size: 12px;
     line-height: 18px;
   }
 
-  .anticoag-dose-label {
-    height: 24px;
-    min-height: 24px;
+  .anticoag-option-cell {
     font-size: 12px;
     line-height: 18px;
   }
 
   .anticoag-dose-cell {
-    height: 24px;
-    min-height: 24px;
     font-size: 12px;
     line-height: 18px;
   }
 
   .anticoag-dose-cell input[type="number"] {
-    height: 21px;
-    min-height: 21px;
+    width: 70px;
+    height: 20px;
+    min-height: 20px;
     font-size: 12px;
     line-height: 19px;
+  }
+
+  .anticoag-dose-cell .dose-unit {
+    font-size: 12px;
+  }
+
+  .signature-table {
+    width: 738px;
+    max-width: 738px;
+  }
+
+  .signature-form-row th,
+  .signature-form-row td {
+    height: 24px;
+    min-height: 24px;
+    font-size: 12px;
+    line-height: 18px;
   }
 
   .two-column-options {
@@ -1496,24 +1548,20 @@ label {
     color: #000 !important;
   }
 
-  .anticoag-option-cell {
+  .anticoag-row > th,
+  .anticoag-row > td {
     height: 24px !important;
     min-height: 24px !important;
-    padding: 2px 4px !important;
-  }
-
-  .anticoag-dose-label {
-    height: 24px !important;
-    min-height: 24px !important;
-  }
-
-  .anticoag-dose-cell {
-    height: 24px !important;
-    min-height: 24px !important;
+    padding: 1px 4px !important;
   }
 
   .anticoag-dose-cell input[type="number"] {
     border-bottom: 1px solid #000 !important;
+  }
+
+  .signature-table {
+    width: 100% !important;
+    max-width: none !important;
   }
 
   input,
