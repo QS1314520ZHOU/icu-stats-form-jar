@@ -1096,7 +1096,7 @@ label {
   display: none;
 }
 
-@media screen, print {
+@media screen {
   /*
    * A4 at 96 CSS dpi:
    * 794 × 1123px.
@@ -1688,9 +1688,9 @@ label {
 }
 
 /* =========================================================
-   /form/crrtOrderForm 打印样式（最小化）
-   布局唯一来源是 @media screen, print 共享块。
-   本块只做：页面设置、隐藏屏幕外UI、分页、隐藏删除按钮。
+   /form/crrtOrderForm 打印样式
+   打印通过独立窗口实现，使用物理单位（mm）。
+   本块仅供 window.print() 直接调用时的降级方案。
    ========================================================= */
 
 @media print {

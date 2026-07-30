@@ -1,4 +1,4 @@
-import { Component, ChangeDetectorRef, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { Component, ChangeDetectorRef, NgZone, OnDestroy, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin, of, firstValueFrom, Subject } from 'rxjs';
 import { catchError, finalize, takeUntil } from 'rxjs/operators';
@@ -43,6 +43,7 @@ const ADMIN_PROFS = ['systemadmin', 'admin'];
   templateUrl: './crrt-order-form.component.html', styleUrls: ['./crrt-order-form.component.css'],
 })
 export class CrrtOrderFormComponent implements OnInit, OnDestroy {
+  @ViewChild('printArea', { static: false }) printArea: ElementRef<HTMLElement> | null = null;
   private readonly destroy$ = new Subject<void>();
   readonly apiUrl = '/api/v1/icu/crrt-orders';
 
@@ -292,29 +293,6 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     });
   }
 
-  /* 一键打印全部 */
-  async printAllOrders(): Promise<void> {
-    if (this.printingAll || !this.timeOptions.length) return;
-    this.printingAll = true; this.errorMessage = '';
-    try {
-      await this.ensureCurrentRecordSaved();
-      const records = await firstValueFrom(
-        forkJoin(this.timeOptions.map(opt => this.http.get<CrrtOrderFormRecord>(`${this.apiUrl}/${encodeURIComponent(opt.id)}`).pipe(catchError(() => of(null)))))
-      );
-      this.printRecords = records.filter((r): r is CrrtOrderFormRecord => !!r).map(r => this.normalizeRecord(r)).sort((a, b) => new Date(b.orderTime).getTime() - new Date(a.orderTime).getTime());
-      this.printAllMode = true;
-      this.cdr.detectChanges();
-      await this.waitForRender();
-      const cleanup = () => { this.printAllMode = false; this.printRecords = []; this.printingAll = false; window.removeEventListener('afterprint', cleanup); this.cdr.detectChanges(); };
-      window.addEventListener('afterprint', cleanup);
-      window.print();
-    } catch (error: any) {
-      this.printingAll = false; this.printAllMode = false; this.printRecords = [];
-      this.errorMessage = error?.error?.message || '加载全部 CRRT 医嘱单失败。';
-      this.cdr.detectChanges();
-    }
-  }
-
   trackRecordById(_: number, rec: CrrtOrderFormRecord): string { return rec.id || ''; }
 
   private waitForRender(): Promise<void> { return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r()))); }
@@ -348,7 +326,160 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   fmtDateTime(value: string | null | undefined): string { return this.displayTime(value); }
   sameMinute(a: string, b: string): boolean { return !!a && !!b && this.displayTime(a).substring(0, 16) === this.displayTime(b).substring(0, 16); }
 
-  print(): void { if (this.autoSaveState === 'dirty' || this.saveInFlight) { this.flushAutoSave(); setTimeout(() => window.print(), 400); return; } window.print(); }
+  /* 独立打印窗口 */
+  async print(): Promise<void> {
+    if (this.printingAll) return;
+    try {
+      await this.ensureCurrentRecordSaved();
+    } catch { this.errorMessage = '保存失败，无法打印'; return; }
+    const pages = this.collectPrintPages(this.record, this.selectedPrintPage);
+    if (!pages.length) { alert('没有可打印的内容'); return; }
+    this.openDedicatedPrintWindow(pages, 'CRRT治疗医嘱单');
+  }
+
+  /* 一键打印全部 */
+  async printAllOrders(): Promise<void> {
+    if (this.printingAll || !this.timeOptions.length) return;
+    this.printingAll = true; this.errorMessage = '';
+    try {
+      await this.ensureCurrentRecordSaved();
+      const records = await firstValueFrom(
+        forkJoin(this.timeOptions.map(opt =>
+          this.http.get<CrrtOrderFormRecord>(`${this.apiUrl}/${encodeURIComponent(opt.id)}`).pipe(catchError(() => of(null)))
+        ))
+      );
+      const valid = records.filter((r): r is CrrtOrderFormRecord => !!r)
+        .map(r => this.normalizeRecord(r))
+        .sort((a, b) => new Date(b.orderTime).getTime() - new Date(a.orderTime).getTime());
+      if (!valid.length) { alert('没有可打印的医嘱记录'); this.printingAll = false; return; }
+      const allPages: string[] = [];
+      for (const rec of valid) {
+        const pages = this.collectPrintPages(rec, null);
+        if (pages.length !== 2) { alert(`医嘱 ${this.displayTime(rec.orderTime)} 页面数异常`); this.printingAll = false; return; }
+        allPages.push(...pages);
+      }
+      this.openDedicatedPrintWindow(allPages, 'CRRT治疗医嘱单（全部）');
+    } catch (error: any) {
+      this.errorMessage = error?.error?.message || '加载全部 CRRT 医嘱单失败。';
+    } finally {
+      this.printingAll = false;
+    }
+  }
+
+  /* 收集打印页 DOM */
+  private collectPrintPages(rec: CrrtOrderFormRecord, pageFilter: number | null): string[] {
+    const nativeEl = this.printArea?.nativeElement;
+    if (!nativeEl) return [];
+    const sections = nativeEl.querySelectorAll<HTMLElement>('.sheet.crrt-print-page');
+    if (!sections.length) return [];
+    const pages: string[] = [];
+    sections.forEach((section, i) => {
+      if (pageFilter !== null && i + 1 !== pageFilter) return;
+      const clone = section.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('.no-print, .screen-only, .datetime-picker').forEach(n => n.remove());
+      clone.querySelectorAll<HTMLElement>('.temp-action-col, .temp-action-cell').forEach(el => el.style.display = 'none');
+      clone.querySelectorAll<HTMLElement>('.print-only').forEach(el => {
+        if (el.tagName === 'SPAN') el.style.display = 'inline';
+        else el.style.display = 'block';
+      });
+      clone.querySelectorAll<HTMLElement>('.print-value.print-only, .datetime-value.print-only, .datetime-print.print-only').forEach(el => {
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+      });
+      clone.querySelectorAll<HTMLElement>('.order-table .temp-date-col').forEach(el => el.style.width = '18%');
+      clone.querySelectorAll<HTMLElement>('.order-table .temp-content-col').forEach(el => el.style.width = '38%');
+      clone.querySelectorAll<HTMLElement>('.order-table .temp-doctor-col').forEach(el => el.style.width = '16%');
+      clone.querySelectorAll<HTMLElement>('.order-table .temp-exec-col').forEach(el => el.style.width = '16%');
+      clone.querySelectorAll<HTMLElement>('.order-table .temp-nurse-col').forEach(el => el.style.width = '12%');
+      pages.push(`<div class="print-page">${clone.outerHTML}</div>`);
+    });
+    return pages;
+  }
+
+  /* 打开独立打印窗口 */
+  private openDedicatedPrintWindow(pages: string[], title: string): void {
+    const body = pages.join('');
+    const componentStyles = Array.from(document.querySelectorAll('style')).map(s => s.textContent || '').join('\n');
+    const printCss = `
+@page { size: A4 portrait; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+.print-page {
+  box-sizing: border-box;
+  width: 210mm;
+  height: 297mm;
+  margin: 0;
+  overflow: hidden;
+  break-after: page;
+  page-break-after: always;
+  background: #fff;
+}
+.print-page:last-child { break-after: auto; page-break-after: auto; }
+.sheet, .crrt-print-page {
+  box-sizing: border-box;
+  width: 210mm;
+  height: 297mm;
+  margin: 0;
+  padding: 6mm 7mm 12mm;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: none !important;
+  color: #000;
+}
+.sheet h1, .crrt-print-page h1 {
+  margin: 0 0 2mm;
+  font: 700 17pt/1.2 SimHei, "黑体", sans-serif;
+  text-align: center;
+}
+.patient-info { font-size: 13pt; line-height: 1.2; }
+.patient-info-row { gap: 12px; margin: 2px 0; }
+.sheet-pageno {
+  position: absolute;
+  right: 7mm;
+  bottom: 4mm;
+  left: 7mm;
+  margin: 0;
+  font: 10pt/1 "SimSun", "宋体", serif;
+  text-align: center;
+}
+.toolbar, .loading, .overlay, .no-print, .order-actions,
+.screen-only, .datetime-picker, .temp-action-col, .temp-action-cell {
+  display: none !important;
+}
+.print-only { display: block !important; }
+span.print-only { display: inline !important; }
+.print-value.print-only, .datetime-value.print-only, .datetime-print.print-only {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+`;
+    const pw = window.open('', '_blank', 'width=900,height=700');
+    if (!pw) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
+    pw.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${title}</title><style>${componentStyles}</style><style>${printCss}</style></head><body>${body}</body></html>`);
+    pw.document.close();
+    const run = () => {
+      const doc: any = pw.document;
+      (doc.fonts?.ready || Promise.resolve()).then(() => {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          let ok = true;
+          pw.document.querySelectorAll<HTMLElement>('.sheet').forEach((sh, i) => {
+            if (sh.scrollHeight > sh.clientHeight + 1) {
+              console.error(`第${i + 1}页内容溢出 ${sh.scrollHeight - sh.clientHeight}px`);
+              ok = false;
+            }
+          });
+          if (!ok) { alert('打印内容超出A4区域，请检查数据'); try { pw.close(); } catch {} return; }
+          pw.focus();
+          pw.print();
+        }));
+      });
+    };
+    if (pw.document.readyState === 'complete') run(); else pw.addEventListener('load', run, { once: true });
+    pw.addEventListener('afterprint', () => { try { pw.close(); } catch {} }, { once: true });
+  }
+
+  @ViewChild('hostRef', { static: false }) host: any;
 
   /* 签名账号加载 */
   private loadSignatureAccounts(): void {

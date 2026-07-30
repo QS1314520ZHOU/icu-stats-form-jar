@@ -323,7 +323,7 @@
 </ng-template>
 
 <!-- 普通界面 -->
-<div class="document-area" [class.print-hidden]="printAllMode">
+<div class="document-area" [class.print-hidden]="printAllMode" #printArea>
   <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: record }"></ng-container>
 </div>
 
