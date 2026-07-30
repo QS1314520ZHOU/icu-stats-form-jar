@@ -180,8 +180,7 @@ label {
 }
 
 /* =========================================================
-   A4 page（单一布局源：全整数 px）
-   792 - 28 - 28 = 736px 内容宽
+   A4 page
    ========================================================= */
 
 .sheet,
@@ -189,12 +188,12 @@ label {
   box-sizing: border-box;
   position: relative;
   display: block;
-  width: 792px;
-  height: 1122px;
-  min-height: 1122px;
-  max-height: 1122px;
+  width: 210mm;
+  height: 297mm;
+  min-height: 297mm;
+  max-height: 297mm;
   margin: 16px auto;
-  padding: 23px 28px 45px;
+  padding: 6mm 7mm 12mm;
   overflow: hidden;
   background: #fff;
   box-shadow: none !important;
@@ -207,21 +206,21 @@ label {
 
 .sheet h1,
 .crrt-print-page h1 {
-  margin: 0 0 8px;
+  margin: 0 0 2mm;
   color: #000;
-  font: 700 23px/28px SimHei, "黑体", sans-serif;
+  font: 700 17pt/1.2 SimHei, "黑体", sans-serif;
   text-align: center;
   white-space: nowrap;
 }
 
 .sheet-pageno {
   position: absolute;
-  right: 28px;
-  bottom: 15px;
-  left: 28px;
+  right: 8mm;
+  bottom: 4mm;
+  left: 8mm;
   margin: 0;
   color: #000;
-  font: 13px/16px "SimSun", "宋体", serif;
+  font: 10pt/1 "SimSun", "宋体", serif;
   text-align: center;
   white-space: nowrap;
 }
@@ -235,9 +234,9 @@ label {
   margin: 2px 0 4px;
   color: #000;
   font-family: "SimSun", "宋体", serif;
-  font-size: 17px;
+  font-size: 13pt;
   font-weight: 400;
-  line-height: 21px;
+  line-height: 1.2;
 }
 
 .patient-info-row {
@@ -247,7 +246,6 @@ label {
   gap: 18px;
   margin: 2px 0;
   white-space: nowrap;
-  line-height: 21px;
 }
 
 .info-item {
@@ -277,24 +275,23 @@ label {
 }
 
 /* =========================================================
-   Base document tables（唯一布局源）
+   Base document tables
    ========================================================= */
 
 .crrt-table,
 .top-table {
   box-sizing: border-box;
-  width: 736px;
-  max-width: 736px;
+  width: 100%;
+  max-width: 100%;
   margin: 0;
-  border: 1px solid #000;
   border-collapse: collapse;
   border-spacing: 0;
   table-layout: fixed;
   color: #000;
   font-family: "SimSun", "宋体", serif;
-  font-size: 12px;
+  font-size: 9pt;
   font-weight: 400;
-  line-height: 16px;
+  line-height: 1.2;
 }
 
 .crrt-table th,
@@ -302,16 +299,16 @@ label {
 .top-table th,
 .top-table td {
   box-sizing: border-box;
-  height: 24px;
+  height: 6mm;
   min-width: 0;
-  padding: 2px 4px;
-  border: 1px solid #000;
+  padding: 0.5mm 1mm;
+  border: 1px solid #000 !important;
   background: #fff;
   color: #000;
   font-family: inherit;
   font-size: inherit;
   font-weight: 400;
-  line-height: 16px;
+  line-height: inherit;
   vertical-align: middle;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -340,11 +337,11 @@ label {
 }
 
 .top-label-col {
-  width: 118px;
+  width: 16%;
 }
 
 .top-content-col {
-  width: 250px;
+  width: 34%;
 }
 
 .label-cell {
@@ -354,7 +351,7 @@ label {
 }
 
 /* =========================================================
-   Generic nested table（外框由父 td 提供）
+   Generic nested table
    ========================================================= */
 
 .nested-table {
@@ -373,10 +370,10 @@ label {
 .nested-table th,
 .nested-table td {
   box-sizing: border-box;
-  height: 21px;
+  height: 5.5mm;
   min-width: 0;
-  padding: 1px 2px;
-  border: 1px solid #000;
+  padding: 0.3mm 0.6mm;
+  border: 1px solid #000 !important;
   overflow: hidden;
   background: #fff;
   color: #000;
@@ -388,7 +385,7 @@ label {
 }
 
 .nested-table .input-label {
-  padding-right: 4px;
+  padding-right: 1mm;
   font-weight: 400;
   text-align: right;
   white-space: nowrap;
@@ -400,21 +397,19 @@ label {
 
 .nested-table .input-cell .unit {
   display: inline;
-  margin-left: 2px;
-  font-size: 11px;
+  margin-left: 0.5mm;
+  font-size: 8pt;
   white-space: nowrap;
 }
 
 /* =========================================================
-   Anticoagulation table（独立 5 列，保留 margin:-1px 压线）
+   Anticoagulation table (independent 5-column table)
    ========================================================= */
 
 .anticoag-table {
   box-sizing: border-box;
-  width: 736px;
-  max-width: 736px;
+  width: 100%;
   margin: -1px 0 0;
-  border: 1px solid #000;
   border-collapse: collapse;
   border-spacing: 0;
   table-layout: fixed;
@@ -427,7 +422,7 @@ label {
   box-sizing: border-box;
   height: 24px;
   min-height: 24px;
-  padding: 2px 6px;
+  padding: 1px 4px;
   border: 1px solid #000;
   background: #fff;
   color: #000;
@@ -436,11 +431,11 @@ label {
   vertical-align: middle;
 }
 
-.anticoag-title-col { width: 67px; }
-.anticoag-left-drug-col { width: 134px; }
-.anticoag-left-dose-col { width: 201px; }
-.anticoag-right-drug-col { width: 134px; }
-.anticoag-right-dose-col { width: 200px; }
+.anticoag-title-col { width: 9.08%; }
+.anticoag-left-drug-col { width: 18.16%; }
+.anticoag-left-dose-col { width: 27.24%; }
+.anticoag-right-drug-col { width: 18.16%; }
+.anticoag-right-dose-col { width: 27.36%; }
 
 .anticoag-title-cell {
   font-weight: 400;
@@ -510,75 +505,86 @@ label {
 }
 
 /* =========================================================
-   CBP + formula unified grid（保留 margin:-1px 压线）
+   CBP + formula unified grid
    ========================================================= */
 
 .cbp-formula-table {
   box-sizing: border-box;
-  width: 736px;
-  max-width: 736px;
+  width: 100%;
   margin: -1px 0 0;
-  border: 1px solid #000;
   border-collapse: collapse;
   border-spacing: 0;
   table-layout: fixed;
   color: #000;
   font-family: "SimSun", "宋体", serif;
-  font-size: 11px;
-  line-height: 14px;
 }
 
 .cbp-formula-table th,
 .cbp-formula-table td {
   box-sizing: border-box;
-  height: 21px;
+  height: 5.5mm;
   min-width: 0;
   padding: 0;
-  border: 1px solid #000;
+  border: 1px solid #000 !important;
   background: #fff;
   color: #000;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 8pt;
   font-weight: 400;
-  line-height: 14px;
+  line-height: 1.1;
   text-align: center;
   vertical-align: middle;
 }
 
-.cbp-group-col { width: 66px; }
-.cbp-name-col { width: 170px; }
-.cbp-value-col { width: 133px; }
-.formula-group-col { width: 89px; }
-.formula-name-col { width: 162px; }
-.formula-value-col { width: 116px; }
+.cbp-group-col {
+  width: 9%;
+}
+
+.cbp-name-col {
+  width: 23%;
+}
+
+.cbp-value-col {
+  width: 18%;
+}
+
+.formula-group-col {
+  width: 12%;
+}
+
+.formula-name-col {
+  width: 22%;
+}
+
+.formula-value-col {
+  width: 16%;
+}
 
 .cbp-group-cell {
-  padding: 1px;
-  font-size: 12px !important;
+  padding: 0.4mm;
+  font-size: 9pt !important;
   font-weight: 700 !important;
-  line-height: 16px;
+  line-height: 1.1;
   text-align: center !important;
   vertical-align: middle;
   white-space: normal;
 }
 
 .formula-group-cell {
-  padding: 1px;
-  font-size: 11px;
+  padding: 0.4mm;
+  font-size: 8pt;
   font-weight: 700 !important;
-  line-height: 14px;
+  line-height: 1.1;
   text-align: center !important;
   vertical-align: middle;
   white-space: normal;
 }
 
 .field-label-cell {
-  padding: 1px 2px !important;
+  padding: 0.4mm 0.6mm !important;
   font-weight: 400;
   text-align: center !important;
   vertical-align: middle;
-  font-size: 11px;
-  line-height: 14px;
 }
 
 .value-cell {
@@ -595,25 +601,25 @@ label {
 
 .cbp-header-row th {
   box-sizing: border-box;
-  height: 22px;
+  height: 5.5mm;
   min-width: 0;
-  padding: 1px 3px;
-  border: 1px solid #000;
+  padding: 0.3mm 0.6mm;
+  border: 1px solid #000 !important;
   background: #fff;
   color: #000;
   font-family: "SimSun", "宋体", serif;
-  font-size: 11px;
+  font-size: 8pt;
   font-weight: 400;
-  line-height: 16px;
+  line-height: 1.1;
   text-align: center;
   vertical-align: middle;
 }
 
 .cbp-header-row .cbp-group-cell {
-  padding: 1px;
-  font-size: 12px;
+  padding: 0.4mm;
+  font-size: 9pt;
   font-weight: 700 !important;
-  line-height: 16px;
+  line-height: 1.1;
 }
 
 .cbp-header-row .column-header-cell {
@@ -643,16 +649,16 @@ label {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  height: 20px;
-  min-height: 20px;
+  height: 5.4mm;
+  min-height: 5.4mm;
   margin: 0;
-  padding: 1px 3px;
+  padding: 0.3mm 0.8mm;
   border: 0;
   border-radius: 0;
   outline: 0;
   background: #fff;
   color: #000;
-  font: 11px/18px "SimSun", "宋体", serif;
+  font: 8pt/1.1 "SimSun", "宋体", serif;
   text-align: center;
   box-shadow: none !important;
 }
@@ -679,57 +685,51 @@ label {
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 20px;
-  min-height: 20px;
-  padding: 1px 3px;
+  height: 5.4mm;
+  min-height: 5.4mm;
+  padding: 0.3mm 0.8mm;
   color: #000;
-  font: 11px/18px "SimSun", "宋体", serif;
+  font: 8pt/1.1 "SimSun", "宋体", serif;
   text-align: center;
-}
-
-/* =========================================================
-   Signature table（保留 margin:-1px 压线）
-   ========================================================= */
-
-.signature-table {
-  width: 736px;
-  max-width: 736px;
-  margin: -1px 0 0;
-  border: 1px solid #000;
-  border-collapse: collapse;
-  border-spacing: 0;
-  table-layout: fixed;
-}
-
-.sig-label-col {
-  width: 118px;
-}
-
-.sig-value-col {
-  width: 250px;
 }
 
 .signature-form-row th,
 .signature-form-row td {
   height: 24px;
   min-height: 24px;
-  font-size: 12px;
-  line-height: 18px;
 }
 
 .signature-form-row th {
+  font-size: 8.5pt;
   font-weight: 400;
   text-align: center;
 }
 
+/* Signature table (separate from CBP) */
+.signature-table {
+  width: 100%;
+  margin: -1px 0 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.sig-label-col {
+  width: 16%;
+}
+
+.sig-value-col {
+  width: 34%;
+}
+
 /* =========================================================
-   Checkbox layouts（统一 px）
+   Checkbox layouts (two-column grid, machine options)
    ========================================================= */
 
 .two-column-options {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0 10px;
+  gap: 0 8px;
   width: 100%;
 }
 
@@ -737,7 +737,7 @@ label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -746,8 +746,8 @@ label {
   align-items: center;
   min-width: 0;
   margin: 0;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 8.5pt;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -764,7 +764,7 @@ label {
   display: grid;
   align-items: center;
   width: 100%;
-  column-gap: 12px;
+  column-gap: 10px;
 }
 
 .machine-options-2 {
@@ -784,15 +784,16 @@ label {
 }
 
 .machine-row-cell {
-  padding: 3px 6px !important;
+  padding: 2px 4px !important;
 }
 
+/* Legacy check-grid (kept for compatibility) */
 .check-grid {
   display: flex;
   align-items: center;
   align-content: center;
   flex-wrap: wrap;
-  gap: 4px 11px;
+  gap: 1mm 3mm;
   width: 100%;
   min-width: 0;
 }
@@ -801,11 +802,11 @@ label {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 3px;
+  gap: 1mm;
   min-width: 0;
   margin: 0;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 8.5pt;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -813,9 +814,9 @@ label {
   box-sizing: border-box;
   display: inline-block;
   flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  min-height: 12px;
+  width: 3.2mm;
+  height: 3.2mm;
+  min-height: 3.2mm;
   margin: 0;
   padding: 0;
 }
@@ -831,8 +832,7 @@ label {
 }
 
 .page-two-form > table {
-  width: 736px;
-  max-width: 736px;
+  width: 100%;
   margin: 0;
   border-collapse: collapse;
   border-spacing: 0;
@@ -848,14 +848,7 @@ label {
    ========================================================= */
 
 .prescription-grid {
-  width: 736px;
-  max-width: 736px;
-  border: 1px solid #000;
-  border-collapse: collapse;
-  border-spacing: 0;
   table-layout: fixed;
-  font-size: 11px;
-  line-height: 14px;
 }
 
 .prescription-grid .rx-label-col {
@@ -871,42 +864,33 @@ label {
 }
 
 .prescription-grid .rx-group-label {
-  font-size: 12px;
+  font-size: 9pt;
   font-weight: 700;
   text-align: center;
   vertical-align: middle;
 }
 
 .prescription-grid .rx-field-label {
-  font-size: 11px;
+  font-size: 8pt;
   font-weight: 400;
   text-align: center;
 }
 
 .prescription-grid .rx-cell {
-  padding: 1px 2px;
+  padding: 0.3mm 0.4mm;
   text-align: center;
-}
-
-.prescription-grid th,
-.prescription-grid td {
-  height: 21px;
-  padding: 1px 2px;
-  border: 1px solid #000;
-  font-size: 11px;
-  line-height: 14px;
 }
 
 .prescription-grid input,
 .prescription-grid select {
-  min-height: 20px;
-  padding: 1px 2px;
-  font-size: 11px;
-  line-height: 18px;
+  min-height: 5mm;
+  padding: 0.2mm 0.3mm;
+  font-size: 7.5pt;
+  text-align: center;
 }
 
 .prescription-grid input[type="datetime-local"] {
-  font-size: 10px;
+  font-size: 7pt;
 }
 
 /* =========================================================
@@ -957,14 +941,7 @@ label {
    ========================================================= */
 
 .order-table {
-  width: 736px;
-  max-width: 736px;
-  border: 1px solid #000;
-  border-collapse: collapse;
-  border-spacing: 0;
   table-layout: fixed;
-  font-size: 11px;
-  line-height: 14px;
 }
 
 .order-table .temp-date-col {
@@ -993,23 +970,18 @@ label {
 
 .order-table th,
 .order-table td {
-  height: 27px;
-  padding: 1px 2px;
-  border: 1px solid #000;
-  font-size: 11px;
-  line-height: 16px;
+  height: 7mm;
+  padding: 0.3mm 0.5mm;
 }
 
 .order-table input,
 .order-table select {
-  min-height: 20px;
-  padding: 1px 2px;
-  font-size: 11px;
-  line-height: 18px;
+  min-height: 6mm;
+  font-size: 8pt;
 }
 
 .order-table input[type="datetime-local"] {
-  font-size: 10px;
+  font-size: 7pt;
 }
 
 .temp-action-cell {
@@ -1124,37 +1096,322 @@ label {
   display: none;
 }
 
-@media screen {
-  .screen-only { display: block !important; }
-  .print-only  { display: none !important; }
-}
-
-/* =========================================================
-   Narrow screens
-   ========================================================= */
-
-@media screen and (max-width: 900px) {
-  .toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 8px 12px;
-  }
-
-  .toolbar-left,
-  .toolbar-right {
-    flex-wrap: wrap;
-    width: 100%;
-  }
-
-  .document-area {
-    padding: 8px 12px;
-    overflow-x: auto;
-  }
+@media screen, print {
+  /*
+   * A4 at 96 CSS dpi:
+   * 794 × 1123px.
+   *
+   * Horizontal padding:
+   * 28px + 28px.
+   *
+   * Available document width:
+   * 794 - 56 = 738px.
+   */
 
   .sheet,
   .crrt-print-page {
-    flex: 0 0 auto;
-    margin: 8px 0;
+    box-sizing: border-box;
+    width: 794px;
+    height: 1123px;
+    min-height: 1123px;
+    max-height: 1123px;
+    padding: 23px 28px 45px;
+    box-shadow: none !important;
+    transform: none !important;
+    zoom: 1 !important;
+    filter: none !important;
+  }
+
+  .sheet h1,
+  .crrt-print-page h1 {
+    margin: 0 0 8px;
+    font-family: SimHei, "黑体", sans-serif;
+    font-size: 23px;
+    font-weight: 700;
+    line-height: 28px;
+  }
+
+  .patient-info {
+    margin: 2px 0 4px;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 17px;
+    line-height: 21px;
+  }
+
+  .patient-info-row {
+    gap: 18px;
+    margin: 2px 0;
+    line-height: 21px;
+  }
+
+  /* 119 + 250 + 119 + 250 = 738px */
+  .top-table .top-label-col {
+    width: 119px;
+  }
+
+  .top-table .top-content-col {
+    width: 250px;
+  }
+
+  .crrt-table,
+  .top-table {
+    width: 738px;
+    max-width: 738px;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .crrt-table th,
+  .crrt-table td,
+  .top-table th,
+  .top-table td {
+    height: 24px;
+    padding: 2px 4px;
+    border: 1px solid #000 !important;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .anticoag-table {
+    width: 738px;
+    max-width: 738px;
+  }
+
+  .anticoag-title-col { width: 67px; }
+  .anticoag-left-drug-col { width: 134px; }
+  .anticoag-left-dose-col { width: 201px; }
+  .anticoag-right-drug-col { width: 134px; }
+  .anticoag-right-dose-col { width: 202px; }
+
+  .anticoag-table th,
+  .anticoag-table td {
+    height: 24px;
+    min-height: 24px;
+    padding: 2px 6px;
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .anticoag-option-cell {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .anticoag-dose-cell {
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .anticoag-dose-cell input[type="number"] {
+    width: 76px;
+    height: 20px;
+    min-height: 20px;
+    font-size: 12px;
+    line-height: 19px;
+  }
+
+  .anticoag-dose-cell .dose-unit {
+    font-size: 12px;
+  }
+
+  .signature-table {
+    width: 738px;
+    max-width: 738px;
+  }
+
+  .signature-form-row th,
+  .signature-form-row td {
+    height: 24px;
+    min-height: 24px;
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .two-column-options {
+    gap: 0 10px;
+  }
+
+  .option-column {
+    gap: 3px;
+  }
+
+  .checkbox-option {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .machine-options {
+    column-gap: 12px;
+  }
+
+  .machine-row-cell {
+    padding: 3px 6px !important;
+  }
+
+  /*
+   * CBP width:
+   * 66 + 170 + 133 + 89 + 162 + 118 = 738px.
+   */
+  .cbp-formula-table {
+    width: 738px;
+    max-width: 738px;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .cbp-formula-table .cbp-group-col {
+    width: 66px;
+  }
+
+  .cbp-formula-table .cbp-name-col {
+    width: 170px;
+  }
+
+  .cbp-formula-table .cbp-value-col {
+    width: 133px;
+  }
+
+  .cbp-formula-table .formula-group-col {
+    width: 89px;
+  }
+
+  .cbp-formula-table .formula-name-col {
+    width: 162px;
+  }
+
+  .cbp-formula-table .formula-value-col {
+    width: 118px;
+  }
+
+  .cbp-formula-table th,
+  .cbp-formula-table td {
+    height: 21px;
+    min-height: 21px;
+    padding: 0;
+    border: 1px solid #000 !important;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .cbp-header-row th {
+    height: 22px;
+    min-height: 22px;
+    padding: 1px 3px;
+    font-size: 11px;
+    line-height: 16px;
+  }
+
+  .cbp-header-row .cbp-group-cell,
+  .cbp-group-cell {
+    font-size: 12px !important;
+    line-height: 16px;
+  }
+
+  .formula-group-cell,
+  .field-label-cell {
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .formula-input,
+  .formula-select,
+  .print-value {
+    width: 100%;
+    height: 20px;
+    min-height: 20px;
+    margin: 0;
+    padding: 1px 3px;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 11px;
+    line-height: 18px;
+  }
+
+  .check-grid {
+    gap: 4px 11px;
+  }
+
+  .check-grid label {
+    gap: 3px;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .page-two-form,
+  .page-two-form > table,
+  .prescription-grid,
+  .order-table {
+    width: 738px;
+    max-width: 738px;
+  }
+
+  .prescription-grid,
+  .order-table {
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .prescription-grid th,
+  .prescription-grid td {
+    height: 21px;
+    padding: 1px 2px;
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .prescription-grid input,
+  .prescription-grid select,
+  .order-table input,
+  .order-table select {
+    min-height: 20px;
+    padding: 1px 2px;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 11px;
+    line-height: 18px;
+  }
+
+  .prescription-grid input[type="datetime-local"],
+  .order-table input[type="datetime-local"] {
+    font-size: 10px;
+    line-height: 18px;
+  }
+
+  .prescription-grid .datetime-row th,
+  .prescription-grid .datetime-row td {
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .datetime-print {
+    min-height: 34px;
+    font-size: 10px;
+    line-height: 14px;
+  }
+
+  .order-table th,
+  .order-table td {
+    height: 27px;
+    padding: 1px 2px;
+    font-size: 11px;
+    line-height: 16px;
+  }
+
+  .sheet-pageno {
+    right: 28px;
+    bottom: 15px;
+    left: 28px;
+    font-size: 13px;
+    line-height: 16px;
+  }
+
+}
+
+@media screen {
+  .screen-only {
+    display: block !important;
+  }
+
+  .print-only {
+    display: none !important;
   }
 }
 
@@ -1260,6 +1517,36 @@ label {
   border-top: 1px solid #e5e7eb;
   background: #f8fafc;
 }
+
+/* =========================================================
+   Narrow screens
+   ========================================================= */
+
+@media screen and (max-width: 900px) {
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 8px 12px;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .document-area {
+    padding: 8px 12px;
+    overflow-x: auto;
+  }
+
+  .sheet,
+  .crrt-print-page {
+    flex: 0 0 auto;
+    margin: 8px 0;
+  }
+}
+
 
 /* =========================================================
    /form/crrtOrderForm 专用最终修复
@@ -1402,8 +1689,8 @@ label {
 
 /* =========================================================
    /form/crrtOrderForm 打印样式（最小化）
-   原则：布局唯一来源是基础层，打印不声明任何尺寸/字号/边框。
-   本块只做四件事：页面设置、隐藏屏幕元素、分页、控件外观。
+   布局唯一来源是 @media screen, print 共享块。
+   本块只做：页面设置、隐藏屏幕外UI、分页、隐藏删除按钮。
    ========================================================= */
 
 @media print {
@@ -1420,43 +1707,25 @@ label {
   }
 
   :host {
-    display: block !important;
     height: auto !important;
     overflow: visible !important;
     background: #fff !important;
   }
 
-  /* ---- 1. 隐藏屏幕专用元素 ---- */
   .toolbar,
   .loading,
   .overlay,
-  .no-print,
-  .order-actions,
-  .screen-only,
-  .print-hidden,
-  .datetime-picker,
-  .temp-action-col,
-  .temp-action-cell {
+  .order-actions {
     display: none !important;
   }
 
-  .print-only {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  /* ---- 2. 容器归零（不改内部布局） ---- */
   .document-area,
   .print-all-container {
-    display: block !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
-    background: #fff !important;
   }
 
-  /* ---- 3. 分页：只去屏幕外边距 + 强制换页，不动尺寸 ---- */
   .sheet,
   .crrt-print-page {
     margin: 0 !important;
@@ -1475,45 +1744,13 @@ label {
     page-break-after: auto !important;
   }
 
-  tr,
-  th,
-  td {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
+  /*
+   * 保留操作列和单元格宽度，只把按钮变透明。
+   * 不允许 display:none，不允许重排列宽。
+   */
+  .temp-action-cell button,
+  .temp-action-cell .btn,
+  .temp-action-cell .danger-small {
+    visibility: hidden !important;
   }
-
-  /* ---- 4. 表单控件外观：只改外观，绝不改尺寸与边框宽度 ---- */
-  input,
-  select,
-  textarea {
-    outline: 0 !important;
-    background: transparent !important;
-    color: #000 !important;
-    -webkit-text-fill-color: #000 !important;
-    opacity: 1 !important;
-    box-shadow: none !important;
-  }
-
-  select {
-    appearance: none !important;
-    -webkit-appearance: none !important;
-    background-image: none !important;
-  }
-
-  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-  input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
-    display: none !important;
-    appearance: none !important;
-    -webkit-appearance: none !important;
-  }
-
-  /* ---- 唯一允许的打印布局差异 ----
-     临时医嘱表的「删除」列在打印时隐藏，剩余 5 列重配至 100%。
-     除本处以外，@media print 不得出现任何列宽/尺寸声明。 */
-  .order-table .temp-date-col    { width: 18% !important; }
-  .order-table .temp-content-col { width: 38% !important; }
-  .order-table .temp-doctor-col  { width: 16% !important; }
-  .order-table .temp-exec-col    { width: 16% !important; }
-  .order-table .temp-nurse-col   { width: 12% !important; }
 }
