@@ -1699,13 +1699,6 @@ label {
     margin: 0;
   }
 
-  html,
-  body {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-  }
-
   :host {
     height: auto !important;
     overflow: visible !important;
@@ -1745,12 +1738,59 @@ label {
   }
 
   /*
-   * 保留操作列和单元格宽度，只把按钮变透明。
-   * 不允许 display:none，不允许重排列宽。
+   * 打印时只显示格式化后的纯文本，
+   * 不打印 select、input 等编辑控件。
    */
-  .temp-action-cell button,
-  .temp-action-cell .btn,
-  .temp-action-cell .danger-small {
-    visibility: hidden !important;
+  .screen-only,
+  .datetime-picker {
+    display: none !important;
+  }
+
+  span.print-only {
+    display: inline !important;
+  }
+
+  div.print-only {
+    display: block !important;
+  }
+
+  .print-value.print-only,
+  .datetime-value.print-only,
+  .datetime-print.print-only {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /*
+   * 正式打印不显示"操作"列。
+   */
+  .temp-action-col,
+  .temp-action-cell {
+    display: none !important;
+  }
+
+  /*
+   * 隐藏操作列后，仅重新分配临时医嘱五列。
+   * 不修改其他任何表格。
+   */
+  .order-table .temp-date-col {
+    width: 18% !important;
+  }
+
+  .order-table .temp-content-col {
+    width: 38% !important;
+  }
+
+  .order-table .temp-doctor-col {
+    width: 16% !important;
+  }
+
+  .order-table .temp-exec-col {
+    width: 16% !important;
+  }
+
+  .order-table .temp-nurse-col {
+    width: 12% !important;
   }
 }
