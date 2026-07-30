@@ -38,6 +38,69 @@ const DOCTOR_PROFS = ['director', 'doctor'];
 const NURSE_PROFS = ['nurse', 'matron'];
 const ADMIN_PROFS = ['systemadmin', 'admin'];
 
+/** crrtOrderForm 专用打印 CSS：物理单位 + flex 布局 */
+const CRRT_ORDER_PRINT_CSS = `
+@page{size:A4 portrait;margin:0}
+html,body{margin:0;padding:0;background:#fff;color:#000;font-family:'SimSun','宋体',serif}
+
+/* 页面容器：flex 纵向分配 */
+.print-page{
+  box-sizing:border-box;
+  display:flex;flex-direction:column;
+  width:210mm;height:297mm;
+  margin:0;padding:7mm 7mm 10mm;
+  overflow:hidden;
+  break-after:page;page-break-after:always;
+  background:#fff;
+}
+.print-page:last-child{break-after:auto;page-break-after:auto}
+
+/* 页头：固定高度 */
+.ph{flex:0 0 auto;margin:0 0 3mm}
+.ph h1{margin:0 0 2mm;font:700 14pt/1.2 'SimHei','黑体',sans-serif;text-align:center}
+.pi{display:flex;flex-wrap:wrap;gap:3mm;font:10pt/1.3 'SimSun','宋体',serif}
+.pi span{flex:0 0 auto;white-space:nowrap}
+.pi.dx{margin:1mm 0 0}
+
+/* 主体：弹性填充 */
+.pm{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:2mm}
+
+/* 页脚：固定高度 */
+.pf{flex:0 0 8mm;display:flex;align-items:flex-end;justify-content:center;font:10pt/1 'SimSun','宋体',serif}
+
+/* 通用表格 */
+.t{box-sizing:border-box;width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed;font:9pt/1.2 'SimSun','宋体',serif}
+.t th,.t td{box-sizing:border-box;border:0.25mm solid #000;background:#fff;padding:0.8mm 1mm;vertical-align:middle;text-align:center}
+.t th{font-weight:700}
+
+/* 各业务表格 */
+.top-t th,.top-t td{height:7mm}
+.anticoag-t th,.anticoag-t td{height:7mm}
+.anticoag-t .dose-c{text-align:left;padding-left:2mm}
+.cbp-t th,.cbp-t td{height:6mm}
+.cbp-t .vc{text-align:center}
+.sig-t th,.sig-t td{height:7mm}
+
+/* 第二页处方表 */
+.rx-t{margin:0 0 2mm}
+.rx-t th,.rx-t td{height:6mm}
+
+/* 临时医嘱区域：弹性填充 */
+.orders-region{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.order-t{flex:1 1 auto}
+.order-t th,.order-t td{height:7mm;border:0.25mm solid #000}
+.order-t thead th{font-weight:700;background:#f5f5f5}
+
+/* 数值居中 */
+.vc{text-align:center}
+
+/* 复选框 */
+.pc{font-size:11pt;line-height:1}
+
+/* 日期时间两行 */
+.dt-d,.dt-t{display:block;font:8pt/1.2 'SimSun','宋体',serif;white-space:nowrap}
+`;
+
 @Component({
   standalone: false, selector: 'app-crrt-order-form',
   templateUrl: './crrt-order-form.component.html', styleUrls: ['./crrt-order-form.component.css'],
@@ -366,106 +429,154 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     }
   }
 
-  /* 收集打印页 DOM */
+  /* 收集打印页：构建纯打印 HTML */
   private collectPrintPages(rec: CrrtOrderFormRecord, pageFilter: number | null): string[] {
-    const nativeEl = this.printArea?.nativeElement;
-    if (!nativeEl) return [];
-    const sections = nativeEl.querySelectorAll<HTMLElement>('.sheet.crrt-print-page');
-    if (!sections.length) return [];
     const pages: string[] = [];
-    sections.forEach((section, i) => {
-      if (pageFilter !== null && i + 1 !== pageFilter) return;
-      const clone = section.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll('.no-print, .screen-only, .datetime-picker').forEach(n => n.remove());
-      clone.querySelectorAll<HTMLElement>('.temp-action-col, .temp-action-cell').forEach(el => el.style.display = 'none');
-      clone.querySelectorAll<HTMLElement>('.print-only').forEach(el => {
-        if (el.tagName === 'SPAN') el.style.display = 'inline';
-        else el.style.display = 'block';
-      });
-      clone.querySelectorAll<HTMLElement>('.print-value.print-only, .datetime-value.print-only, .datetime-print.print-only').forEach(el => {
-        el.style.display = 'flex';
-        el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
-      });
-      clone.querySelectorAll<HTMLElement>('.order-table .temp-date-col').forEach(el => el.style.width = '18%');
-      clone.querySelectorAll<HTMLElement>('.order-table .temp-content-col').forEach(el => el.style.width = '38%');
-      clone.querySelectorAll<HTMLElement>('.order-table .temp-doctor-col').forEach(el => el.style.width = '16%');
-      clone.querySelectorAll<HTMLElement>('.order-table .temp-exec-col').forEach(el => el.style.width = '16%');
-      clone.querySelectorAll<HTMLElement>('.order-table .temp-nurse-col').forEach(el => el.style.width = '12%');
-      pages.push(`<div class="print-page">${clone.outerHTML}</div>`);
-    });
+    if (pageFilter === null || pageFilter === 1) {
+      pages.push(this.buildPage1Html(rec));
+    }
+    if (pageFilter === null || pageFilter === 2) {
+      pages.push(this.buildPage2Html(rec));
+    }
     return pages;
+  }
+
+  /* 构建第1页纯打印 HTML */
+  private buildPage1Html(r: CrrtOrderFormRecord): string {
+    const esc = (s: string) => s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+    const num = (v: number | null) => v != null ? String(v) : '';
+    const chk = (arr: string[], val: string) => arr.includes(val) ? '<span class="pc">&#x2611;</span>' : '<span class="pc">&#x2610;</span>';
+    const dt = (v: string) => { const p = this.dateTimeParts(v); return p.date ? `<span class="dt-d">${p.date}</span><span class="dt-t">${p.time}</span>` : ''; };
+    const sig = (s: SignatureValue | null) => esc(s?.accountName || '');
+
+    return `<div class="print-page page-one">
+<header class="ph"><h1>重钢总医院连续性血液净化治疗医嘱单</h1>
+<div class="pi"><span><b>科室：</b>${esc(r.department)}</span><span><b>姓名：</b>${esc(r.patientName)}</span><span><b>床号：</b>${esc(r.bedNo)}</span><span><b>住院号：</b>${esc(r.hospitalNo)}</span><span><b>年龄：</b>${esc(r.age)}</span><span><b>性别：</b>${esc(r.gender)}</span></div>
+<div class="pi dx"><b>诊断：</b>${esc(r.diagnosis)}</div>
+</header>
+<main class="pm">
+<table class="t top-t"><colgroup><col style="width:28mm"/><col style="width:60mm"/><col style="width:28mm"/><col style="width:60mm"/></colgroup>
+<tbody>
+<tr><th rowspan="2">血管通路</th><td>${chk(r.vascularAccess,'右侧股静脉')}&nbsp;右侧股静脉 ${chk(r.vascularAccess,'右侧颈内静脉')}&nbsp;右侧颈内静脉 ${chk(r.vascularAccess,'右侧锁骨下静脉')}&nbsp;右侧锁骨下静脉 ${chk(r.vascularAccess,'动静脉内瘘')}&nbsp;动静脉内瘘</td>
+<th rowspan="2">治疗模式</th><td>${chk(r.treatmentModes,'CVVH')}&nbsp;CVVH ${chk(r.treatmentModes,'CVVHD')}&nbsp;CVVHD ${chk(r.treatmentModes,'CVVHDF')}&nbsp;CVVHDF ${chk(r.treatmentModes,'SCUF')}&nbsp;SCUF ${chk(r.treatmentModes,'HP')}&nbsp;HP</td></tr>
+<tr><td>${chk(r.vascularAccess,'左侧股静脉')}&nbsp;左侧股静脉 ${chk(r.vascularAccess,'左侧颈内静脉')}&nbsp;左侧颈内静脉 ${chk(r.vascularAccess,'左侧锁骨下静脉')}&nbsp;左侧锁骨下静脉 ${chk(r.vascularAccess,'ECMO')}&nbsp;ECMO</td>
+<td>${chk(r.treatmentModes,'PE')}&nbsp;PE ${chk(r.treatmentModes,'DPMAS')}&nbsp;DPMAS ${chk(r.treatmentModes,'DFPP')}&nbsp;DFPP ${chk(r.treatmentModes,'CPFA')}&nbsp;CPFA ${chk(r.treatmentModes,'ECCO2R')}&nbsp;ECCO2R</td></tr>
+<tr><th rowspan="6">机型耗材</th><td colspan="3">${chk(r.machineConsumables,'machine-gambro')}&nbsp;金宝 ${chk(r.machineConsumables,'machine-nikkiso')}&nbsp;日机装 ${chk(r.machineConsumables,'machine-shanwaishan')}&nbsp;山外山 ${chk(r.machineConsumables,'machine-bbraun')}&nbsp;贝朗</td></tr>
+<tr><td colspan="3">${chk(r.machineConsumables,'filter-m150')}&nbsp;M150 ${chk(r.machineConsumables,'circuit-nikkiso')}&nbsp;血液滤过管路（日机装） ${chk(r.machineConsumables,'circuit-twt-cbp-02p')}&nbsp;TWT-CBP-02P（山外山） ${chk(r.machineConsumables,'circuit-bbraun')}&nbsp;一次性使用体外循环血路（贝朗）</td></tr>
+<tr><td colspan="3">${chk(r.machineConsumables,'av600s-nikkiso')}&nbsp;AV600S ${chk(r.machineConsumables,'av600s-shanwaishan')}&nbsp;AV600S ${chk(r.machineConsumables,'av600s-bbraun')}&nbsp;AV600S ${chk(r.machineConsumables,'cartridge-ha330')}&nbsp;HA330 ${chk(r.machineConsumables,'cartridge-ha330-ii')}&nbsp;HA330-II</td></tr>
+<tr><td colspan="3">${chk(r.machineConsumables,'plasma-separator')}&nbsp;膜式血浆分离器 ${chk(r.machineConsumables,'filter-bs330')}&nbsp;BS330 ${chk(r.machineConsumables,'secondary-membrane-ec-50w')}&nbsp;二级膜 EC-50W</td></tr>
+<tr><td colspan="3">${chk(r.machineConsumables,'filter-st150')}&nbsp;ST150 ${chk(r.machineConsumables,'filter-oxiris')}&nbsp;OXIRIS</td></tr>
+<tr><td colspan="3"></td></tr>
+</tbody></table>
+
+<table class="t anticoag-t"><colgroup><col style="width:20mm"/><col style="width:32mm"/><col style="width:48mm"/><col style="width:32mm"/><col style="width:44mm"/></colgroup>
+<tbody>
+<tr><th rowspan="5">抗凝<br/>方式</th><td colspan="2">${chk(r.anticoagulation.types,'无肝素')}&nbsp;无肝素</td><td>${chk(r.anticoagulation.types,'4%枸橼酸钠')}&nbsp;4%枸橼酸钠</td><td class="dose-c">维持量(ml/h)：${num(r.anticoagulation.citrateMaintenance)}</td></tr>
+<tr><td rowspan="2">${chk(r.anticoagulation.types,'肝素钠')}&nbsp;肝素钠<br/>${chk(r.anticoagulation.types,'低分子肝素')}&nbsp;低分子肝素</td><td class="dose-c">首量(ml)：${num(r.anticoagulation.heparinGroupFirstDose)}</td><td>${chk(r.anticoagulation.types,'10%葡萄糖酸钙')}&nbsp;10%葡萄糖酸钙</td><td class="dose-c">维持量(ml/h)：${num(r.anticoagulation.calciumMaintenance)}</td></tr>
+<tr><td class="dose-c">维持量(ml/h)：${num(r.anticoagulation.heparinGroupMaintenance)}</td><td rowspan="2">${chk(r.anticoagulation.types,'甲磺酸萘莫司他')}&nbsp;甲磺酸萘莫司他</td><td class="dose-c">首量(ml)：${num(r.anticoagulation.nafamostatFirstDose)}</td></tr>
+<tr><td rowspan="2">${chk(r.anticoagulation.types,'低分子肝素钠')}&nbsp;低分子肝素钠</td><td class="dose-c">首量(ml)：${num(r.anticoagulation.lowMolecularSodiumFirstDose)}</td><td class="dose-c">维持量(ml/h)：${num(r.anticoagulation.nafamostatMaintenance)}</td></tr>
+<tr><td class="dose-c">维持量(ml/h)：${num(r.anticoagulation.lowMolecularSodiumMaintenance)}</td><td colspan="2"></td></tr>
+</tbody></table>
+
+<table class="t cbp-t"><colgroup><col style="width:20mm"/><col style="width:38mm"/><col style="width:30mm"/><col style="width:24mm"/><col style="width:36mm"/><col style="width:28mm"/></colgroup>
+<tbody>
+<tr><th rowspan="10">CBP<br/>剂量</th><th>名称</th><th>参数</th><th rowspan="4">置换液<br/>配方(A)</th><th>名称</th><th>参数</th></tr>
+<tr><td>前置换(ml/h)</td><td class="vc">${num(r.cbpDose.preReplacement)}</td><td>基础液(ml)</td><td class="vc">${num(r.replacementFormulaA.baseSolution)}</td></tr>
+<tr><td>后置换(ml/h)</td><td class="vc">${num(r.cbpDose.postReplacement)}</td><td>10%KCL(g)</td><td class="vc">${num(r.replacementFormulaA.potassiumChloride)}</td></tr>
+<tr><td>透析液(ml/h)</td><td class="vc">${num(r.cbpDose.dialysate)}</td><td>10%NaCl(g)</td><td class="vc">${num(r.replacementFormulaA.sodiumChloride)}</td></tr>
+<tr><td>5%碳酸氢钠(ml/h)</td><td class="vc">${num(r.cbpDose.sodiumBicarbonate)}</td><th rowspan="3">透析液<br/>配方(a)</th><td>基础液(ml)</td><td class="vc">${num(r.dialysateFormulaA.baseSolution)}</td></tr>
+<tr><td>分浆速度(ml/h)</td><td class="vc">${num(r.cbpDose.plasmaSeparationSpeed)}</td><td>10%KCL(g)</td><td class="vc">${num(r.dialysateFormulaA.potassiumChloride)}</td></tr>
+<tr><td>弃浆速度(ml/h)</td><td class="vc">${num(r.cbpDose.plasmaDiscardSpeed)}</td><td>10%NaCl(g)</td><td class="vc">${num(r.dialysateFormulaA.sodiumChloride)}</td></tr>
+<tr><td>补浆速度(ml/h)</td><td class="vc">${num(r.cbpDose.plasmaReplacementSpeed)}</td><th rowspan="3">治疗<br/>计划</th><td>血流量(ml/min)</td><td class="vc">${num(r.treatmentPlan.bloodFlow)}</td></tr>
+<tr><td>血浆置换总量(ml)</td><td class="vc">${num(r.cbpDose.totalPlasmaExchange)}</td><td>预计治疗时间(h)</td><td class="vc">${num(r.treatmentPlan.estimatedHours)}</td></tr>
+<tr><td></td><td></td><td>超滤率(ml/h)</td><td class="vc">${num(r.treatmentPlan.ultrafiltrationRate)}</td></tr>
+</tbody></table>
+
+<table class="t sig-t"><colgroup><col style="width:28mm"/><col style="width:60mm"/><col style="width:28mm"/><col style="width:60mm"/></colgroup>
+<tbody>
+<tr><th>医嘱时间</th><td class="vc">${this.displayTime(r.orderTime)}</td><th>医生签名</th><td class="vc">${sig(r.doctorSignature)}</td></tr>
+<tr><th>上机护士</th><td class="vc">${sig(r.machineNurseSignature)}</td><th>核对护士</th><td class="vc">${sig(r.checkNurseSignature)}</td></tr>
+</tbody></table>
+</main>
+<footer class="pf">第 1 页　共 2 页</footer>
+</div>`;
+  }
+
+  /* 构建第2页纯打印 HTML */
+  private buildPage2Html(r: CrrtOrderFormRecord): string {
+    const esc = (s: string) => s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+    const num = (v: number | null) => v != null ? String(v) : '';
+    const dt = (v: string) => { const p = this.dateTimeParts(v); return p.date ? `<span class="dt-d">${p.date}</span><span class="dt-t">${p.time}</span>` : ''; };
+    const sig = (s: SignatureValue | null) => esc(s?.accountName || '');
+
+    const rxRows = (items: PrescriptionColumn[], label: string) => {
+      const cols = items.map(it => `<td class="vc">${dt(it.dateTime)}</td>`).join('');
+      const codes = items.map(it => `<td class="vc">${esc(it.code)}</td>`).join('');
+      const base = items.map(it => `<td class="vc">${num(it.baseSolution)}</td>`).join('');
+      const kcl = items.map(it => `<td class="vc">${num(it.potassiumChloride)}</td>`).join('');
+      const nacl = items.map(it => `<td class="vc">${num(it.sodiumChloride)}</td>`).join('');
+      const doc = items.map(it => `<td class="vc">${sig(it.doctorSignature)}</td>`).join('');
+      const exec = items.map(it => `<td class="vc">${dt(it.executionTime)}</td>`).join('');
+      const nurse = items.map(it => `<td class="vc">${sig(it.nurseSignature)}</td>`).join('');
+      const n = items.length;
+      return `<tr><th rowspan="5">${label}</th><th>日期时间</th>${cols}</tr>
+<tr><th>处方</th>${codes}</tr>
+<tr><th>基础液(ml)</th>${base}</tr>
+<tr><th>10%KCL(g)</th>${kcl}</tr>
+<tr><th>10%NaCl(g)</th>${nacl}</tr>
+<tr><th colspan="2">医生签名：</th>${doc}</tr>
+<tr><th colspan="2">执行时间：</th>${exec}</tr>
+<tr><th colspan="2">护士签名：</th>${nurse}</tr>`;
+    };
+
+    const orderRows = r.orderItems.map(it => {
+      return `<tr><td class="vc">${dt(it.dateTime)}</td><td>${esc(it.content)}</td><td class="vc">${sig(it.doctorSignature)}</td><td class="vc">${dt(it.executionTime)}</td><td class="vc">${sig(it.nurseSignature)}</td></tr>`;
+    }).join('');
+    // 补齐空行使表格占满
+    const emptyRows = Math.max(0, 8 - r.orderItems.length);
+    const emptyRow = '<tr><td class="vc"></td><td></td><td class="vc"></td><td class="vc"></td><td class="vc"></td></tr>';
+    const paddedRows = orderRows + emptyRow.repeat(emptyRows);
+
+    const rxN = Math.max(r.replacementPrescriptions.length, 1);
+    const rxColStyle = `<col style="width:20mm"/><col style="width:28mm"/>` + `<col style="width:${Math.floor(128/rxN)}mm"/>`.repeat(rxN);
+
+    return `<div class="print-page page-two">
+<header class="ph"><h1>重钢总医院连续性血液净化治疗医嘱单</h1>
+<div class="pi"><span><b>科室：</b>${esc(r.department)}</span><span><b>姓名：</b>${esc(r.patientName)}</span><span><b>床号：</b>${esc(r.bedNo)}</span><span><b>住院号：</b>${esc(r.hospitalNo)}</span><span><b>年龄：</b>${esc(r.age)}</span><span><b>性别：</b>${esc(r.gender)}</span></div>
+<div class="pi dx"><b>诊断：</b>${esc(r.diagnosis)}</div>
+</header>
+<main class="pm">
+<table class="t rx-t"><colgroup>${rxColStyle}</colgroup><tbody>${rxRows(r.replacementPrescriptions, '置换液<br/>配方')}</tbody></table>
+<table class="t rx-t"><colgroup>${rxColStyle}</colgroup><tbody>${rxRows(r.dialysatePrescriptions, '透析液<br/>配方')}</tbody></table>
+<div class="orders-region">
+<table class="t order-t"><colgroup><col style="width:18%"/><col style="width:38%"/><col style="width:16%"/><col style="width:16%"/><col style="width:12%"/></colgroup>
+<thead><tr><th>日期时间</th><th>医嘱内容</th><th>医生签名</th><th>执行时间</th><th>护士签名</th></tr></thead>
+<tbody>${paddedRows}</tbody></table>
+</div>
+</main>
+<footer class="pf">第 2 页　共 2 页</footer>
+</div>`;
   }
 
   /* 打开独立打印窗口 */
   private openDedicatedPrintWindow(pages: string[], title: string): void {
     const body = pages.join('');
-    const componentStyles = Array.from(document.querySelectorAll('style')).map(s => s.textContent || '').join('\n');
-    const printCss = `
-@page { size: A4 portrait; margin: 0; }
-html, body { margin: 0; padding: 0; background: #fff; }
-.print-page {
-  box-sizing: border-box;
-  width: 210mm;
-  height: 297mm;
-  margin: 0;
-  overflow: hidden;
-  break-after: page;
-  page-break-after: always;
-  background: #fff;
-}
-.print-page:last-child { break-after: auto; page-break-after: auto; }
-.sheet, .crrt-print-page {
-  box-sizing: border-box;
-  width: 210mm;
-  height: 297mm;
-  margin: 0;
-  padding: 6mm 7mm 12mm;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: none !important;
-  color: #000;
-}
-.sheet h1, .crrt-print-page h1 {
-  margin: 0 0 2mm;
-  font: 700 17pt/1.2 SimHei, "黑体", sans-serif;
-  text-align: center;
-}
-.patient-info { font-size: 13pt; line-height: 1.2; }
-.patient-info-row { gap: 12px; margin: 2px 0; }
-.sheet-pageno {
-  position: absolute;
-  right: 7mm;
-  bottom: 4mm;
-  left: 7mm;
-  margin: 0;
-  font: 10pt/1 "SimSun", "宋体", serif;
-  text-align: center;
-}
-.toolbar, .loading, .overlay, .no-print, .order-actions,
-.screen-only, .datetime-picker, .temp-action-col, .temp-action-cell {
-  display: none !important;
-}
-.print-only { display: block !important; }
-span.print-only { display: inline !important; }
-.print-value.print-only, .datetime-value.print-only, .datetime-print.print-only {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-`;
     const pw = window.open('', '_blank', 'width=900,height=700');
     if (!pw) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
-    pw.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${title}</title><style>${componentStyles}</style><style>${printCss}</style></head><body>${body}</body></html>`);
+    pw.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${title}</title><style>${CRRT_ORDER_PRINT_CSS}</style></head><body>${body}</body></html>`);
     pw.document.close();
     const run = () => {
       const doc: any = pw.document;
       (doc.fonts?.ready || Promise.resolve()).then(() => {
         requestAnimationFrame(() => requestAnimationFrame(() => {
           let ok = true;
-          pw.document.querySelectorAll<HTMLElement>('.sheet').forEach((sh, i) => {
-            if (sh.scrollHeight > sh.clientHeight + 1) {
-              console.error(`第${i + 1}页内容溢出 ${sh.scrollHeight - sh.clientHeight}px`);
+          pw.document.querySelectorAll<HTMLElement>('.print-page').forEach((pg, i) => {
+            if (pg.scrollHeight > pg.clientHeight + 1) {
+              console.error(`第${i+1}页溢出 ${pg.scrollHeight - pg.clientHeight}px`, { clientHeight: pg.clientHeight, scrollHeight: pg.scrollHeight });
+              ok = false;
+            }
+            if (pg.scrollWidth > pg.clientWidth + 1) {
+              console.error(`第${i+1}页水平溢出 ${pg.scrollWidth - pg.clientWidth}px`);
               ok = false;
             }
           });
