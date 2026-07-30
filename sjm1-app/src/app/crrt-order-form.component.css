@@ -1544,201 +1544,6 @@ label {
   }
 }
 
-/* =========================================================
-   Print
-   ========================================================= */
-
-@media print {
-  @page {
-    size: A4 portrait;
-    margin: 0;
-  }
-
-  :host {
-    display: block;
-    width: 210mm !important;
-    height: auto;
-    overflow: visible;
-    background: #fff;
-  }
-
-  .no-print,
-  .toolbar,
-  .loading,
-  .overlay,
-  .order-actions,
-  .screen-only {
-    display: none !important;
-  }
-
-  .print-only {
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .document-area,
-  .print-all-container {
-    display: block !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-
-  .sheet,
-  .crrt-print-page {
-    box-sizing: border-box !important;
-    position: relative !important;
-    display: block !important;
-    width: 210mm !important;
-    max-width: none !important;
-    height: 297mm !important;
-    min-height: 297mm !important;
-    max-height: 297mm !important;
-    margin: 0 !important;
-    padding: 6mm 7mm 12mm !important;
-    overflow: hidden !important;
-    background: #fff !important;
-    box-shadow: none !important;
-    transform: none !important;
-    zoom: 1 !important;
-    filter: none !important;
-    break-after: page !important;
-    page-break-after: always !important;
-  }
-
-  .sheet:last-child,
-  .crrt-print-page:last-child {
-    break-after: auto !important;
-    page-break-after: auto !important;
-  }
-
-  .crrt-table,
-  .top-table,
-  .anticoag-table,
-  .cbp-formula-table,
-  .page-two-form,
-  .page-two-form > table {
-    width: 100% !important;
-    max-width: none !important;
-    table-layout: fixed !important;
-    transform: none !important;
-  }
-
-  .crrt-table tr,
-  .top-table tr,
-  .anticoag-table tr,
-  .cbp-formula-table tr {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-
-  .crrt-table th,
-  .crrt-table td,
-  .top-table th,
-  .top-table td,
-  .anticoag-table th,
-  .anticoag-table td,
-  .cbp-formula-table th,
-  .cbp-formula-table td {
-    border: 1px solid #000 !important;
-    background: #fff !important;
-    color: #000 !important;
-  }
-
-  .anticoag-table {
-    width: 100% !important;
-    max-width: none !important;
-  }
-
-  .anticoag-table th,
-  .anticoag-table td {
-    height: 24px !important;
-    min-height: 24px !important;
-    padding: 1px 4px !important;
-    border: 1px solid #000 !important;
-  }
-
-  .anticoag-dose-cell input[type="number"] {
-    border-bottom: 1px solid #000 !important;
-  }
-
-  .signature-table {
-    width: 100% !important;
-    max-width: none !important;
-  }
-
-  input,
-  select,
-  textarea {
-    border: 0 !important;
-    outline: 0 !important;
-    opacity: 1 !important;
-    background: transparent !important;
-    box-shadow: none !important;
-    color: #000 !important;
-    -webkit-text-fill-color: #000 !important;
-    -webkit-text-stroke: 0 !important;
-  }
-
-  select {
-    appearance: none;
-    -webkit-appearance: none;
-    background-image: none !important;
-  }
-
-  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
-  input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
-    display: none !important;
-    margin: 0 !important;
-    appearance: none !important;
-    -webkit-appearance: none !important;
-  }
-
-  .temp-action-col,
-  .temp-action-cell {
-    display: none !important;
-  }
-
-  .order-table .temp-date-col {
-    width: 18%;
-  }
-
-  .order-table .temp-content-col {
-    width: 38%;
-  }
-
-  .order-table .temp-doctor-col {
-    width: 16%;
-  }
-
-  .order-table .temp-exec-col {
-    width: 16%;
-  }
-
-  .order-table .temp-nurse-col {
-    width: 12%;
-  }
-
-  .datetime-print {
-    display: flex !important;
-    min-height: 8mm;
-    padding: 0.4mm 0;
-    font-size: 7.5pt;
-    line-height: 1.25;
-  }
-
-  .prescription-grid .datetime-row th,
-  .prescription-grid .datetime-row td {
-    height: 9mm !important;
-    min-height: 9mm !important;
-  }
-
-  .print-hidden {
-    display: none !important;
-  }
-}
 
 /* =========================================================
    /form/crrtOrderForm 专用最终修复
@@ -1879,9 +1684,10 @@ label {
   -webkit-text-fill-color: #000;
 }
 
-/* ---------------------------------------------------------
-   唯一一套打印规则
-   --------------------------------------------------------- */
+/* =========================================================
+   /form/crrtOrderForm 最终打印样式
+   仅作用于打印，不影响页面编辑状态
+   ========================================================= */
 
 @media print {
   @page {
@@ -1890,7 +1696,7 @@ label {
   }
 
   :host {
-    display: block;
+    display: block !important;
     width: 210mm !important;
     height: auto !important;
     margin: 0 !important;
@@ -1899,11 +1705,33 @@ label {
     background: #fff !important;
   }
 
+  html,
+  body {
+    width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  /* 隐藏非打印元素 */
   .toolbar,
   .loading,
   .overlay,
   .no-print,
-  .order-actions {
+  .screen-only,
+  .order-actions,
+  .temp-action-col,
+  .temp-action-cell {
+    display: none !important;
+  }
+
+  .print-only {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .print-hidden {
     display: none !important;
   }
 
@@ -1914,29 +1742,47 @@ label {
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
+    background: #fff !important;
   }
 
+  /*
+   * 保持界面版的A4内部尺寸：
+   * 210mm约等于794 CSS px
+   * 左右各28px后，内容宽度约738px
+   */
   .sheet,
   .crrt-print-page {
     box-sizing: border-box !important;
     position: relative !important;
     display: block !important;
+
     width: 210mm !important;
     min-width: 210mm !important;
     max-width: 210mm !important;
+
     height: 297mm !important;
     min-height: 297mm !important;
     max-height: 297mm !important;
+
     margin: 0 !important;
-    padding: 6mm 7mm 12mm !important;
+    padding: 23px 28px 45px !important;
     overflow: hidden !important;
+
     background: #fff !important;
+    color: #000 !important;
     box-shadow: none !important;
+
     transform: none !important;
     zoom: 1 !important;
     filter: none !important;
+
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
     break-after: page !important;
     page-break-after: always !important;
+
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .sheet:last-child,
@@ -1945,80 +1791,280 @@ label {
     page-break-after: auto !important;
   }
 
-  .order-page-one .top-table {
-    height: 76mm !important;
+  /* 标题与界面保持一致 */
+  .sheet h1,
+  .crrt-print-page h1 {
+    margin: 0 0 8px !important;
+    color: #000 !important;
+    font-family: SimHei, "黑体", sans-serif !important;
+    font-size: 23px !important;
+    font-weight: 700 !important;
+    line-height: 28px !important;
+    text-align: center !important;
+    white-space: nowrap !important;
   }
 
-  .order-page-one .anticoag-table {
-    height: 42mm !important;
-  }
-
-  .order-page-one .cbp-formula-table {
-    height: 92mm !important;
-  }
-
-  .order-page-one .signature-table {
-    height: 18mm !important;
-  }
-
-  .order-page-one .top-table th,
-  .order-page-one .top-table td,
-  .order-page-one .anticoag-table th,
-  .order-page-one .anticoag-table td,
-  .order-page-one .cbp-formula-table th,
-  .order-page-one .cbp-formula-table td,
-  .order-page-one .signature-table th,
-  .order-page-one .signature-table td {
-    border: 1px solid #000 !important;
-    vertical-align: middle !important;
-  }
-
-  .order-page-two .page-two-form,
-  .order-page-two .prescription-grid,
-  .order-page-two .order-table {
+  /* 患者信息与界面保持一致 */
+  .patient-info {
     width: 100% !important;
-    max-width: 100% !important;
+    margin: 2px 0 4px !important;
+    color: #000 !important;
+    font-family: "SimSun", "宋体", serif !important;
+    font-size: 17px !important;
+    font-weight: 400 !important;
+    line-height: 21px !important;
+  }
+
+  .patient-info-row {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    gap: 18px !important;
+    margin: 2px 0 !important;
+    line-height: 21px !important;
+    white-space: nowrap !important;
+  }
+
+  /*
+   * 关键修复：
+   * 取消旧打印样式给整张表格设置的固定毫米高度。
+   * 否则浏览器会强制拉伸每一行。
+   */
+  .order-page-one .top-table,
+  .order-page-one .anticoag-table,
+  .order-page-one .cbp-formula-table,
+  .order-page-one .signature-table {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  /* 主表格完全沿用屏幕端宽度和排版 */
+  .crrt-table,
+  .top-table,
+  .anticoag-table,
+  .cbp-formula-table,
+  .signature-table,
+  .page-two-form,
+  .page-two-form > table,
+  .prescription-grid,
+  .order-table {
+    box-sizing: border-box !important;
+    width: 738px !important;
+    max-width: 738px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
     border-collapse: collapse !important;
     border-spacing: 0 !important;
     table-layout: fixed !important;
+    transform: none !important;
   }
 
-  .order-page-two th,
-  .order-page-two td {
+  .crrt-table,
+  .top-table {
+    color: #000 !important;
+    font-family: "SimSun", "宋体", serif !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    line-height: 16px !important;
+  }
+
+  .crrt-table th,
+  .crrt-table td,
+  .top-table th,
+  .top-table td {
     box-sizing: border-box !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    padding: 2px 4px !important;
     border: 1px solid #000 !important;
     background: #fff !important;
     color: #000 !important;
+    font-family: "SimSun", "宋体", serif !important;
+    font-size: 12px !important;
+    line-height: 16px !important;
+    vertical-align: middle !important;
   }
 
-  .datetime-picker {
-    display: none !important;
+  /* 第一部分列宽与界面一致 */
+  .top-table .top-label-col {
+    width: 119px !important;
   }
 
-  .datetime-value {
-    display: flex !important;
-    min-height: 8mm !important;
-    padding: 0.4mm 0.2mm !important;
-    overflow: hidden !important;
+  .top-table .top-content-col {
+    width: 250px !important;
+  }
+
+  /* 抗凝表格 */
+  .anticoag-title-col {
+    width: 67px !important;
+  }
+
+  .anticoag-left-drug-col {
+    width: 134px !important;
+  }
+
+  .anticoag-left-dose-col {
+    width: 201px !important;
+  }
+
+  .anticoag-right-drug-col {
+    width: 134px !important;
+  }
+
+  .anticoag-right-dose-col {
+    width: 202px !important;
+  }
+
+  .anticoag-table th,
+  .anticoag-table td {
+    box-sizing: border-box !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    padding: 2px 6px !important;
+    border: 1px solid #000 !important;
     background: #fff !important;
     color: #000 !important;
-    font-size: 7.5pt !important;
-    line-height: 1.2 !important;
+    font-family: "SimSun", "宋体", serif !important;
+    font-size: 12px !important;
+    line-height: 18px !important;
+    vertical-align: middle !important;
+  }
+
+  .dose-inline-row {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  .dose-inline-row .dose-label {
+    flex: 0 0 auto !important;
+    min-width: 72px !important;
+    font-size: 12px !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+  }
+
+  .dose-inline-row .dose-input {
+    display: inline-block !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 34px !important;
+    max-width: 76px !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    margin: 0 !important;
+    padding: 0 3px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #000 !important;
+    font: 12px/19px "SimSun", "宋体", serif !important;
+    text-align: center !important;
+  }
+
+  /* CBP表格列宽与界面一致 */
+  .cbp-formula-table .cbp-group-col {
+    width: 66px !important;
+  }
+
+  .cbp-formula-table .cbp-name-col {
+    width: 170px !important;
+  }
+
+  .cbp-formula-table .cbp-value-col {
+    width: 133px !important;
+  }
+
+  .cbp-formula-table .formula-group-col {
+    width: 89px !important;
+  }
+
+  .cbp-formula-table .formula-name-col {
+    width: 162px !important;
+  }
+
+  .cbp-formula-table .formula-value-col {
+    width: 118px !important;
+  }
+
+  .cbp-formula-table th,
+  .cbp-formula-table td {
+    box-sizing: border-box !important;
+    height: 21px !important;
+    min-height: 21px !important;
+    padding: 0 !important;
+    border: 1px solid #000 !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: "SimSun", "宋体", serif !important;
+    font-size: 11px !important;
+    line-height: 14px !important;
+    vertical-align: middle !important;
+  }
+
+  .cbp-header-row th {
+    height: 22px !important;
+    min-height: 22px !important;
+    padding: 1px 3px !important;
+    font-size: 11px !important;
+    line-height: 16px !important;
+  }
+
+  .formula-input,
+  .formula-select,
+  .print-value {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    margin: 0 !important;
+    padding: 1px 3px !important;
+    font-family: "SimSun", "宋体", serif !important;
+    font-size: 11px !important;
+    line-height: 18px !important;
+  }
+
+  /* 第二页 */
+  .prescription-grid,
+  .order-table {
+    font-family: "SimSun", "宋体", serif !important;
+    font-size: 11px !important;
+    line-height: 14px !important;
+  }
+
+  .prescription-grid th,
+  .prescription-grid td {
+    height: 21px !important;
+    min-height: 21px !important;
+    padding: 1px 2px !important;
+    border: 1px solid #000 !important;
+    font-size: 11px !important;
+    line-height: 14px !important;
   }
 
   .prescription-grid .datetime-row th,
   .prescription-grid .datetime-row td {
-    height: 9mm !important;
-    min-height: 9mm !important;
+    height: 36px !important;
+    min-height: 36px !important;
   }
 
-  .order-table col.temp-action-col,
-  .order-table th.temp-action-cell,
-  .order-table td.temp-action-cell {
-    display: none !important;
-    width: 0 !important;
+  .order-table th,
+  .order-table td {
+    height: 27px !important;
+    min-height: 27px !important;
+    padding: 1px 2px !important;
+    border: 1px solid #000 !important;
+    font-size: 11px !important;
+    line-height: 16px !important;
   }
 
+  /*
+   * 删除操作列隐藏后，重新分配剩余列。
+   * 合计必须为100%。
+   */
   .order-table .temp-date-col {
     width: 18% !important;
   }
@@ -2039,48 +2085,76 @@ label {
     width: 12% !important;
   }
 
-  .anticoag-dose-cell {
-    padding: 1px 4px !important;
+  /* 打印日期使用格式化文本，不输出原生日期控件 */
+  .datetime-picker {
+    display: none !important;
   }
 
-  .dose-inline-row {
+  .datetime-value,
+  .datetime-print {
+    box-sizing: border-box !important;
     display: flex !important;
+    flex-direction: column !important;
     align-items: center !important;
-    flex-wrap: nowrap !important;
-    gap: 1mm;
-    white-space: nowrap !important;
-  }
-
-  .dose-inline-row .dose-label {
-    min-width: 23mm;
-    font-size: 8pt !important;
-    white-space: nowrap !important;
-  }
-
-  .dose-inline-row .dose-input {
-    display: inline-block !important;
-    width: 16mm !important;
-    min-width: 16mm !important;
-    max-width: 16mm !important;
-    height: 5mm !important;
-    min-height: 5mm !important;
-    border: 0 !important;
-    border-bottom: 1px solid #000 !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-height: 34px !important;
+    padding: 2px 1px !important;
+    overflow: hidden !important;
     color: #000 !important;
-    font-size: 8pt !important;
-    line-height: 5mm !important;
+    font-family: "SimSun", "宋体", serif !important;
+    font-size: 10px !important;
+    line-height: 14px !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  /* 打印控件统一处理 */
+  input,
+  select,
+  textarea {
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0 !important;
     opacity: 1 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #000 !important;
     -webkit-text-fill-color: #000 !important;
   }
 
+  select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    background-image: none !important;
+  }
+
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    display: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+  }
+
+  /* 禁止表格行被拆到两页 */
+  tr,
+  th,
+  td {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* 页码位置与界面一致 */
   .sheet-pageno {
     position: absolute !important;
-    right: 7mm !important;
-    bottom: 4mm !important;
-    left: 7mm !important;
+    right: 28px !important;
+    bottom: 15px !important;
+    left: 28px !important;
     display: block !important;
     margin: 0 !important;
-    font: 9pt/1 "SimSun", "宋体", serif !important;
+    color: #000 !important;
+    font: 13px/16px "SimSun", "宋体", serif !important;
     text-align: center !important;
     white-space: nowrap !important;
   }
