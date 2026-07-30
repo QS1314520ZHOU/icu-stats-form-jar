@@ -1839,15 +1839,17 @@ label {
     max-height: none !important;
   }
 
-  /* 主表格统一模型：100%宽度，表格自身不画边框 */
+  /*
+   * 主表格统一模型：
+   * 恢复1pt外框，border-collapse会折叠table与th/td边框
+   * nested-table由父td提供外框，自身不画外框
+   * page-two-form只是容器，不画边框
+   */
   .crrt-table,
   .top-table,
   .anticoag-table,
   .cbp-formula-table,
-  .nested-table,
   .signature-table,
-  .page-two-form,
-  .page-two-form > table,
   .prescription-grid,
   .order-table {
     box-sizing: border-box !important;
@@ -1855,14 +1857,26 @@ label {
     max-width: 100% !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
-    border: 0 !important;
+    border: 1pt solid #000 !important;
     border-collapse: collapse !important;
     border-spacing: 0 !important;
     table-layout: fixed !important;
     transform: none !important;
   }
 
-  /* 消除独立表格接缝负边距，改由上表底边框提供唯一接缝线 */
+  .nested-table,
+  .page-two-form,
+  .page-two-form > table {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    border: 0 !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    table-layout: fixed !important;
+  }
+
+  /* 消除独立表格接缝负边距，由border-collapse自动处理 */
   .anticoag-table,
   .cbp-formula-table,
   .signature-table {
@@ -1871,27 +1885,6 @@ label {
 
   .page-two-form > table + table {
     margin-top: 0 !important;
-  }
-
-  /* 后续表格第一行取消上边框，避免与前表底边框叠加 */
-  .order-page-one .anticoag-table tr:first-child th,
-  .order-page-one .anticoag-table tr:first-child td {
-    border-top: 0 !important;
-  }
-
-  .order-page-one .cbp-formula-table tr:first-child th,
-  .order-page-one .cbp-formula-table tr:first-child td {
-    border-top: 0 !important;
-  }
-
-  .order-page-one .signature-table tr:first-child th,
-  .order-page-one .signature-table tr:first-child td {
-    border-top: 0 !important;
-  }
-
-  .page-two-form > table + table tr:first-child th,
-  .page-two-form > table + table tr:first-child td {
-    border-top: 0 !important;
   }
 
   .crrt-table,
@@ -1911,7 +1904,7 @@ label {
     height: 24px !important;
     min-height: 24px !important;
     padding: 2px 4px !important;
-    border: 0.75pt solid #000 !important;
+    border: 1pt solid #000 !important;
     background: #fff !important;
     background-clip: padding-box !important;
     color: #000 !important;
@@ -1921,31 +1914,11 @@ label {
     vertical-align: middle !important;
   }
 
-  /* 嵌套表格：父td已有外框，嵌套表格最外侧边框不重复绘制 */
+  /* 嵌套表格单元格统一1pt，外框由父td提供 */
   .nested-table th,
   .nested-table td {
-    border: 0.75pt solid #000 !important;
+    border: 1pt solid #000 !important;
     background-clip: padding-box !important;
-  }
-
-  .nested-table tr:first-child th,
-  .nested-table tr:first-child td {
-    border-top: 0 !important;
-  }
-
-  .nested-table tr:last-child th,
-  .nested-table tr:last-child td {
-    border-bottom: 0 !important;
-  }
-
-  .nested-table th:first-child,
-  .nested-table td:first-child {
-    border-left: 0 !important;
-  }
-
-  .nested-table th:last-child,
-  .nested-table td:last-child {
-    border-right: 0 !important;
   }
 
   /* 第一部分列宽与界面一致 */
@@ -1984,7 +1957,7 @@ label {
     height: 24px !important;
     min-height: 24px !important;
     padding: 2px 6px !important;
-    border: 0.75pt solid #000 !important;
+    border: 1pt solid #000 !important;
     background: #fff !important;
     background-clip: padding-box !important;
     color: #000 !important;
@@ -2023,7 +1996,7 @@ label {
     margin: 0 !important;
     padding: 0 3px !important;
     border: 0 !important;
-    border-bottom: 0.75pt solid #000 !important;
+    border-bottom: 1pt solid #000 !important;
     font: 12px/19px "SimSun", "宋体", serif !important;
     text-align: center !important;
   }
@@ -2059,7 +2032,7 @@ label {
     height: 21px !important;
     min-height: 21px !important;
     padding: 0 !important;
-    border: 0.75pt solid #000 !important;
+    border: 1pt solid #000 !important;
     background: #fff !important;
     background-clip: padding-box !important;
     color: #000 !important;
@@ -2104,7 +2077,7 @@ label {
     height: 21px !important;
     min-height: 21px !important;
     padding: 1px 2px !important;
-    border: 0.75pt solid #000 !important;
+    border: 1pt solid #000 !important;
     background: #fff !important;
     background-clip: padding-box !important;
     font-size: 11px !important;
@@ -2122,7 +2095,7 @@ label {
     height: 27px !important;
     min-height: 27px !important;
     padding: 1px 2px !important;
-    border: 0.75pt solid #000 !important;
+    border: 1pt solid #000 !important;
     background: #fff !important;
     background-clip: padding-box !important;
     font-size: 11px !important;
@@ -2225,5 +2198,38 @@ label {
     font: 13px/16px "SimSun", "宋体", serif !important;
     text-align: center !important;
     white-space: nowrap !important;
+  }
+
+  /* =========================================================
+     最终边框覆盖层（scoped，不影响其他组件）
+     确保1pt边框不被基础样式覆盖
+     ========================================================= */
+  .order-page-one .top-table,
+  .order-page-one .anticoag-table,
+  .order-page-one .cbp-formula-table,
+  .order-page-one .signature-table,
+  .order-page-two .prescription-grid,
+  .order-page-two .order-table {
+    border: 1pt solid #000 !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+  }
+
+  .order-page-one .top-table th,
+  .order-page-one .top-table td,
+  .order-page-one .anticoag-table th,
+  .order-page-one .anticoag-table td,
+  .order-page-one .cbp-formula-table th,
+  .order-page-one .cbp-formula-table td,
+  .order-page-one .signature-table th,
+  .order-page-one .signature-table td,
+  .order-page-two .prescription-grid th,
+  .order-page-two .prescription-grid td,
+  .order-page-two .order-table th,
+  .order-page-two .order-table td {
+    border-width: 1pt !important;
+    border-style: solid !important;
+    border-color: #000 !important;
+    background-clip: padding-box !important;
   }
 }
