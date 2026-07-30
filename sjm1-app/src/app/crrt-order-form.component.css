@@ -1839,25 +1839,59 @@ label {
     max-height: none !important;
   }
 
-  /* 主表格完全沿用屏幕端宽度和排版 */
+  /* 主表格统一模型：100%宽度，表格自身不画边框 */
   .crrt-table,
   .top-table,
   .anticoag-table,
   .cbp-formula-table,
+  .nested-table,
   .signature-table,
   .page-two-form,
   .page-two-form > table,
   .prescription-grid,
   .order-table {
     box-sizing: border-box !important;
-    width: 738px !important;
-    max-width: 738px !important;
+    width: 100% !important;
+    max-width: 100% !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
+    border: 0 !important;
     border-collapse: collapse !important;
     border-spacing: 0 !important;
     table-layout: fixed !important;
     transform: none !important;
+  }
+
+  /* 消除独立表格接缝负边距，改由上表底边框提供唯一接缝线 */
+  .anticoag-table,
+  .cbp-formula-table,
+  .signature-table {
+    margin-top: 0 !important;
+  }
+
+  .page-two-form > table + table {
+    margin-top: 0 !important;
+  }
+
+  /* 后续表格第一行取消上边框，避免与前表底边框叠加 */
+  .order-page-one .anticoag-table tr:first-child th,
+  .order-page-one .anticoag-table tr:first-child td {
+    border-top: 0 !important;
+  }
+
+  .order-page-one .cbp-formula-table tr:first-child th,
+  .order-page-one .cbp-formula-table tr:first-child td {
+    border-top: 0 !important;
+  }
+
+  .order-page-one .signature-table tr:first-child th,
+  .order-page-one .signature-table tr:first-child td {
+    border-top: 0 !important;
+  }
+
+  .page-two-form > table + table tr:first-child th,
+  .page-two-form > table + table tr:first-child td {
+    border-top: 0 !important;
   }
 
   .crrt-table,
@@ -1877,13 +1911,41 @@ label {
     height: 24px !important;
     min-height: 24px !important;
     padding: 2px 4px !important;
-    border: 1px solid #000 !important;
+    border: 0.75pt solid #000 !important;
     background: #fff !important;
+    background-clip: padding-box !important;
     color: #000 !important;
     font-family: "SimSun", "宋体", serif !important;
     font-size: 12px !important;
     line-height: 16px !important;
     vertical-align: middle !important;
+  }
+
+  /* 嵌套表格：父td已有外框，嵌套表格最外侧边框不重复绘制 */
+  .nested-table th,
+  .nested-table td {
+    border: 0.75pt solid #000 !important;
+    background-clip: padding-box !important;
+  }
+
+  .nested-table tr:first-child th,
+  .nested-table tr:first-child td {
+    border-top: 0 !important;
+  }
+
+  .nested-table tr:last-child th,
+  .nested-table tr:last-child td {
+    border-bottom: 0 !important;
+  }
+
+  .nested-table th:first-child,
+  .nested-table td:first-child {
+    border-left: 0 !important;
+  }
+
+  .nested-table th:last-child,
+  .nested-table td:last-child {
+    border-right: 0 !important;
   }
 
   /* 第一部分列宽与界面一致 */
@@ -1922,8 +1984,9 @@ label {
     height: 24px !important;
     min-height: 24px !important;
     padding: 2px 6px !important;
-    border: 1px solid #000 !important;
+    border: 0.75pt solid #000 !important;
     background: #fff !important;
+    background-clip: padding-box !important;
     color: #000 !important;
     font-family: "SimSun", "宋体", serif !important;
     font-size: 12px !important;
@@ -1960,7 +2023,7 @@ label {
     margin: 0 !important;
     padding: 0 3px !important;
     border: 0 !important;
-    border-bottom: 1px solid #000 !important;
+    border-bottom: 0.75pt solid #000 !important;
     font: 12px/19px "SimSun", "宋体", serif !important;
     text-align: center !important;
   }
@@ -1996,8 +2059,9 @@ label {
     height: 21px !important;
     min-height: 21px !important;
     padding: 0 !important;
-    border: 1px solid #000 !important;
+    border: 0.75pt solid #000 !important;
     background: #fff !important;
+    background-clip: padding-box !important;
     color: #000 !important;
     font-family: "SimSun", "宋体", serif !important;
     font-size: 11px !important;
@@ -2040,7 +2104,9 @@ label {
     height: 21px !important;
     min-height: 21px !important;
     padding: 1px 2px !important;
-    border: 1px solid #000 !important;
+    border: 0.75pt solid #000 !important;
+    background: #fff !important;
+    background-clip: padding-box !important;
     font-size: 11px !important;
     line-height: 14px !important;
   }
@@ -2056,7 +2122,9 @@ label {
     height: 27px !important;
     min-height: 27px !important;
     padding: 1px 2px !important;
-    border: 1px solid #000 !important;
+    border: 0.75pt solid #000 !important;
+    background: #fff !important;
+    background-clip: padding-box !important;
     font-size: 11px !important;
     line-height: 16px !important;
   }
