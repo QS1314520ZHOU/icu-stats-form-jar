@@ -340,7 +340,6 @@
     <div class="dh"><h2>新增 CRRT 医嘱单</h2><button class="ic" (click)="createDialogOpen = false">×</button></div>
     <div class="db">
       <label>医嘱时间 <em>*</em><input type="datetime-local" [(ngModel)]="createDraftTime" /></label>
-      <div class="dialog-info">患者：{{ record.patientName || '—' }}　床号：{{ record.bedNo || '—' }}　住院号：{{ record.hospitalNo || '—' }}</div>
       <div class="dialog-hint">创建后将进入自动保存模式</div>
       <div *ngIf="createDialogError" class="dialog-error">{{ createDialogError }}</div>
     </div>
