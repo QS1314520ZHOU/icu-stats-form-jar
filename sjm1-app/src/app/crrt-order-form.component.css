@@ -1943,4 +1943,152 @@ label {
   .print-field-value:empty::before {
     content: "";
   }
+
+  /* =========================================================
+   * 打印边框：border-collapse:separate 单边框模型
+   * table 绘制左边+上边，th/td 绘制右边+下边。
+   * 每条边只绘制一次，避免 Chrome collapsed border 缩放后变细/消失。
+   * ========================================================= */
+
+  #printRoot .top-table,
+  #printRoot .anticoag-table,
+  #printRoot .cbp-formula-table,
+  #printRoot .signature-table,
+  #printRoot .prescription-grid,
+  #printRoot .order-table {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+
+    border: 0 !important;
+    border-left: 0.3mm solid #000 !important;
+    border-top: 0.3mm solid #000 !important;
+
+    table-layout: fixed !important;
+    background: #fff !important;
+
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  #printRoot .top-table th,
+  #printRoot .top-table td,
+  #printRoot .anticoag-table th,
+  #printRoot .anticoag-table td,
+  #printRoot .cbp-formula-table th,
+  #printRoot .cbp-formula-table td,
+  #printRoot .signature-table th,
+  #printRoot .signature-table td,
+  #printRoot .prescription-grid th,
+  #printRoot .prescription-grid td,
+  #printRoot .order-table th,
+  #printRoot .order-table td {
+    box-sizing: border-box !important;
+
+    border: 0 !important;
+    border-right: 0.3mm solid #000 !important;
+    border-bottom: 0.3mm solid #000 !important;
+
+    background: #fff !important;
+    background-clip: padding-box !important;
+
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /*
+   * 多张独立table上下连接时：
+   * 前一张table最后一行已经绘制bottom border，
+   * 后一张table不再绘制top border。
+   */
+  #printRoot .page-one-form > table + table,
+  #printRoot .page-two-form > table + table {
+    margin-top: 0 !important;
+    border-top: 0 !important;
+  }
+
+  /*
+   * CBP剂量、配方、治疗计划。
+   */
+  #printRoot .cbp-formula-table .cbp-group-cell,
+  #printRoot .cbp-formula-table .formula-group-cell,
+  #printRoot .cbp-formula-table .field-label-cell,
+  #printRoot .cbp-formula-table .value-cell,
+  #printRoot .cbp-formula-table .column-header-cell {
+    position: relative !important;
+    overflow: hidden !important;
+    border-right: 0.3mm solid #000 !important;
+    border-bottom: 0.3mm solid #000 !important;
+  }
+
+  /*
+   * 医嘱时间、医生签名、上机护士、核对护士。
+   */
+  #printRoot .signature-table th,
+  #printRoot .signature-table td,
+  #printRoot .signature-form-row th,
+  #printRoot .signature-form-row td {
+    border: 0 !important;
+    border-right: 0.3mm solid #000 !important;
+    border-bottom: 0.3mm solid #000 !important;
+  }
+
+  /*
+   * 第二页置换液、透析液处方。
+   */
+  #printRoot .prescription-grid .rx-cell,
+  #printRoot .prescription-grid .rx-field-label,
+  #printRoot .prescription-grid .rx-group-label,
+  #printRoot .prescription-grid .datetime-cell {
+    border: 0 !important;
+    border-right: 0.3mm solid #000 !important;
+    border-bottom: 0.3mm solid #000 !important;
+  }
+
+  /*
+   * 临时医嘱五个打印列。
+   */
+  #printRoot .order-table thead th,
+  #printRoot .order-table tbody td,
+  #printRoot .order-table .datetime-cell {
+    border: 0 !important;
+    border-right: 0.3mm solid #000 !important;
+    border-bottom: 0.3mm solid #000 !important;
+  }
+
+  /*
+   * input/select/textarea不负责绘制表格线。
+   */
+  #printRoot table input:not([type="checkbox"]):not([type="radio"]),
+  #printRoot table select,
+  #printRoot table textarea,
+  #printRoot .formula-input,
+  #printRoot .formula-select,
+  #printRoot .dose-input {
+    box-sizing: border-box !important;
+    border: 0 !important;
+    border-bottom: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  /*
+   * 打印文本不能覆盖单元格边框。
+   */
+  #printRoot .print-only,
+  #printRoot .print-value,
+  #printRoot .print-field-value,
+  #printRoot .datetime-value,
+  #printRoot .datetime-print {
+    box-sizing: border-box !important;
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
 }
