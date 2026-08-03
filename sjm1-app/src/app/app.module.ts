@@ -22,6 +22,8 @@ import { IabpRecordComponent } from './iabp-record.component';
 import { BradenFormComponent } from './braden-form.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
+import { HljldFormComponent } from './hljld-form.component';
+import { HljldFormService } from './hljld-form.service';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -44,6 +46,7 @@ import { routes } from './app.routes';
     BradenFormComponent,
     CrrtRecordComponent,
     CrrtOrderFormComponent,
+    HljldFormComponent,
   ],
   imports: [
     BrowserModule,
@@ -51,6 +54,7 @@ import { routes } from './app.routes';
     FormsModule,
     RouterModule.forRoot(routes),
   ],
+  providers: [HljldFormService],
   bootstrap: [App],
 })
 export class AppModule {}

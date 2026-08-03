@@ -1,0 +1,97 @@
+<section class="hljld-shell" *ngIf="vm as form; else statePanel">
+  <header class="toolbar no-print" aria-label="护理记录单工具栏">
+    <div class="date-tools">
+      <button type="button" class="icon-button" (click)="previousDay()" aria-label="前一天">‹</button>
+      <label class="date-picker" title="选择护理日（07:00 至次日 06:59:59）">
+        <span class="calendar-icon" aria-hidden="true">▣</span>
+        <input type="date" [value]="dateInput" (change)="onDateInput($any($event.target).value)" />
+      </label>
+      <button type="button" class="icon-button" (click)="nextDay()" aria-label="后一天">›</button>
+      <button type="button" class="text-button" (click)="today()">今天</button>
+    </div>
+    <div class="toolbar-note">护理日：07:00—次日 06:59</div>
+    <button type="button" class="primary-button" (click)="print()">打印</button>
+  </header>
+
+  <main class="paper">
+    <h1>重钢总医院重症医学科护理记录单</h1>
+    <div class="patient-strip">
+      <span>床号：<b>{{ form.patient.bedNo || '—' }}</b></span>
+      <span>姓名：<b>{{ form.patient.name || '—' }}</b></span>
+      <span>住院号：<b>{{ form.patient.mrn || '—' }}</b></span>
+      <span>性别：<b>{{ form.patient.sex || '—' }}</b></span>
+      <span>年龄：<b>{{ form.patient.age || '—' }}</b></span>
+      <span class="diagnosis">诊断：<b>{{ form.patient.diagnosis || '—' }}</b></span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="record-table">
+        <thead>
+          <tr>
+            <th class="time-col" rowspan="2">日期时间</th>
+            <th colspan="3">药物治疗</th>
+            <th colspan="3">胃肠摄入</th>
+            <th colspan="2">排出物</th>
+            <th colspan="2">引流液</th>
+            <th rowspan="2">检查</th>
+            <th rowspan="2">治疗</th>
+            <th rowspan="2">基础护理</th>
+            <th rowspan="2">健康教育</th>
+            <th class="record-col" rowspan="2">护理记录</th>
+            <th class="sign-col" rowspan="2">签名</th>
+          </tr>
+          <tr>
+            <th>名称</th><th>量/ml</th><th>途径</th>
+            <th>名称</th><th>量/ml</th><th>途径</th>
+            <th>名称</th><th>量/ml</th>
+            <th>名称</th><th>量/ml</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of form.rows; trackBy: trackRow">
+            <td class="time-cell">{{ row.timeText }}</td>
+            <td><div *ngFor="let item of row.medications; trackBy: trackText">{{ item.name }}</div></td>
+            <td class="number"><div *ngFor="let item of row.medications; trackBy: trackText">{{ item.amount }}</div></td>
+            <td><div *ngFor="let item of row.medications; trackBy: trackText">{{ item.route }}</div></td>
+            <td><div *ngFor="let item of row.enteral; trackBy: trackText">{{ item.name }}</div></td>
+            <td class="number"><div *ngFor="let item of row.enteral; trackBy: trackText">{{ item.amount }}</div></td>
+            <td><div *ngFor="let item of row.enteral; trackBy: trackText">{{ item.route }}</div></td>
+            <td><div *ngFor="let item of row.outputs; trackBy: trackText">{{ item.name }}</div></td>
+            <td class="number"><div *ngFor="let item of row.outputs; trackBy: trackText">{{ item.amount }}</div></td>
+            <td><div *ngFor="let item of row.drains; trackBy: trackText">{{ item.name }}</div></td>
+            <td class="number"><div *ngFor="let item of row.drains; trackBy: trackText">{{ item.amount }}</div></td>
+            <td><div *ngFor="let item of row.examination; trackBy: trackText">{{ item }}</div></td>
+            <td><div *ngFor="let item of row.treatment; trackBy: trackText">{{ item }}</div></td>
+            <td><div *ngFor="let item of row.basicCare; trackBy: trackText">{{ item }}</div></td>
+            <td><div *ngFor="let item of row.healthEducation; trackBy: trackText">{{ item }}</div></td>
+            <td class="nursing-cell"><div *ngFor="let item of row.nursingRecords; trackBy: trackText">{{ item }}</div></td>
+            <td>{{ row.signature }}</td>
+          </tr>
+          <tr *ngIf="!form.rows.length"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
+          <tr class="summary-row" *ngIf="form.daySummary as summary">
+            <th colspan="2">{{ summary.label }}</th>
+            <td colspan="3" class="period">{{ summary.periodText }}</td>
+            <ng-container *ngFor="let item of summaryValues(summary); trackBy: trackText">
+              <th>{{ item.label }}</th><td>{{ item.value | number:'1.0-2' }}</td>
+            </ng-container>
+          </tr>
+          <tr class="summary-row summary-24" *ngIf="form.fullDaySummary as summary">
+            <th colspan="2">{{ summary.label }}</th>
+            <td colspan="3" class="period">{{ summary.periodText }}</td>
+            <ng-container *ngFor="let item of summaryValues(summary); trackBy: trackText">
+              <th>{{ item.label }}</th><td>{{ item.value | number:'1.0-2' }}</td>
+            </ng-container>
+          </tr>
+          <tr class="remark-row"><th>备注</th><td colspan="16">{{ form.remark }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</section>
+
+<ng-template #statePanel>
+  <div class="state-panel" [class.error]="error">
+    <div *ngIf="loading" class="spinner" aria-hidden="true"></div>
+    <strong>{{ loading ? '正在加载护理记录…' : (error || '等待患者信息') }}</strong>
+  </div>
+</ng-template>

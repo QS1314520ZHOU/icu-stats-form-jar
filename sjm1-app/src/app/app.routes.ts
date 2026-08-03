@@ -16,6 +16,7 @@ import { IabpRecordComponent } from './iabp-record.component';
 import { BradenFormComponent } from './braden-form.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
+import { HljldFormComponent } from './hljld-form.component';
 
 export const routes: Routes = [
   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
@@ -35,5 +36,6 @@ export const routes: Routes = [
   { path: 'iabpForm', component: IabpRecordComponent },
   { path: 'crrtForm', component: CrrtRecordComponent },
   { path: 'crrtOrderForm', component: CrrtOrderFormComponent },
+  { path: 'hljldForm', component: HljldFormComponent },
   { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
 ];
