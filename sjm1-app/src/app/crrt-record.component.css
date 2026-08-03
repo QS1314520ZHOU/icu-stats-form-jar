@@ -761,3 +761,19 @@ h1 {
     line-height: 1.2 !important;
   }
 }
+
+/* CRRT 护理记录单：提高屏幕项目名称清晰度 */
+@media screen {
+  .crrt-table .metric-cell {
+    font-family:
+      "Microsoft YaHei",
+      "微软雅黑",
+      "Noto Sans SC",
+      "SimSun",
+      "宋体",
+      sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    line-height: 20px !important;
+  }
+}
