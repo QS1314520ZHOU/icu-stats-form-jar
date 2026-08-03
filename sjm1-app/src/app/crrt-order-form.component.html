@@ -30,9 +30,9 @@
   </div>
 </ng-template>
 
-<ng-template #crrtOrderPages let-order>
+<ng-template #crrtOrderPages let-order let-pageFilter="pageFilter" let-pageBase="pageBase" let-totalPages="totalPages">
   <!-- ==================== 第一页 ==================== -->
-  <section class="sheet crrt-print-page page-one order-page-one">
+  <section *ngIf="pageFilter === null || pageFilter === 1" class="sheet crrt-print-page page-one order-page-one">
     <h1>重钢总医院连续性血液净化治疗医嘱单</h1>
     <ng-container *ngTemplateOutlet="patientInformation; context: { $implicit: order }"></ng-container>
 
@@ -263,11 +263,11 @@
 
     </div><!-- /.page-one-form -->
 
-    <div class="sheet-pageno">第 1 页　共 2 页</div>
+    <div class="sheet-pageno">第 {{ pageBase + 1 }} 页　共 {{ totalPages }} 页</div>
   </section>
 
   <!-- ==================== 第二页 ==================== -->
-  <section class="sheet crrt-print-page page-two order-page-two">
+  <section *ngIf="pageFilter === null || pageFilter === 2" class="sheet crrt-print-page page-two order-page-two">
     <h1>重钢总医院连续性血液净化治疗医嘱单</h1>
     <ng-container *ngTemplateOutlet="patientInformation; context: { $implicit: order }"></ng-container>
 
@@ -323,24 +323,19 @@
       <button type="button" class="btn secondary" (click)="addOrderItem()">增加一行</button>
     </div>
 
-    <div class="sheet-pageno">第 2 页　共 2 页</div>
+    <div class="sheet-pageno">第 {{ pageBase + 2 }} 页　共 {{ totalPages }} 页</div>
   </section>
 </ng-template>
 
 <!-- ==================== 屏幕展示区 ==================== -->
 <div class="document-area screen-document">
-  <ng-container *ngIf="selectedPrintPage === null || selectedPrintPage === 1">
-    <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: record }"></ng-container>
-  </ng-container>
-  <ng-container *ngIf="selectedPrintPage === null || selectedPrintPage === 2">
-    <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: record }"></ng-container>
-  </ng-container>
+  <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: record, pageFilter: null, pageBase: getRecordPageBase(record), totalPages: getTotalPageCount() }"></ng-container>
 </div>
 
 <!-- ==================== 打印专用区域 ==================== -->
 <div id="printRoot" class="print-render-root" aria-hidden="true">
-  <ng-container *ngFor="let printRecord of printRecords; trackBy: trackRecordById">
-    <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: printRecord }"></ng-container>
+  <ng-container *ngFor="let printRecord of printRecords; let printIndex = index; trackBy: trackRecordById">
+    <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: printRecord, pageFilter: getPrintPageFilter(), pageBase: getPrintRecordPageBase(printRecord, printIndex), totalPages: getPrintTotalPageCount() }"></ng-container>
   </ng-container>
 </div>
 

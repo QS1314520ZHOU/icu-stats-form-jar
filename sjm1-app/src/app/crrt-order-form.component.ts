@@ -369,7 +369,11 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       const validRecords = records
         .filter((item): item is CrrtOrderFormRecord => item !== null)
         .map(item => this.normalizeRecord(item))
-        .sort((a, b) => new Date(b.orderTime).getTime() - new Date(a.orderTime).getTime());
+        .sort((a, b) => {
+          const timeDiff = this.toOrderTimestamp(a.orderTime) - this.toOrderTimestamp(b.orderTime);
+          if (timeDiff !== 0) return timeDiff;
+          return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+        });
       if (!validRecords.length) { throw new Error('没有可打印的医嘱记录。'); }
       for (const item of validRecords) { this.applyPatientToRecord(item); }
       this.printAllMode = true;
@@ -398,6 +402,52 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       if (text) return text;
     }
     return '';
+  }
+
+  /* ---- 页码计算 ---- */
+
+  private toOrderTimestamp(value: string | null | undefined): number {
+    if (!value) return 0;
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  getChronologicalTimeOptions(): OrderTimeOption[] {
+    return [...this.timeOptions].sort((a, b) => {
+      const timeDiff = this.toOrderTimestamp(a.orderTime) - this.toOrderTimestamp(b.orderTime);
+      if (timeDiff !== 0) return timeDiff;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }
+
+  getRecordSequence(record: CrrtOrderFormRecord): number {
+    const orderedOptions = this.getChronologicalTimeOptions();
+    let index = orderedOptions.findIndex(option => !!record.id && option.id === record.id);
+    if (index < 0 && record.orderTime) {
+      index = orderedOptions.findIndex(option => this.sameMinute(option.orderTime, record.orderTime));
+    }
+    return index >= 0 ? index : 0;
+  }
+
+  getRecordPageBase(record: CrrtOrderFormRecord): number {
+    return this.getRecordSequence(record) * 2;
+  }
+
+  getTotalPageCount(): number {
+    const fallbackCount = (this.record?.id || this.isDraft) ? 1 : 0;
+    return Math.max(this.timeOptions.length, fallbackCount) * 2;
+  }
+
+  getPrintPageFilter(): number | null {
+    return this.printAllMode ? null : this.selectedPrintPage;
+  }
+
+  getPrintRecordPageBase(record: CrrtOrderFormRecord, printIndex: number): number {
+    return this.printAllMode ? printIndex * 2 : this.getRecordPageBase(record);
+  }
+
+  getPrintTotalPageCount(): number {
+    return this.printAllMode ? this.printRecords.length * 2 : this.getTotalPageCount();
   }
 
   getPatientHeader(order: CrrtOrderFormRecord) {
