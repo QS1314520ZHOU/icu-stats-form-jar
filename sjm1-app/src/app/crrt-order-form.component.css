@@ -413,7 +413,7 @@ label {
 .anticoag-table {
   box-sizing: border-box;
   width: 100%;
-  margin: -1px 0 0;
+  margin: 0;
   border-collapse: collapse;
   border-spacing: 0;
   table-layout: fixed;
@@ -515,7 +515,7 @@ label {
 .cbp-formula-table {
   box-sizing: border-box;
   width: 100%;
-  margin: -1px 0 0;
+  margin: 0;
   border-collapse: collapse;
   border-spacing: 0;
   table-layout: fixed;
@@ -712,7 +712,7 @@ label {
 /* Signature table (separate from CBP) */
 .signature-table {
   width: 100%;
-  margin: -1px 0 0;
+  margin: 0;
   border-collapse: collapse;
   border-spacing: 0;
   table-layout: fixed;
@@ -848,9 +848,15 @@ label {
   border-collapse: collapse !important;
 }
 
-/* 后一个表格向上覆盖前一个表格的底边 */
+/* 后一个表格不使用负margin，由border-top:0处理公共边 */
 .page-one-form > table + table {
-  margin-top: -1px !important;
+  margin-top: 0 !important;
+}
+
+/* 后一个表格第一行去掉顶边，避免与前一个表格底边叠加 */
+.page-one-form > table + table > tbody:first-child > tr:first-child > th,
+.page-one-form > table + table > tbody:first-child > tr:first-child > td {
+  border-top: 0 !important;
 }
 
 /* 确保表格左右边框完整 */
@@ -883,7 +889,13 @@ label {
 }
 
 .page-two-form > table + table {
-  margin-top: -1px;
+  margin-top: 0 !important;
+}
+
+/* 后一个表格第一行去掉顶边 */
+.page-two-form > table + table > tbody:first-child > tr:first-child > th,
+.page-two-form > table + table > tbody:first-child > tr:first-child > td {
+  border-top: 0 !important;
 }
 
 /* =========================================================
@@ -1719,7 +1731,7 @@ label {
   margin: 0 !important;
   padding: 0 3px !important;
   border: 0 !important;
-  border-bottom: 1px solid #000 !important;
+  border-bottom: 0 !important;
   border-radius: 0 !important;
   background: transparent !important;
   color: #000 !important;
@@ -1805,6 +1817,31 @@ label {
   }
 
   /*
+   * placeholder 只是录入提示，不属于正式医嘱内容。
+   * 空 input/textarea 打印为空白。
+   */
+  input::placeholder,
+  textarea::placeholder {
+    color: transparent !important;
+    opacity: 0 !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+  }
+
+  input::-webkit-input-placeholder,
+  textarea::-webkit-input-placeholder {
+    color: transparent !important;
+    opacity: 0 !important;
+    -webkit-text-fill-color: transparent !important;
+  }
+
+  input::-moz-placeholder,
+  textarea::-moz-placeholder {
+    color: transparent !important;
+    opacity: 0 !important;
+  }
+
+  /*
    * input/select/textarea 保留当前值，只去除编辑外观。
    * 不隐藏它们，否则界面已填写的数据会消失。
    */
@@ -1865,4 +1902,45 @@ label {
   .order-table .temp-doctor-col { width: 16% !important; }
   .order-table .temp-exec-col { width: 16% !important; }
   .order-table .temp-nurse-col { width: 12% !important; }
+
+  /*
+   * 打印隐藏编辑型下拉框，显示实际值文本。
+   * 只有已经有 .print-only 对应值的 select 才使用 .screen-only 隐藏。
+   */
+  .screen-only {
+    display: none !important;
+  }
+
+  span.print-only {
+    display: inline-flex !important;
+  }
+
+  div.print-only,
+  .print-only {
+    display: flex !important;
+  }
+
+  .print-field-value {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: inherit;
+    padding: 1px 2px;
+    overflow: hidden;
+    color: #000 !important;
+    font: inherit;
+    line-height: inherit;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /*
+   * 真正没有选择签名时，表达式返回空字符串，
+   * 因此打印为空白，而不是"请选择"。
+   */
+  .print-field-value:empty::before {
+    content: "";
+  }
 }
