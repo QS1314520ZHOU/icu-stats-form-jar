@@ -171,12 +171,16 @@ label {
   overflow: visible;
 }
 
-.print-all-container {
-  display: block;
-}
+/* =========================================================
+   Print area: screen-mode offscreen positioning
+   ========================================================= */
 
-.print-hidden {
-  display: none !important;
+#printRoot {
+  position: fixed;
+  left: -100000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* =========================================================
@@ -1738,6 +1742,12 @@ label {
     margin: 0;
   }
 
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
   :host {
     height: auto !important;
     overflow: visible !important;
@@ -1747,27 +1757,45 @@ label {
   .toolbar,
   .loading,
   .overlay,
-  .order-actions {
+  .order-actions,
+  .no-print {
     display: none !important;
   }
 
-  .document-area,
-  .print-all-container {
-    margin: 0 !important;
-    padding: 0 !important;
+  /* 屏幕区隐藏 */
+  .screen-document {
+    display: none !important;
+  }
+
+  /* 打印区显示 */
+  #printRoot {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    width: auto !important;
+    height: auto !important;
     overflow: visible !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
   }
 
   .sheet,
   .crrt-print-page {
+    box-sizing: border-box !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
     margin: 0 !important;
+    padding: 6mm 7.4mm 12mm !important;
+    overflow: hidden !important;
     box-shadow: none !important;
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
     break-after: page !important;
     page-break-after: always !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
   }
 
   .sheet:last-child,
@@ -1777,59 +1805,64 @@ label {
   }
 
   /*
-   * 打印时只显示格式化后的纯文本，
-   * 不打印 select、input 等编辑控件。
+   * input/select/textarea 保留当前值，只去除编辑外观。
+   * 不隐藏它们，否则界面已填写的数据会消失。
    */
-  .screen-only,
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    border: 0 !important;
+    outline: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #000 !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #000 !important;
+  }
+
+  select {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    background-image: none !important;
+  }
+
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    color: #000 !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #000 !important;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    opacity: 1 !important;
+    visibility: visible !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* datetime-picker 是覆盖在格式化日期文本上的透明控件，隐藏它 */
   .datetime-picker {
     display: none !important;
   }
 
-  span.print-only {
-    display: inline !important;
-  }
-
-  div.print-only {
-    display: block !important;
-  }
-
-  .print-value.print-only,
-  .datetime-value.print-only,
-  .datetime-print.print-only {
+  .datetime-value {
     display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 
-  /*
-   * 正式打印不显示"操作"列。
-   */
+  /* 操作列隐藏 */
   .temp-action-col,
   .temp-action-cell {
     display: none !important;
   }
 
-  /*
-   * 隐藏操作列后，仅重新分配临时医嘱五列。
-   * 不修改其他任何表格。
-   */
-  .order-table .temp-date-col {
-    width: 18% !important;
-  }
-
-  .order-table .temp-content-col {
-    width: 38% !important;
-  }
-
-  .order-table .temp-doctor-col {
-    width: 16% !important;
-  }
-
-  .order-table .temp-exec-col {
-    width: 16% !important;
-  }
-
-  .order-table .temp-nurse-col {
-    width: 12% !important;
-  }
+  /* 隐藏操作列后重新分配临时医嘱五列 */
+  .order-table .temp-date-col { width: 18% !important; }
+  .order-table .temp-content-col { width: 38% !important; }
+  .order-table .temp-doctor-col { width: 16% !important; }
+  .order-table .temp-exec-col { width: 16% !important; }
+  .order-table .temp-nurse-col { width: 12% !important; }
 }
