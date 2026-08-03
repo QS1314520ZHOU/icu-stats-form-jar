@@ -33,30 +33,34 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
-      if (!p) return;
-      const pid = String(p?._id ?? '').trim();
-      if (!pid) {
-        this.patient = { pid: '' };
-        this.vm = undefined;
-        this.error = '未获取到患者MongoDB _id，无法查询护理记录';
+      if (!p) {
+        this.resetPatientData();
+        return;
+      }
+      const nextPid = String(p.id ?? '').trim();
+      if (!nextPid) {
+        this.resetPatientData();
+        this.error = '未获取到患者数据库主键，无法查询护理记录';
         this.cdr.markForCheck();
         return;
       }
-      if (pid === this.patient.pid) return;
+      const previousPid = this.patient.pid;
       this.patient = this.toPatientContext(p);
-      this.vm = undefined;
-      this.error = '';
-      this.sourceError = '';
+      if (nextPid !== previousPid) {
+        this.clearClinicalData();
+        this.dateChange$.next();
+      }
       const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
       if (isDev) {
-        console.info('[HLJLD][patient-context]', {
-          mongoPatientId: pid,
-          hasMongoPatientId: !!pid,
+        console.info('[HLJLD][patient-sync]', {
+          transportId: p.id,
+          mongoIdAlias: (p as any)._id,
+          resolvedPid: nextPid,
           mrn: this.patient.mrn,
           bedNo: this.patient.bedNo,
         });
       }
-      this.dateChange$.next();
+      this.cdr.markForCheck();
     });
 
     merge(this.dateChange$).pipe(
@@ -76,7 +80,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
         if (isDev) {
           console.info('[HLJLD][source-counts]', {
-            mongoPatientId: this.patient.pid,
+            pid: this.patient.pid,
             bedside: result.data.bedside.length,
             drugExecutions: result.data.drugExecutions.length,
             drugMethods: result.data.drugMethods.length,
@@ -190,7 +194,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
   private toPatientContext(p: any): PatientContext {
     return {
-      pid: String(p?._id ?? '').trim(),
+      pid: String(p?.id ?? '').trim(),
       mrn: String(p?.mrn ?? p?.hospitalNo ?? ''),
       name: String(p?.name ?? p?.patientName ?? ''),
       sex: String(p?.sex ?? p?.gender ?? ''),
@@ -200,6 +204,19 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       admissionTime: p?.admissionTime || p?.inTime || '',
       dischargeTime: p?.dischargeTime || p?.outTime || '',
     };
+  }
+
+  private resetPatientData(): void {
+    this.patient = { pid: '' };
+    this.vm = undefined;
+    this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], signatures: [] };
+  }
+
+  private clearClinicalData(): void {
+    this.vm = undefined;
+    this.error = '';
+    this.sourceError = '';
+    this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], signatures: [] };
   }
 
   private buildSourceError(statuses: import('./hljld-form.service').SourceStatus[]): string {
