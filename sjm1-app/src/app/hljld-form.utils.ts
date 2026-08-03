@@ -31,6 +31,13 @@ const NON_DRUG_INPUT_CODES = new Set([
 const INFUSION_CODES = new Set(['param_YaoYeti_in_hour']);
 const DIET_CODES = new Set(['param_YaoStomach_in_hour', 'param_biSi', 'param_kouFu']);
 
+export const DEFAULT_REMARK_LINES = [
+  '检查：A：CT    B：核磁共振    C：胃镜    D：肠镜    E：超声检查    F：床旁胸片',
+  '治疗：A：机械辅助排痰    B：气压治疗    C：雾化吸入    D：支气管镜灌洗    E：TDP照射    F：针灸治疗    G：运动治疗    H：肺复张',
+  '基础护理：A：口腔护理    B：动/静脉置管护理    C：擦浴    D：会阴擦洗    E：肛周护理    F：更换引流袋    G：膀胱冲洗    H：压疮护理    I：床上洗头',
+  '健康教育：A：入院指导    B：疾病知识    C：药物指导    D：饮食指导    E：肢体活动指导    F：检查指导    G：安全指导    H：心理指导    I：术前指导    J：术后指导    K：转科/出院指导    L：用氧注意事项    M：通气配合指导    N：康复指导    O：VTE预防指导',
+];
+
 export function startOfNursingDay(selectedDate: Date): Date {
   const d = new Date(selectedDate);
   d.setHours(7, 0, 0, 0);
@@ -220,9 +227,21 @@ export function buildRows(
 
     drugExecutions.forEach(exe => {
       const method = findDrugMethod(exe.methodCode, source.drugMethods);
-      if (!method) { return; }
-      const target = method.group === '胃肠' ? enteral : medications;
-      target.push(drugToCell(exe, method, method.group === '胃肠'));
+      if (method) {
+        const target = method.group === '胃肠' ? enteral : medications;
+        target.push(drugToCell(exe, method, method.group === '胃肠'));
+      } else {
+        // 方法未匹配时仍保留药物，途径留空
+        const drugList = exe.drugList || [];
+        const rawName = drugList.map(item => item.name).filter(Boolean).join('、');
+        const amount = drugList.reduce((sum, item) => sum + parseAmount(item.liquidAmount), 0);
+        medications.push({
+          name: rawName,
+          amount: amount ? String(amount) : '',
+          numericAmount: amount,
+          route: '',
+        });
+      }
     });
 
     bedside.filter(item => item.code === 'param_带入药量').forEach(item => medications.push(bedsideInputCell(item)));

@@ -30,6 +30,12 @@ export class HostPatientService {
     return id || null;
   }
 
+  getMongoPatientId(): string | null {
+    const patient = this.patientSubject.value;
+    const id = String(patient?._id ?? '').trim();
+    return id || null;
+  }
+
   getPatient(): any | null {
     return this.patientSubject.value;
   }

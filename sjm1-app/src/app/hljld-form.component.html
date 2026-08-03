@@ -1,16 +1,22 @@
 <section class="hljld-shell" *ngIf="vm as form; else statePanel">
   <header class="toolbar no-print" aria-label="护理记录单工具栏">
     <div class="date-tools">
-      <button type="button" class="icon-button" (click)="previousDay()" aria-label="前一天">‹</button>
-      <label class="date-picker" title="选择护理日（07:00 至次日 06:59:59）">
-        <span class="calendar-icon" aria-hidden="true">▣</span>
+      <button type="button" class="nav-arrow" (click)="previousDay()" aria-label="前一天">‹</button>
+      <label class="date-picker">
         <input type="date" [value]="dateInput" (change)="onDateInput($any($event.target).value)" />
       </label>
-      <button type="button" class="icon-button" (click)="nextDay()" aria-label="后一天">›</button>
-      <button type="button" class="text-button" (click)="today()">今天</button>
+      <button type="button" class="nav-arrow" (click)="nextDay()" aria-label="后一天">›</button>
+      <button
+        type="button"
+        class="today-button"
+        [class.today-button-active]="isTodaySelected()"
+        (click)="today()">
+        今天
+      </button>
     </div>
-    <div class="toolbar-note">护理日：07:00—次日 06:59</div>
-    <button type="button" class="primary-button" (click)="print()">打印</button>
+    <div class="toolbar-spacer"></div>
+    <div *ngIf="sourceError" class="source-warning">{{ sourceError }}</div>
+    <button type="button" class="print-button" (click)="print()">打印</button>
   </header>
 
   <main class="paper">
@@ -67,22 +73,43 @@
             <td class="nursing-cell"><div *ngFor="let item of row.nursingRecords; trackBy: trackText">{{ item }}</div></td>
             <td>{{ row.signature }}</td>
           </tr>
-          <tr *ngIf="!form.rows.length"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
-          <tr class="summary-row" *ngIf="form.daySummary as summary">
-            <th colspan="2">{{ summary.label }}</th>
-            <td colspan="3" class="period">{{ summary.periodText }}</td>
-            <ng-container *ngFor="let item of summaryValues(summary); trackBy: trackText">
-              <th>{{ item.label }}</th><td>{{ item.value | number:'1.0-2' }}</td>
-            </ng-container>
+          <tr *ngIf="!form.rows.length && !loading"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
+
+          <!-- 日间小结 + 24小时总结 同一行 -->
+          <tr class="summary-row" *ngIf="form.daySummary || form.fullDaySummary">
+            <td colspan="17" class="summary-row-cell">
+              <div class="summary-pair">
+                <section class="summary-panel day-summary" *ngIf="form.daySummary as summary">
+                  <div class="summary-header">{{ summary.label }}</div>
+                  <div class="summary-period">{{ summary.periodText }}</div>
+                  <div class="summary-grid">
+                    <ng-container *ngFor="let item of summaryValues(summary); trackBy: trackText">
+                      <span class="summary-label">{{ item.label }}</span>
+                      <span class="summary-value">{{ item.value | number:'1.0-2' }}</span>
+                    </ng-container>
+                  </div>
+                </section>
+                <section class="summary-panel full-day-summary" *ngIf="form.fullDaySummary as summary">
+                  <div class="summary-header">{{ summary.label }}</div>
+                  <div class="summary-period">{{ summary.periodText }}</div>
+                  <div class="summary-grid">
+                    <ng-container *ngFor="let item of summaryValues(summary); trackBy: trackText">
+                      <span class="summary-label">{{ item.label }}</span>
+                      <span class="summary-value">{{ item.value | number:'1.0-2' }}</span>
+                    </ng-container>
+                  </div>
+                </section>
+              </div>
+            </td>
           </tr>
-          <tr class="summary-row summary-24" *ngIf="form.fullDaySummary as summary">
-            <th colspan="2">{{ summary.label }}</th>
-            <td colspan="3" class="period">{{ summary.periodText }}</td>
-            <ng-container *ngFor="let item of summaryValues(summary); trackBy: trackText">
-              <th>{{ item.label }}</th><td>{{ item.value | number:'1.0-2' }}</td>
-            </ng-container>
+
+          <!-- 默认备注 -->
+          <tr class="remark-row">
+            <th>备注</th>
+            <td colspan="16">
+              <div class="remark-line" *ngFor="let line of defaultRemarkLines; trackBy: trackText">{{ line }}</div>
+            </td>
           </tr>
-          <tr class="remark-row"><th>备注</th><td colspan="16">{{ form.remark }}</td></tr>
         </tbody>
       </table>
     </div>
