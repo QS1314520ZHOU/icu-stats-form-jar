@@ -822,6 +822,45 @@ label {
 }
 
 /* =========================================================
+   Page 1 unified form container
+   ========================================================= */
+
+.page-one-form {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.page-one-form > table {
+  box-sizing: border-box;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  border-spacing: 0 !important;
+  border-collapse: collapse !important;
+}
+
+/* 后一个表格向上覆盖前一个表格的底边 */
+.page-one-form > table + table {
+  margin-top: -1px !important;
+}
+
+/* 确保表格左右边框完整 */
+.page-one-form > table > tbody > tr > :first-child,
+.page-one-form > table > thead > tr > :first-child {
+  border-left: 1px solid #000 !important;
+}
+
+.page-one-form > table > tbody > tr > :last-child,
+.page-one-form > table > thead > tr > :last-child {
+  border-right: 1px solid #000 !important;
+}
+
+/* =========================================================
    Page 2 continuous form
    ========================================================= */
 
