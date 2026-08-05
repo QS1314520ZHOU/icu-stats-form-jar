@@ -4,7 +4,7 @@ import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } fro
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService, LoadResult } from './hljld-form.service';
 import { BedsideRecord, DrugExecution, HljldDisplayRow, HljldSourceData, HljldSummary, HljldViewModel, NurseRecord, PatientContext } from './hljld-form.models';
-import { buildDisplayRows, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, startOfNursingDay } from './hljld-form.utils';
+import { buildDisplayRows, buildRenderItems, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 
 @Component({
@@ -152,6 +152,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
   print(): void { window.print(); }
   trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
+  trackRenderItem(_: number, item: import('./hljld-form.models').HljldRenderItem): string { return item.key; }
   trackText(index: number): number { return index; }
 
   summaryValues(summary: HljldSummary): Array<{ label: string; value: number }> {
@@ -203,43 +204,32 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const dayEnd = new Date(rangeStart); dayEnd.setHours(17, 0, 0, 0);
     const nextMorning = new Date(rangeStart); nextMorning.setDate(nextMorning.getDate() + 1); nextMorning.setHours(7, 0, 0, 0);
     const rows = buildRows(source, rangeStart, rangeEnd, accountMap);
+    const displayRows = buildDisplayRows(rows);
+    const daySummary = buildSummary('day', this.patient, source, rangeStart, dayEnd);
+    const fullDaySummary = buildSummary('24h', this.patient, source, rangeStart, nextMorning);
+    const renderItems = buildRenderItems(displayRows, daySummary, fullDaySummary, rangeStart);
     return {
       patient: this.patient,
       selectedDate: this.selectedDate,
       rangeStart,
       rangeEnd,
       rows,
-      displayRows: buildDisplayRows(rows),
-      daySummary: buildSummary('day', this.patient, source, rangeStart, dayEnd),
-      fullDaySummary: buildSummary('24h', this.patient, source, rangeStart, nextMorning),
+      displayRows,
+      renderItems,
+      daySummary,
+      fullDaySummary,
       remark: '',
     };
   }
 
   /**
-   * 从bedside、drugExe、nurseRecords收集签名用户ID，
-   * 批量查询账户信息，返回 accountId → trueName 映射。
+   * 只收集 param_Yishi 的 editUser，批量查询账户信息。
    */
   private async collectSignatures(source: HljldSourceData): Promise<Map<string, string>> {
-    const userIds: string[] = [];
-
-    // bedside.editUser
-    for (const item of source.bedside) {
-      if (item.editUser) { userIds.push(item.editUser); }
-    }
-
-    // nurseRecords: userId 或 editUser
-    for (const item of source.nurseRecords) {
-      if (item.userId) { userIds.push(item.userId); }
-      if (item.editUser) { userIds.push(item.editUser); }
-    }
-
-    // drugExe: drugActionList 中 action=start 的 accountId，兜底 orderUser
-    for (const item of source.drugExecutions) {
-      const startAction = (item.drugActionList ?? []).find(a => a.action === 'start');
-      if (startAction?.accountId) { userIds.push(startAction.accountId); }
-      else if (item.orderUser) { userIds.push(item.orderUser); }
-    }
+    const userIds = source.bedside
+      .filter(item => item.valid !== false && item.code === 'param_Yishi' && !!item.time && !!item.editUser)
+      .map(item => String(item.editUser).trim())
+      .filter(Boolean);
 
     if (!userIds.length) { return new Map(); }
     return firstValueFrom(this.service.queryAccounts(userIds));

@@ -54,54 +54,62 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let row of form.displayRows; trackBy: trackRow" [class.continuation-row]="!row.firstLine">
-            <td class="time-cell">{{ row.timeText }}</td>
-            <td>{{ row.medication?.name || '' }}</td>
-            <td class="number">{{ row.medication?.amount || '' }}</td>
-            <td>{{ row.medication?.route || '' }}</td>
-            <td>{{ row.enteral?.name || '' }}</td>
-            <td class="number">{{ row.enteral?.amount || '' }}</td>
-            <td>{{ row.enteral?.route || '' }}</td>
-            <td>{{ row.output?.name || '' }}</td>
-            <td class="number">{{ row.output?.amount || '' }}</td>
-            <td>{{ row.drain?.name || '' }}</td>
-            <td class="number">{{ row.drain?.amount || '' }}</td>
-            <td>{{ row.examination }}</td>
-            <td>{{ row.treatment }}</td>
-            <td>{{ row.basicCare }}</td>
-            <td>{{ row.healthEducation }}</td>
-            <td class="nursing-cell">{{ row.nursingRecord }}</td>
-            <td>{{ row.signature }}</td>
-          </tr>
-          <tr *ngIf="!form.displayRows.length && !loading"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
+          <ng-container *ngFor="let item of form.renderItems; trackBy: trackRenderItem">
+            <!-- 明细行 -->
+            <tr *ngIf="item.kind === 'detail' && item.row" [class.continuation-row]="!item.row.firstLine">
+              <td class="time-cell">{{ item.row.timeText }}</td>
+              <td>{{ item.row.medication?.name || '' }}</td>
+              <td class="number">{{ item.row.medication?.amount || '' }}</td>
+              <td>{{ item.row.medication?.route || '' }}</td>
+              <td>{{ item.row.enteral?.name || '' }}</td>
+              <td class="number">{{ item.row.enteral?.amount || '' }}</td>
+              <td>{{ item.row.enteral?.route || '' }}</td>
+              <td>{{ item.row.output?.name || '' }}</td>
+              <td class="number">{{ item.row.output?.amount || '' }}</td>
+              <td>{{ item.row.drain?.name || '' }}</td>
+              <td class="number">{{ item.row.drain?.amount || '' }}</td>
+              <td>{{ item.row.examination }}</td>
+              <td>{{ item.row.treatment }}</td>
+              <td>{{ item.row.basicCare }}</td>
+              <td>{{ item.row.healthEducation }}</td>
+              <td class="nursing-cell">{{ item.row.nursingRecord }}</td>
+              <td>{{ item.row.signature }}</td>
+            </tr>
 
-          <!-- 日间小结 + 24小时总结 同一行 -->
-          <tr class="summary-row" *ngIf="form.daySummary || form.fullDaySummary">
-            <td colspan="17" class="summary-row-cell">
-              <div class="summary-pair">
-                <section class="summary-panel day-summary" *ngIf="form.daySummary as summary">
-                  <div class="summary-header">{{ summary.label }}</div>
-                  <div class="summary-period">{{ summary.periodText }}</div>
+            <!-- 日间小结 -->
+            <tr *ngIf="item.kind === 'day-summary' && item.summary" class="summary-row">
+              <td colspan="17" class="summary-row-cell">
+                <section class="summary-panel day-summary">
+                  <div class="summary-header">{{ item.summary.label }}</div>
+                  <div class="summary-period">{{ item.summary.periodText }}</div>
                   <div class="summary-grid">
-                    <ng-container *ngFor="let item of summaryValues(summary); trackBy: trackText">
-                      <span class="summary-label">{{ item.label }}</span>
-                      <span class="summary-value">{{ item.value | number:'1.0-2' }}</span>
+                    <ng-container *ngFor="let s of summaryValues(item.summary); trackBy: trackText">
+                      <span class="summary-label">{{ s.label }}</span>
+                      <span class="summary-value">{{ s.value | number:'1.0-2' }}</span>
                     </ng-container>
                   </div>
                 </section>
-                <section class="summary-panel full-day-summary" *ngIf="form.fullDaySummary as summary">
-                  <div class="summary-header">{{ summary.label }}</div>
-                  <div class="summary-period">{{ summary.periodText }}</div>
+              </td>
+            </tr>
+
+            <!-- 24小时总结 -->
+            <tr *ngIf="item.kind === 'full-day-summary' && item.summary" class="summary-row">
+              <td colspan="17" class="summary-row-cell">
+                <section class="summary-panel full-day-summary">
+                  <div class="summary-header">{{ item.summary.label }}</div>
+                  <div class="summary-period">{{ item.summary.periodText }}</div>
                   <div class="summary-grid">
-                    <ng-container *ngFor="let item of summaryValues(summary); trackBy: trackText">
-                      <span class="summary-label">{{ item.label }}</span>
-                      <span class="summary-value">{{ item.value | number:'1.0-2' }}</span>
+                    <ng-container *ngFor="let s of summaryValues(item.summary); trackBy: trackText">
+                      <span class="summary-label">{{ s.label }}</span>
+                      <span class="summary-value">{{ s.value | number:'1.0-2' }}</span>
                     </ng-container>
                   </div>
                 </section>
-              </div>
-            </td>
-          </tr>
+              </td>
+            </tr>
+          </ng-container>
+
+          <tr *ngIf="!form.renderItems.length && !loading"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
 
           <!-- 默认备注 -->
           <tr class="remark-row">

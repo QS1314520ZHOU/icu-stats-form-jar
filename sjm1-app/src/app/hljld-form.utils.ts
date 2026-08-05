@@ -3,6 +3,7 @@ import {
   DrugExecution,
   DrugMethodConfig,
   HljldDisplayRow,
+  HljldRenderItem,
   HljldSourceData,
   HljldSummary,
   HljldTimeRow,
@@ -144,6 +145,40 @@ function isRenderableBedsideRecord(record: BedsideRecord): boolean {
   if (record.code === 'param_Yishi') { return false; }
   if (!DISPLAY_BEDSIDE_CODES.has(record.code) && !record.code.includes('引流')) { return false; }
   return hasText(record.strVal) || hasText(record.remark);
+}
+
+/**
+ * 根据 param_Yishi 记录解析签名用户ID。
+ * 只使用 bedside.code === 'param_Yishi' 的 editUser。
+ * 选择 time <= targetTime 的最近一条。
+ */
+export function resolveYishiSignerId(
+  targetTime: string | Date | number,
+  bedsideRecords: BedsideRecord[],
+): string {
+  const targetInstant = typeof targetTime === 'number'
+    ? targetTime
+    : targetTime instanceof Date
+      ? targetTime.getTime()
+      : databaseTimeValue(targetTime);
+
+  if (!Number.isFinite(targetInstant)) { return ''; }
+
+  const yishiRecords = bedsideRecords
+    .filter(item => item.valid !== false && item.code === 'param_Yishi' && !!item.time && !!item.editUser)
+    .map(item => ({
+      instant: databaseTimeValue(item.time),
+      editUser: String(item.editUser ?? '').trim(),
+    }))
+    .filter(item => Number.isFinite(item.instant) && !!item.editUser)
+    .sort((a, b) => a.instant - b.instant);
+
+  for (let i = yishiRecords.length - 1; i >= 0; i--) {
+    if (yishiRecords[i].instant <= targetInstant) {
+      return yishiRecords[i].editUser;
+    }
+  }
+  return '';
 }
 
 function isRenderableDrugExecution(item: DrugExecution): boolean {
@@ -295,21 +330,9 @@ export function buildRows(
 
     const values = (code: string) => bedside.filter(item => item.code === code).map(item => displayAmount(item.strVal)).filter(Boolean);
 
-    // 签名：收集同一分钟内的用户ID，通过accountMap查找trueName
-    const signatureUserIds = new Set<string>();
-    bedside.filter(item => minuteKey(item.time) === key && item.editUser).forEach(item => signatureUserIds.add(item.editUser!));
-    source.nurseRecords.filter(item => item.valid !== false && minuteKey(item.time) === key).forEach(item => {
-      if (item.userId) { signatureUserIds.add(item.userId); }
-      if (item.editUser) { signatureUserIds.add(item.editUser); }
-    });
-    source.drugExecutions.filter(item => minuteKey(item.startTime) === key).forEach(item => {
-      const startAction = (item.drugActionList ?? []).find(a => a.action === 'start');
-      if (startAction?.accountId) { signatureUserIds.add(startAction.accountId); }
-      else if (item.orderUser) { signatureUserIds.add(item.orderUser); }
-    });
-    const signatures = Array.from(signatureUserIds)
-      .map(id => accountMap.get(id) || '')
-      .filter(Boolean);
+    // 签名：只使用 param_Yishi 的 editUser
+    const signUserId = resolveYishiSignerId(timeMs, source.bedside);
+    const signature = signUserId ? (accountMap.get(signUserId) || '') : '';
 
     return {
       key: String(key),
@@ -324,7 +347,7 @@ export function buildRows(
       basicCare: values('param_基础护理1'),
       healthEducation: values('param_健康教育'),
       nursingRecords: source.nurseRecords.filter(item => item.valid !== false && minuteKey(item.time) === key).map(item => item.desc || '').filter(Boolean),
-      signature: Array.from(new Set(signatures)).join('、'),
+      signature,
     };
   });
 }
@@ -334,36 +357,98 @@ export function buildRows(
 export function buildDisplayRows(rows: HljldTimeRow[]): HljldDisplayRow[] {
   const result: HljldDisplayRow[] = [];
   for (const row of rows) {
-    const lineCount = Math.max(
-      1,
-      row.medications.length,
-      row.enteral.length,
-      row.outputs.length,
-      row.drains.length,
-      row.examination.length,
-      row.treatment.length,
-      row.basicCare.length,
-      row.healthEducation.length,
-      row.nursingRecords.length,
-    );
+    const medications = row.medications.filter(item => !!item && (hasText(item.name) || hasText(item.amount) || hasText(item.route)));
+    const enteral = row.enteral.filter(item => !!item && (hasText(item.name) || hasText(item.amount) || hasText(item.route)));
+    const outputs = row.outputs.filter(item => !!item && (hasText(item.name) || hasText(item.amount)));
+    const drains = row.drains.filter(item => !!item && (hasText(item.name) || hasText(item.amount)));
+    const examination = row.examination.filter(hasText);
+    const treatment = row.treatment.filter(hasText);
+    const basicCare = row.basicCare.filter(hasText);
+    const healthEducation = row.healthEducation.filter(hasText);
+    const nursingRecords = row.nursingRecords.filter(hasText);
+
+    const lineCount = Math.max(1, medications.length, enteral.length, outputs.length, drains.length, examination.length, treatment.length, basicCare.length, healthEducation.length, nursingRecords.length);
+
     for (let index = 0; index < lineCount; index += 1) {
       const firstLine = index === 0;
       result.push({
         key: `${row.key}::${index}`,
         firstLine,
         timeText: firstLine ? row.timeText : '',
-        medication: row.medications[index],
-        enteral: row.enteral[index],
-        output: row.outputs[index],
-        drain: row.drains[index],
-        examination: row.examination[index] ?? '',
-        treatment: row.treatment[index] ?? '',
-        basicCare: row.basicCare[index] ?? '',
-        healthEducation: row.healthEducation[index] ?? '',
-        nursingRecord: row.nursingRecords[index] ?? '',
+        medication: medications[index],
+        enteral: enteral[index],
+        output: outputs[index],
+        drain: drains[index],
+        examination: examination[index] ?? '',
+        treatment: treatment[index] ?? '',
+        basicCare: basicCare[index] ?? '',
+        healthEducation: healthEducation[index] ?? '',
+        nursingRecord: nursingRecords[index] ?? '',
         signature: firstLine ? row.signature : '',
       });
     }
   }
   return result;
+}
+
+/**
+ * 将明细行和小结合并为时间轴渲染项。
+ * 日间小结插入 17:00 时间点。
+ * 次日07:00 插入日间小结和24小时总结。
+ */
+export function buildRenderItems(
+  displayRows: HljldDisplayRow[],
+  daySummary: HljldSummary | undefined,
+  fullDaySummary: HljldSummary | undefined,
+  rangeStart: Date,
+): HljldRenderItem[] {
+  const items: HljldRenderItem[] = [];
+
+  // 明细行转为渲染项
+  for (const row of displayRows) {
+    const ts = row.firstLine ? databaseTimeValue(row.timeText) : NaN;
+    items.push({
+      kind: 'detail',
+      key: row.key,
+      timestamp: Number.isFinite(ts) ? ts : 0,
+      row,
+    });
+  }
+
+  // 日间小结：17:00 时间点
+  if (daySummary) {
+    const dayEnd = new Date(rangeStart);
+    dayEnd.setHours(17, 0, 0, 0);
+    const dayEndTs = dayEnd.getTime();
+    items.push({
+      kind: 'day-summary',
+      key: 'day-summary',
+      timestamp: dayEndTs,
+      summary: daySummary,
+    });
+  }
+
+  // 24小时总结：次日07:00 时间点
+  if (fullDaySummary) {
+    const nextMorning = new Date(rangeStart);
+    nextMorning.setDate(nextMorning.getDate() + 1);
+    nextMorning.setHours(7, 0, 0, 0);
+    const nextMorningTs = nextMorning.getTime();
+    items.push({
+      kind: 'full-day-summary',
+      key: 'full-day-summary',
+      timestamp: nextMorningTs,
+      summary: fullDaySummary,
+    });
+  }
+
+  // 按 timestamp 升序排序，相同时间：明细先、日间小结次之、24h总结最后
+  const kindOrder: Record<string, number> = { 'detail': 0, 'day-summary': 1, 'full-day-summary': 2 };
+  items.sort((a, b) => {
+    const diff = a.timestamp - b.timestamp;
+    if (diff !== 0) return diff;
+    return (kindOrder[a.kind] ?? 0) - (kindOrder[b.kind] ?? 0);
+  });
+
+  return items;
 }

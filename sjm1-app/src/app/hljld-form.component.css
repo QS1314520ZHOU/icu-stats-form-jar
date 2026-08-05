@@ -258,14 +258,10 @@ h1 {
   padding: 0 !important;
 }
 
-.summary-pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  width: 100%;
-}
-
 .summary-panel {
+  width: 100%;
   padding: 6px 8px;
+  box-sizing: border-box;
 }
 
 .summary-header {
@@ -436,11 +432,8 @@ h1 {
   .record-col { width: 29mm; }
   .sign-col { width: 12mm; }
 
-  .summary-pair {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .summary-panel {
+    width: 100%;
     padding: 1mm 2mm;
   }
 

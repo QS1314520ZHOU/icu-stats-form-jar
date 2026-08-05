@@ -41,11 +41,13 @@ export interface DrugMethodConfig {
 
 export interface BedsideRecord {
   _id?: string;
+  id?: string;
   pid: string;
   time: string;
   code: string;
   remark?: string;
   strVal?: string | number;
+  valid?: boolean;
   editUser?: string;
   username?: string;
   trueName?: string;
@@ -136,6 +138,14 @@ export interface HljldSummary {
   otherOutput: number;
 }
 
+export interface HljldRenderItem {
+  kind: 'detail' | 'day-summary' | 'full-day-summary';
+  key: string;
+  timestamp: number;
+  row?: HljldDisplayRow;
+  summary?: HljldSummary;
+}
+
 export interface HljldViewModel {
   patient: PatientContext;
   selectedDate: Date;
@@ -143,6 +153,7 @@ export interface HljldViewModel {
   rangeEnd: Date;
   rows: HljldTimeRow[];
   displayRows: HljldDisplayRow[];
+  renderItems: HljldRenderItem[];
   daySummary?: HljldSummary;
   fullDaySummary?: HljldSummary;
   remark: string;
