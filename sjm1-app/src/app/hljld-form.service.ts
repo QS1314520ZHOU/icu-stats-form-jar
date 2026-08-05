@@ -30,17 +30,6 @@ export class HljldFormService {
   private readonly hljldBase = '/api/v1/icu/hljld';
   private readonly bedsideApi = '/api/v1/icu/bedside/listByPid';
 
-  /**
-   * 当前后端未实现以下接口，暂时关闭：
-   * - /api/v1/icu/hljld/drug-executions
-   * - /api/v1/icu/hljld/drug-methods
-   * - /api/v1/icu/hljld/nurse-records
-   * - /api/v1/icu/hljld/signatures
-   *
-   * 后端实现后将此值改为 true 即可启用。
-   */
-  private readonly enableExtendedApis = false;
-
   constructor(private http: HttpClient) {}
 
   load(pid: string, start: Date, end: Date): Observable<LoadResult> {
@@ -53,7 +42,7 @@ export class HljldFormService {
           const data = this.normalizeArray(response);
           const st: SourceStatus = { source: name, url, status: 'success', count: data.length };
           statuses.push(st);
-          if (isDev) { console.info(`[HLJLD][source] ${name}`, { url, pid, startTime: start.toISOString(), endTime: end.toISOString(), count: data.length }); }
+          if (isDev) { console.info(`[HLJLD][source] ${name}`, { url, pid, count: data.length }); }
           return { data, status: st };
         }),
         catchError(error => {
@@ -72,41 +61,34 @@ export class HljldFormService {
       );
     };
 
-    const bedsideParams = new HttpParams().set('pid', pid);
-    const bedside$ = safeGet<BedsideRecord>('bedside', this.bedsideApi, bedsideParams);
-
-    if (!this.enableExtendedApis) {
-      return bedside$.pipe(
-        map(result => ({
-          data: {
-            bedside: result.data,
-            drugExecutions: [],
-            drugMethods: [],
-            nurseRecords: [],
-            signatures: [],
-          },
-          statuses,
-        })),
-      );
-    }
+    const rangeParams = new HttpParams()
+      .set('pid', pid)
+      .set('startTime', start.toISOString())
+      .set('endTime', end.toISOString());
 
     return forkJoin({
-      bedside: bedside$,
-      drugExecutions: safeGet<DrugExecution>('drugExecutions', `${this.hljldBase}/drug-executions`, new HttpParams().set('pid', pid).set('startTime', start.toISOString()).set('endTime', end.toISOString())),
+      bedside: safeGet<BedsideRecord>('bedside', this.bedsideApi, new HttpParams().set('pid', pid)),
+      drugExecutions: safeGet<DrugExecution>('drugExecutions', `${this.hljldBase}/drug-executions`, rangeParams),
       drugMethods: safeGet<DrugMethodConfig>('drugMethods', `${this.hljldBase}/drug-methods`),
-      nurseRecords: safeGet<NurseRecord>('nurseRecords', `${this.hljldBase}/nurse-records`, new HttpParams().set('pid', pid).set('startTime', start.toISOString()).set('endTime', end.toISOString())),
-      signatures: safeGet<SignatureRecord>('signatures', `${this.hljldBase}/signatures`, new HttpParams().set('pid', pid).set('startTime', start.toISOString()).set('endTime', end.toISOString())),
+      nurseRecords: safeGet<NurseRecord>('nurseRecords', `${this.hljldBase}/nurse-records`, rangeParams),
+      signatures: of({
+        data: [] as SignatureRecord[],
+        status: { source: 'signatures', url: '', status: 'success' as const, count: 0 } as SourceStatus,
+      }),
     }).pipe(
-      map(result => ({
-        data: {
-          bedside: result.bedside.data,
-          drugExecutions: result.drugExecutions.data,
-          drugMethods: result.drugMethods.data,
-          nurseRecords: result.nurseRecords.data,
-          signatures: result.signatures.data,
-        },
-        statuses,
-      })),
+      map(result => {
+        statuses.push(result.signatures.status);
+        return {
+          data: {
+            bedside: result.bedside.data,
+            drugExecutions: result.drugExecutions.data,
+            drugMethods: result.drugMethods.data,
+            nurseRecords: result.nurseRecords.data,
+            signatures: result.signatures.data,
+          },
+          statuses,
+        };
+      }),
     );
   }
 

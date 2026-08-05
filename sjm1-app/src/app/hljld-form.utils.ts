@@ -11,6 +11,8 @@ import {
   PatientContext,
 } from './hljld-form.models';
 
+import { databaseTimeValue, formatShanghaiDateMinute } from './form-date.util';
+
 const OUTPUT_CODE_NAMES: Record<string, string> = {
   param_chaoLvLiang: '净超滤量',
   param_niaoLiang: '尿量',
@@ -39,28 +41,14 @@ const DISPLAY_BEDSIDE_CODES = new Set<string>([
   'param_外出检查', 'param_物理治疗', 'param_基础护理1', 'param_健康教育',
 ]);
 
-function hasText(value: unknown): boolean {
-  return value !== null && value !== undefined && String(value).trim() !== '';
-}
-
-function isRenderableBedsideRecord(record: BedsideRecord): boolean {
-  if (!record || !record.time || !record.code) { return false; }
-  if (record.code === 'param_Yishi') { return false; }
-  if (!DISPLAY_BEDSIDE_CODES.has(record.code) && !record.code.includes('引流')) { return false; }
-  return hasText(record.strVal) || hasText(record.remark);
-}
-
-function isRenderableDrugExecution(item: DrugExecution): boolean {
-  if (!item || item.status === 'invalid' || !item.startTime) { return false; }
-  return (item.drugList ?? []).some(drug => hasText(drug.name) || parseAmount(drug.liquidAmount) !== 0);
-}
-
 export const DEFAULT_REMARK_LINES = [
   '检查：A：CT    B：核磁共振    C：胃镜    D：肠镜    E：超声检查    F：床旁胸片',
   '治疗：A：机械辅助排痰    B：气压治疗    C：雾化吸入    D：支气管镜灌洗    E：TDP照射    F：针灸治疗    G：运动治疗    H：肺复张',
   '基础护理：A：口腔护理    B：动/静脉置管护理    C：擦浴    D：会阴擦洗    E：肛周护理    F：更换引流袋    G：膀胱冲洗    H：压疮护理    I：床上洗头',
   '健康教育：A：入院指导    B：疾病知识    C：药物指导    D：饮食指导    E：肢体活动指导    F：检查指导    G：安全指导    H：心理指导    I：术前指导    J：术后指导    K：转科/出院指导    L：用氧注意事项    M：通气配合指导    N：康复指导    O：VTE预防指导',
 ];
+
+/* ---- 护理日时间范围 ---- */
 
 export function startOfNursingDay(selectedDate: Date): Date {
   const d = new Date(selectedDate);
@@ -80,16 +68,21 @@ export function formatDate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function formatDateTime(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${formatDate(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+/* ---- 东八区时间工具 ---- */
+
+/**
+ * 分钟键：使用绝对毫秒时间戳除以60000取整，
+ * 保证跨时区和跨数据源的分钟匹配一致。
+ */
+export function minuteKey(value: string | Date): number {
+  const timestamp = value instanceof Date ? value.getTime() : databaseTimeValue(value);
+  if (!Number.isFinite(timestamp)) { return NaN; }
+  return Math.floor(timestamp / 60000);
 }
 
-export function minuteKey(value: string | Date): string {
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) { return ''; }
-  d.setSeconds(0, 0);
-  return d.toISOString();
+/** 将绝对毫秒时间戳格式化为上海时间 yyyy-MM-dd HH:mm */
+export function formatTime(ms: number): string {
+  return formatShanghaiDateMinute(ms);
 }
 
 export function parseAmount(value: unknown): number {
@@ -103,16 +96,23 @@ export function displayAmount(value: unknown): string {
   return value === null || value === undefined ? '' : String(value).trim();
 }
 
+function hasText(value: unknown): boolean {
+  return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+/* ---- 药物方法匹配 ---- */
+
 function normalizeCodes(code: string): string[] {
   return String(code || '')
-    .split(/[、,，;；|/\s]+/)
+    .split('、')
     .map(item => item.trim())
     .filter(Boolean);
 }
 
 export function findDrugMethod(methodCode: string | undefined, configs: DrugMethodConfig[]): DrugMethodConfig | undefined {
-  const code = String(methodCode || '').trim();
-  return configs.find(config => config.valid !== false && normalizeCodes(config.code).includes(code));
+  const targetCode = String(methodCode ?? '').trim();
+  if (!targetCode) { return undefined; }
+  return configs.find(config => config.valid !== false && normalizeCodes(config.code).includes(targetCode));
 }
 
 export function routeLabel(name: string | undefined): string {
@@ -137,22 +137,41 @@ export function enteralDisplayName(rawName: string): string {
   return name;
 }
 
-function drugToCell(exe: DrugExecution, config: DrugMethodConfig, enteral: boolean): NameAmountRoute {
-  const drugList = exe.drugList || [];
-  const rawName = drugList.map(item => item.name).filter(Boolean).join('、');
-  const amount = drugList.reduce((sum, item) => sum + parseAmount(item.liquidAmount), 0);
+/* ---- Bedside/Drug 渲染判断 ---- */
+
+function isRenderableBedsideRecord(record: BedsideRecord): boolean {
+  if (!record || !record.time || !record.code) { return false; }
+  if (record.code === 'param_Yishi') { return false; }
+  if (!DISPLAY_BEDSIDE_CODES.has(record.code) && !record.code.includes('引流')) { return false; }
+  return hasText(record.strVal) || hasText(record.remark);
+}
+
+function isRenderableDrugExecution(item: DrugExecution): boolean {
+  if (!item || item.status === 'invalid' || !item.startTime) { return false; }
+  return (item.drugList ?? []).some(drug => hasText(drug.name) || parseAmount(drug.liquidAmount) !== 0);
+}
+
+/* ---- 数据转换 ---- */
+
+function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral: boolean): NameAmountRoute {
+  const drugList = execution.drugList ?? [];
+  const rawName = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
+  const numericAmount = drugList.reduce((sum, item) => sum + parseAmount(item.liquidAmount), 0);
   return {
     name: enteral ? enteralDisplayName(rawName) : rawName,
-    amount: amount ? String(amount) : '',
-    numericAmount: amount,
+    amount: numericAmount !== 0 ? String(numericAmount) : '',
+    numericAmount,
     route: routeLabel(config.name),
   };
 }
 
 function bedsideInputCell(record: BedsideRecord): NameAmountRoute {
-  const route = record.code === 'param_kouFu' ? 'po' : record.code === 'param_biSi' ? '鼻饲' : '';
+  let route = '';
+  if (record.code === 'param_带入药量') { route = '带入'; }
+  else if (record.code === 'param_kouFu') { route = 'po'; }
+  else if (record.code === 'param_biSi') { route = '鼻饲'; }
   return {
-    name: record.remark || '',
+    name: String(record.remark ?? '').trim(),
     amount: displayAmount(record.strVal),
     numericAmount: parseAmount(record.strVal),
     route,
@@ -165,7 +184,7 @@ function drainName(code: string): string {
 }
 
 function inRange(time: string, start: Date, end: Date): boolean {
-  const value = new Date(time).getTime();
+  const value = databaseTimeValue(time);
   return Number.isFinite(value) && value >= start.getTime() && value <= end.getTime();
 }
 
@@ -198,6 +217,8 @@ function outputRecords(records: BedsideRecord[]): BedsideRecord[] {
   return records.filter(item => Boolean(OUTPUT_CODE_NAMES[item.code]) || item.code.includes('引流'));
 }
 
+/* ---- 小结 ---- */
+
 export function buildSummary(
   kind: 'day' | '24h',
   patient: PatientContext,
@@ -206,7 +227,10 @@ export function buildSummary(
   periodEnd: Date,
 ): HljldSummary {
   const stay = activeStayBoundary(patient, periodStart, periodEnd);
-  const records = source.bedside.filter(item => inRange(item.time, stay.start, stay.end));
+  const records = source.bedside.filter(item => {
+    const ts = databaseTimeValue(item.time);
+    return Number.isFinite(ts) && ts >= stay.start.getTime() && ts <= stay.end.getTime();
+  });
   const totalInput = sumBedside(records, NON_DRUG_INPUT_CODES);
   const infusion = sumBedside(records, INFUSION_CODES);
   const diet = sumBedside(records, DIET_CODES);
@@ -216,55 +240,46 @@ export function buildSummary(
   return {
     kind,
     label: kind === 'day' ? '日间小结' : '24小时总结',
-    periodText: `${formatDateTime(stay.start)}—${formatDateTime(stay.end)}（${durationText(stay.start, stay.end)}）`,
+    periodText: `${formatTime(stay.start.getTime())}—${formatTime(stay.end.getTime())}（${durationText(stay.start, stay.end)}）`,
     totalInput,
     infusion,
     diet,
     totalOutput,
-    // 严格按需求文档：平衡量 = 总出量 - 总入量。
     balance: totalOutput - totalInput,
     urine,
     otherOutput: totalOutput - urine,
   };
 }
 
+/* ---- 时间行生成 ---- */
+
 export function buildRows(
   source: HljldSourceData,
   start: Date,
   end: Date,
 ): HljldTimeRow[] {
-  const events: Array<{ time: string }> = [
-    ...source.bedside.filter(isRenderableBedsideRecord).map(item => ({ time: item.time })),
-    ...source.drugExecutions.filter(isRenderableDrugExecution).map(item => ({ time: item.startTime })),
-    ...source.nurseRecords.filter(item => item.valid !== false && !!item.time && hasText(item.desc)).map(item => ({ time: item.time })),
-  ].filter(item => inRange(item.time, start, end));
+  const events: Array<{ timestamp: number }> = [
+    ...source.bedside.filter(isRenderableBedsideRecord).map(item => ({ timestamp: minuteKey(item.time) })),
+    ...source.drugExecutions.filter(isRenderableDrugExecution).map(item => ({ timestamp: minuteKey(item.startTime) })),
+    ...source.nurseRecords.filter(item => item.valid !== false && !!item.time && hasText(item.desc)).map(item => ({ timestamp: minuteKey(item.time) })),
+  ].filter(item => Number.isFinite(item.timestamp) && item.timestamp * 60000 >= start.getTime() && item.timestamp * 60000 <= end.getTime());
 
-  const keys = Array.from(new Set(events.map(item => minuteKey(item.time)).filter(Boolean))).sort();
+  const uniqueKeys = Array.from(new Set(events.map(item => item.timestamp).filter(k => Number.isFinite(k)))).sort((a, b) => a - b);
 
-  return keys.map(key => {
-    const time = new Date(key);
+  return uniqueKeys.map(key => {
+    const timeMs = key * 60000;
     const bedside = source.bedside.filter(item => minuteKey(item.time) === key);
     const drugExecutions = source.drugExecutions.filter(item => item.status !== 'invalid' && minuteKey(item.startTime) === key);
     const medications: NameAmountRoute[] = [];
     const enteral: NameAmountRoute[] = [];
 
-    drugExecutions.forEach(exe => {
-      const method = findDrugMethod(exe.methodCode, source.drugMethods);
-      if (method) {
-        const target = method.group === '胃肠' ? enteral : medications;
-        target.push(drugToCell(exe, method, method.group === '胃肠'));
-      } else {
-        // 方法未匹配时仍保留药物，途径留空
-        const drugList = exe.drugList || [];
-        const rawName = drugList.map(item => item.name).filter(Boolean).join('、');
-        const amount = drugList.reduce((sum, item) => sum + parseAmount(item.liquidAmount), 0);
-        medications.push({
-          name: rawName,
-          amount: amount ? String(amount) : '',
-          numericAmount: amount,
-          route: '',
-        });
-      }
+    drugExecutions.forEach(execution => {
+      const method = findDrugMethod(execution.methodCode, source.drugMethods);
+      if (!method) { return; }
+      const isEnteral = String(method.group ?? '').trim() === '胃肠';
+      const cell = drugToCell(execution, method, isEnteral);
+      if (!cell.name && !cell.amount) { return; }
+      if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
     });
 
     bedside.filter(item => item.code === 'param_带入药量').forEach(item => medications.push(bedsideInputCell(item)));
@@ -287,9 +302,9 @@ export function buildRows(
     }
 
     return {
-      key,
-      time,
-      timeText: formatDateTime(time),
+      key: String(key),
+      time: new Date(timeMs),
+      timeText: formatTime(timeMs),
       medications,
       enteral,
       outputs,
@@ -303,6 +318,8 @@ export function buildRows(
     };
   });
 }
+
+/* ---- 展开行 ---- */
 
 export function buildDisplayRows(rows: HljldTimeRow[]): HljldDisplayRow[] {
   const result: HljldDisplayRow[] = [];

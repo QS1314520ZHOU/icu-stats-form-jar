@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Subject, merge } from 'rxjs';
-import { distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
+import { Subject, ReplaySubject } from 'rxjs';
+import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService, LoadResult } from './hljld-form.service';
 import { HljldDisplayRow, HljldSourceData, HljldSummary, HljldViewModel, PatientContext } from './hljld-form.models';
 import { buildDisplayRows, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, startOfNursingDay } from './hljld-form.utils';
+import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 
 @Component({
   standalone: false,
@@ -15,7 +16,13 @@ import { buildDisplayRows, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfN
 })
 export class HljldFormComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
-  private readonly dateChange$ = new Subject<void>();
+
+  /*
+   * ReplaySubject(1) 缓存最近一次加载触发。
+   * 即使患者 BehaviorSubject 同步发送，也不会丢失第一次加载事件。
+   */
+  private readonly dateChange$ = new ReplaySubject<void>(1);
+
   patient: PatientContext = { pid: '' };
   selectedDate = new Date();
   dateInput = this.toDateString(this.selectedDate);
@@ -24,6 +31,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   sourceError = '';
   vm?: HljldViewModel;
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
+  private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], signatures: [] };
 
   constructor(
     private service: HljldFormService,
@@ -32,40 +40,15 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
-      if (!p) {
-        this.resetPatientData();
-        return;
-      }
-      const nextPid = String(p.id ?? '').trim();
-      if (!nextPid) {
-        this.resetPatientData();
-        this.error = '未获取到患者数据库主键，无法查询护理记录';
-        this.cdr.markForCheck();
-        return;
-      }
-      const previousPid = this.patient.pid;
-      this.patient = this.toPatientContext(p);
-      if (nextPid !== previousPid) {
-        this.clearClinicalData();
-        this.dateChange$.next();
-      }
-      const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
-      if (isDev) {
-        console.info('[HLJLD][patient-sync]', {
-          transportId: p.id,
-          mongoIdAlias: (p as any)._id,
-          resolvedPid: nextPid,
-          mrn: this.patient.mrn,
-          bedNo: this.patient.bedNo,
-        });
-      }
-      this.cdr.markForCheck();
-    });
-
-    merge(this.dateChange$).pipe(
+    /*
+     * 必须先订阅加载触发流，再订阅 patient$。
+     * 否则 BehaviorSubject 同步发送缓存患者时，
+     * 第一次 dateChange$.next() 会发生在订阅建立之前。
+     */
+    this.dateChange$.pipe(
       takeUntil(this.destroy$),
       map(() => ({ pid: this.patient.pid, date: new Date(this.selectedDate) })),
+      filter(condition => !!condition.pid),
       distinctUntilChanged((a, b) => a.pid === b.pid && this.isSameLocalDate(a.date, b.date)),
       switchMap(condition => this.loadCondition(condition.pid, condition.date).pipe(
         map(result => ({ result, pid: condition.pid })),
@@ -95,6 +78,41 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         this.error = err?.message || '护理数据加载异常，请检查数据接口';
         this.cdr.markForCheck();
       },
+    });
+
+    /*
+     * 加载流建立后，再订阅患者。
+     */
+    this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
+      if (!p) {
+        this.resetPatientData();
+        this.cdr.markForCheck();
+        return;
+      }
+      const nextPid = getSmartCarePatientPid(p);
+      if (!nextPid) {
+        this.resetPatientData();
+        this.error = '未获取到患者数据库主键，无法查询护理记录';
+        this.cdr.markForCheck();
+        return;
+      }
+      const previousPid = this.patient.pid;
+      this.patient = this.toPatientContext(p);
+      if (nextPid !== previousPid) {
+        this.clearClinicalData();
+        this.dateChange$.next();
+      }
+      const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+      if (isDev) {
+        console.info('[HLJLD][patient-sync]', {
+          transportId: p.id,
+          mongoIdAlias: (p as any)._id,
+          resolvedPid: nextPid,
+          mrn: this.patient.mrn,
+          bedNo: this.patient.bedNo,
+        });
+      }
+      this.cdr.markForCheck();
     });
   }
 
@@ -141,8 +159,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       { label: '其它出量', value: summary.otherOutput },
     ];
   }
-
-  private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], signatures: [] };
 
   private moveDate(days: number): void {
     const value = new Date(this.selectedDate);
@@ -196,7 +212,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
   private toPatientContext(p: any): PatientContext {
     return {
-      pid: String(p?.id ?? '').trim(),
+      pid: getSmartCarePatientPid(p),
       mrn: String(p?.mrn ?? p?.hospitalNo ?? '').trim(),
       name: String(p?.name ?? p?.patientName ?? '').trim(),
       sex: this.genderText(p?.sex ?? p?.gender ?? ''),
