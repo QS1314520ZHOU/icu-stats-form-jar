@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Subject, ReplaySubject, firstValueFrom } from 'rxjs';
+import { Subject, ReplaySubject, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService, LoadResult } from './hljld-form.service';
@@ -32,6 +32,8 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   vm?: HljldViewModel;
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
   private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], signatures: [] };
+  private accountMap = new Map<string, string>();
+  private readonly clockRefresh$ = interval(60_000);
 
   constructor(
     private service: HljldFormService,
@@ -64,6 +66,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
         if (pid !== this.patient.pid) return;
         this.source = result.data;
+        this.accountMap = accountMap;
         this.vm = this.toViewModel(result.data, accountMap);
         this.loading = false;
 
@@ -119,6 +122,17 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         });
       }
       this.cdr.markForCheck();
+    });
+
+    // 每分钟检查是否到达统计边界，重新构建时间轴
+    this.clockRefresh$.pipe(
+      takeUntil(this.destroy$),
+      filter(() => !!this.patient.pid && !!this.source.bedside.length),
+    ).subscribe(() => {
+      if (this.vm) {
+        this.vm = this.toViewModel(this.source, this.accountMap);
+        this.cdr.markForCheck();
+      }
     });
   }
 
@@ -203,9 +217,10 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const rows = buildRows(source, rangeStart, rangeEnd, accountMap);
     const timeGroups = buildDisplayGroups(rows);
     const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary);
-    const shiftSummary = buildSummary('shift', '小结', this.patient, source, dayBoundary, nextMorning);
+    const shiftSummary = buildSummary('shift', '日间小结', this.patient, source, dayBoundary, nextMorning);
     const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning);
-    const timeline = buildTimeline(timeGroups, daySummary, shiftSummary, fullDaySummary, dayBoundary.getTime(), nextMorning.getTime());
+    const nowMs = Date.now();
+    const timeline = buildTimeline(timeGroups, daySummary, shiftSummary, fullDaySummary, dayBoundary.getTime(), nextMorning.getTime(), nowMs);
     return {
       patient: this.patient,
       selectedDate: this.selectedDate,

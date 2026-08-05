@@ -120,14 +120,16 @@
       <span class="summary-total">总入量：<strong>{{ summary.totalInput | number:'1.0-2' }} ml</strong></span>
       <span class="summary-stat" *ngFor="let stat of summary.inputItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
     </div>
-    <div class="summary-line">
+    <div class="summary-line summary-output-line">
       <span class="summary-total">总出量：<strong>{{ summary.totalOutput | number:'1.0-2' }} ml</strong></span>
-      <span class="summary-group-label" *ngIf="summary.outputItems.length">排出物：</span>
-      <span class="summary-stat" *ngFor="let stat of summary.outputItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
-    </div>
-    <div class="summary-line" *ngIf="summary.drainItems.length">
-      <span class="summary-group-label">引流液：</span>
-      <span class="summary-stat" *ngFor="let stat of summary.drainItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
+      <ng-container *ngIf="summary.outputItems.length">
+        <span class="summary-group-label">排出物：</span>
+        <span class="summary-stat" *ngFor="let stat of summary.outputItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
+      </ng-container>
+      <ng-container *ngIf="summary.drainItems.length">
+        <span class="summary-group-label">引流液：</span>
+        <span class="summary-stat" *ngFor="let stat of summary.drainItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
+      </ng-container>
     </div>
     <div class="summary-line">
       <span class="summary-total">平衡量：<strong>{{ summary.balance | number:'1.0-2' }} ml</strong></span>

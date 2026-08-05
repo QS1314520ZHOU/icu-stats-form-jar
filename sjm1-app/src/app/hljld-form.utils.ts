@@ -456,41 +456,48 @@ export function buildTimeline(
   fullDaySummary: HljldSummary,
   dayBoundaryMs: number,
   nextMorningBoundaryMs: number,
+  nowMs: number,
 ): HljldTimelineItem[] {
   const result: HljldTimelineItem[] = [];
   let dayInserted = false;
 
   const sortedGroups = [...groups].sort((a, b) => a.timestamp - b.timestamp);
 
+  const showDaySummary = nowMs >= dayBoundaryMs;
+  const showNextMorningSummaries = nowMs >= nextMorningBoundaryMs;
+
   for (const group of sortedGroups) {
-    // 当前组晚于17:00时，先在当前组前插入17:00日间小结
-    if (!dayInserted && group.timestamp > dayBoundaryMs) {
+    // 只展示当前时间之前已经发生的数据
+    if (group.timestamp > nowMs) { continue; }
+
+    // 明细不能越过次日07:00
+    if (group.timestamp >= nextMorningBoundaryMs) { continue; }
+
+    // 已到17:00边界，当前组晚于17:00时，先插入日间小结
+    if (showDaySummary && !dayInserted && group.timestamp > dayBoundaryMs) {
       result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
       dayInserted = true;
-    }
-
-    // 当前组不能晚于护理日结束边界（次日07:00的数据属于下一护理日）
-    if (group.timestamp >= nextMorningBoundaryMs) {
-      continue;
     }
 
     result.push({ kind: 'time-group', key: group.key, timestamp: group.timestamp, group });
 
     // 正好17:00：先展示完整组，再展示日间小结
-    if (!dayInserted && group.timestamp === dayBoundaryMs) {
+    if (showDaySummary && !dayInserted && group.timestamp === dayBoundaryMs) {
       result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
       dayInserted = true;
     }
   }
 
-  // 即使17:00以后没有普通业务数据，17:00边界仍需要插入日间小结
-  if (!dayInserted) {
+  // 已到17:00但之后没有明细，仍需展示日间小结
+  if (showDaySummary && !dayInserted) {
     result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
   }
 
-  // 次日07:00边界必须同时展示：小结 + 24小时总结
-  result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });
-  result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
+  // 只有到次日07:00才展示日间小结 + 24小时总结
+  if (showNextMorningSummaries) {
+    result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });
+    result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
+  }
 
   return result;
 }

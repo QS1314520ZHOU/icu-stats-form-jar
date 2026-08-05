@@ -404,6 +404,15 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
+.summary-output-line {
+  width: 100%;
+  align-items: baseline;
+}
+
+.summary-output-line .summary-group-label {
+  margin-left: 2px;
+}
+
 /* =========================================================
    Remark
    ========================================================= */
