@@ -1,6 +1,9 @@
 :host {
   display: block;
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
+  box-sizing: border-box;
   color: #222;
   background: #f3f5f7;
   font-family: "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif;
@@ -8,46 +11,60 @@
 
 .hljld-shell {
   width: 100%;
-  min-width: 1180px;
-  padding: 16px;
+  min-width: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
 /* =========================================================
-   Toolbar
+   Toolbar — full width, no border-radius
    ========================================================= */
 
 .toolbar {
   width: 100%;
-  max-width: 1480px;
+  max-width: none;
   min-height: 52px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 0 auto 12px;
+  margin: 0 0 12px;
   padding: 8px 12px;
   background: #fff;
-  border: 1px solid #dfe3e8;
-  border-radius: 8px;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  border-bottom: 1px solid #dfe3e8;
+  border-radius: 0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
+
+/* =========================================================
+   Date tools group
+   ========================================================= */
 
 .date-tools {
   display: inline-flex;
   align-items: stretch;
   flex: 0 0 auto;
   gap: 0;
+  min-width: 0;
 }
+
+/* =========================================================
+   Nav arrows
+   ========================================================= */
 
 .nav-arrow {
   flex: 0 0 36px;
   width: 36px;
   height: 36px;
   box-sizing: border-box;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  margin: 0;
+  padding: 0;
   border: 1px solid #ccd3da;
   background: #fff;
   color: #333;
@@ -57,11 +74,11 @@
   user-select: none;
 }
 
-.nav-arrow:first-child {
+.nav-arrow-left {
   border-radius: 6px 0 0 6px;
 }
 
-.nav-arrow:nth-child(3) {
+.nav-arrow-right {
   border-radius: 0 6px 6px 0;
 }
 
@@ -69,10 +86,25 @@
   background: #f6f8fa;
 }
 
+.nav-arrow:focus-visible {
+  position: relative;
+  z-index: 2;
+  outline: 2px solid #3478f6;
+  outline-offset: -2px;
+}
+
+/* =========================================================
+   Date picker
+   ========================================================= */
+
 .date-picker {
   position: relative;
+  display: block;
   flex: 0 0 142px;
   width: 142px;
+  height: 36px;
+  min-width: 0;
+  cursor: pointer;
 }
 
 .date-picker input {
@@ -86,16 +118,34 @@
   border-bottom: 1px solid #ccd3da;
   border-left: 0;
   border-right: 0;
+  border-radius: 0;
   outline: 0;
   background: #fff;
+  color: #222;
   font: inherit;
+  font-variant-numeric: tabular-nums;
   text-align: center;
   cursor: pointer;
 }
 
-.date-picker input:focus {
-  outline: none;
+.date-picker input:hover {
+  background: #f9fbfd;
 }
+
+.date-picker input:focus-visible {
+  position: relative;
+  z-index: 2;
+  outline: 2px solid #3478f6;
+  outline-offset: -2px;
+}
+
+.date-picker input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+/* =========================================================
+   Today button
+   ========================================================= */
 
 .today-button {
   flex: 0 0 auto;
@@ -108,8 +158,8 @@
   background: #fff;
   color: #222;
   font: inherit;
-  cursor: pointer;
   white-space: nowrap;
+  cursor: pointer;
   transition: all 0.15s ease;
 }
 
@@ -130,22 +180,33 @@
   background: #2868db;
 }
 
+/* =========================================================
+   Toolbar right side
+   ========================================================= */
+
 .toolbar-spacer {
   flex: 1 1 auto;
+  min-width: 12px;
 }
 
 .source-warning {
+  flex: 0 1 auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #b45309;
   font-size: 12px;
   padding: 4px 8px;
   background: #fef3c7;
   border: 1px solid #fcd34d;
   border-radius: 4px;
-  white-space: nowrap;
 }
 
 .print-button {
+  flex: 0 0 auto;
   height: 36px;
+  box-sizing: border-box;
   padding: 0 18px;
   border: 1px solid #1677c8;
   border-radius: 6px;
@@ -160,16 +221,32 @@
 }
 
 /* =========================================================
-   Paper
+   Paper — centered with side margins
    ========================================================= */
 
 .paper {
-  width: 100%;
+  width: calc(100% - 32px);
   max-width: 1480px;
   margin: 0 auto;
   padding: 18px 20px 24px;
   box-sizing: border-box;
   background: #fff;
+}
+
+/* =========================================================
+   Screen-only helper
+   ========================================================= */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 h1 {
@@ -361,6 +438,35 @@ h1 {
 }
 
 /* =========================================================
+   Narrow screens
+   ========================================================= */
+
+@media screen and (max-width: 760px) {
+  .toolbar {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .date-picker {
+    flex-basis: 130px;
+    width: 130px;
+  }
+
+  .today-button,
+  .print-button {
+    padding: 0 12px;
+  }
+
+  .source-warning {
+    display: none;
+  }
+
+  .paper {
+    width: calc(100% - 16px);
+  }
+}
+
+/* =========================================================
    Print
    ========================================================= */
 
@@ -372,9 +478,12 @@ h1 {
 
   :host,
   .hljld-shell {
-    background: #fff;
-    padding: 0;
+    width: 100%;
     min-width: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: #fff;
   }
 
   .no-print {

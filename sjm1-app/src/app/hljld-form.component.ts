@@ -135,6 +135,15 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     this.dateChange$.next();
   }
 
+  openDatePicker(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    if (!input || input.disabled) { return; }
+    if (event instanceof KeyboardEvent) { event.preventDefault(); }
+    try {
+      if (typeof input.showPicker === 'function') { input.showPicker(); } else { input.focus(); }
+    } catch { input.focus(); }
+  }
+
   onDateInput(value: string): void {
     const date = new Date(`${value}T00:00:00`);
     if (!Number.isNaN(date.getTime())) {
