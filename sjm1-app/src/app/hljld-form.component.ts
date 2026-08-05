@@ -3,8 +3,8 @@ import { Subject, ReplaySubject, firstValueFrom } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService, LoadResult } from './hljld-form.service';
-import { BedsideRecord, DrugExecution, HljldDisplayRow, HljldSourceData, HljldSummary, HljldViewModel, NurseRecord, PatientContext } from './hljld-form.models';
-import { buildDisplayRows, buildRenderItems, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, startOfNursingDay } from './hljld-form.utils';
+import { BedsideRecord, DrugExecution, HljldDisplayRow, HljldSourceData, HljldSummary, HljldTimeGroup, HljldTimelineItem, HljldViewModel, NurseRecord, PatientContext } from './hljld-form.models';
+import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 
 @Component({
@@ -161,7 +161,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
   print(): void { window.print(); }
   trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
-  trackRenderItem(_: number, item: import('./hljld-form.models').HljldRenderItem): string { return item.key; }
+  trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
 
   summaryValues(summary: HljldSummary): Array<{ label: string; value: number }> {
@@ -213,18 +213,19 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const dayEnd = new Date(rangeStart); dayEnd.setHours(17, 0, 0, 0);
     const nextMorning = new Date(rangeStart); nextMorning.setDate(nextMorning.getDate() + 1); nextMorning.setHours(7, 0, 0, 0);
     const rows = buildRows(source, rangeStart, rangeEnd, accountMap);
-    const displayRows = buildDisplayRows(rows);
+    const timeGroups = buildDisplayGroups(rows);
     const daySummary = buildSummary('day', this.patient, source, rangeStart, dayEnd);
     const fullDaySummary = buildSummary('24h', this.patient, source, rangeStart, nextMorning);
-    const renderItems = buildRenderItems(displayRows, daySummary, fullDaySummary, rangeStart);
+    const timeline = buildTimeline(timeGroups, daySummary, fullDaySummary, dayEnd.getTime(), nextMorning.getTime());
     return {
       patient: this.patient,
       selectedDate: this.selectedDate,
       rangeStart,
       rangeEnd,
       rows,
-      displayRows,
-      renderItems,
+      displayRows: timeGroups.flatMap(g => g.rows),
+      timeGroups,
+      timeline,
       daySummary,
       fullDaySummary,
       remark: '',

@@ -111,6 +111,9 @@ export interface HljldTimeRow {
 
 export interface HljldDisplayRow {
   key: string;
+  groupKey: string;
+  timestamp: number;
+  lineIndex: number;
   firstLine: boolean;
   timeText: string;
   medication?: NameAmountRoute;
@@ -125,6 +128,17 @@ export interface HljldDisplayRow {
   signature: string;
 }
 
+export interface HljldTimeGroup {
+  key: string;
+  timestamp: number;
+  rows: HljldDisplayRow[];
+}
+
+export type HljldTimelineItem =
+  | { kind: 'time-group'; key: string; timestamp: number; group: HljldTimeGroup }
+  | { kind: 'day-summary'; key: string; timestamp: number; summary: HljldSummary }
+  | { kind: 'full-day-summary'; key: string; timestamp: number; summary: HljldSummary };
+
 export interface HljldSummary {
   kind: 'day' | '24h';
   label: string;
@@ -138,14 +152,6 @@ export interface HljldSummary {
   otherOutput: number;
 }
 
-export interface HljldRenderItem {
-  kind: 'detail' | 'day-summary' | 'full-day-summary';
-  key: string;
-  timestamp: number;
-  row?: HljldDisplayRow;
-  summary?: HljldSummary;
-}
-
 export interface HljldViewModel {
   patient: PatientContext;
   selectedDate: Date;
@@ -153,7 +159,8 @@ export interface HljldViewModel {
   rangeEnd: Date;
   rows: HljldTimeRow[];
   displayRows: HljldDisplayRow[];
-  renderItems: HljldRenderItem[];
+  timeGroups: HljldTimeGroup[];
+  timeline: HljldTimelineItem[];
   daySummary?: HljldSummary;
   fullDaySummary?: HljldSummary;
   remark: string;

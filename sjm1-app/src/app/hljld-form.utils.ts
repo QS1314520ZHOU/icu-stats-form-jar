@@ -3,10 +3,11 @@ import {
   DrugExecution,
   DrugMethodConfig,
   HljldDisplayRow,
-  HljldRenderItem,
   HljldSourceData,
   HljldSummary,
+  HljldTimeGroup,
   HljldTimeRow,
+  HljldTimelineItem,
   NameAmount,
   NameAmountRoute,
   PatientContext,
@@ -352,11 +353,12 @@ export function buildRows(
   });
 }
 
-/* ---- 展开行 ---- */
+/* ---- 时间组展开 ---- */
 
-export function buildDisplayRows(rows: HljldTimeRow[]): HljldDisplayRow[] {
-  const result: HljldDisplayRow[] = [];
-  for (const row of rows) {
+export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[] {
+  const sortedRows = [...sourceRows].sort((a, b) => a.time.getTime() - b.time.getTime());
+
+  return sortedRows.map(row => {
     const medications = row.medications.filter(item => !!item && (hasText(item.name) || hasText(item.amount) || hasText(item.route)));
     const enteral = row.enteral.filter(item => !!item && (hasText(item.name) || hasText(item.amount) || hasText(item.route)));
     const outputs = row.outputs.filter(item => !!item && (hasText(item.name) || hasText(item.amount)));
@@ -369,86 +371,80 @@ export function buildDisplayRows(rows: HljldTimeRow[]): HljldDisplayRow[] {
 
     const lineCount = Math.max(1, medications.length, enteral.length, outputs.length, drains.length, examination.length, treatment.length, basicCare.length, healthEducation.length, nursingRecords.length);
 
-    for (let index = 0; index < lineCount; index += 1) {
-      const firstLine = index === 0;
-      result.push({
-        key: `${row.key}::${index}`,
+    const timestamp = row.time.getTime();
+    const groupKey = row.key;
+    const displayRows: HljldDisplayRow[] = [];
+
+    for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+      const firstLine = lineIndex === 0;
+      displayRows.push({
+        key: `${groupKey}::${lineIndex}`,
+        groupKey,
+        timestamp,
+        lineIndex,
         firstLine,
         timeText: firstLine ? row.timeText : '',
-        medication: medications[index],
-        enteral: enteral[index],
-        output: outputs[index],
-        drain: drains[index],
-        examination: examination[index] ?? '',
-        treatment: treatment[index] ?? '',
-        basicCare: basicCare[index] ?? '',
-        healthEducation: healthEducation[index] ?? '',
-        nursingRecord: nursingRecords[index] ?? '',
+        medication: medications[lineIndex],
+        enteral: enteral[lineIndex],
+        output: outputs[lineIndex],
+        drain: drains[lineIndex],
+        examination: examination[lineIndex] ?? '',
+        treatment: treatment[lineIndex] ?? '',
+        basicCare: basicCare[lineIndex] ?? '',
+        healthEducation: healthEducation[lineIndex] ?? '',
+        nursingRecord: nursingRecords[lineIndex] ?? '',
         signature: firstLine ? row.signature : '',
       });
     }
-  }
-  return result;
+
+    return { key: groupKey, timestamp, rows: displayRows };
+  });
 }
 
-/**
- * 将明细行和小结合并为时间轴渲染项。
- * 日间小结插入 17:00 时间点。
- * 次日07:00 插入日间小结和24小时总结。
- */
-export function buildRenderItems(
-  displayRows: HljldDisplayRow[],
+/* ---- 时间轴构建 ---- */
+
+export function buildTimeline(
+  groups: HljldTimeGroup[],
   daySummary: HljldSummary | undefined,
   fullDaySummary: HljldSummary | undefined,
-  rangeStart: Date,
-): HljldRenderItem[] {
-  const items: HljldRenderItem[] = [];
+  dayBoundaryMs: number,
+  nextMorningBoundaryMs: number,
+): HljldTimelineItem[] {
+  const result: HljldTimelineItem[] = [];
+  let daySummaryInserted = false;
+  let fullDaySummaryInserted = false;
 
-  // 明细行转为渲染项
-  for (const row of displayRows) {
-    const ts = row.firstLine ? databaseTimeValue(row.timeText) : NaN;
-    items.push({
-      kind: 'detail',
-      key: row.key,
-      timestamp: Number.isFinite(ts) ? ts : 0,
-      row,
-    });
+  const sortedGroups = [...groups].sort((a, b) => a.timestamp - b.timestamp);
+
+  for (let index = 0; index < sortedGroups.length; index += 1) {
+    const group = sortedGroups[index];
+
+    // 日间小结：当前组已晚于17:00，且前面有更早的组
+    if (!daySummaryInserted && group.timestamp > dayBoundaryMs && index > 0 && sortedGroups[index - 1].timestamp < dayBoundaryMs) {
+      result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary! });
+      daySummaryInserted = true;
+    }
+
+    // 插入当前时间组
+    result.push({ kind: 'time-group', key: group.key, timestamp: group.timestamp, group });
+
+    // 正好有17:00数据：先展示完整组，再展示日间小结
+    if (!daySummaryInserted && group.timestamp === dayBoundaryMs && daySummary) {
+      result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
+      daySummaryInserted = true;
+    }
+
+    // 次日07:00：先展示完整组，再分别展示日间小结和24小时总结
+    if (!fullDaySummaryInserted && group.timestamp === nextMorningBoundaryMs) {
+      if (daySummary) {
+        result.push({ kind: 'day-summary', key: 'day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: daySummary });
+      }
+      if (fullDaySummary) {
+        result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
+      }
+      fullDaySummaryInserted = true;
+    }
   }
 
-  // 日间小结：17:00 时间点
-  if (daySummary) {
-    const dayEnd = new Date(rangeStart);
-    dayEnd.setHours(17, 0, 0, 0);
-    const dayEndTs = dayEnd.getTime();
-    items.push({
-      kind: 'day-summary',
-      key: 'day-summary',
-      timestamp: dayEndTs,
-      summary: daySummary,
-    });
-  }
-
-  // 24小时总结：次日07:00 时间点
-  if (fullDaySummary) {
-    const nextMorning = new Date(rangeStart);
-    nextMorning.setDate(nextMorning.getDate() + 1);
-    nextMorning.setHours(7, 0, 0, 0);
-    const nextMorningTs = nextMorning.getTime();
-    items.push({
-      kind: 'full-day-summary',
-      key: 'full-day-summary',
-      timestamp: nextMorningTs,
-      summary: fullDaySummary,
-    });
-  }
-
-  // 按 timestamp 升序排序，相同时间：明细先、日间小结次之、24h总结最后
-  const kindOrder: Record<string, number> = { 'detail': 0, 'day-summary': 1, 'full-day-summary': 2 };
-  items.sort((a, b) => {
-    const diff = a.timestamp - b.timestamp;
-    if (diff !== 0) return diff;
-    return (kindOrder[a.kind] ?? 0) - (kindOrder[b.kind] ?? 0);
-  });
-
-  return items;
+  return result;
 }
