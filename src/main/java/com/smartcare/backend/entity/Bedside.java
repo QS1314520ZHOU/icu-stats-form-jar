@@ -12,6 +12,7 @@ public class Bedside {
     private String time;
     private String strVal;
     private Boolean valid;
+    private String remark;
     private String editUser;
     private String editTime;
 
@@ -27,6 +28,8 @@ public class Bedside {
     public void setStrVal(String strVal) { this.strVal = strVal; }
     public Boolean getValid() { return valid; }
     public void setValid(Boolean valid) { this.valid = valid; }
+    public String getRemark() { return remark; }
+    public void setRemark(String remark) { this.remark = remark; }
     public String getEditUser() { return editUser; }
     public void setEditUser(String editUser) { this.editUser = editUser; }
     public String getEditTime() { return editTime; }

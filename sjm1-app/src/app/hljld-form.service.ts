@@ -11,6 +11,11 @@ import {
   SignatureRecord,
 } from './hljld-form.models';
 
+export interface AccountInfo {
+  accountId: string;
+  trueName: string;
+}
+
 export interface SourceStatus {
   source: string;
   url: string;
@@ -96,5 +101,27 @@ export class HljldFormService {
     if (Array.isArray(response)) return response;
     if (response && Array.isArray((response as any).data)) return (response as any).data;
     return [];
+  }
+
+  /**
+   * 批量查询账户信息，返回 accountId → trueName 映射。
+   */
+  queryAccounts(userIds: string[]): Observable<Map<string, string>> {
+    const unique = Array.from(new Set(userIds.filter(id => !!id && id.trim() !== '')));
+    if (!unique.length) { return of(new Map()); }
+    return this.http.get<any[]>('/api/v1/icu/accounts/listByIds', {
+      params: new HttpParams().set('ids', unique.join(',')),
+    }).pipe(
+      map(list => {
+        const map = new Map<string, string>();
+        for (const item of (list || [])) {
+          const id = String(item?.id ?? item?._id ?? item?.accountId ?? '').trim();
+          const name = String(item?.trueName ?? item?.accountName ?? item?.name ?? '').trim();
+          if (id && name) { map.set(id, name); }
+        }
+        return map;
+      }),
+      catchError(() => of(new Map())),
+    );
   }
 }

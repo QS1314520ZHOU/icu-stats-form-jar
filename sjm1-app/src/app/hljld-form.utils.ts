@@ -257,6 +257,7 @@ export function buildRows(
   source: HljldSourceData,
   start: Date,
   end: Date,
+  accountMap: Map<string, string> = new Map(),
 ): HljldTimeRow[] {
   const events: Array<{ timestamp: number }> = [
     ...source.bedside.filter(isRenderableBedsideRecord).map(item => ({ timestamp: minuteKey(item.time) })),
@@ -293,13 +294,22 @@ export function buildRows(
       .map(item => ({ name: drainName(item.code), amount: displayAmount(item.strVal), numericAmount: parseAmount(item.strVal) }));
 
     const values = (code: string) => bedside.filter(item => item.code === code).map(item => displayAmount(item.strVal)).filter(Boolean);
-    const signatures = source.signatures
-      .filter(item => minuteKey(item.time) === key)
-      .map(item => item.signature || item.username || item.trueName || '')
+
+    // 签名：收集同一分钟内的用户ID，通过accountMap查找trueName
+    const signatureUserIds = new Set<string>();
+    bedside.filter(item => minuteKey(item.time) === key && item.editUser).forEach(item => signatureUserIds.add(item.editUser!));
+    source.nurseRecords.filter(item => item.valid !== false && minuteKey(item.time) === key).forEach(item => {
+      if (item.userId) { signatureUserIds.add(item.userId); }
+      if (item.editUser) { signatureUserIds.add(item.editUser); }
+    });
+    source.drugExecutions.filter(item => minuteKey(item.startTime) === key).forEach(item => {
+      const startAction = (item.drugActionList ?? []).find(a => a.action === 'start');
+      if (startAction?.accountId) { signatureUserIds.add(startAction.accountId); }
+      else if (item.orderUser) { signatureUserIds.add(item.orderUser); }
+    });
+    const signatures = Array.from(signatureUserIds)
+      .map(id => accountMap.get(id) || '')
       .filter(Boolean);
-    if (!signatures.length) {
-      signatures.push(...bedside.filter(item => minuteKey(item.time) === key).map(item => item.username || item.trueName || '').filter(Boolean));
-    }
 
     return {
       key: String(key),

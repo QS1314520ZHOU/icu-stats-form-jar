@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Subject, ReplaySubject } from 'rxjs';
+import { Subject, ReplaySubject, firstValueFrom } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService, LoadResult } from './hljld-form.service';
-import { HljldDisplayRow, HljldSourceData, HljldSummary, HljldViewModel, PatientContext } from './hljld-form.models';
+import { BedsideRecord, DrugExecution, HljldDisplayRow, HljldSourceData, HljldSummary, HljldViewModel, NurseRecord, PatientContext } from './hljld-form.models';
 import { buildDisplayRows, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 
@@ -54,12 +54,19 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         map(result => ({ result, pid: condition.pid })),
       )),
     ).subscribe({
-      next: ({ result, pid }) => {
+      next: async ({ result, pid }) => {
         if (pid !== this.patient.pid) return;
-        this.loading = false;
         this.sourceError = this.buildSourceError(result.statuses);
         this.source = result.data;
-        this.vm = this.toViewModel(result.data);
+
+        // 收集签名用户ID并批量查询账户
+        const accountMap = await this.collectSignatures(result.data);
+
+        if (pid !== this.patient.pid) return;
+        this.source = result.data;
+        this.vm = this.toViewModel(result.data, accountMap);
+        this.loading = false;
+
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
         if (isDev) {
           console.info('[HLJLD][source-counts]', {
@@ -68,7 +75,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
             drugExecutions: result.data.drugExecutions.length,
             drugMethods: result.data.drugMethods.length,
             nurseRecords: result.data.nurseRecords.length,
-            signatures: result.data.signatures.length,
           });
         }
         this.cdr.markForCheck();
@@ -191,12 +197,12 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       );
   }
 
-  private toViewModel(source: HljldSourceData): HljldViewModel {
+  private toViewModel(source: HljldSourceData, accountMap: Map<string, string>): HljldViewModel {
     const rangeStart = startOfNursingDay(this.selectedDate);
     const rangeEnd = endOfNursingDay(this.selectedDate);
     const dayEnd = new Date(rangeStart); dayEnd.setHours(17, 0, 0, 0);
     const nextMorning = new Date(rangeStart); nextMorning.setDate(nextMorning.getDate() + 1); nextMorning.setHours(7, 0, 0, 0);
-    const rows = buildRows(source, rangeStart, rangeEnd);
+    const rows = buildRows(source, rangeStart, rangeEnd, accountMap);
     return {
       patient: this.patient,
       selectedDate: this.selectedDate,
@@ -208,6 +214,35 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       fullDaySummary: buildSummary('24h', this.patient, source, rangeStart, nextMorning),
       remark: '',
     };
+  }
+
+  /**
+   * 从bedside、drugExe、nurseRecords收集签名用户ID，
+   * 批量查询账户信息，返回 accountId → trueName 映射。
+   */
+  private async collectSignatures(source: HljldSourceData): Promise<Map<string, string>> {
+    const userIds: string[] = [];
+
+    // bedside.editUser
+    for (const item of source.bedside) {
+      if (item.editUser) { userIds.push(item.editUser); }
+    }
+
+    // nurseRecords: userId 或 editUser
+    for (const item of source.nurseRecords) {
+      if (item.userId) { userIds.push(item.userId); }
+      if (item.editUser) { userIds.push(item.editUser); }
+    }
+
+    // drugExe: drugActionList 中 action=start 的 accountId，兜底 orderUser
+    for (const item of source.drugExecutions) {
+      const startAction = (item.drugActionList ?? []).find(a => a.action === 'start');
+      if (startAction?.accountId) { userIds.push(startAction.accountId); }
+      else if (item.orderUser) { userIds.push(item.orderUser); }
+    }
+
+    if (!userIds.length) { return new Map(); }
+    return firstValueFrom(this.service.queryAccounts(userIds));
   }
 
   private toPatientContext(p: any): PatientContext {

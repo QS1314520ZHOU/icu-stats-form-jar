@@ -8,8 +8,8 @@ spring:
       password: ${MONGO_PASSWORD:admin}
       authentication-database: ${MONGO_AUTH_DB:SmartCare}
   jackson:
-    date-format: yyyy-MM-dd HH:mm:ss
-    time-zone: GMT+8
+    date-format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
+    time-zone: UTC
 
 server:
   port: ${SERVER_PORT:10242}

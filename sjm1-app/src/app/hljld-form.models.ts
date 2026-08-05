@@ -15,6 +15,12 @@ export interface DrugItem {
   liquidAmount?: number | string;
 }
 
+export interface DrugActionItem {
+  time?: string;
+  accountId?: string;
+  action?: string;
+}
+
 export interface DrugExecution {
   _id?: string;
   pid: string;
@@ -22,6 +28,8 @@ export interface DrugExecution {
   status: string;
   methodCode?: string;
   drugList?: DrugItem[];
+  drugActionList?: DrugActionItem[];
+  orderUser?: string;
 }
 
 export interface DrugMethodConfig {
@@ -38,6 +46,7 @@ export interface BedsideRecord {
   code: string;
   remark?: string;
   strVal?: string | number;
+  editUser?: string;
   username?: string;
   trueName?: string;
 }
@@ -48,6 +57,8 @@ export interface NurseRecord {
   time: string;
   desc?: string;
   valid?: boolean;
+  userId?: string;
+  editUser?: string;
   username?: string;
   trueName?: string;
 }
