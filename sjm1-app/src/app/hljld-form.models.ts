@@ -134,23 +134,34 @@ export interface HljldTimeGroup {
   rows: HljldDisplayRow[];
 }
 
+export type HljldSummaryKind = 'day' | 'shift' | '24h';
+
+export interface HljldSummaryItem {
+  key: string;
+  label: string;
+  amount: number;
+  unit: 'ml';
+}
+
+export interface HljldSummary {
+  kind: HljldSummaryKind;
+  label: string;
+  periodText: string;
+  periodStart: number;
+  periodEnd: number;
+  totalInput: number;
+  inputItems: HljldSummaryItem[];
+  totalOutput: number;
+  outputItems: HljldSummaryItem[];
+  drainItems: HljldSummaryItem[];
+  balance: number;
+}
+
 export type HljldTimelineItem =
   | { kind: 'time-group'; key: string; timestamp: number; group: HljldTimeGroup }
   | { kind: 'day-summary'; key: string; timestamp: number; summary: HljldSummary }
+  | { kind: 'shift-summary'; key: string; timestamp: number; summary: HljldSummary }
   | { kind: 'full-day-summary'; key: string; timestamp: number; summary: HljldSummary };
-
-export interface HljldSummary {
-  kind: 'day' | '24h';
-  label: string;
-  periodText: string;
-  totalInput: number;
-  infusion: number;
-  diet: number;
-  totalOutput: number;
-  balance: number;
-  urine: number;
-  otherOutput: number;
-}
 
 export interface HljldViewModel {
   patient: PatientContext;
@@ -161,7 +172,8 @@ export interface HljldViewModel {
   displayRows: HljldDisplayRow[];
   timeGroups: HljldTimeGroup[];
   timeline: HljldTimelineItem[];
-  daySummary?: HljldSummary;
-  fullDaySummary?: HljldSummary;
+  daySummary: HljldSummary;
+  shiftSummary: HljldSummary;
+  fullDaySummary: HljldSummary;
   remark: string;
 }

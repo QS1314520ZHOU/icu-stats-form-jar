@@ -164,18 +164,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
 
-  summaryValues(summary: HljldSummary): Array<{ label: string; value: number }> {
-    return [
-      { label: '总入量', value: summary.totalInput },
-      { label: '输液量', value: summary.infusion },
-      { label: '饮食量', value: summary.diet },
-      { label: '总出量', value: summary.totalOutput },
-      { label: '平衡量', value: summary.balance },
-      { label: '尿量', value: summary.urine },
-      { label: '其它出量', value: summary.otherOutput },
-    ];
-  }
-
   private moveDate(days: number): void {
     const value = new Date(this.selectedDate);
     value.setDate(value.getDate() + days);
@@ -210,13 +198,14 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   private toViewModel(source: HljldSourceData, accountMap: Map<string, string>): HljldViewModel {
     const rangeStart = startOfNursingDay(this.selectedDate);
     const rangeEnd = endOfNursingDay(this.selectedDate);
-    const dayEnd = new Date(rangeStart); dayEnd.setHours(17, 0, 0, 0);
+    const dayBoundary = new Date(rangeStart); dayBoundary.setHours(17, 0, 0, 0);
     const nextMorning = new Date(rangeStart); nextMorning.setDate(nextMorning.getDate() + 1); nextMorning.setHours(7, 0, 0, 0);
     const rows = buildRows(source, rangeStart, rangeEnd, accountMap);
     const timeGroups = buildDisplayGroups(rows);
-    const daySummary = buildSummary('day', this.patient, source, rangeStart, dayEnd);
-    const fullDaySummary = buildSummary('24h', this.patient, source, rangeStart, nextMorning);
-    const timeline = buildTimeline(timeGroups, daySummary, fullDaySummary, dayEnd.getTime(), nextMorning.getTime());
+    const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary);
+    const shiftSummary = buildSummary('shift', '小结', this.patient, source, dayBoundary, nextMorning);
+    const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning);
+    const timeline = buildTimeline(timeGroups, daySummary, shiftSummary, fullDaySummary, dayBoundary.getTime(), nextMorning.getTime());
     return {
       patient: this.patient,
       selectedDate: this.selectedDate,
@@ -227,6 +216,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       timeGroups,
       timeline,
       daySummary,
+      shiftSummary,
       fullDaySummary,
       remark: '',
     };

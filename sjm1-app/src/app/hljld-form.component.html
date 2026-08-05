@@ -74,34 +74,23 @@
             </ng-container>
 
             <!-- 日间小结 -->
-            <tr *ngIf="item.kind === 'day-summary' && item.summary" class="summary-row">
+            <tr *ngIf="item.kind === 'day-summary' && item.summary" class="summary-row day-summary-row">
               <td colspan="17" class="summary-row-cell">
-                <section class="summary-panel day-summary">
-                  <div class="summary-header">{{ item.summary.label }}</div>
-                  <div class="summary-period">{{ item.summary.periodText }}</div>
-                  <div class="summary-grid">
-                    <ng-container *ngFor="let s of summaryValues(item.summary); trackBy: trackText">
-                      <span class="summary-label">{{ s.label }}</span>
-                      <span class="summary-value">{{ s.value | number:'1.0-2' }}</span>
-                    </ng-container>
-                  </div>
-                </section>
+                <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
+              </td>
+            </tr>
+
+            <!-- 夜间小结 -->
+            <tr *ngIf="item.kind === 'shift-summary' && item.summary" class="summary-row shift-summary-row">
+              <td colspan="17" class="summary-row-cell">
+                <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
 
             <!-- 24小时总结 -->
-            <tr *ngIf="item.kind === 'full-day-summary' && item.summary" class="summary-row">
+            <tr *ngIf="item.kind === 'full-day-summary' && item.summary" class="summary-row full-day-summary-row">
               <td colspan="17" class="summary-row-cell">
-                <section class="summary-panel full-day-summary">
-                  <div class="summary-header">{{ item.summary.label }}</div>
-                  <div class="summary-period">{{ item.summary.periodText }}</div>
-                  <div class="summary-grid">
-                    <ng-container *ngFor="let s of summaryValues(item.summary); trackBy: trackText">
-                      <span class="summary-label">{{ s.label }}</span>
-                      <span class="summary-value">{{ s.value | number:'1.0-2' }}</span>
-                    </ng-container>
-                  </div>
-                </section>
+                <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
           </ng-container>
@@ -120,6 +109,31 @@
     </div>
   </main>
 </section>
+
+<ng-template #summaryTemplate let-summary="summary">
+  <section class="summary-panel">
+    <div class="summary-heading">
+      <strong class="summary-title">{{ summary.label }}</strong>
+      <span class="summary-period">{{ summary.periodText }}</span>
+    </div>
+    <div class="summary-line">
+      <span class="summary-total">总入量：<strong>{{ summary.totalInput | number:'1.0-2' }} ml</strong></span>
+      <span class="summary-stat" *ngFor="let stat of summary.inputItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
+    </div>
+    <div class="summary-line">
+      <span class="summary-total">总出量：<strong>{{ summary.totalOutput | number:'1.0-2' }} ml</strong></span>
+      <span class="summary-group-label" *ngIf="summary.outputItems.length">排出物：</span>
+      <span class="summary-stat" *ngFor="let stat of summary.outputItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
+    </div>
+    <div class="summary-line" *ngIf="summary.drainItems.length">
+      <span class="summary-group-label">引流液：</span>
+      <span class="summary-stat" *ngFor="let stat of summary.drainItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
+    </div>
+    <div class="summary-line">
+      <span class="summary-total">平衡量：<strong>{{ summary.balance | number:'1.0-2' }} ml</strong></span>
+    </div>
+  </section>
+</ng-template>
 
 <ng-template #statePanel>
   <div class="state-panel" [class.error]="error">

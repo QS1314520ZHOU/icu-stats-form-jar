@@ -5,6 +5,8 @@ import {
   HljldDisplayRow,
   HljldSourceData,
   HljldSummary,
+  HljldSummaryItem,
+  HljldSummaryKind,
   HljldTimeGroup,
   HljldTimeRow,
   HljldTimelineItem,
@@ -15,6 +17,27 @@ import {
 
 import { databaseTimeValue, formatShanghaiDateMinute } from './form-date.util';
 
+/* ---- 统计分类定义 ---- */
+
+const INPUT_SUMMARY_DEFINITIONS = [
+  { key: 'brought-medication', label: '带入药量', codes: ['param_带入药量'] },
+  { key: 'oral', label: '口服量', codes: ['param_kouFu'] },
+  { key: 'tube-feeding', label: '鼻饲量', codes: ['param_biSi'] },
+  { key: 'intravenous', label: '静脉入量', codes: ['param_YaoYeti_in_hour'] },
+  { key: 'gastrointestinal', label: '胃肠入量', codes: ['param_YaoStomach_in_hour'] },
+  { key: 'blood-transfusion', label: '输血入量', codes: ['param_YaoShuXue_in_hour'] },
+] as const;
+
+const OUTPUT_SUMMARY_DEFINITIONS = [
+  { key: 'urine', code: 'param_niaoLiang', label: '尿量' },
+  { key: 'stool', code: 'param_daBianAmount', label: '大便量' },
+  { key: 'ultrafiltration', code: 'param_chaoLvLiang', label: '净超滤量' },
+  { key: 'stoma', code: 'param_造瘘口量', label: '造瘘口量' },
+  { key: 'vomit', code: 'param_outuwuliang', label: '呕吐物量' },
+  { key: 'hemoptysis', code: 'param_咯血', label: '咯血' },
+  { key: 'sputum', code: 'param_tanLiang', label: '痰液量' },
+] as const;
+
 const OUTPUT_CODE_NAMES: Record<string, string> = {
   param_chaoLvLiang: '净超滤量',
   param_niaoLiang: '尿量',
@@ -24,17 +47,6 @@ const OUTPUT_CODE_NAMES: Record<string, string> = {
   'param_咯血': '咯血',
   param_tanLiang: '痰液量',
 };
-
-const NON_DRUG_INPUT_CODES = new Set([
-  'param_带入药量',
-  'param_kouFu',
-  'param_biSi',
-  'param_YaoYeti_in_hour',
-  'param_YaoStomach_in_hour',
-  'param_YaoShuXue_in_hour',
-]);
-const INFUSION_CODES = new Set(['param_YaoYeti_in_hour']);
-const DIET_CODES = new Set(['param_YaoStomach_in_hour', 'param_biSi', 'param_kouFu']);
 
 const DISPLAY_BEDSIDE_CODES = new Set<string>([
   'param_带入药量', 'param_kouFu', 'param_biSi',
@@ -245,45 +257,79 @@ function durationText(start: Date, end: Date): string {
   return `${hours}小时${rest ? `${rest}分钟` : ''}`;
 }
 
-function sumBedside(records: BedsideRecord[], codes: Set<string>): number {
-  return records.filter(item => codes.has(item.code)).reduce((sum, item) => sum + parseAmount(item.strVal), 0);
-}
-
-function outputRecords(records: BedsideRecord[]): BedsideRecord[] {
-  return records.filter(item => Boolean(OUTPUT_CODE_NAMES[item.code]) || item.code.includes('引流'));
+function sumBedsideByCodes(records: BedsideRecord[], codes: readonly string[]): number {
+  return records.filter(item => codes.includes(item.code)).reduce((sum, item) => sum + parseAmount(item.strVal), 0);
 }
 
 /* ---- 小结 ---- */
 
 export function buildSummary(
-  kind: 'day' | '24h',
+  kind: HljldSummaryKind,
+  label: string,
   patient: PatientContext,
   source: HljldSourceData,
   periodStart: Date,
   periodEnd: Date,
 ): HljldSummary {
   const stay = activeStayBoundary(patient, periodStart, periodEnd);
+  const startTs = stay.start.getTime();
+  const endTs = stay.end.getTime();
+
+  // 左闭右开：timestamp >= start && timestamp < end
   const records = source.bedside.filter(item => {
+    if (item.valid === false) { return false; }
     const ts = databaseTimeValue(item.time);
-    return Number.isFinite(ts) && ts >= stay.start.getTime() && ts <= stay.end.getTime();
+    return Number.isFinite(ts) && ts >= startTs && ts < endTs;
   });
-  const totalInput = sumBedside(records, NON_DRUG_INPUT_CODES);
-  const infusion = sumBedside(records, INFUSION_CODES);
-  const diet = sumBedside(records, DIET_CODES);
-  const output = outputRecords(records);
-  const totalOutput = output.reduce((sum, item) => sum + parseAmount(item.strVal), 0);
-  const urine = records.filter(item => item.code === 'param_niaoLiang').reduce((sum, item) => sum + parseAmount(item.strVal), 0);
+
+  // 入量分类
+  const inputItems: HljldSummaryItem[] = INPUT_SUMMARY_DEFINITIONS.map(def => ({
+    key: def.key,
+    label: def.label,
+    amount: sumBedsideByCodes(records, def.codes),
+    unit: 'ml' as const,
+  }));
+  const totalInput = inputItems.reduce((sum, item) => sum + item.amount, 0);
+
+  // 排出物分类
+  const outputItems: HljldSummaryItem[] = OUTPUT_SUMMARY_DEFINITIONS
+    .map(def => ({
+      key: def.key,
+      label: def.label,
+      amount: records.filter(item => item.code === def.code).reduce((sum, item) => sum + parseAmount(item.strVal), 0),
+      unit: 'ml' as const,
+    }))
+    .filter(item => records.some(r => r.code === OUTPUT_SUMMARY_DEFINITIONS.find(d => d.key === item.key)?.code));
+  const outputTotal = outputItems.reduce((sum, item) => sum + item.amount, 0);
+
+  // 引流液分类
+  const drainMap = new Map<string, number>();
+  records.filter(item => item.code.includes('引流')).forEach(item => {
+    const name = drainName(item.code);
+    drainMap.set(name, (drainMap.get(name) || 0) + parseAmount(item.strVal));
+  });
+  const drainItems: HljldSummaryItem[] = Array.from(drainMap.entries()).map(([name, amount]) => ({
+    key: `drain-${name}`,
+    label: name,
+    amount,
+    unit: 'ml' as const,
+  }));
+  const drainTotal = drainItems.reduce((sum, item) => sum + item.amount, 0);
+
+  const totalOutput = outputTotal + drainTotal;
+
   return {
     kind,
-    label: kind === 'day' ? '日间小结' : '24小时总结',
-    periodText: `${formatTime(stay.start.getTime())}—${formatTime(stay.end.getTime())}（${durationText(stay.start, stay.end)}）`,
+    label,
+    periodText: `${formatTime(startTs)}—${formatTime(endTs)}`,
+    periodStart: startTs,
+    periodEnd: endTs,
     totalInput,
-    infusion,
-    diet,
+    inputItems,
     totalOutput,
+    outputItems,
+    drainItems,
     balance: totalOutput - totalInput,
-    urine,
-    otherOutput: totalOutput - urine,
   };
 }
 
@@ -405,46 +451,46 @@ export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[]
 
 export function buildTimeline(
   groups: HljldTimeGroup[],
-  daySummary: HljldSummary | undefined,
-  fullDaySummary: HljldSummary | undefined,
+  daySummary: HljldSummary,
+  shiftSummary: HljldSummary,
+  fullDaySummary: HljldSummary,
   dayBoundaryMs: number,
   nextMorningBoundaryMs: number,
 ): HljldTimelineItem[] {
   const result: HljldTimelineItem[] = [];
-  let daySummaryInserted = false;
-  let fullDaySummaryInserted = false;
+  let dayInserted = false;
 
   const sortedGroups = [...groups].sort((a, b) => a.timestamp - b.timestamp);
 
-  for (let index = 0; index < sortedGroups.length; index += 1) {
-    const group = sortedGroups[index];
-
-    // 日间小结：当前组已晚于17:00，且前面有更早的组
-    if (!daySummaryInserted && group.timestamp > dayBoundaryMs && index > 0 && sortedGroups[index - 1].timestamp < dayBoundaryMs) {
-      result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary! });
-      daySummaryInserted = true;
+  for (const group of sortedGroups) {
+    // 当前组晚于17:00时，先在当前组前插入17:00日间小结
+    if (!dayInserted && group.timestamp > dayBoundaryMs) {
+      result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
+      dayInserted = true;
     }
 
-    // 插入当前时间组
+    // 当前组不能晚于护理日结束边界（次日07:00的数据属于下一护理日）
+    if (group.timestamp >= nextMorningBoundaryMs) {
+      continue;
+    }
+
     result.push({ kind: 'time-group', key: group.key, timestamp: group.timestamp, group });
 
-    // 正好有17:00数据：先展示完整组，再展示日间小结
-    if (!daySummaryInserted && group.timestamp === dayBoundaryMs && daySummary) {
+    // 正好17:00：先展示完整组，再展示日间小结
+    if (!dayInserted && group.timestamp === dayBoundaryMs) {
       result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
-      daySummaryInserted = true;
-    }
-
-    // 次日07:00：先展示完整组，再分别展示日间小结和24小时总结
-    if (!fullDaySummaryInserted && group.timestamp === nextMorningBoundaryMs) {
-      if (daySummary) {
-        result.push({ kind: 'day-summary', key: 'day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: daySummary });
-      }
-      if (fullDaySummary) {
-        result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
-      }
-      fullDaySummaryInserted = true;
+      dayInserted = true;
     }
   }
+
+  // 即使17:00以后没有普通业务数据，17:00边界仍需要插入日间小结
+  if (!dayInserted) {
+    result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
+  }
+
+  // 次日07:00边界必须同时展示：小结 + 24小时总结
+  result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });
+  result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
 
   return result;
 }
