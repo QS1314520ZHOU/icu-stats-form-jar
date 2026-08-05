@@ -217,10 +217,17 @@ h1 {
   white-space: normal;
 }
 
-.record-table tbody td > div + div {
-  border-top: 1px dashed #b8bec4;
-  margin-top: 2px;
-  padding-top: 2px;
+/*
+ * 同一时间点的后续展开行。
+ * 时间、签名由数据层置空，不使用rowspan，避免打印跨页异常。
+ */
+.record-table tbody tr.continuation-row td {
+  border-top-style: dashed;
+  border-top-color: #b8bec4;
+}
+
+.record-table tbody tr.continuation-row .time-cell {
+  color: transparent;
 }
 
 .time-col { width: 108px; }
@@ -406,6 +413,10 @@ h1 {
   .record-table tr {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  .record-table tbody tr.continuation-row td {
+    border-top: 0.3mm dashed #888;
   }
 
   .time-col { width: 20mm; }

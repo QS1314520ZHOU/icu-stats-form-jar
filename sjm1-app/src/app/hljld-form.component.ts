@@ -3,8 +3,8 @@ import { Subject, merge } from 'rxjs';
 import { distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService, LoadResult } from './hljld-form.service';
-import { HljldSourceData, HljldSummary, HljldTimeRow, HljldViewModel, PatientContext } from './hljld-form.models';
-import { buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, formatDate, startOfNursingDay } from './hljld-form.utils';
+import { HljldDisplayRow, HljldSourceData, HljldSummary, HljldViewModel, PatientContext } from './hljld-form.models';
+import { buildDisplayRows, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, startOfNursingDay } from './hljld-form.utils';
 
 @Component({
   standalone: false,
@@ -127,7 +127,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   }
 
   print(): void { window.print(); }
-  trackRow(_: number, row: HljldTimeRow): string { return row.key; }
+  trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
   trackText(index: number): number { return index; }
 
   summaryValues(summary: HljldSummary): Array<{ label: string; value: number }> {
@@ -180,12 +180,14 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const rangeEnd = endOfNursingDay(this.selectedDate);
     const dayEnd = new Date(rangeStart); dayEnd.setHours(17, 0, 0, 0);
     const nextMorning = new Date(rangeStart); nextMorning.setDate(nextMorning.getDate() + 1); nextMorning.setHours(7, 0, 0, 0);
+    const rows = buildRows(source, rangeStart, rangeEnd);
     return {
       patient: this.patient,
       selectedDate: this.selectedDate,
       rangeStart,
       rangeEnd,
-      rows: buildRows(source, rangeStart, rangeEnd),
+      rows,
+      displayRows: buildDisplayRows(rows),
       daySummary: buildSummary('day', this.patient, source, rangeStart, dayEnd),
       fullDaySummary: buildSummary('24h', this.patient, source, rangeStart, nextMorning),
       remark: '',
@@ -195,15 +197,33 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   private toPatientContext(p: any): PatientContext {
     return {
       pid: String(p?.id ?? '').trim(),
-      mrn: String(p?.mrn ?? p?.hospitalNo ?? ''),
-      name: String(p?.name ?? p?.patientName ?? ''),
-      sex: String(p?.sex ?? p?.gender ?? ''),
-      age: String(p?.age ?? ''),
-      bedNo: String(p?.hisBed ?? p?.bedNo ?? p?.bedCode ?? ''),
-      diagnosis: String(p?.clinicalDiagnosis ?? p?.diagnosis ?? ''),
+      mrn: String(p?.mrn ?? p?.hospitalNo ?? '').trim(),
+      name: String(p?.name ?? p?.patientName ?? '').trim(),
+      sex: this.genderText(p?.sex ?? p?.gender ?? ''),
+      age: String(p?.age ?? '').trim(),
+      bedNo: String(p?.hisBed ?? p?.bedNo ?? p?.bedCode ?? '').trim(),
+      diagnosis: this.formatDiagnosis(p?.clinicalDiagnosis ?? p?.diagnosis ?? ''),
       admissionTime: p?.admissionTime || p?.inTime || '',
       dischargeTime: p?.dischargeTime || p?.outTime || '',
     };
+  }
+
+  private genderText(gender?: string): string {
+    const value = String(gender ?? '').trim();
+    if (value === 'Male' || value === 'M' || value === '男') { return '男'; }
+    if (value === 'Female' || value === 'F' || value === '女') { return '女'; }
+    return value;
+  }
+
+  private formatDiagnosis(diagnosis?: string): string {
+    const value = String(diagnosis ?? '').trim();
+    if (!value) { return ''; }
+    let idx = -1;
+    for (const sep of [';', '；', ',', '，']) {
+      const cur = value.indexOf(sep);
+      if (cur >= 0 && (idx < 0 || cur < idx)) { idx = cur; }
+    }
+    return idx >= 0 ? value.substring(0, idx).trim() : value;
   }
 
   private resetPatientData(): void {

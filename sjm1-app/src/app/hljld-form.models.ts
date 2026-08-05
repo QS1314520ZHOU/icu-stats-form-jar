@@ -96,6 +96,22 @@ export interface HljldTimeRow {
   signature: string;
 }
 
+export interface HljldDisplayRow {
+  key: string;
+  firstLine: boolean;
+  timeText: string;
+  medication?: NameAmountRoute;
+  enteral?: NameAmountRoute;
+  output?: NameAmount;
+  drain?: NameAmount;
+  examination: string;
+  treatment: string;
+  basicCare: string;
+  healthEducation: string;
+  nursingRecord: string;
+  signature: string;
+}
+
 export interface HljldSummary {
   kind: 'day' | '24h';
   label: string;
@@ -115,6 +131,7 @@ export interface HljldViewModel {
   rangeStart: Date;
   rangeEnd: Date;
   rows: HljldTimeRow[];
+  displayRows: HljldDisplayRow[];
   daySummary?: HljldSummary;
   fullDaySummary?: HljldSummary;
   remark: string;

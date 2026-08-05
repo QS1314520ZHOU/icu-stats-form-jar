@@ -54,26 +54,26 @@
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let row of form.rows; trackBy: trackRow">
+          <tr *ngFor="let row of form.displayRows; trackBy: trackRow" [class.continuation-row]="!row.firstLine">
             <td class="time-cell">{{ row.timeText }}</td>
-            <td><div *ngFor="let item of row.medications; trackBy: trackText">{{ item.name }}</div></td>
-            <td class="number"><div *ngFor="let item of row.medications; trackBy: trackText">{{ item.amount }}</div></td>
-            <td><div *ngFor="let item of row.medications; trackBy: trackText">{{ item.route }}</div></td>
-            <td><div *ngFor="let item of row.enteral; trackBy: trackText">{{ item.name }}</div></td>
-            <td class="number"><div *ngFor="let item of row.enteral; trackBy: trackText">{{ item.amount }}</div></td>
-            <td><div *ngFor="let item of row.enteral; trackBy: trackText">{{ item.route }}</div></td>
-            <td><div *ngFor="let item of row.outputs; trackBy: trackText">{{ item.name }}</div></td>
-            <td class="number"><div *ngFor="let item of row.outputs; trackBy: trackText">{{ item.amount }}</div></td>
-            <td><div *ngFor="let item of row.drains; trackBy: trackText">{{ item.name }}</div></td>
-            <td class="number"><div *ngFor="let item of row.drains; trackBy: trackText">{{ item.amount }}</div></td>
-            <td><div *ngFor="let item of row.examination; trackBy: trackText">{{ item }}</div></td>
-            <td><div *ngFor="let item of row.treatment; trackBy: trackText">{{ item }}</div></td>
-            <td><div *ngFor="let item of row.basicCare; trackBy: trackText">{{ item }}</div></td>
-            <td><div *ngFor="let item of row.healthEducation; trackBy: trackText">{{ item }}</div></td>
-            <td class="nursing-cell"><div *ngFor="let item of row.nursingRecords; trackBy: trackText">{{ item }}</div></td>
+            <td>{{ row.medication?.name || '' }}</td>
+            <td class="number">{{ row.medication?.amount || '' }}</td>
+            <td>{{ row.medication?.route || '' }}</td>
+            <td>{{ row.enteral?.name || '' }}</td>
+            <td class="number">{{ row.enteral?.amount || '' }}</td>
+            <td>{{ row.enteral?.route || '' }}</td>
+            <td>{{ row.output?.name || '' }}</td>
+            <td class="number">{{ row.output?.amount || '' }}</td>
+            <td>{{ row.drain?.name || '' }}</td>
+            <td class="number">{{ row.drain?.amount || '' }}</td>
+            <td>{{ row.examination }}</td>
+            <td>{{ row.treatment }}</td>
+            <td>{{ row.basicCare }}</td>
+            <td>{{ row.healthEducation }}</td>
+            <td class="nursing-cell">{{ row.nursingRecord }}</td>
             <td>{{ row.signature }}</td>
           </tr>
-          <tr *ngIf="!form.rows.length && !loading"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
+          <tr *ngIf="!form.displayRows.length && !loading"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
 
           <!-- 日间小结 + 24小时总结 同一行 -->
           <tr class="summary-row" *ngIf="form.daySummary || form.fullDaySummary">

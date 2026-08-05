@@ -25,32 +25,21 @@ export interface LoadResult {
   statuses: SourceStatus[];
 }
 
-/** 护理记录单所需Bedside codes */
-const FIXED_BEDSIDE_CODES = [
-  'param_带入药量',
-  'param_kouFu',
-  'param_biSi',
-  'param_chaoLvLiang',
-  'param_niaoLiang',
-  'param_daBianAmount',
-  'param_造瘘口量',
-  'param_outuwuliang',
-  'param_咯血',
-  'param_tanLiang',
-  'param_外出检查',
-  'param_物理治疗',
-  'param_基础护理1',
-  'param_健康教育',
-  'param_YaoYeti_in_hour',
-  'param_YaoStomach_in_hour',
-  'param_YaoShuXue_in_hour',
-  'param_Yishi',
-];
-
 @Injectable()
 export class HljldFormService {
   private readonly hljldBase = '/api/v1/icu/hljld';
   private readonly bedsideApi = '/api/v1/icu/bedside/listByPid';
+
+  /**
+   * 当前后端未实现以下接口，暂时关闭：
+   * - /api/v1/icu/hljld/drug-executions
+   * - /api/v1/icu/hljld/drug-methods
+   * - /api/v1/icu/hljld/nurse-records
+   * - /api/v1/icu/hljld/signatures
+   *
+   * 后端实现后将此值改为 true 即可启用。
+   */
+  private readonly enableExtendedApis = false;
 
   constructor(private http: HttpClient) {}
 
@@ -59,7 +48,7 @@ export class HljldFormService {
     const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
 
     const safeGet = <T>(name: string, url: string, reqParams?: HttpParams): Observable<{ data: T[]; status: SourceStatus }> => {
-      return this.http.get<T[]>(url, { params: reqParams }).pipe(
+      return this.http.get<T[] | { data?: T[] }>(url, { params: reqParams }).pipe(
         map(response => {
           const data = this.normalizeArray(response);
           const st: SourceStatus = { source: name, url, status: 'success', count: data.length };
@@ -83,14 +72,26 @@ export class HljldFormService {
       );
     };
 
-    // Bedside: 复用已有 /api/v1/icu/bedside/listByPid 接口
-    // 不传codes参数，获取该患者全部Bedside记录，前端按时间和code筛选
-    // 这样可以覆盖动态code（如"引流"类记录）
-    const bedsideParams = new HttpParams()
-      .set('pid', pid);
+    const bedsideParams = new HttpParams().set('pid', pid);
+    const bedside$ = safeGet<BedsideRecord>('bedside', this.bedsideApi, bedsideParams);
+
+    if (!this.enableExtendedApis) {
+      return bedside$.pipe(
+        map(result => ({
+          data: {
+            bedside: result.data,
+            drugExecutions: [],
+            drugMethods: [],
+            nurseRecords: [],
+            signatures: [],
+          },
+          statuses,
+        })),
+      );
+    }
 
     return forkJoin({
-      bedside: safeGet<BedsideRecord>('bedside', this.bedsideApi, bedsideParams),
+      bedside: bedside$,
       drugExecutions: safeGet<DrugExecution>('drugExecutions', `${this.hljldBase}/drug-executions`, new HttpParams().set('pid', pid).set('startTime', start.toISOString()).set('endTime', end.toISOString())),
       drugMethods: safeGet<DrugMethodConfig>('drugMethods', `${this.hljldBase}/drug-methods`),
       nurseRecords: safeGet<NurseRecord>('nurseRecords', `${this.hljldBase}/nurse-records`, new HttpParams().set('pid', pid).set('startTime', start.toISOString()).set('endTime', end.toISOString())),

@@ -2,6 +2,7 @@ import {
   BedsideRecord,
   DrugExecution,
   DrugMethodConfig,
+  HljldDisplayRow,
   HljldSourceData,
   HljldSummary,
   HljldTimeRow,
@@ -30,6 +31,29 @@ const NON_DRUG_INPUT_CODES = new Set([
 ]);
 const INFUSION_CODES = new Set(['param_YaoYeti_in_hour']);
 const DIET_CODES = new Set(['param_YaoStomach_in_hour', 'param_biSi', 'param_kouFu']);
+
+const DISPLAY_BEDSIDE_CODES = new Set<string>([
+  'param_带入药量', 'param_kouFu', 'param_biSi',
+  'param_chaoLvLiang', 'param_niaoLiang', 'param_daBianAmount',
+  'param_造瘘口量', 'param_outuwuliang', 'param_咯血', 'param_tanLiang',
+  'param_外出检查', 'param_物理治疗', 'param_基础护理1', 'param_健康教育',
+]);
+
+function hasText(value: unknown): boolean {
+  return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+function isRenderableBedsideRecord(record: BedsideRecord): boolean {
+  if (!record || !record.time || !record.code) { return false; }
+  if (record.code === 'param_Yishi') { return false; }
+  if (!DISPLAY_BEDSIDE_CODES.has(record.code) && !record.code.includes('引流')) { return false; }
+  return hasText(record.strVal) || hasText(record.remark);
+}
+
+function isRenderableDrugExecution(item: DrugExecution): boolean {
+  if (!item || item.status === 'invalid' || !item.startTime) { return false; }
+  return (item.drugList ?? []).some(drug => hasText(drug.name) || parseAmount(drug.liquidAmount) !== 0);
+}
 
 export const DEFAULT_REMARK_LINES = [
   '检查：A：CT    B：核磁共振    C：胃镜    D：肠镜    E：超声检查    F：床旁胸片',
@@ -210,10 +234,9 @@ export function buildRows(
   end: Date,
 ): HljldTimeRow[] {
   const events: Array<{ time: string }> = [
-    ...source.bedside.map(item => ({ time: item.time })),
-    ...source.drugExecutions.map(item => ({ time: item.startTime })),
-    ...source.nurseRecords.map(item => ({ time: item.time })),
-    ...source.signatures.map(item => ({ time: item.time })),
+    ...source.bedside.filter(isRenderableBedsideRecord).map(item => ({ time: item.time })),
+    ...source.drugExecutions.filter(isRenderableDrugExecution).map(item => ({ time: item.startTime })),
+    ...source.nurseRecords.filter(item => item.valid !== false && !!item.time && hasText(item.desc)).map(item => ({ time: item.time })),
   ].filter(item => inRange(item.time, start, end));
 
   const keys = Array.from(new Set(events.map(item => minuteKey(item.time)).filter(Boolean))).sort();
@@ -279,4 +302,41 @@ export function buildRows(
       signature: Array.from(new Set(signatures)).join('、'),
     };
   });
+}
+
+export function buildDisplayRows(rows: HljldTimeRow[]): HljldDisplayRow[] {
+  const result: HljldDisplayRow[] = [];
+  for (const row of rows) {
+    const lineCount = Math.max(
+      1,
+      row.medications.length,
+      row.enteral.length,
+      row.outputs.length,
+      row.drains.length,
+      row.examination.length,
+      row.treatment.length,
+      row.basicCare.length,
+      row.healthEducation.length,
+      row.nursingRecords.length,
+    );
+    for (let index = 0; index < lineCount; index += 1) {
+      const firstLine = index === 0;
+      result.push({
+        key: `${row.key}::${index}`,
+        firstLine,
+        timeText: firstLine ? row.timeText : '',
+        medication: row.medications[index],
+        enteral: row.enteral[index],
+        output: row.outputs[index],
+        drain: row.drains[index],
+        examination: row.examination[index] ?? '',
+        treatment: row.treatment[index] ?? '',
+        basicCare: row.basicCare[index] ?? '',
+        healthEducation: row.healthEducation[index] ?? '',
+        nursingRecord: row.nursingRecords[index] ?? '',
+        signature: firstLine ? row.signature : '',
+      });
+    }
+  }
+  return result;
 }
