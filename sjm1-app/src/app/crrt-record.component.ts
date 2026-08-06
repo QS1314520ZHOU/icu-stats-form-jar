@@ -63,6 +63,8 @@ const CRRT_GROUPS: CrrtGroup[] = [
   ]},
 ];
 
+const CRRT_BUILD_MARKER = 'crrt-metric-map-20260806-v2';
+
 @Component({
   standalone: false, selector: 'app-crrt-record',
   templateUrl: './crrt-record.component.html', styleUrls: ['./crrt-record.component.css'],
@@ -89,6 +91,8 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef) {}
 
   ngOnInit(): void {
+    console.info(`%c[CRRT BUILD] ${CRRT_BUILD_MARKER}`, 'color:#1677c8;font-weight:bold');
+    console.table(CRRT_GROUPS.flatMap(g => g.metrics.map(m => ({ group: g.name, label: m.label, code: m.code }))));
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
       if (!p?.id) { this.reset(); return; }

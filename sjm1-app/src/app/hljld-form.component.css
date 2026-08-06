@@ -1,7 +1,8 @@
 :host {
-  --hljld-font: "Microsoft YaHei", "Noto Sans SC", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
-  --hljld-table-font-size: 10px;
-  --hljld-table-line-height: 14px;
+  --hljld-ui-font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  --hljld-table-font: SimSun, "宋体", "Noto Serif CJK SC", serif;
+  --hljld-table-font-size: 11px;
+  --hljld-table-line-height: 16px;
 
   display: block;
   width: 100%;
@@ -10,7 +11,7 @@
   box-sizing: border-box;
   color: #222;
   background: #f3f5f7;
-  font-family: var(--hljld-font);
+  font-family: var(--hljld-ui-font);
 }
 
 .hljld-shell {
@@ -174,7 +175,7 @@
   background: #fff;
   container-type: inline-size;
   container-name: hljld-paper;
-  font-family: var(--hljld-font);
+  font-family: var(--hljld-ui-font);
   font-synthesis: none;
   text-shadow: none;
   -webkit-text-stroke: 0;
@@ -235,16 +236,16 @@ h1 {
   border-spacing: 0;
   table-layout: fixed;
 
-  font-family: var(--hljld-font);
+  font-family: var(--hljld-table-font);
   font-size: var(--hljld-table-font-size);
   font-style: normal;
   font-weight: 400;
   line-height: var(--hljld-table-line-height);
 
   font-synthesis: none;
-  text-rendering: auto;
-  -webkit-font-smoothing: auto;
-  -moz-osx-font-smoothing: auto;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
   color: #111;
   text-shadow: none;
@@ -269,13 +270,14 @@ h1 {
 .record-table td,
 .record-table div,
 .record-table span,
-.record-table strong,
-.record-table b {
-  font-family: var(--hljld-font);
+.record-table b,
+.record-table strong {
+  font-family: inherit;
   font-style: normal;
+  font-synthesis: none;
   text-shadow: none !important;
   -webkit-text-stroke: 0 !important;
-  filter: none;
+  filter: none !important;
 }
 
 .record-table th,
@@ -291,26 +293,23 @@ h1 {
 .record-table thead th {
   background: #edf3f7;
   color: #111;
-  font-family: var(--hljld-font);
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
-  text-shadow: none;
-  -webkit-text-stroke: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
 }
 
 .record-table tbody td {
-  min-height: 24px;
+  min-height: 26px;
   white-space: normal;
-  font-family: var(--hljld-font);
-  font-size: 10px;
-  font-style: normal;
-  font-weight: 400;
-  line-height: 14px;
+  font-size: 11px;
+  font-weight: 400 !important;
+  line-height: 16px;
   color: #111;
-  text-shadow: none;
-  -webkit-text-stroke: 0;
+}
+
+.record-table tbody td b,
+.record-table tbody td strong {
+  font-weight: 400 !important;
 }
 
 .record-table tbody tr.continuation-row td {
@@ -327,35 +326,34 @@ h1 {
    ========================================================= */
 
 .time-col { width: 8%; }
-.time-cell {
-  white-space: nowrap !important;
-  font-size: inherit;
-  line-height: inherit;
-  font-variant-numeric: tabular-nums;
-}
 .record-col { width: 18%; }
 .sign-col { width: 6%; }
 
-.number,
 .time-cell,
-.summary-stat strong,
-.summary-total strong {
-  font-family: var(--hljld-font);
+.number,
+.nursing-cell,
+.sign-cell,
+.remark-row td,
+.remark-line {
+  font-family: var(--hljld-table-font);
+  font-size: 11px;
+  font-weight: 400 !important;
+  line-height: 16px;
+}
+
+.time-cell {
+  white-space: nowrap !important;
   font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
 }
 
 .nursing-cell {
   text-align: left !important;
   vertical-align: middle;
-  font-family: var(--hljld-font);
-  font-size: inherit;
-  font-style: normal;
-  font-weight: 400;
-  line-height: inherit;
   color: #111;
-  text-shadow: none;
-  -webkit-text-stroke: 0;
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -363,14 +361,7 @@ h1 {
 }
 
 .sign-cell {
-  font-family: var(--hljld-font);
-  font-size: inherit;
-  font-style: normal;
-  font-weight: 400;
-  line-height: inherit;
   color: #111;
-  text-shadow: none;
-  -webkit-text-stroke: 0;
   white-space: normal;
   word-break: keep-all;
   overflow-wrap: normal;
@@ -579,19 +570,6 @@ h1 {
    ========================================================= */
 
 @container hljld-paper (max-width: 1380px) {
-  .record-table {
-    font-size: 9.5px;
-    line-height: 13px;
-  }
-
-  .record-table thead th,
-  .record-table tbody td,
-  .nursing-cell,
-  .sign-cell {
-    font-size: 9.5px;
-    line-height: 13px;
-  }
-
   .record-table th,
   .record-table td {
     padding: 2px 3px;
@@ -609,11 +587,7 @@ h1 {
   }
 
   .summary-panel { padding: 5px 8px; }
-  .summary-line { gap: 3px 12px; min-height: 18px; font-size: 9.5px; line-height: 13px; }
-  .summary-total, .summary-group-label, .summary-stat { font-size: 9.5px; line-height: 13px; }
-  .summary-title { font-size: 10.5px; line-height: 14px; }
-  .summary-period { font-size: 9px; line-height: 12px; }
-  .remark-row th, .remark-row td, .remark-line { font-size: 9.5px; line-height: 13px; }
+  .summary-line { gap: 3px 12px; min-height: 18px; }
 }
 
 /* =========================================================
@@ -621,28 +595,23 @@ h1 {
    ========================================================= */
 
 @container hljld-paper (max-width: 1220px) {
-  .record-table {
-    font-size: 9px;
-    line-height: 12px;
-  }
-
-  .record-table thead th,
-  .record-table tbody td,
-  .nursing-cell,
-  .sign-cell {
-    font-size: 9px;
-    line-height: 12px;
-  }
-
   .record-table th,
   .record-table td {
     padding: 2px;
   }
 
+  /* 不再设置 9px 字号，保持 11px */
+  .record-table,
+  .record-table thead th,
+  .record-table tbody td,
+  .nursing-cell,
+  .sign-cell {
+    font-size: 11px;
+    line-height: 16px;
+  }
+
   .patient-strip { gap: 4px 10px; font-size: 10px; }
   h1 { font-size: 18px; }
-  .summary-line, .summary-total, .summary-group-label, .summary-stat { font-size: 9px; line-height: 12px; }
-  .remark-row th, .remark-row td, .remark-line { font-size: 9px; line-height: 12px; }
 }
 
 /* =========================================================
@@ -677,7 +646,7 @@ h1 {
   }
 
   .patient-strip {
-    font-family: var(--hljld-font);
+    font-family: var(--hljld-table-font);
     font-size: 7pt;
     padding: 1.5mm 0;
     gap: 1mm 5mm;
@@ -688,9 +657,9 @@ h1 {
   .record-table {
     width: 100%;
     min-width: 0;
-    font-family: var(--hljld-font);
-    font-size: 6pt;
-    line-height: 8pt;
+    font-family: var(--hljld-table-font);
+    font-size: 7pt;
+    line-height: 9pt;
   }
 
   .record-table th,
@@ -699,7 +668,7 @@ h1 {
   .record-table span,
   .record-table strong,
   .record-table b {
-    font-family: var(--hljld-font);
+    font-family: var(--hljld-table-font);
     text-shadow: none !important;
     -webkit-text-stroke: 0 !important;
   }
@@ -714,17 +683,20 @@ h1 {
   }
 
   .record-table thead th {
-    font-family: var(--hljld-font);
-    font-size: 6pt;
-    font-weight: 600;
-    line-height: 8pt;
+    font-size: 7pt;
+    font-weight: 500;
+    line-height: 9pt;
   }
 
   .record-table tbody td {
-    font-family: var(--hljld-font);
-    font-size: 6pt;
-    font-weight: 400;
-    line-height: 8pt;
+    font-size: 7pt;
+    font-weight: 400 !important;
+    line-height: 9pt;
+  }
+
+  .record-table tbody td strong,
+  .record-table tbody td b {
+    font-weight: 400 !important;
   }
 
   .record-table tr {
@@ -743,36 +715,32 @@ h1 {
   .summary-panel {
     width: 100%;
     padding: 1mm 2mm;
-    font-family: var(--hljld-font);
+    font-family: var(--hljld-table-font);
   }
 
   .summary-title {
-    font-family: var(--hljld-font);
-    font-size: 6.5pt;
-    font-weight: 600;
-    line-height: 8pt;
+    font-size: 7.5pt;
+    font-weight: 500;
+    line-height: 9pt;
   }
 
   .summary-period {
-    font-family: var(--hljld-font);
-    font-size: 6pt;
-    line-height: 8pt;
+    font-size: 7pt;
+    line-height: 9pt;
   }
 
   .summary-line,
   .summary-total,
   .summary-group-label,
   .summary-stat {
-    font-family: var(--hljld-font);
-    font-size: 6pt;
-    line-height: 8pt;
+    font-size: 7pt;
+    line-height: 9pt;
   }
 
   .remark-row th,
   .remark-row td,
   .remark-line {
-    font-family: var(--hljld-font);
-    font-size: 6pt;
-    line-height: 8pt;
+    font-size: 7pt;
+    line-height: 9pt;
   }
 }
