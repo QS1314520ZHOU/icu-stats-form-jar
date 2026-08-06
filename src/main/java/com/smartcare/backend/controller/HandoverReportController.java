@@ -27,7 +27,7 @@ public class HandoverReportController {
     @GetMapping("/daily")
     public ResponseEntity<Map<String, Object>> daily(
             @RequestParam String departmentId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date reportDate) {
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") Date reportDate) {
 
         Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
         cal.setTime(reportDate);
