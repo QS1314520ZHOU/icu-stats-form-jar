@@ -1,155 +1,183 @@
 package com.smartcare.backend.controller;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import org.bson.Document;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/icu/handover-reports")
+@RequestMapping("/api/v1/icu/handover-report")
 @CrossOrigin(origins = {"*"})
 public class HandoverReportController {
 
     private final MongoTemplate mongoTemplate;
-    private static final String COLLECTION = "handoverReports";
 
     public HandoverReportController(MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 
-    @GetMapping
-    public ResponseEntity<List<Map<String, Object>>> list(
-            @RequestParam String pid,
-            @RequestParam(required = false) String department,
+    /**
+     * 科室级每日交班快照
+     */
+    @GetMapping("/daily")
+    public ResponseEntity<Map<String, Object>> daily(
+            @RequestParam String departmentId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date reportDate) {
-        Query query = new Query();
-        query.addCriteria(Criteria.where("pid").is(pid));
-        if (department != null && !department.trim().isEmpty()) {
-            query.addCriteria(Criteria.where("department").is(department.trim()));
-        }
-        query.addCriteria(Criteria.where("reportDate").is(reportDate));
-        query.with(Sort.by(Sort.Direction.ASC, "createdAt"));
-        List<Document> docs = mongoTemplate.find(query, Document.class, COLLECTION);
-        return ResponseEntity.ok(normalizeDocuments(docs));
+
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        cal.setTime(reportDate);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date dayStart = cal.getTime();
+
+        cal.add(Calendar.DAY_OF_MONTH, 1);
+        Date dayEnd = cal.getTime();
+
+        // 查询当天有时间交集的患者（包括已出科）
+        Query patientQuery = new Query();
+        patientQuery.addCriteria(
+            Criteria.where("departmentCode").is(departmentId)
+                .and("icuAdmissionTime").lt(dayEnd)
+                .orOperator(
+                    Criteria.where("icuDischargeTime").exists(false),
+                    Criteria.where("icuDischargeTime").is(null),
+                    Criteria.where("icuDischargeTime").gte(dayStart)
+                ));
+        patientQuery.with(Sort.by(Sort.Direction.ASC, "bedNo"));
+        List<Document> patientDocs = mongoTemplate.find(patientQuery, Document.class, "patient");
+
+        // bedside records
+        Query bedsideQuery = new Query();
+        bedsideQuery.addCriteria(
+            Criteria.where("time").gte(dayStart).lt(dayEnd));
+        bedsideQuery.with(Sort.by(Sort.Direction.ASC, "time"));
+        List<Document> bedsideDocs = mongoTemplate.find(bedsideQuery, Document.class, "bedside");
+
+        // nurse records
+        Query nurseQuery = new Query();
+        nurseQuery.addCriteria(
+            Criteria.where("time").gte(dayStart).lt(dayEnd)
+                .and("valid").ne(false));
+        nurseQuery.with(Sort.by(Sort.Direction.ASC, "time"));
+        List<Document> nurseDocs = mongoTemplate.find(nurseQuery, Document.class, "nurseRecords");
+
+        // draft
+        Query draftQuery = new Query();
+        draftQuery.addCriteria(
+            Criteria.where("departmentId").is(departmentId)
+                .and("reportDate").is(reportDate));
+        Document draftDoc = mongoTemplate.findOne(draftQuery, Document.class, "handoverDrafts");
+
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("departmentId", departmentId);
+        snapshot.put("departmentName", departmentId);
+        snapshot.put("reportDate", reportDate);
+        snapshot.put("patients", normalizeDocuments(patientDocs));
+        snapshot.put("bedsideRecords", normalizeDocuments(bedsideDocs));
+        snapshot.put("bloodSugarRecords", Collections.emptyList());
+        snapshot.put("orders", Collections.emptyList());
+        snapshot.put("tubeExecutions", Collections.emptyList());
+        snapshot.put("nurseRecords", normalizeDocuments(nurseDocs));
+        snapshot.put("nurseAccounts", Collections.emptyList());
+        snapshot.put("draft", draftDoc != null ? normalizeUtcValue(draftDoc) : defaultDraft(departmentId, reportDate));
+
+        return ResponseEntity.ok(snapshot);
     }
 
-    @PostMapping
-    public ResponseEntity<Map<String, Object>> create(@RequestBody Map<String, Object> body) {
-        String pid = String.valueOf(body.getOrDefault("pid", ""));
-        String department = String.valueOf(body.getOrDefault("department", ""));
+    /**
+     * 保存草稿
+     */
+    @PutMapping("/draft")
+    public ResponseEntity<?> saveDraft(@RequestBody Map<String, Object> body) {
+        String departmentId = String.valueOf(body.getOrDefault("departmentId", ""));
         Date reportDate = parseDate(body.get("reportDate"));
-        String content = String.valueOf(body.getOrDefault("content", "{}"));
-        Integer version = 1;
+        Integer requestVersion = (Integer) body.getOrDefault("version", 0);
 
-        Map<String, Object> doc = new LinkedHashMap<>();
-        doc.put("pid", pid);
-        doc.put("department", department);
-        doc.put("reportDate", reportDate);
-        doc.put("content", content);
-        doc.put("version", version);
-        doc.put("createdAt", new Date());
-        doc.put("updatedAt", new Date());
+        Query query = new Query();
+        query.addCriteria(
+            Criteria.where("departmentId").is(departmentId)
+                .and("reportDate").is(reportDate));
+        Document existing = mongoTemplate.findOne(query, Document.class, "handoverDrafts");
 
-        mongoTemplate.insert(doc, COLLECTION);
-        return ResponseEntity.ok((Map<String, Object>) normalizeUtcValue(doc));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<?> update(
-            @PathVariable String id,
-            @RequestHeader(value = "If-Match", required = false) String ifMatch,
-            @RequestBody Map<String, Object> body) {
-        Query query = new Query(Criteria.where("_id").is(id));
-        Document existing = mongoTemplate.findOne(query, Document.class, COLLECTION);
-        if (existing == null) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Integer currentVersion = (Integer) existing.get("version");
-        if (ifMatch != null && !ifMatch.isEmpty()) {
-            try {
-                Integer requestVersion = Integer.parseInt(ifMatch);
-                if (!requestVersion.equals(currentVersion)) {
-                    Map<String, Object> error = new LinkedHashMap<>();
-                    error.put("error", "版本冲突，请刷新后重试");
-                    error.put("currentVersion", currentVersion);
-                    return ResponseEntity.status(409).body(error);
-                }
-            } catch (NumberFormatException ignored) {
+        if (existing != null) {
+            Integer currentVersion = (Integer) existing.getOrDefault("version", 0);
+            if (requestVersion != null && !requestVersion.equals(currentVersion)) {
+                Map<String, Object> error = new LinkedHashMap<>();
+                error.put("error", "版本冲突，请刷新后合并");
+                error.put("latestDraft", normalizeUtcValue(existing));
+                return ResponseEntity.status(409).body(error);
             }
         }
 
-        String content = String.valueOf(body.getOrDefault("content", existing.get("content")));
-        Update update = new Update();
-        update.set("content", content);
-        update.set("version", currentVersion + 1);
-        update.set("updatedAt", new Date());
+        body.put("version", (existing != null ? (Integer) existing.getOrDefault("version", 0) : 0) + 1);
+        body.put("updatedAt", new Date());
 
-        mongoTemplate.updateFirst(query, update, COLLECTION);
-        Document updated = mongoTemplate.findOne(query, Document.class, COLLECTION);
-        return ResponseEntity.ok((Map<String, Object>) normalizeUtcValue(updated));
+        if (existing != null) {
+            mongoTemplate.save(body, "handoverDrafts");
+        } else {
+            mongoTemplate.insert(body, "handoverDrafts");
+        }
+
+        return ResponseEntity.ok(body);
+    }
+
+    private Map<String, Object> defaultDraft(String departmentId, Date reportDate) {
+        Map<String, Object> draft = new LinkedHashMap<>();
+        draft.put("departmentId", departmentId);
+        draft.put("reportDate", reportDate);
+        draft.put("version", 0);
+        draft.put("criticalPatients", Collections.emptyList());
+        draft.put("patientTextOverrides", Collections.emptyMap());
+        draft.put("manualMetrics", Collections.emptyMap());
+        draft.put("shiftSignatures", Collections.emptyMap());
+        return draft;
     }
 
     private Date parseDate(Object value) {
         if (value instanceof Date) return (Date) value;
         if (value instanceof String) {
-            try {
-                return Date.from(java.time.Instant.parse((String) value));
-            } catch (Exception e) {
-                return new Date();
-            }
+            try { return Date.from(java.time.Instant.parse((String) value)); }
+            catch (Exception e) { return new Date(); }
         }
         return new Date();
     }
 
     @SuppressWarnings("unchecked")
     private Object normalizeUtcValue(Object value) {
-        if (value instanceof Date) {
-            return ((Date) value).toInstant().toString();
-        }
+        if (value instanceof Date) return ((Date) value).toInstant().toString();
         if (value instanceof Document) {
-            Document source = (Document) value;
             Map<String, Object> result = new LinkedHashMap<>();
-            for (Map.Entry<String, Object> entry : source.entrySet()) {
+            for (Map.Entry<String, Object> entry : ((Document) value).entrySet()) {
                 result.put(entry.getKey(), normalizeUtcValue(entry.getValue()));
             }
             return result;
         }
         if (value instanceof Map) {
-            Map<?, ?> source = (Map<?, ?>) value;
             Map<String, Object> result = new LinkedHashMap<>();
-            for (Map.Entry<?, ?> entry : source.entrySet()) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
                 result.put(String.valueOf(entry.getKey()), normalizeUtcValue(entry.getValue()));
             }
             return result;
         }
         if (value instanceof List) {
-            List<?> source = (List<?>) value;
             List<Object> result = new ArrayList<>();
-            for (Object item : source) {
-                result.add(normalizeUtcValue(item));
-            }
+            for (Object item : (List<?>) value) result.add(normalizeUtcValue(item));
             return result;
         }
         return value;
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> normalizeDocuments(List<Document> documents) {
+    private List<Map<String, Object>> normalizeDocuments(List<Document> docs) {
         List<Map<String, Object>> result = new ArrayList<>();
-        for (Document document : documents) {
-            result.add((Map<String, Object>) normalizeUtcValue(document));
-        }
+        for (Document doc : docs) result.add((Map<String, Object>) normalizeUtcValue(doc));
         return result;
     }
 }

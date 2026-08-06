@@ -1,283 +1,195 @@
-import { databaseTimeValue, formatShanghaiDateMinute } from './form-date.util';
 import {
-  CriticalPatient,
-  DetailEventType,
-  HandoverDetail,
-  HandoverReportContent,
-  ShiftDefinition,
-  ShiftKind,
-  StatusItem,
+  DepartmentDailySnapshot,
+  DepartmentPatient,
+  HandoverPatientRow,
+  HandoverReportViewModel,
+  HandoverStatus,
+  ShiftKey,
+  ShiftRange,
+  ShiftStatistics,
 } from './handover-report.models';
 
-/* =========================================================
-   班次定义
-   ========================================================= */
+const SHIFT_KEYS: ShiftKey[] = ['night', 'day', 'evening'];
 
-export const SHIFT_DEFINITIONS: ShiftDefinition[] = [
-  { kind: 'night', label: '夜班', startHour: 0, endHour: 8, settlementHour: 8 },
-  { kind: 'day', label: '白班', startHour: 8, endHour: 18, settlementHour: 18 },
-  { kind: 'evening', label: '中班', startHour: 18, endHour: 24, settlementHour: 24 },
-];
-
-/** 根据当前时间确定当前班次 */
-export function getCurrentShift(): ShiftDefinition {
-  const hour = new Date().getHours();
-  if (hour >= 0 && hour < 8) return SHIFT_DEFINITIONS[0];
-  if (hour >= 8 && hour < 18) return SHIFT_DEFINITIONS[1];
-  return SHIFT_DEFINITIONS[2];
-}
-
-/** 获取班次的时间范围（上海时间） */
-export function getShiftRange(shift: ShiftKind, referenceDate: Date): { start: Date; end: Date } {
-  const def = SHIFT_DEFINITIONS.find(s => s.kind === shift)!;
-  const base = new Date(referenceDate);
-  base.setHours(0, 0, 0, 0);
-
-  const start = new Date(base);
-  start.setHours(def.startHour, 0, 0, 0);
-
-  const end = new Date(base);
-  if (def.endHour === 24) {
-    end.setDate(end.getDate() + 1);
-    end.setHours(0, 0, 0, 0);
-  } else {
-    end.setHours(def.endHour, 0, 0, 0);
-  }
-
-  return { start, end };
-}
-
-/** 结算时间 */
-export function getSettlementTime(shift: ShiftKind, referenceDate: Date): Date {
-  const def = SHIFT_DEFINITIONS.find(s => s.kind === shift)!;
-  const base = new Date(referenceDate);
-  base.setHours(0, 0, 0, 0);
-  if (def.settlementHour === 24) {
-    base.setDate(base.getDate() + 1);
-    base.setHours(0, 0, 0, 0);
-  } else {
-    base.setHours(def.settlementHour, 0, 0, 0);
-  }
-  return base;
-}
-
-/* =========================================================
-   有效性判断
-   ========================================================= */
-
-export function isValidRecord(record: any): boolean {
-  if (!record) return false;
-  if (record.valid === false) return false;
-  const status = String(record.status ?? '').trim().toLowerCase();
-  if (status === 'invalid') return false;
-  return true;
-}
-
-/* =========================================================
-   明细事件构建
-   ========================================================= */
-
-const DETAIL_SORT_ORDER: Record<DetailEventType, number> = {
-  discharge: 0,
-  transfer: 1,
-  death: 2,
-  transferIn: 3,
-  admission: 4,
-  critical: 5,
-  surgery: 6,
+const STATUS_ORDER: Record<HandoverStatus, number> = {
+  '出院': 1, '转出': 2, '死亡': 3, '转入': 4, '入院': 5, '病危': 6, '手术': 7,
 };
 
-/** 排序明细：先按事件类型优先级，再按时间升序 */
-export function sortDetails(details: HandoverDetail[]): HandoverDetail[] {
-  return [...details].sort((a, b) => {
-    const typeDiff = (DETAIL_SORT_ORDER[a.eventType] ?? 99) - (DETAIL_SORT_ORDER[b.eventType] ?? 99);
-    if (typeDiff !== 0) return typeDiff;
-    const timeA = databaseTimeValue(a.time);
-    const timeB = databaseTimeValue(b.time);
-    return (Number.isFinite(timeA) ? timeA : 0) - (Number.isFinite(timeB) ? timeB : 0);
-  });
-}
-
-/** 格式化时间为上海时间显示 */
-export function formatTime(time: string | Date): string {
-  const ts = typeof time === 'string' ? databaseTimeValue(time) : time.getTime();
-  return Number.isFinite(ts) ? formatShanghaiDateMinute(ts) : '';
-}
-
-/* =========================================================
-   状态栏指标计算
-   ========================================================= */
-
-/** 从 bedside 记录中提取代码值 */
-function getBedsideValues(records: any[], code: string): (string | number)[] {
-  return records
-    .filter(r => isValidRecord(r) && r.code === code)
-    .map(r => r.strVal)
-    .filter(v => v !== null && v !== undefined && v !== '');
-}
-
-/** 计算状态栏指标 */
-export function calculateStatusItems(
-  bedside: any[],
-  tubeExecutions: any[],
-  shift: ShiftDefinition,
-  referenceDate: Date,
-): StatusItem[] {
-  const { start, end } = getShiftRange(shift.kind, referenceDate);
-  const startMs = start.getTime();
-  const endMs = end.getTime();
-
-  const records = bedside.filter(r => {
-    if (!isValidRecord(r)) return false;
-    const ts = databaseTimeValue(r.time);
-    return Number.isFinite(ts) && ts >= startMs && ts < endMs;
-  });
-
-  const items: StatusItem[] = [];
-
-  // 体温 ≥ 38℃
-  const temps = getBedsideValues(records, 'param_tiWen').map(Number).filter(v => !isNaN(v));
-  items.push({ label: '体温≥38℃', value: temps.some(t => t >= 38) ? '有' : '', isRed: temps.some(t => t >= 38) });
-
-  // 血糖 < 3.9
-  const sugars = getBedsideValues(records, 'param_xueTang').map(Number).filter(v => !isNaN(v));
-  items.push({ label: '血糖<3.9', value: sugars.some(s => s < 3.9) ? '有' : '', isRed: sugars.some(s => s < 3.9) });
-
-  // 膀胱冲洗
-  const bladder = getBedsideValues(records, 'param_pangGuangChongXi');
-  items.push({ label: '膀胱冲洗', value: bladder.length > 0 ? '有' : '', isRed: bladder.length > 0 });
-
-  // 有创通气
-  const invasive = getBedsideValues(records, 'param_youChuangTongQi');
-  items.push({ label: '有创通气', value: invasive.length > 0 ? '有' : '', isRed: invasive.length > 0 });
-
-  // 新增鼻肠管/气管插管/气切
-  const ngTube = getBedsideValues(records, 'param_biChangGuan');
-  const etTube = getBedsideValues(records, 'param_qiGuanChaGuan');
-  const trach = getBedsideValues(records, 'param_qiQie');
-  const hasNewTube = ngTube.length > 0 || etTube.length > 0 || trach.length > 0;
-  items.push({ label: '新增鼻肠管/气管插管/气切', value: hasNewTube ? '有' : '', isRed: hasNewTube });
-
-  // 脱机
-  const weaning = getBedsideValues(records, 'param_tuoJi');
-  items.push({ label: '脱机', value: weaning.length > 0 ? '有' : '', isRed: weaning.length > 0 });
-
-  // 48h再插管
-  const reintubation = getBedsideValues(records, 'param_48hZaiChaGuan');
-  items.push({ label: '48h再插管', value: reintubation.length > 0 ? '有' : '', isRed: reintubation.length > 0 });
-
-  // IBP
-  const ibp = getBedsideValues(records, 'param_IBP');
-  items.push({ label: 'IBP', value: ibp.length > 0 ? '有' : '', isRed: ibp.length > 0 });
-
-  // CRRT
-  const crrt = getBedsideValues(records, 'param_CRRT');
-  items.push({ label: 'CRRT', value: crrt.length > 0 ? '有' : '', isRed: crrt.length > 0 });
-
-  // 俯卧位
-  const prone = getBedsideValues(records, 'param_fuWoWei');
-  items.push({ label: '俯卧位', value: prone.length > 0 ? '有' : '', isRed: prone.length > 0 });
-
-  // IABP
-  const iabp = getBedsideValues(records, 'param_IABP');
-  items.push({ label: 'IABP', value: iabp.length > 0 ? '有' : '', isRed: iabp.length > 0 });
-
-  // PICCO
-  const picco = getBedsideValues(records, 'param_PICCO');
-  items.push({ label: 'PICCO', value: picco.length > 0 ? '有' : '', isRed: picco.length > 0 });
-
-  // ECMO
-  const ecmo = getBedsideValues(records, 'param_ECMO');
-  items.push({ label: 'ECMO', value: ecmo.length > 0 ? '有' : '', isRed: ecmo.length > 0 });
-
-  // 解除隔离
-  const isolation = getBedsideValues(records, 'param_jieChuGeLi');
-  items.push({ label: '解除隔离', value: isolation.length > 0 ? '有' : '', isRed: isolation.length > 0 });
-
-  // 高风险：跌倒
-  const fall = getBedsideValues(records, 'param_dieDaoFengXian');
-  items.push({ label: '高风险-跌倒', value: fall.length > 0 ? '有' : '', isRed: fall.length > 0 });
-
-  // 高风险：压疮
-  const pressure = getBedsideValues(records, 'param_yaChuangFengXian');
-  items.push({ label: '高风险-压疮', value: pressure.length > 0 ? '有' : '', isRed: pressure.length > 0 });
-
-  // 高风险：管道滑脱
-  const tubeSlip = getBedsideValues(records, 'param_guanDaoHuaTuo');
-  items.push({ label: '高风险-管道滑脱', value: tubeSlip.length > 0 ? '有' : '', isRed: tubeSlip.length > 0 });
-
-  // 高风险：自杀
-  const suicide = getBedsideValues(records, 'param_ziShaFengXian');
-  items.push({ label: '高风险-自杀', value: suicide.length > 0 ? '有' : '', isRed: suicide.length > 0 });
-
-  // 非计划转入ICU
-  const unplanned = getBedsideValues(records, 'param_feiJiHuaZhuanRu');
-  items.push({ label: '非计划转入ICU', value: unplanned.length > 0 ? '有' : '', isRed: unplanned.length > 0 });
-
-  return items;
-}
-
-/* =========================================================
-   危重患者信息
-   ========================================================= */
-
-export function buildCriticalPatientInfo(
-  bedside: any[],
-  tubeExecutions: any[],
-  patient: any,
-  shift: ShiftDefinition,
-  referenceDate: Date,
-): CriticalPatient {
-  const { start, end } = getShiftRange(shift.kind, referenceDate);
-  const startMs = start.getTime();
-  const endMs = end.getTime();
-
-  // 06:00 生命体征（夜班）
-  const vitalRecords = bedside.filter(r => {
-    if (!isValidRecord(r)) return false;
-    const ts = databaseTimeValue(r.time);
-    return Number.isFinite(ts) && ts >= startMs && ts < endMs;
-  });
-
-  const vitalSigns = [
-    `体温：${getBedsideValues(vitalRecords, 'param_tiWen').join('/') || '—'}`,
-    `心率：${getBedsideValues(vitalRecords, 'param_xinLv').join('/') || '—'}`,
-    `呼吸：${getBedsideValues(vitalRecords, 'param_huXi').join('/') || '—'}`,
-    `血压：${getBedsideValues(vitalRecords, 'param_xueYa').join('/') || '—'}`,
-    `血氧：${getBedsideValues(vitalRecords, 'param_xueYang').join('/') || '—'}`,
-  ].join('；');
-
-  // 24h出入量
-  const dayStart = new Date(start);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
-
-  const dayRecords = bedside.filter(r => {
-    if (!isValidRecord(r)) return false;
-    const ts = databaseTimeValue(r.time);
-    return Number.isFinite(ts) && ts >= dayStart.getTime() && ts < dayEnd.getTime();
-  });
-
-  const totalInput = dayRecords.filter(r => ['param_YaoYeti_in_hour', 'param_YaoStomach_in_hour', 'param_YaoShuXue_in_hour', 'param_kouFu', 'param_biSi', 'param_带入药量'].includes(r.code))
-    .reduce((sum, r) => sum + Number(r.strVal || 0), 0);
-  const totalOutput = dayRecords.filter(r => ['param_niaoLiang', 'param_daBianAmount', 'param_chaoLvLiang'].includes(r.code) || String(r.code || '').includes('引流'))
-    .reduce((sum, r) => sum + Number(r.strVal || 0), 0);
-
-  // 在科时长
-  const admissionTs = databaseTimeValue(patient?.admissionTime || patient?.inTime);
-  const durationHours = Number.isFinite(admissionTs) ? Math.floor((Date.now() - admissionTs) / 3600000) : null;
-  const duration = durationHours !== null && durationHours < 24 ? `${durationHours}小时` : undefined;
+export function buildShiftRanges(selectedDate: Date): Record<ShiftKey, ShiftRange> {
+  const at = (dayOffset: number, hour: number, minute = 0): Date =>
+    new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + dayOffset, hour, minute, 0, 0);
 
   return {
-    pid: patient?.id || patient?._id || '',
-    bedNo: String(patient?.hisBed ?? patient?.bedNo ?? ''),
-    patientName: String(patient?.name ?? patient?.patientName ?? ''),
-    hospitalNo: String(patient?.mrn ?? patient?.hospitalNo ?? ''),
-    diagnosis: String(patient?.clinicalDiagnosis ?? patient?.diagnosis ?? ''),
-    admissionTime: patient?.admissionTime || patient?.inTime || '',
-    duration,
-    vitalSigns,
-    io24h: `入量：${totalInput}ml，出量：${totalOutput}ml`,
+    night: { key: 'night', label: '夜班', start: at(0, 0), end: at(0, 8), settlementTime: at(0, 8) },
+    day: { key: 'day', label: '白班', start: at(0, 8), end: at(0, 18, 1), settlementTime: at(0, 18) },
+    evening: { key: 'evening', label: '中班', start: at(0, 18, 1), end: at(1, 0), settlementTime: at(1, 0) },
   };
+}
+
+function timeValue(value?: string): number {
+  if (!value) return Number.NaN;
+  return new Date(value).getTime();
+}
+
+function inShift(value: string | undefined, range: ShiftRange): boolean {
+  const ts = timeValue(value);
+  return Number.isFinite(ts) && ts >= range.start.getTime() && ts < range.end.getTime();
+}
+
+function resolveShift(value: string | undefined, ranges: Record<ShiftKey, ShiftRange>): ShiftKey | undefined {
+  return SHIFT_KEYS.find(key => inShift(value, ranges[key]));
+}
+
+function isInDepartmentAt(patient: DepartmentPatient, settlementTime: Date): boolean {
+  const settlement = settlementTime.getTime();
+  const admission = patient.icuAdmissionTime ? timeValue(patient.icuAdmissionTime) : Number.NEGATIVE_INFINITY;
+  const discharge = patient.icuDischargeTime ? timeValue(patient.icuDischargeTime) : Number.POSITIVE_INFINITY;
+  return admission <= settlement && settlement < discharge;
+}
+
+function bedNo(patient: DepartmentPatient): string {
+  const raw = String(patient.hisBed || patient.bedNo || '').trim();
+  return raw.endsWith('床') ? raw : raw ? `${raw}床` : '';
+}
+
+function bedNumber(value: string): number {
+  const match = value.match(/\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : Number.MAX_SAFE_INTEGER;
+}
+
+function diagnosis(patient: DepartmentPatient): string {
+  return String(patient.clinicalDiagnosis || patient.diagnosis || '').trim();
+}
+
+function formatChineseDateTime(value?: string): string {
+  if (!value) return '';
+  const date = new Date(value);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function dischargeStatus(dischargedType?: string): '出院' | '转出' | '死亡' | undefined {
+  const v = String(dischargedType || '');
+  if (v.includes('死亡')) return '死亡';
+  if (v.includes('转出') || v.includes('转科')) return '转出';
+  if (v.includes('出院')) return '出院';
+  return undefined;
+}
+
+function admissionStatus(admissionType?: string): '转入' | '入院' | undefined {
+  const v = String(admissionType || '');
+  if (v.includes('转入')) return '转入';
+  if (v.includes('入院')) return '入院';
+  return undefined;
+}
+
+function defaultEventText(patient: DepartmentPatient, status: HandoverStatus): string {
+  switch (status) {
+    case '出院': return `患者于${formatChineseDateTime(patient.icuDischargeTime)}出院。`;
+    case '转出': return `患者转${patient.dischargedDepartment || '相关科室'}继续治疗。`;
+    case '死亡': return `患者于${formatChineseDateTime(patient.icuDischargeTime)}死亡。`;
+    default: return '';
+  }
+}
+
+function editableShiftsFrom(eventShift: ShiftKey): ShiftKey[] {
+  const order: ShiftKey[] = ['night', 'day', 'evening'];
+  const index = order.indexOf(eventShift);
+  return index < 0 ? [] : order.slice(index);
+}
+
+function createRow(patient: DepartmentPatient, status: HandoverStatus, eventShift: ShiftKey, eventTime: number): HandoverPatientRow {
+  const editable = ['转入', '入院', '病危', '手术'].includes(status);
+  return {
+    key: `${status}:${patient.id}:${eventTime}`,
+    patientId: patient.id,
+    bedNo: bedNo(patient),
+    name: patient.name || '',
+    mrn: patient.mrn || '',
+    diagnosis: diagnosis(patient),
+    status,
+    eventTime,
+    eventShift,
+    editableShifts: editable ? editableShiftsFrom(eventShift) : [],
+    shiftTexts: { [eventShift]: defaultEventText(patient, status) },
+  };
+}
+
+function emptyStatistics(): ShiftStatistics {
+  return { total: 0, discharged: 0, transferredOut: 0, death: 0, transferredIn: 0, admission: 0, operation: 0, critical: 0, specialCare: 0 };
+}
+
+function buildPatientRows(snapshot: DepartmentDailySnapshot, ranges: Record<ShiftKey, ShiftRange>): HandoverPatientRow[] {
+  const rows: HandoverPatientRow[] = [];
+
+  for (const patient of snapshot.patients) {
+    const outStatus = dischargeStatus(patient.dischargedType);
+    const outShift = resolveShift(patient.icuDischargeTime, ranges);
+    if (outStatus && outShift) {
+      rows.push(createRow(patient, outStatus, outShift, timeValue(patient.icuDischargeTime)));
+    }
+
+    const inStatus = admissionStatus(patient.admissionType);
+    const inShift = resolveShift(patient.icuAdmissionTime, ranges);
+    if (inStatus && inShift) {
+      rows.push(createRow(patient, inStatus, inShift, timeValue(patient.icuAdmissionTime)));
+    }
+
+    for (const op of patient.patientOperations || []) {
+      if (op.valid === false || !op.endTime) continue;
+      const opShift = resolveShift(op.endTime, ranges);
+      if (!opShift) continue;
+      rows.push(createRow(patient, '手术', opShift, timeValue(op.endTime)));
+    }
+  }
+
+  for (const selection of snapshot.draft.criticalPatients || []) {
+    const patient = snapshot.patients.find(p => p.id === selection.patientId || p._id === selection.patientId);
+    if (!patient) continue;
+    const row = createRow(patient, '病危', 'night', ranges.night.settlementTime.getTime());
+    row.editableShifts = ['night', 'day', 'evening'];
+    row.shiftTexts = {};
+    rows.push(row);
+  }
+
+  for (const row of rows) {
+    for (const shift of SHIFT_KEYS) {
+      const override = snapshot.draft.patientTextOverrides[`${row.key}.${shift}`];
+      if (override !== undefined) row.shiftTexts[shift] = override;
+    }
+  }
+
+  return rows.sort((a, b) => {
+    const sd = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    if (sd !== 0) return sd;
+    if (a.status === '病危') return bedNumber(a.bedNo) - bedNumber(b.bedNo);
+    return a.eventTime - b.eventTime || bedNumber(a.bedNo) - bedNumber(b.bedNo);
+  });
+}
+
+function buildStatistics(snapshot: DepartmentDailySnapshot, ranges: Record<ShiftKey, ShiftRange>, rows: HandoverPatientRow[]): Record<ShiftKey, ShiftStatistics> {
+  const result: Record<ShiftKey, ShiftStatistics> = { night: emptyStatistics(), day: emptyStatistics(), evening: emptyStatistics() };
+  for (const shift of SHIFT_KEYS) {
+    const s = result[shift];
+    s.total = snapshot.patients.filter(p => isInDepartmentAt(p, ranges[shift].settlementTime)).length;
+    s.critical = s.total;
+    for (const row of rows.filter(r => r.eventShift === shift)) {
+      switch (row.status) {
+        case '出院': s.discharged++; break;
+        case '转出': s.transferredOut++; break;
+        case '死亡': s.death++; break;
+        case '转入': s.transferredIn++; break;
+        case '入院': s.admission++; break;
+        case '手术': s.operation++; break;
+      }
+    }
+  }
+  return result;
+}
+
+export function buildHandoverReport(snapshot: DepartmentDailySnapshot, selectedDate: Date): HandoverReportViewModel {
+  const ranges = buildShiftRanges(selectedDate);
+  const rows = buildPatientRows(snapshot, ranges);
+  const statistics = buildStatistics(snapshot, ranges, rows);
+  return { ranges, rows, statistics, metrics: [] };
 }

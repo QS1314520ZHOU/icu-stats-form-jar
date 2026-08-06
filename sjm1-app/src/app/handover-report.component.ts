@@ -1,29 +1,8 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Subject, ReplaySubject, firstValueFrom } from 'rxjs';
-import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
-import { HostPatientService } from './services/host-patient.service';
+import { ReplaySubject, Subject, catchError, debounceTime, EMPTY, finalize, map, switchMap, takeUntil } from 'rxjs';
+import { DepartmentDailySnapshot, DraftConflictError, HandoverPatientRow, HandoverReportViewModel, NurseRecord, ShiftKey } from './handover-report.models';
 import { HandoverReportService } from './handover-report.service';
-import {
-  CriticalPatient,
-  HandoverDetail,
-  HandoverReport,
-  HandoverReportContent,
-  LoadResult,
-  ShiftDefinition,
-  ShiftKind,
-  SourceStatus,
-  StatusItem,
-} from './handover-report.models';
-import {
-  calculateStatusItems,
-  getCurrentShift,
-  getShiftRange,
-  getSettlementTime,
-  SHIFT_DEFINITIONS,
-  sortDetails,
-  buildCriticalPatientInfo,
-} from './handover-report.utils';
-import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
+import { buildHandoverReport } from './handover-report.utils';
 
 @Component({
   standalone: false,
@@ -34,110 +13,138 @@ import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 })
 export class HandoverReportComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
-  private readonly loadTrigger$ = new ReplaySubject<void>(1);
+  private readonly reload$ = new ReplaySubject<void>(1);
+  private readonly save$ = new Subject<void>();
 
-  patient: any = null;
-  pid = '';
-  department = '';
   selectedDate = new Date();
-  selectedShift: ShiftKind = getCurrentShift().kind;
-  loading = false;
-  error = '';
-  sourceError = '';
-  vm?: { shift: ShiftDefinition; details: HandoverDetail[]; statusItems: StatusItem[]; criticalPatients: CriticalPatient[]; nurseSignature: string; remark: string };
+  dateInput = this.toDateInput(this.selectedDate);
+  departmentId = 'ICU';
 
-  private bedside: any[] = [];
-  private tubeExecutions: any[] = [];
-  private savedReport: HandoverReport | null = null;
-  private accountMap = new Map<string, string>();
+  loading = false;
+  saving = false;
+  error = '';
+
+  snapshot?: DepartmentDailySnapshot;
+  vm?: HandoverReportViewModel;
+
+  criticalDialogVisible = false;
+  nurseRecordDialogVisible = false;
+  recordTarget?: { row: HandoverPatientRow; shift: ShiftKey };
+  nurseRecords: NurseRecord[] = [];
+  selectedRecordIds = new Set<string>();
 
   constructor(
-    private service: HandoverReportService,
-    private hostPatient: HostPatientService,
-    private cdr: ChangeDetectorRef,
+    private readonly service: HandoverReportService,
+    private readonly cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
-    this.loadTrigger$.pipe(
+    this.reload$.pipe(
       takeUntil(this.destroy$),
-      map(() => ({ pid: this.pid, date: new Date(this.selectedDate), shift: this.selectedShift })),
-      distinctUntilChanged((a, b) => a.pid === b.pid && a.date.getTime() === b.date.getTime() && a.shift === b.shift),
-      switchMap(cond => this.loadData(cond.pid, cond.date, cond.shift)),
+      map(() => ({ reportDate: this.dateInput, departmentId: this.departmentId })),
+      switchMap(condition => {
+        this.loading = true;
+        this.error = '';
+        this.cdr.markForCheck();
+        return this.service.loadDaily(condition).pipe(finalize(() => { this.loading = false; this.cdr.markForCheck(); }));
+      }),
     ).subscribe({
-      next: result => {
-        this.bedside = result.bedside;
-        this.tubeExecutions = result.tubeExecutions;
-        this.sourceError = this.buildSourceError(result.statuses);
-        this.buildViewModel();
-        this.cdr.markForCheck();
-      },
-      error: err => {
-        this.loading = false;
-        this.error = err?.message || '数据加载异常';
-        this.cdr.markForCheck();
-      },
+      next: snapshot => { this.snapshot = snapshot; this.rebuild(); },
+      error: error => { this.error = error?.message || '交班报告加载失败'; this.cdr.markForCheck(); },
     });
 
-    this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
-      if (!p) { this.patient = null; this.pid = ''; this.department = ''; this.cdr.markForCheck(); return; }
-      const nextPid = getSmartCarePatientPid(p);
-      if (!nextPid || nextPid === this.pid) return;
-      this.patient = p;
-      this.pid = nextPid;
-      this.department = String(p?.department ?? p?.deptName ?? p?.departmentName ?? '').trim();
-      this.loadTrigger$.next();
-      this.cdr.markForCheck();
-    });
+    this.save$.pipe(
+      debounceTime(500),
+      takeUntil(this.destroy$),
+      switchMap(() => {
+        if (!this.snapshot) return EMPTY;
+        this.saving = true;
+        this.cdr.markForCheck();
+        return this.service.saveDraft(this.snapshot.draft).pipe(
+          catchError(error => {
+            this.saving = false;
+            this.error = error instanceof DraftConflictError ? '报告已被其他用户更新，请刷新后合并。' : '交班报告保存失败，请重试。';
+            this.cdr.markForCheck();
+            return EMPTY;
+          }),
+          finalize(() => { this.saving = false; this.cdr.markForCheck(); }),
+        );
+      }),
+    ).subscribe(draft => { if (this.snapshot) { this.snapshot.draft = draft; this.rebuild(); } });
+
+    this.reload$.next();
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
+
+  previousDay(): void { this.moveDate(-1); }
+  nextDay(): void { this.moveDate(1); }
+  today(): void { this.selectedDate = new Date(); this.dateInput = this.toDateInput(this.selectedDate); this.reload$.next(); }
+  onDateChange(value: string): void { const d = new Date(`${value}T00:00:00`); if (isNaN(d.getTime())) return; this.selectedDate = d; this.dateInput = value; this.reload$.next(); }
+  openCriticalDialog(): void { this.criticalDialogVisible = true; }
+  closeCriticalDialog(): void { this.criticalDialogVisible = false; }
+
+  isCriticalSelected(patientId: string): boolean {
+    return this.snapshot?.draft.criticalPatients.some(item => item.patientId === patientId) || false;
   }
 
-  onShiftChange(kind: ShiftKind): void {
-    this.selectedShift = kind;
-    this.loadTrigger$.next();
-  }
-
-  onDateChange(dateStr: string): void {
-    const d = new Date(`${dateStr}T00:00:00`);
-    if (!isNaN(d.getTime())) {
-      this.selectedDate = d;
-      this.loadTrigger$.next();
+  toggleCritical(patientId: string, checked: boolean): void {
+    if (!this.snapshot) return;
+    if (checked) {
+      if (!this.isCriticalSelected(patientId)) {
+        this.snapshot.draft.criticalPatients.push({ patientId, selectedAt: new Date().toISOString(), selectedBy: 'current-user' });
+      }
+    } else {
+      this.snapshot.draft.criticalPatients = this.snapshot.draft.criticalPatients.filter(item => item.patientId !== patientId);
     }
+    this.saveSoon();
+  }
+
+  canEditShift(row: HandoverPatientRow, shift: ShiftKey): boolean { return row.editableShifts.includes(shift); }
+  updatePatientText(row: HandoverPatientRow, shift: ShiftKey, value: string): void {
+    if (!this.snapshot) return;
+    this.snapshot.draft.patientTextOverrides[`${row.key}.${shift}`] = value;
+    this.saveSoon();
+  }
+
+  openNurseRecords(row: HandoverPatientRow, shift: ShiftKey): void {
+    this.recordTarget = { row, shift };
+    this.selectedRecordIds.clear();
+    this.nurseRecords = [];
+    this.nurseRecordDialogVisible = true;
+    this.cdr.markForCheck();
+  }
+
+  toggleNurseRecord(recordId: string, checked: boolean): void {
+    if (checked) this.selectedRecordIds.add(recordId);
+    else this.selectedRecordIds.delete(recordId);
+  }
+
+  applyNurseRecords(): void {
+    if (!this.recordTarget) return;
+    const text = this.nurseRecords.filter(r => this.selectedRecordIds.has(r.id)).map(r => r.desc).join('\n');
+    const old = this.recordTarget.row.shiftTexts[this.recordTarget.shift] || '';
+    this.updatePatientText(this.recordTarget.row, this.recordTarget.shift, [old, text].filter(Boolean).join('\n'));
+    this.nurseRecordDialogVisible = false;
+  }
+
+  setShiftSignature(shift: ShiftKey, accountId: string): void {
+    if (!this.snapshot) return;
+    this.snapshot.draft.shiftSignatures[shift] = accountId;
+    this.saveSoon();
   }
 
   print(): void { window.print(); }
+  trackRow(_: number, row: HandoverPatientRow): string { return row.key; }
+  statusText(status: string): string { return ['死亡', '转入', '入院', '手术'].includes(status) ? `“${status}”` : status; }
 
-  save(): void { /* TODO: auto-save debounce */ }
-
-  trackDetail(_: number, item: HandoverDetail): string { return `${item.eventType}-${item.time}-${item.bedNo}`; }
-  trackShift(_: number, shift: ShiftDefinition): string { return shift.kind; }
-  trackStatusItem(_: number, item: StatusItem): string { return item.label; }
-
-  private loadData(pid: string, date: Date, shift: ShiftKind): Promise<LoadResult> {
-    this.loading = true;
-    this.error = '';
-    const { start, end } = getShiftRange(shift, date);
-    return firstValueFrom(this.service.loadSourceData(pid, start, end).pipe(
-      takeUntil(this.destroy$),
-      finalize(() => { this.loading = false; this.cdr.markForCheck(); }),
-    ));
+  private rebuild(): void {
+    if (!this.snapshot) { this.vm = undefined; return; }
+    this.vm = buildHandoverReport(this.snapshot, this.selectedDate);
+    this.cdr.markForCheck();
   }
 
-  private buildViewModel(): void {
-    const shift = SHIFT_DEFINITIONS.find(s => s.kind === this.selectedShift)!;
-    const statusItems = calculateStatusItems(this.bedside, this.tubeExecutions, shift, this.selectedDate);
-    const criticalPatients = this.pid ? [buildCriticalPatientInfo(this.bedside, this.tubeExecutions, this.patient, shift, this.selectedDate)] : [];
-    const details: HandoverDetail[] = []; // TODO: build from bedside events
-
-    this.vm = { shift, details: sortDetails(details), statusItems, criticalPatients, nurseSignature: '', remark: '' };
-  }
-
-  private buildSourceError(statuses: SourceStatus[]): string {
-    const errors = statuses.filter(s => s.status === 'error');
-    if (!errors.length) return '';
-    return `部分数据接口异常：${errors.map(e => `${e.source}(${e.httpStatus || '?'})`).join('、')}`;
-  }
+  private saveSoon(): void { this.rebuild(); this.save$.next(); }
+  private moveDate(days: number): void { const d = new Date(this.selectedDate); d.setDate(d.getDate() + days); this.selectedDate = d; this.dateInput = this.toDateInput(d); this.reload$.next(); }
+  private toDateInput(date: Date): string { const pad = (n: number) => String(n).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`; }
 }

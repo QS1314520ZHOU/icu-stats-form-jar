@@ -1,103 +1,168 @@
-/** 班次类型 */
-export type ShiftKind = 'night' | 'day' | 'evening';
+export type ShiftKey = 'night' | 'day' | 'evening';
 
-/** 班次定义 */
-export interface ShiftDefinition {
-  kind: ShiftKind;
+export type HandoverStatus = '出院' | '转出' | '死亡' | '转入' | '入院' | '病危' | '手术';
+
+export interface ShiftRange {
+  key: ShiftKey;
   label: string;
-  startHour: number;
-  endHour: number;
-  settlementHour: number;
+  start: Date;
+  end: Date;
+  settlementTime: Date;
 }
 
-/** 在科状态 */
-export type PatientStatus = 'active' | 'discharged' | 'transferred' | 'dead';
-
-/** 明细事件类型 */
-export type DetailEventType = 'discharge' | 'transfer' | 'death' | 'admission' | 'transferIn' | 'critical' | 'surgery';
-
-/** 交班明细 */
-export interface HandoverDetail {
-  eventType: DetailEventType;
-  time: string;
-  timeText: string;
-  bedNo: string;
-  patientName: string;
-  hospitalNo: string;
-  diagnosis: string;
-  description: string;
-  statusColor: string;
+export interface DepartmentPatient {
+  id: string;
+  _id?: string;
+  departmentId?: string;
+  mrn?: string;
+  name?: string;
+  hisBed?: string;
+  bedNo?: string;
+  clinicalDiagnosis?: string;
+  diagnosis?: string;
+  icuAdmissionTime?: string;
+  icuDischargeTime?: string;
+  admissionType?: string;
+  dischargedType?: string;
+  dischargedDepartment?: string;
+  patientOperations?: Array<{
+    id?: string;
+    name?: string;
+    startTime?: string;
+    endTime?: string;
+    valid?: boolean;
+  }>;
 }
 
-/** 状态栏项目 */
-export interface StatusItem {
-  label: string;
-  value: string;
-  isRed: boolean;
-}
-
-/** 危重患者 */
-export interface CriticalPatient {
-  pid: string;
-  bedNo: string;
-  patientName: string;
-  hospitalNo: string;
-  diagnosis: string;
-  admissionTime: string;
-  duration?: string;
-  vitalSigns?: string;
-  io24h?: string;
-}
-
-/** 交班报告内容（JSON 结构） */
-export interface HandoverReportContent {
-  shiftKind: ShiftKind;
-  shiftLabel: string;
-  periodStart: string;
-  periodEnd: string;
-  settlementTime: string;
-
-  totalPatients: number;
-  admissionCount: number;
-  dischargeCount: number;
-  transferOutCount: number;
-  deathCount: number;
-
-  details: HandoverDetail[];
-  statusItems: StatusItem[];
-  criticalPatients: CriticalPatient[];
-
-  nurseSignature: string;
-  nurseSignatureAccountId?: string;
-  remark: string;
-}
-
-/** 后端报告实体 */
-export interface HandoverReport {
+export interface BedsideRecord {
   id?: string;
   pid: string;
-  department: string;
+  time: string;
+  code: string;
+  strVal?: string | number;
+  valid?: boolean;
+}
+
+export interface BloodSugarRecord {
+  id?: string;
+  pid: string;
+  time: string;
+  result: string | number;
+  valid?: boolean;
+}
+
+export interface OrderRecord {
+  orderID?: string;
+  mrn?: string;
+  orderName?: string;
+  orderType?: string;
+  orderTime?: string;
+  stopTime?: string;
+  status?: string;
+}
+
+export interface TubeExecution {
+  id?: string;
+  _id?: string;
+  pid: string;
+  type?: string;
+  name?: string;
+  startTime?: string;
+  endTime?: string;
+  valid?: boolean;
+}
+
+export interface NurseRecord {
+  id: string;
+  pid: string;
+  time: string;
+  desc: string;
+  username?: string;
+  trueName?: string;
+  valid?: boolean;
+}
+
+export interface NurseAccount {
+  id: string;
+  trueName: string;
+  profession: string;
+}
+
+export interface CriticalPatientSelection {
+  patientId: string;
+  selectedAt: string;
+  selectedBy: string;
+}
+
+export interface HandoverDraft {
+  departmentId: string;
   reportDate: string;
-  content: string;
-  version?: number;
-  createdAt?: string;
-  updatedAt?: string;
+  version: number;
+  departmentName?: string;
+  headNurseSignature?: string;
+  criticalPatients: CriticalPatientSelection[];
+  patientTextOverrides: Record<string, string>;
+  manualMetrics: Record<string, string>;
+  shiftSignatures: Partial<Record<ShiftKey, string>>;
 }
 
-/** 数据源状态 */
-export interface SourceStatus {
-  source: string;
-  status: 'success' | 'error';
-  httpStatus?: number;
-  count: number;
-  error?: string;
+export interface DepartmentDailySnapshot {
+  departmentId: string;
+  departmentName: string;
+  reportDate: string;
+  patients: DepartmentPatient[];
+  bedsideRecords: BedsideRecord[];
+  bloodSugarRecords: BloodSugarRecord[];
+  orders: OrderRecord[];
+  tubeExecutions: TubeExecution[];
+  nurseRecords: NurseRecord[];
+  nurseAccounts: NurseAccount[];
+  draft: HandoverDraft;
 }
 
-/** 数据加载结果 */
-export interface LoadResult {
-  bedside: any[];
-  tubeExecutions: any[];
-  patientInfo: any;
-  operations: any[];
-  statuses: SourceStatus[];
+export interface HandoverPatientRow {
+  key: string;
+  patientId: string;
+  bedNo: string;
+  name: string;
+  mrn: string;
+  diagnosis: string;
+  status: HandoverStatus;
+  eventTime: number;
+  eventShift: ShiftKey;
+  editableShifts: ShiftKey[];
+  shiftTexts: Partial<Record<ShiftKey, string>>;
+}
+
+export interface ShiftStatistics {
+  total: number;
+  discharged: number;
+  transferredOut: number;
+  death: number;
+  transferredIn: number;
+  admission: number;
+  operation: number;
+  critical: number;
+  specialCare: number;
+}
+
+export interface MetricRow {
+  group: string;
+  key: string;
+  label: string;
+  mode: 'auto' | 'manual';
+  values: Record<ShiftKey, string>;
+}
+
+export interface HandoverReportViewModel {
+  ranges: Record<ShiftKey, ShiftRange>;
+  rows: HandoverPatientRow[];
+  statistics: Record<ShiftKey, ShiftStatistics>;
+  metrics: MetricRow[];
+}
+
+export class DraftConflictError extends Error {
+  constructor(public latestDraft: HandoverDraft) {
+    super('报告已被其他用户更新');
+  }
 }

@@ -1,86 +1,115 @@
-<section class="handover-shell" *ngIf="vm as form; else statePanel">
+<div class="handover-shell">
   <header class="toolbar no-print">
-    <div class="toolbar-left">
-      <label class="ps">日期：
-        <input type="date" [value]="selectedDate | date:'yyyy-MM-dd'" (change)="onDateChange($any($event.target).value)" />
-      </label>
+    <div class="date-tools">
+      <button type="button" class="nav-arrow" (click)="previousDay()">‹</button>
+      <input type="date" [ngModel]="dateInput" (ngModelChange)="onDateChange($event)" />
+      <button type="button" class="nav-arrow" (click)="nextDay()">›</button>
+      <button type="button" class="today-button" (click)="today()">今天</button>
     </div>
-    <div class="shift-tabs">
-      <button *ngFor="let shift of shiftDefinitions" type="button" class="shift-tab" [class.active]="selectedShift === shift.kind" (click)="onShiftChange(shift.kind)">{{ shift.label }}</button>
-    </div>
-    <div class="toolbar-spacer"></div>
-    <div *ngIf="sourceError" class="source-warning">{{ sourceError }}</div>
-    <button type="button" class="btn" (click)="print()">打印</button>
+    <button type="button" (click)="openCriticalDialog()">危重患者选择</button>
+    <span class="toolbar-spacer"></span>
+    <span class="save-state">{{ saving ? '保存中…' : '已自动保存' }}</span>
+    <button type="button" class="print-button" (click)="print()">打印</button>
   </header>
 
-  <main class="paper">
-    <h1>重症医学科病区交班报告</h1>
-    <div class="report-meta">
-      <span>科室：{{ department || '—' }}</span>
-      <span>班次：{{ form.shift.label }}</span>
-      <span>时间：{{ selectedDate | date:'yyyy-MM-dd' }}</span>
-    </div>
+  <div *ngIf="error" class="error-banner no-print">{{ error }}</div>
+  <div *ngIf="loading" class="loading no-print">加载中…</div>
 
-    <!-- 状态栏 -->
-    <div class="status-section" *ngIf="form.statusItems.length">
-      <h2>状态</h2>
-      <div class="status-grid">
-        <span *ngFor="let item of form.statusItems; trackBy: trackStatusItem" [class.red]="item.isRed">
-          {{ item.label }}：{{ item.value || '—' }}
-        </span>
+  <main *ngIf="vm && snapshot" class="paper">
+    <section class="report-page">
+      <h1>护士交接班病情报告本</h1>
+      <div class="report-meta">
+        <span>科室：{{ snapshot.departmentName }}</span>
+        <span>日期：{{ dateInput }}</span>
+        <label>护士长签名：<input [(ngModel)]="snapshot.draft.headNurseSignature" (ngModelChange)="saveSoon()" /></label>
       </div>
-    </div>
 
-    <!-- 危重患者 -->
-    <div class="critical-section" *ngIf="form.criticalPatients.length">
-      <h2>危重患者</h2>
-      <div class="critical-card" *ngFor="let cp of form.criticalPatients">
-        <div class="critical-header">
-          <span><b>床号：</b>{{ cp.bedNo }}</span>
-          <span><b>姓名：</b>{{ cp.patientName }}</span>
-          <span><b>住院号：</b>{{ cp.hospitalNo }}</span>
-        </div>
-        <div class="critical-body">
-          <div *ngIf="cp.diagnosis"><b>诊断：</b>{{ cp.diagnosis }}</div>
-          <div *ngIf="cp.duration"><b>在科时长：</b>{{ cp.duration }}</div>
-          <div *ngIf="cp.vitalSigns"><b>生命体征：</b>{{ cp.vitalSigns }}</div>
-          <div *ngIf="cp.io24h"><b>24h出入量：</b>{{ cp.io24h }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 明细 -->
-    <div class="detail-section" *ngIf="form.details.length">
-      <h2>交班明细</h2>
-      <table class="detail-table">
-        <thead>
-          <tr><th>时间</th><th>床号</th><th>姓名</th><th>类型</th><th>内容</th></tr>
-        </thead>
+      <!-- 班次统计表 -->
+      <table class="summary-table">
+        <thead><tr><th>班别</th><th>病人总数</th><th>出院</th><th>转出</th><th>死亡</th><th>转入</th><th>入院</th><th>手术</th><th>病危</th><th>特级护理</th><th>备注</th></tr></thead>
         <tbody>
-          <tr *ngFor="let d of form.details; trackBy: trackDetail">
-            <td>{{ formatDetailTime(d.time) }}</td>
-            <td>{{ d.bedNo }}</td>
-            <td>{{ d.patientName }}</td>
-            <td [class]="d.statusColor">{{ getEventTypeLabel(d.eventType) }}</td>
-            <td>{{ d.description }}</td>
+          <tr *ngFor="let shift of ['day', 'evening', 'night']">
+            <th>{{ shift === 'day' ? '白班' : shift === 'evening' ? '中班' : '夜班' }}</th>
+            <td>{{ vm.statistics[shift].total }}</td>
+            <td>{{ vm.statistics[shift].discharged || '' }}</td>
+            <td>{{ vm.statistics[shift].transferredOut || '' }}</td>
+            <td>{{ vm.statistics[shift].death || '' }}</td>
+            <td>{{ vm.statistics[shift].transferredIn || '' }}</td>
+            <td>{{ vm.statistics[shift].admission || '' }}</td>
+            <td>{{ vm.statistics[shift].operation || '' }}</td>
+            <td>{{ vm.statistics[shift].critical }}</td>
+            <td>{{ vm.statistics[shift].specialCare || '' }}</td>
+            <td></td>
           </tr>
         </tbody>
       </table>
-    </div>
 
-    <!-- 签名 -->
-    <div class="signature-section">
-      <div class="signature-line">
-        <span>护士签名：{{ form.nurseSignature || '____________' }}</span>
-        <span>日期：{{ selectedDate | date:'yyyy-MM-dd' }}</span>
-      </div>
-    </div>
+      <!-- 患者交班表 -->
+      <table class="patient-table">
+        <thead><tr><th>床号</th><th>姓名</th><th>状态</th><th>住院号</th><th>诊断</th><th>白班</th><th>中班</th><th>夜班</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let row of vm.rows; trackBy: trackRow">
+            <td>{{ row.bedNo }}</td>
+            <td>{{ row.name }}</td>
+            <td class="status-cell">{{ statusText(row.status) }}</td>
+            <td>{{ row.mrn }}</td>
+            <td>{{ row.diagnosis }}</td>
+            <td *ngFor="let shift of ['day', 'evening', 'night']">
+              <ng-container *ngIf="canEditShift(row, shift); else readOnlyText">
+                <button type="button" class="insert-button no-print" (click)="openNurseRecords(row, shift)">插入护理记录</button>
+                <textarea [ngModel]="row.shiftTexts[shift] || ''" (ngModelChange)="updatePatientText(row, shift, $event)"></textarea>
+              </ng-container>
+              <ng-template #readOnlyText><span>{{ row.shiftTexts[shift] || '' }}</span></ng-template>
+            </td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5"></td>
+            <td *ngFor="let shift of ['day', 'evening', 'night']">
+              护士签名：<select [ngModel]="snapshot.draft.shiftSignatures[shift] || ''" (ngModelChange)="setShiftSignature(shift, $event)">
+                <option value=""></option>
+                <option *ngFor="let account of snapshot.nurseAccounts" [value]="account.id">{{ account.trueName }}</option>
+              </select>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section class="report-page safety-report">
+      <h1>重症医学科病区交班报告</h1>
+      <p class="placeholder">（安全交班指标区域 — 待后续实现）</p>
+    </section>
   </main>
-</section>
 
-<ng-template #statePanel>
-  <div class="state-panel" [class.error]="error">
-    <div *ngIf="loading" class="spinner"></div>
-    <strong>{{ loading ? '正在加载交班报告…' : (error || '等待患者信息') }}</strong>
+  <!-- 危重患者选择弹窗 -->
+  <div class="overlay no-print" *ngIf="criticalDialogVisible" (click)="closeCriticalDialog()">
+    <section class="dialog" (click)="$event.stopPropagation()">
+      <div class="dh"><h2>危重患者选择</h2><button class="ic" (click)="closeCriticalDialog()">×</button></div>
+      <div class="db">
+        <div *ngFor="let patient of snapshot?.patients" class="critical-option">
+          <label><input type="checkbox" [checked]="isCriticalSelected(patient.id)" (change)="toggleCritical(patient.id, $any($event.target).checked)" /> {{ patient.hisBed || patient.bedNo || '—' }} {{ patient.name || '—' }}</label>
+        </div>
+      </div>
+      <div class="df"><button class="btn" (click)="closeCriticalDialog()">关闭</button></div>
+    </section>
   </div>
-</ng-template>
+
+  <!-- 护理记录插入弹窗 -->
+  <div class="overlay no-print" *ngIf="nurseRecordDialogVisible" (click)="nurseRecordDialogVisible = false">
+    <section class="dialog" (click)="$event.stopPropagation()">
+      <div class="dh"><h2>插入护理记录</h2><button class="ic" (click)="nurseRecordDialogVisible = false">×</button></div>
+      <div class="db nurse-record-list">
+        <div *ngFor="let record of nurseRecords; let i = index" class="record-option">
+          <label><input type="checkbox" [checked]="selectedRecordIds.has(record.id)" (change)="toggleNurseRecord(record.id, $any($event.target).checked)" /> {{ i + 1 }}. {{ record.time }} {{ record.desc }}</label>
+        </div>
+        <div *ngIf="!nurseRecords.length" class="empty-hint">该班次无护理记录</div>
+      </div>
+      <div class="df">
+        <button class="btn" (click)="nurseRecordDialogVisible = false">取消</button>
+        <button class="btn primary" (click)="applyNurseRecords()">插入所选</button>
+      </div>
+    </section>
+  </div>
+</div>
