@@ -31,7 +31,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   sourceError = '';
   vm?: HljldViewModel;
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
-  private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], signatures: [] };
+  private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   private accountMap = new Map<string, string>();
   private readonly clockRefresh$ = interval(60_000);
 
@@ -285,14 +285,14 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   private resetPatientData(): void {
     this.patient = { pid: '' };
     this.vm = undefined;
-    this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], signatures: [] };
+    this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   }
 
   private clearClinicalData(): void {
     this.vm = undefined;
     this.error = '';
     this.sourceError = '';
-    this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], signatures: [] };
+    this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   }
 
   private buildSourceError(statuses: import('./hljld-form.service').SourceStatus[]): string {

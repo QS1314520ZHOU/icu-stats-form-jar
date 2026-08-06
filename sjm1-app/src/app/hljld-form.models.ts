@@ -72,11 +72,57 @@ export interface SignatureRecord {
   trueName?: string;
 }
 
+export interface TubeFieldConfig {
+  name?: string;
+  field?: string;
+  valid?: boolean;
+  status?: string;
+  componentType?: string;
+  isMultipleChoice?: boolean;
+}
+
+export interface TubeRecord {
+  _id?: string | number;
+  id?: string | number;
+  time?: string;
+  recordUser?: string;
+  recordUserName?: string;
+  valid?: boolean;
+  status?: string;
+  [field: string]: unknown;
+}
+
+export interface TubeExecution {
+  _id?: string;
+  id?: string;
+  pid: string;
+  name?: string;
+  type?: string;
+  startTime?: string;
+  endTime?: string;
+  valid?: boolean;
+  status?: string;
+  tubeRecordList?: TubeRecord[];
+  [field: string]: unknown;
+}
+
+export interface ConfigTubeView {
+  _id?: string;
+  id?: string;
+  tubeType?: string;
+  valid?: boolean;
+  status?: string;
+  tubeFieldConfigList?: TubeFieldConfig[];
+  tubeRecordFieldConfigList?: TubeFieldConfig[];
+}
+
 export interface HljldSourceData {
   bedside: BedsideRecord[];
   drugExecutions: DrugExecution[];
   drugMethods: DrugMethodConfig[];
   nurseRecords: NurseRecord[];
+  tubeExecutions: TubeExecution[];
+  tubeViews: ConfigTubeView[];
   signatures: SignatureRecord[];
 }
 

@@ -67,6 +67,85 @@ public class HljldController {
         return normalizeDocuments(docs);
     }
 
+    @GetMapping("/tube-executions")
+    public List<Map<String, Object>> tubeExecutions(
+            @RequestParam String pid,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date startTime,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date endTime) {
+        // 按pid查询tubeExe，后端过滤tubeRecordList时间范围
+        Query query = new Query();
+        query.addCriteria(
+                Criteria.where("pid").is(pid)
+                        .and("valid").ne(false)
+                        .and("status").ne("invalid")
+                        .and("tubeRecordList").ne(null));
+        query.with(Sort.by(Sort.Direction.ASC, "startTime"));
+        List<Document> docs = mongoTemplate.find(query, Document.class, "tubeExe");
+
+        // 过滤tubeRecordList中不在时间范围内的记录
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Document doc : docs) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> normalized = (Map<String, Object>) normalizeUtcValue(doc);
+
+            // 检查tubeExe自身的valid/status
+            Object valid = normalized.get("valid");
+            if (Boolean.FALSE.equals(valid)) continue;
+            Object status = normalized.get("status");
+            if ("invalid".equalsIgnoreCase(String.valueOf(status == null ? "" : status).trim())) continue;
+
+            // 过滤tubeRecordList
+            Object tubeRecordListObj = normalized.get("tubeRecordList");
+            if (tubeRecordListObj instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> tubeRecords = (List<Map<String, Object>>) tubeRecordListObj;
+                List<Map<String, Object>> filtered = new ArrayList<>();
+                for (Map<String, Object> record : tubeRecords) {
+                    // 检查record的valid/status
+                    Object rValid = record.get("valid");
+                    if (Boolean.FALSE.equals(rValid)) continue;
+                    Object rStatus = record.get("status");
+                    if ("invalid".equalsIgnoreCase(String.valueOf(rStatus == null ? "" : rStatus).trim())) continue;
+
+                    // 检查time是否在范围内
+                    Object timeObj = record.get("time");
+                    if (timeObj instanceof Date) {
+                        Date recordTime = (Date) timeObj;
+                        if (recordTime.compareTo(startTime) >= 0 && recordTime.compareTo(endTime) < 0) {
+                            filtered.add(record);
+                        }
+                    } else if (timeObj instanceof String) {
+                        // 已经被normalizeUtcValue转换为UTC ISO字符串，尝试解析
+                        try {
+                            java.time.Instant instant = java.time.Instant.parse((String) timeObj);
+                            long recordMs = instant.toEpochMilli();
+                            if (recordMs >= startTime.getTime() && recordMs < endTime.getTime()) {
+                                filtered.add(record);
+                            }
+                        } catch (Exception ignored) {
+                            // 无法解析的时间，跳过
+                        }
+                    }
+                }
+                normalized.put("tubeRecordList", filtered);
+            }
+
+            result.add(normalized);
+        }
+        return result;
+    }
+
+    @GetMapping("/tube-views")
+    public List<Map<String, Object>> tubeViews() {
+        Query query = new Query();
+        query.addCriteria(
+                Criteria.where("valid").ne(false)
+                        .and("status").ne("invalid"));
+        query.with(Sort.by(Sort.Direction.ASC, "tubeType"));
+        List<Document> docs = mongoTemplate.find(query, Document.class, "configTubeView");
+        return normalizeDocuments(docs);
+    }
+
     /**
      * 递归将 Document 中的 Date 字段转换为 UTC ISO 字符串，
      * 避免 Jackson 按 GMT+8 序列化导致前端重复加8小时。

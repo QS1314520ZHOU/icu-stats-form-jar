@@ -4,11 +4,13 @@ import { Observable, forkJoin, of } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import {
   BedsideRecord,
+  ConfigTubeView,
   DrugExecution,
   DrugMethodConfig,
   HljldSourceData,
   NurseRecord,
   SignatureRecord,
+  TubeExecution,
 } from './hljld-form.models';
 
 export interface AccountInfo {
@@ -76,6 +78,8 @@ export class HljldFormService {
       drugExecutions: safeGet<DrugExecution>('drugExecutions', `${this.hljldBase}/drug-executions`, rangeParams),
       drugMethods: safeGet<DrugMethodConfig>('drugMethods', `${this.hljldBase}/drug-methods`),
       nurseRecords: safeGet<NurseRecord>('nurseRecords', `${this.hljldBase}/nurse-records`, rangeParams),
+      tubeExecutions: safeGet<TubeExecution>('tubeExecutions', `${this.hljldBase}/tube-executions`, rangeParams),
+      tubeViews: safeGet<ConfigTubeView>('tubeViews', `${this.hljldBase}/tube-views`),
       signatures: of({
         data: [] as SignatureRecord[],
         status: { source: 'signatures', url: '', status: 'success' as const, count: 0 } as SourceStatus,
@@ -89,6 +93,8 @@ export class HljldFormService {
             drugExecutions: result.drugExecutions.data,
             drugMethods: result.drugMethods.data,
             nurseRecords: result.nurseRecords.data,
+            tubeExecutions: result.tubeExecutions.data,
+            tubeViews: result.tubeViews.data,
             signatures: result.signatures.data,
           },
           statuses,

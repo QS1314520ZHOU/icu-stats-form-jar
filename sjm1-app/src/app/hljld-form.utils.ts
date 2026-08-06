@@ -1,5 +1,6 @@
 import {
   BedsideRecord,
+  ConfigTubeView,
   DrugExecution,
   DrugMethodConfig,
   HljldDisplayRow,
@@ -13,7 +14,17 @@ import {
   NameAmount,
   NameAmountRoute,
   PatientContext,
+  TubeExecution,
+  TubeFieldConfig,
+  TubeRecord,
 } from './hljld-form.models';
+
+export interface TubeNursingEntry {
+  key: string;
+  timestamp: number;
+  time: string;
+  text: string;
+}
 
 import { databaseTimeValue, formatShanghaiDateMinute } from './form-date.util';
 
@@ -333,6 +344,101 @@ export function buildSummary(
   };
 }
 
+/* ---- 管路护理记录 ---- */
+
+/** 统一 valid/status 过滤 */
+export function isValidBusinessRecord(record: { valid?: boolean; status?: string } | null | undefined): boolean {
+  if (!record) { return false; }
+  if (record.valid === false) { return false; }
+  const status = String(record.status ?? '').trim().toLowerCase();
+  if (status === 'invalid') { return false; }
+  return true;
+}
+
+/** 格式化管路动态字段值 */
+function formatTubeFieldValue(value: unknown): string {
+  if (value === null || value === undefined) { return ''; }
+  if (Array.isArray(value)) { return value.map(item => formatTubeFieldValue(item)).filter(Boolean).join('、'); }
+  if (typeof value === 'string') { return value.trim(); }
+  if (typeof value === 'number') { return Number.isFinite(value) ? String(value) : ''; }
+  if (typeof value === 'boolean') { return value ? '是' : '否'; }
+  return '';
+}
+
+/** 从管路配置中读取动态字段值 */
+function getDynamicField(source: Record<string, unknown>, field: string): unknown {
+  return source[field];
+}
+
+/** 匹配 tubeExe.type 与 configTubeView.tubeType */
+export function findTubeView(type: string | undefined, views: ConfigTubeView[]): ConfigTubeView | undefined {
+  const target = String(type ?? '').trim();
+  if (!target) { return undefined; }
+  return views.find(view => isValidBusinessRecord(view) && String(view.tubeType ?? '').trim() === target);
+}
+
+/** 生成单条管路护理记录文本 */
+export function buildTubeNursingText(execution: TubeExecution, record: TubeRecord, view: ConfigTubeView): string {
+  if (!isValidBusinessRecord(execution) || !isValidBusinessRecord(record) || !isValidBusinessRecord(view)) { return ''; }
+
+  const tubeName = String(execution.name ?? view.tubeType ?? execution.type ?? '管路').trim();
+  const parts: string[] = [];
+
+  const appendConfiguredFields = (configs: TubeFieldConfig[], source: Record<string, unknown>): void => {
+    for (const config of configs) {
+      if (!isValidBusinessRecord(config)) { continue; }
+      const name = String(config.name ?? '').trim();
+      const field = String(config.field ?? '').trim();
+      if (!name || !field) { continue; }
+      const value = formatTubeFieldValue(getDynamicField(source, field));
+      if (!value) { continue; }
+      parts.push(`${name}：${value}`);
+    }
+  };
+
+  appendConfiguredFields(view.tubeFieldConfigList ?? [], execution as Record<string, unknown>);
+  appendConfiguredFields(view.tubeRecordFieldConfigList ?? [], record as Record<string, unknown>);
+
+  if (!parts.length) { return ''; }
+  return `${tubeName}：${parts.join('，')}`;
+}
+
+/** 从 tubeExe 构建管路护理条目 */
+export function buildTubeNursingEntries(source: HljldSourceData, start: Date, end: Date): TubeNursingEntry[] {
+  const entries: TubeNursingEntry[] = [];
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+
+  for (const exe of source.tubeExecutions) {
+    if (!isValidBusinessRecord(exe)) { continue; }
+    const view = findTubeView(exe.type, source.tubeViews);
+    if (!view) {
+      const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+      if (isDev) { console.warn('[HLJLD][tube-view-missing]', { tubeExecutionId: exe._id, type: exe.type }); }
+      continue;
+    }
+
+    for (const record of (exe.tubeRecordList ?? [])) {
+      if (!isValidBusinessRecord(record)) { continue; }
+      const ts = databaseTimeValue(record.time);
+      if (!Number.isFinite(ts) || ts < startMs || ts >= endMs) { continue; }
+
+      const text = buildTubeNursingText(exe, record, view);
+      if (!text) { continue; }
+
+      entries.push({
+        key: `tube-${exe._id}-${record._id}-${Math.floor(ts)}`,
+        timestamp: ts,
+        time: String(record.time ?? ''),
+        text,
+      });
+    }
+  }
+
+  entries.sort((a, b) => a.timestamp - b.timestamp);
+  return entries;
+}
+
 /* ---- 时间行生成 ---- */
 
 export function buildRows(
@@ -341,10 +447,13 @@ export function buildRows(
   end: Date,
   accountMap: Map<string, string> = new Map(),
 ): HljldTimeRow[] {
+  const tubeEntries = buildTubeNursingEntries(source, start, end);
+
   const events: Array<{ timestamp: number }> = [
     ...source.bedside.filter(isRenderableBedsideRecord).map(item => ({ timestamp: minuteKey(item.time) })),
     ...source.drugExecutions.filter(isRenderableDrugExecution).map(item => ({ timestamp: minuteKey(item.startTime) })),
     ...source.nurseRecords.filter(item => item.valid !== false && !!item.time && hasText(item.desc)).map(item => ({ timestamp: minuteKey(item.time) })),
+    ...tubeEntries.map(item => ({ timestamp: minuteKey(item.time) })),
   ].filter(item => Number.isFinite(item.timestamp) && item.timestamp * 60000 >= start.getTime() && item.timestamp * 60000 <= end.getTime());
 
   const uniqueKeys = Array.from(new Set(events.map(item => item.timestamp).filter(k => Number.isFinite(k)))).sort((a, b) => a - b);
@@ -381,6 +490,17 @@ export function buildRows(
     const signUserId = resolveYishiSignerId(timeMs, source.bedside);
     const signature = signUserId ? (accountMap.get(signUserId) || '') : '';
 
+    // 普通护理记录 + 管路护理记录拼接
+    const normalNursing = source.nurseRecords
+      .filter(item => isValidBusinessRecord(item) && minuteKey(item.time) === key && hasText(item.desc))
+      .map(item => String(item.desc).trim())
+      .filter(Boolean);
+    const tubeNursing = tubeEntries
+      .filter(item => minuteKey(item.time) === key)
+      .map(item => item.text)
+      .filter(Boolean);
+    const combinedNursing = [...normalNursing, ...tubeNursing].filter(Boolean).join('；');
+
     return {
       key: String(key),
       time: new Date(timeMs),
@@ -393,7 +513,7 @@ export function buildRows(
       treatment: values('param_物理治疗'),
       basicCare: values('param_基础护理1'),
       healthEducation: values('param_健康教育'),
-      nursingRecords: source.nurseRecords.filter(item => item.valid !== false && minuteKey(item.time) === key).map(item => item.desc || '').filter(Boolean),
+      nursingRecords: combinedNursing ? [combinedNursing] : [],
       signature,
     };
   });
