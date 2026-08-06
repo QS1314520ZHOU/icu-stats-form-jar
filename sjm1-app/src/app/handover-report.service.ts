@@ -9,10 +9,10 @@ export class HandoverReportService {
 
   constructor(private readonly http: HttpClient) {}
 
-  loadDaily(condition: { reportDate: string; departmentId: string }): Observable<DepartmentDailySnapshot> {
-    const params = new HttpParams()
-      .set('reportDate', condition.reportDate)
-      .set('departmentId', condition.departmentId);
+  loadDaily(condition: { reportDate: string; department?: string; departmentCode?: string }): Observable<DepartmentDailySnapshot> {
+    let params = new HttpParams().set('reportDate', condition.reportDate);
+    if (condition.department) { params = params.set('department', condition.department); }
+    if (condition.departmentCode) { params = params.set('departmentCode', condition.departmentCode); }
     return this.http.get<DepartmentDailySnapshot>(`${this.baseUrl}/daily`, { params });
   }
 

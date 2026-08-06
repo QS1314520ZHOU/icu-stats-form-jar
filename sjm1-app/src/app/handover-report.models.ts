@@ -1,5 +1,12 @@
 export type ShiftKey = 'night' | 'day' | 'evening';
 
+export interface DepartmentContext {
+  departmentName: string;
+  departmentCode: string;
+  queryValue: string;
+  source: 'patient.dept' | 'patient.deptCode' | 'account.departmentCode';
+}
+
 export type HandoverStatus = '出院' | '转出' | '死亡' | '转入' | '入院' | '病危' | '手术';
 
 export interface ShiftRange {

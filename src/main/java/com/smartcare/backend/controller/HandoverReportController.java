@@ -21,12 +21,10 @@ public class HandoverReportController {
         this.mongoTemplate = mongoTemplate;
     }
 
-    /**
-     * 科室级每日交班快照
-     */
     @GetMapping("/daily")
     public ResponseEntity<Map<String, Object>> daily(
-            @RequestParam String departmentId,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String departmentCode,
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM-dd") Date reportDate) {
 
         Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
@@ -36,82 +34,95 @@ public class HandoverReportController {
         cal.set(Calendar.SECOND, 0);
         cal.set(Calendar.MILLISECOND, 0);
         Date dayStart = cal.getTime();
-
         cal.add(Calendar.DAY_OF_MONTH, 1);
         Date dayEnd = cal.getTime();
 
-        // 科室匹配：dept 或 deptCode
-        Criteria departmentCriteria = new Criteria().orOperator(
-            Criteria.where("deptCode").is(departmentId),
-            Criteria.where("dept").is(departmentId)
-        );
+        // 科室 OR 匹配
+        List<Criteria> departmentOr = new ArrayList<>();
+        if (department != null && !department.trim().isEmpty()) {
+            departmentOr.add(Criteria.where("dept").is(department.trim()));
+            departmentOr.add(Criteria.where("deptCode").is(department.trim()));
+        }
+        if (departmentCode != null && !departmentCode.trim().isEmpty()) {
+            departmentOr.add(Criteria.where("deptCode").is(departmentCode.trim()));
+            departmentOr.add(Criteria.where("dept").is(departmentCode.trim()));
+        }
 
-        // 入科时间早于次日00:00
+        Criteria departmentCriteria = departmentOr.isEmpty()
+            ? new Criteria()
+            : new Criteria().orOperator(departmentOr.toArray(new Criteria[0]));
+
         Criteria admissionCriteria = new Criteria().orOperator(
             Criteria.where("icuAdmissionTime").lt(dayEnd),
-            new Criteria().andOperator(
-                Criteria.where("icuAdmissionTime").exists(false),
-                Criteria.where("admissionTime").lt(dayEnd)
-            )
+            new Criteria().andOperator(Criteria.where("icuAdmissionTime").exists(false), Criteria.where("admissionTime").lt(dayEnd))
         );
 
-        // 未出科 或 出科时间 >= 当天00:00
         Criteria dischargeCriteria = new Criteria().orOperator(
             Criteria.where("icuDischargeTime").exists(false),
             Criteria.where("icuDischargeTime").is(null),
             Criteria.where("icuDischargeTime").gte(dayStart)
         );
 
-        Query patientQuery = new Query(new Criteria().andOperator(
-            departmentCriteria, admissionCriteria, dischargeCriteria
-        ));
+        Query patientQuery = new Query(new Criteria().andOperator(departmentCriteria, admissionCriteria, dischargeCriteria));
         patientQuery.with(Sort.by(Sort.Direction.ASC, "hisBed"));
         List<Document> patientDocs = mongoTemplate.find(patientQuery, Document.class, "patient");
 
-        System.out.println("[HANDOVER] reportDate=" + reportDate + ", departmentId=" + departmentId
-            + ", dayStart=" + dayStart + ", dayEnd=" + dayEnd + ", patientCount=" + patientDocs.size());
+        // bedside records (48h window for historical indicators)
+        Calendar bedsideCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        bedsideCal.setTime(dayStart);
+        bedsideCal.add(Calendar.HOUR_OF_DAY, -48);
+        Date bedsideStart = bedsideCal.getTime();
 
-        // bedside records
         Query bedsideQuery = new Query();
-        bedsideQuery.addCriteria(
-            Criteria.where("time").gte(dayStart).lt(dayEnd));
+        bedsideQuery.addCriteria(Criteria.where("time").gte(bedsideStart).lt(dayEnd));
         bedsideQuery.with(Sort.by(Sort.Direction.ASC, "time"));
         List<Document> bedsideDocs = mongoTemplate.find(bedsideQuery, Document.class, "bedside");
 
+        // blood sugar
+        Query bsQuery = new Query();
+        bsQuery.addCriteria(Criteria.where("time").gte(dayStart).lt(dayEnd).and("valid").ne(false));
+        bsQuery.with(Sort.by(Sort.Direction.ASC, "time"));
+        List<Document> bsDocs = mongoTemplate.find(bsQuery, Document.class, "bloodSugar");
+
         // nurse records
         Query nurseQuery = new Query();
-        nurseQuery.addCriteria(
-            Criteria.where("time").gte(dayStart).lt(dayEnd)
-                .and("valid").ne(false));
+        nurseQuery.addCriteria(Criteria.where("time").gte(dayStart).lt(dayEnd).and("valid").ne(false));
         nurseQuery.with(Sort.by(Sort.Direction.ASC, "time"));
         List<Document> nurseDocs = mongoTemplate.find(nurseQuery, Document.class, "nurseRecords");
 
+        // nurse accounts
+        Query acctQuery = new Query();
+        acctQuery.addCriteria(Criteria.where("profession").in(Arrays.asList("Nurse", "Matron", "PracticeNurse")));
+        List<Document> acctDocs = mongoTemplate.find(acctQuery, Document.class, "account");
+
         // draft
         Query draftQuery = new Query();
-        draftQuery.addCriteria(
-            Criteria.where("departmentId").is(departmentId)
-                .and("reportDate").is(reportDate));
+        draftQuery.addCriteria(Criteria.where("departmentId").is(department != null ? department : departmentCode)
+            .and("reportDate").is(reportDate));
         Document draftDoc = mongoTemplate.findOne(draftQuery, Document.class, "handoverDrafts");
 
+        System.out.println("[HANDOVER] department=" + department + ", departmentCode=" + departmentCode
+            + ", dayStart=" + dayStart + ", dayEnd=" + dayEnd
+            + ", patients=" + patientDocs.size() + ", bedside=" + bedsideDocs.size()
+            + ", bloodSugar=" + bsDocs.size() + ", nurseRecords=" + nurseDocs.size()
+            + ", nurseAccounts=" + acctDocs.size());
+
         Map<String, Object> snapshot = new LinkedHashMap<>();
-        snapshot.put("departmentId", departmentId);
-        snapshot.put("departmentName", departmentId);
+        snapshot.put("departmentId", department != null ? department : departmentCode);
+        snapshot.put("departmentName", department != null ? department : departmentCode);
         snapshot.put("reportDate", reportDate);
         snapshot.put("patients", normalizeDocuments(patientDocs));
         snapshot.put("bedsideRecords", normalizeDocuments(bedsideDocs));
-        snapshot.put("bloodSugarRecords", Collections.emptyList());
+        snapshot.put("bloodSugarRecords", normalizeDocuments(bsDocs));
         snapshot.put("orders", Collections.emptyList());
         snapshot.put("tubeExecutions", Collections.emptyList());
         snapshot.put("nurseRecords", normalizeDocuments(nurseDocs));
-        snapshot.put("nurseAccounts", Collections.emptyList());
-        snapshot.put("draft", draftDoc != null ? normalizeUtcValue(draftDoc) : defaultDraft(departmentId, reportDate));
+        snapshot.put("nurseAccounts", normalizeDocuments(acctDocs));
+        snapshot.put("draft", draftDoc != null ? normalizeUtcValue(draftDoc) : defaultDraft(department != null ? department : departmentCode, reportDate));
 
         return ResponseEntity.ok(snapshot);
     }
 
-    /**
-     * 保存草稿
-     */
     @PutMapping("/draft")
     public ResponseEntity<?> saveDraft(@RequestBody Map<String, Object> body) {
         String departmentId = String.valueOf(body.getOrDefault("departmentId", ""));
@@ -119,9 +130,7 @@ public class HandoverReportController {
         Integer requestVersion = (Integer) body.getOrDefault("version", 0);
 
         Query query = new Query();
-        query.addCriteria(
-            Criteria.where("departmentId").is(departmentId)
-                .and("reportDate").is(reportDate));
+        query.addCriteria(Criteria.where("departmentId").is(departmentId).and("reportDate").is(reportDate));
         Document existing = mongoTemplate.findOne(query, Document.class, "handoverDrafts");
 
         if (existing != null) {
