@@ -22,6 +22,7 @@ label {
   text-shadow: none !important;
   filter: none !important;
   -webkit-text-stroke: 0 !important;
+  font-synthesis: none;
 }
 
 /* =========================================================
@@ -146,7 +147,7 @@ h1 {
   color: inherit;
   font-family: inherit;
   font-size: inherit;
-  font-weight: 700;
+  font-weight: 600;
   line-height: inherit;
 }
 
@@ -202,11 +203,11 @@ h1 {
 }
 
 .crrt-table th {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .crrt-table .group-cell {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .crrt-table .metric-cell,
@@ -238,7 +239,7 @@ h1 {
 .group-cell {
   padding: 0.3mm !important;
   font-size: 7.3pt;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   line-height: 20px;
   white-space: normal;
 }
@@ -409,7 +410,7 @@ h1 {
 
   .crrt-table th,
   .crrt-table .group-cell {
-    font-weight: 700;
+    font-weight: 600;
   }
 
   .crrt-table .group-cell,
@@ -641,7 +642,7 @@ h1 {
 
 .crrt-table th,
 .crrt-table .group-cell {
-  font-weight: 700 !important;
+  font-weight: 600 !important;
 }
 
 .crrt-table .metric-cell,
