@@ -217,6 +217,75 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 }
 
 /* =========================================================
+   Record table — force pure black text
+   ========================================================= */
+
+.record-table,
+.record-table th,
+.record-table td,
+.record-table div,
+.record-table span,
+.record-table b,
+.record-table strong {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1;
+  text-shadow: none !important;
+  -webkit-text-stroke: 0 !important;
+}
+
+.record-table thead th {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+.record-table tbody td {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+.time-cell,
+.number,
+.nursing-cell,
+.sign-cell,
+.remark-row th,
+.remark-row td,
+.remark-line {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1;
+}
+
+.summary-panel,
+.summary-title,
+.summary-period,
+.summary-line,
+.summary-total,
+.summary-group-label,
+.summary-stat,
+.summary-stat strong,
+.summary-total strong {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1;
+}
+
+/* 延续行的时间原本需要隐藏，纯黑规则优先级较高，必须重新设置透明 */
+.record-table tbody tr.continuation-row .time-cell {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.patient-strip,
+.patient-strip span,
+.patient-strip b,
+.patient-strip strong {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1;
+}
+
+/* =========================================================
    Print — SimSun (宋体)
    ========================================================= */
 
@@ -256,4 +325,23 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   .summary-period { font-size: 7pt; line-height: 9pt; }
   .summary-line, .summary-total, .summary-group-label, .summary-stat { font-size: 7pt; line-height: 9pt; }
   .remark-row th, .remark-row td, .remark-line { font-size: 7pt; line-height: 9pt; }
+
+  .record-table,
+  .record-table th, .record-table td,
+  .record-table div, .record-table span,
+  .record-table b, .record-table strong,
+  .patient-strip, .patient-strip span, .patient-strip b,
+  .summary-panel, .summary-panel *,
+  .remark-row th, .remark-row td, .remark-line {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+    -webkit-text-stroke: 0 !important;
+  }
+
+  .record-table tbody tr.continuation-row .time-cell {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+  }
 }
