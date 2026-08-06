@@ -34,9 +34,9 @@ const CRRT_GROUPS: CrrtGroup[] = [
   ]},
   { name: '治疗参数', metrics: [
     { label: '超滤率', code: 'param_CBP_set_UFR' },
-    { label: '超滤量/总脱水量', code: 'param_chaoLvLiang' },
+    { label: '超滤量/总脱水量', code: 'param_净超滤量2' },
     { label: '生理盐水', code: 'param_生理盐水' },
-    { label: '净超滤量', code: 'param_净超滤量2' },
+    { label: '净超滤量', code: 'param_chaoLvLiang' },
     { label: '分浆速度', code: 'param_分浆速度' },
     { label: '弃浆速度', code: 'param_弃浆速度' },
     { label: '补浆速度', code: 'param_补浆速度' },
@@ -56,7 +56,7 @@ const CRRT_GROUPS: CrrtGroup[] = [
     { label: '穿刺点情况', code: 'param_CBP_chuanCiDian' },
   ]},
   { name: '下机', metrics: [
-    { label: '滤器凝血等级', code: 'param_滤器凝血等级' },
+    { label: '体外循环凝血等级', code: 'param_滤器凝血等级' },
   ]},
   { name: '备注', metrics: [
     { label: '备注', code: 'param_备注' },
