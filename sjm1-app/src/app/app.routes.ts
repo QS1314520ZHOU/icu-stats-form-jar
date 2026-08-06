@@ -17,6 +17,7 @@ import { BradenFormComponent } from './braden-form.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { HljldFormComponent } from './hljld-form.component';
+import { HandoverReportComponent } from './handover-report.component';
 
 export const routes: Routes = [
   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
@@ -37,5 +38,6 @@ export const routes: Routes = [
   { path: 'crrtForm', component: CrrtRecordComponent },
   { path: 'crrtOrderForm', component: CrrtOrderFormComponent },
   { path: 'hljldForm', component: HljldFormComponent },
+  { path: 'handoverReport', component: HandoverReportComponent },
   { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
 ];

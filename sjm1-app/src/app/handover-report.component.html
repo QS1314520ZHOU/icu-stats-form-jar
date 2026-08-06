@@ -1,0 +1,86 @@
+<section class="handover-shell" *ngIf="vm as form; else statePanel">
+  <header class="toolbar no-print">
+    <div class="toolbar-left">
+      <label class="ps">日期：
+        <input type="date" [value]="selectedDate | date:'yyyy-MM-dd'" (change)="onDateChange($any($event.target).value)" />
+      </label>
+    </div>
+    <div class="shift-tabs">
+      <button *ngFor="let shift of shiftDefinitions" type="button" class="shift-tab" [class.active]="selectedShift === shift.kind" (click)="onShiftChange(shift.kind)">{{ shift.label }}</button>
+    </div>
+    <div class="toolbar-spacer"></div>
+    <div *ngIf="sourceError" class="source-warning">{{ sourceError }}</div>
+    <button type="button" class="btn" (click)="print()">打印</button>
+  </header>
+
+  <main class="paper">
+    <h1>重症医学科病区交班报告</h1>
+    <div class="report-meta">
+      <span>科室：{{ department || '—' }}</span>
+      <span>班次：{{ form.shift.label }}</span>
+      <span>时间：{{ selectedDate | date:'yyyy-MM-dd' }}</span>
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="status-section" *ngIf="form.statusItems.length">
+      <h2>状态</h2>
+      <div class="status-grid">
+        <span *ngFor="let item of form.statusItems; trackBy: trackStatusItem" [class.red]="item.isRed">
+          {{ item.label }}：{{ item.value || '—' }}
+        </span>
+      </div>
+    </div>
+
+    <!-- 危重患者 -->
+    <div class="critical-section" *ngIf="form.criticalPatients.length">
+      <h2>危重患者</h2>
+      <div class="critical-card" *ngFor="let cp of form.criticalPatients">
+        <div class="critical-header">
+          <span><b>床号：</b>{{ cp.bedNo }}</span>
+          <span><b>姓名：</b>{{ cp.patientName }}</span>
+          <span><b>住院号：</b>{{ cp.hospitalNo }}</span>
+        </div>
+        <div class="critical-body">
+          <div *ngIf="cp.diagnosis"><b>诊断：</b>{{ cp.diagnosis }}</div>
+          <div *ngIf="cp.duration"><b>在科时长：</b>{{ cp.duration }}</div>
+          <div *ngIf="cp.vitalSigns"><b>生命体征：</b>{{ cp.vitalSigns }}</div>
+          <div *ngIf="cp.io24h"><b>24h出入量：</b>{{ cp.io24h }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 明细 -->
+    <div class="detail-section" *ngIf="form.details.length">
+      <h2>交班明细</h2>
+      <table class="detail-table">
+        <thead>
+          <tr><th>时间</th><th>床号</th><th>姓名</th><th>类型</th><th>内容</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let d of form.details; trackBy: trackDetail">
+            <td>{{ formatDetailTime(d.time) }}</td>
+            <td>{{ d.bedNo }}</td>
+            <td>{{ d.patientName }}</td>
+            <td [class]="d.statusColor">{{ getEventTypeLabel(d.eventType) }}</td>
+            <td>{{ d.description }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 签名 -->
+    <div class="signature-section">
+      <div class="signature-line">
+        <span>护士签名：{{ form.nurseSignature || '____________' }}</span>
+        <span>日期：{{ selectedDate | date:'yyyy-MM-dd' }}</span>
+      </div>
+    </div>
+  </main>
+</section>
+
+<ng-template #statePanel>
+  <div class="state-panel" [class.error]="error">
+    <div *ngIf="loading" class="spinner"></div>
+    <strong>{{ loading ? '正在加载交班报告…' : (error || '等待患者信息') }}</strong>
+  </div>
+</ng-template>

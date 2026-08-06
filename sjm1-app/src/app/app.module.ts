@@ -24,6 +24,8 @@ import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { HljldFormComponent } from './hljld-form.component';
 import { HljldFormService } from './hljld-form.service';
+import { HandoverReportComponent } from './handover-report.component';
+import { HandoverReportService } from './handover-report.service';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -47,6 +49,7 @@ import { routes } from './app.routes';
     CrrtRecordComponent,
     CrrtOrderFormComponent,
     HljldFormComponent,
+    HandoverReportComponent,
   ],
   imports: [
     BrowserModule,
@@ -54,7 +57,7 @@ import { routes } from './app.routes';
     FormsModule,
     RouterModule.forRoot(routes),
   ],
-  providers: [HljldFormService],
+  providers: [HljldFormService, HandoverReportService],
   bootstrap: [App],
 })
 export class AppModule {}
