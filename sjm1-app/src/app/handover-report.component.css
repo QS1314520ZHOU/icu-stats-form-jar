@@ -33,10 +33,57 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
 .report-meta input { height: 28px; padding: 2px 8px; border: 1px solid #ccc; border-radius: 4px; font: inherit; }
 
 /* Tables */
-.summary-table, .patient-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+.summary-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 16px; font-family: var(--hljld-font); font-size: 12px; }
 .summary-table th, .summary-table td, .patient-table th, .patient-table td { border: 1px solid #2b2b2b; padding: 4px 8px; text-align: center; font-family: var(--hljld-font); }
 .summary-table th, .patient-table th { background: #edf3f7; font-weight: 600; }
+.patient-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
 .patient-table td { text-align: left; vertical-align: top; }
+
+.summary-table .report-title-row th {
+  height: 38px;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: #fff;
+  color: #111;
+  font-family: SimHei, "黑体", "Microsoft YaHei", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-align: center;
+}
+
+.summary-table .report-meta-row th,
+.summary-table .report-meta-row td {
+  height: 30px;
+  padding: 3px 8px;
+  background: #fff;
+  text-align: center;
+}
+
+.summary-table .report-meta-row th { font-weight: 500; }
+
+.head-nurse-input {
+  width: 100%;
+  height: 24px;
+  box-sizing: border-box;
+  border: 0;
+  border-bottom: 1px solid #333;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  text-align: center;
+}
+
+.special-care-header { color: #e60012; font-weight: 600; }
+
+.shift-col { width: 8%; }
+.total-col { width: 13%; }
+.count-col { width: 8%; }
+.critical-col { width: 8%; }
+.special-care-col { width: 12%; }
+.remark-col { width: 13%; }
 .patient-table textarea { width: 100%; min-height: 60px; border: 1px solid #ccc; border-radius: 4px; padding: 4px; font: inherit; resize: vertical; }
 .insert-button { display: block; margin-bottom: 4px; padding: 2px 8px; border: 1px solid #1677c8; border-radius: 4px; background: #e6f4ff; color: #1677c8; font-size: 11px; cursor: pointer; }
 
@@ -68,5 +115,10 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   .summary-table, .patient-table { font-size: 8pt; }
   .summary-table th, .summary-table td, .patient-table th, .patient-table td { padding: 1mm 2mm; }
   .patient-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+  .summary-table .report-title-row th { height: 10mm; font-size: 15pt; }
+  .summary-table .report-meta-row th, .summary-table .report-meta-row td { height: 6mm; padding: 0.5mm 1mm; }
+  .head-nurse-input { border: 0; }
+  .summary-table .special-care-header { color: #e60012 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .patient-table textarea { border: none; padding: 0; font-size: 8pt; min-height: 0; overflow: visible; resize: none; }
 }

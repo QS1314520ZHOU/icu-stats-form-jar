@@ -40,18 +40,36 @@ public class HandoverReportController {
         cal.add(Calendar.DAY_OF_MONTH, 1);
         Date dayEnd = cal.getTime();
 
-        // 查询当天有时间交集的患者（包括已出科）
-        Query patientQuery = new Query();
-        patientQuery.addCriteria(
-            Criteria.where("departmentCode").is(departmentId)
-                .and("icuAdmissionTime").lt(dayEnd)
-                .orOperator(
-                    Criteria.where("icuDischargeTime").exists(false),
-                    Criteria.where("icuDischargeTime").is(null),
-                    Criteria.where("icuDischargeTime").gte(dayStart)
-                ));
-        patientQuery.with(Sort.by(Sort.Direction.ASC, "bedNo"));
+        // 科室匹配：dept 或 deptCode
+        Criteria departmentCriteria = new Criteria().orOperator(
+            Criteria.where("deptCode").is(departmentId),
+            Criteria.where("dept").is(departmentId)
+        );
+
+        // 入科时间早于次日00:00
+        Criteria admissionCriteria = new Criteria().orOperator(
+            Criteria.where("icuAdmissionTime").lt(dayEnd),
+            new Criteria().andOperator(
+                Criteria.where("icuAdmissionTime").exists(false),
+                Criteria.where("admissionTime").lt(dayEnd)
+            )
+        );
+
+        // 未出科 或 出科时间 >= 当天00:00
+        Criteria dischargeCriteria = new Criteria().orOperator(
+            Criteria.where("icuDischargeTime").exists(false),
+            Criteria.where("icuDischargeTime").is(null),
+            Criteria.where("icuDischargeTime").gte(dayStart)
+        );
+
+        Query patientQuery = new Query(new Criteria().andOperator(
+            departmentCriteria, admissionCriteria, dischargeCriteria
+        ));
+        patientQuery.with(Sort.by(Sort.Direction.ASC, "hisBed"));
         List<Document> patientDocs = mongoTemplate.find(patientQuery, Document.class, "patient");
+
+        System.out.println("[HANDOVER] reportDate=" + reportDate + ", departmentId=" + departmentId
+            + ", dayStart=" + dayStart + ", dayEnd=" + dayEnd + ", patientCount=" + patientDocs.size());
 
         // bedside records
         Query bedsideQuery = new Query();

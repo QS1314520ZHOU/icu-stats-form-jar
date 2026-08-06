@@ -17,16 +17,22 @@
 
   <main *ngIf="vm && snapshot" class="paper">
     <section class="report-page">
-      <h1>护士交接班病情报告本</h1>
-      <div class="report-meta">
-        <span>科室：{{ snapshot.departmentName }}</span>
-        <span>日期：{{ dateInput }}</span>
-        <label>护士长签名：<input [(ngModel)]="snapshot.draft.headNurseSignature" (ngModelChange)="saveSoon()" /></label>
-      </div>
 
       <!-- 班次统计表 -->
       <table class="summary-table">
-        <thead><tr><th>班别</th><th>病人总数</th><th>出院</th><th>转出</th><th>死亡</th><th>转入</th><th>入院</th><th>手术</th><th>病危</th><th>特级护理</th><th>备注</th></tr></thead>
+        <colgroup><col class="shift-col" /><col class="total-col" /><col span="6" class="count-col" /><col class="critical-col" /><col class="special-care-col" /><col class="remark-col" /></colgroup>
+        <thead>
+          <tr class="report-title-row"><th colspan="11">护士交接班病情报告本</th></tr>
+          <tr class="report-meta-row">
+            <th>科室</th>
+            <td colspan="3">{{ snapshot.departmentName || departmentId }}</td>
+            <th>日期</th>
+            <td colspan="3">{{ dateInput }}</td>
+            <th colspan="2">护士长签名</th>
+            <td><input class="head-nurse-input" [(ngModel)]="snapshot.draft.headNurseSignature" (ngModelChange)="saveSoon()" aria-label="护士长签名" /></td>
+          </tr>
+          <tr><th>班别</th><th>病人总数</th><th>出院</th><th>转出</th><th>死亡</th><th>转入</th><th>入院</th><th>手术</th><th>病危</th><th class="special-care-header">特级护理</th><th>备注</th></tr>
+        </thead>
         <tbody>
           <tr *ngFor="let shift of ['day', 'evening', 'night']">
             <th>{{ shift === 'day' ? '白班' : shift === 'evening' ? '中班' : '夜班' }}</th>

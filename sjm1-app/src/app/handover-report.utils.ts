@@ -47,6 +47,10 @@ function isInDepartmentAt(patient: DepartmentPatient, settlementTime: Date): boo
   return admission <= settlement && settlement < discharge;
 }
 
+function patientId(patient: DepartmentPatient): string {
+  return String(patient.id ?? patient._id ?? '').trim();
+}
+
 function bedNo(patient: DepartmentPatient): string {
   const raw = String(patient.hisBed || patient.bedNo || '').trim();
   return raw.endsWith('床') ? raw : raw ? `${raw}床` : '';
@@ -99,10 +103,11 @@ function editableShiftsFrom(eventShift: ShiftKey): ShiftKey[] {
 }
 
 function createRow(patient: DepartmentPatient, status: HandoverStatus, eventShift: ShiftKey, eventTime: number): HandoverPatientRow {
+  const id = patientId(patient);
   const editable = ['转入', '入院', '病危', '手术'].includes(status);
   return {
-    key: `${status}:${patient.id}:${eventTime}`,
-    patientId: patient.id,
+    key: `${status}:${id}:${eventTime}`,
+    patientId: id,
     bedNo: bedNo(patient),
     name: patient.name || '',
     mrn: patient.mrn || '',
@@ -144,7 +149,7 @@ function buildPatientRows(snapshot: DepartmentDailySnapshot, ranges: Record<Shif
   }
 
   for (const selection of snapshot.draft.criticalPatients || []) {
-    const patient = snapshot.patients.find(p => p.id === selection.patientId || p._id === selection.patientId);
+    const patient = snapshot.patients.find(p => patientId(p) === selection.patientId);
     if (!patient) continue;
     const row = createRow(patient, '病危', 'night', ranges.night.settlementTime.getTime());
     row.editableShifts = ['night', 'day', 'evening'];
