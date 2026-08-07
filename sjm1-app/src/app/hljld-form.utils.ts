@@ -1,4 +1,5 @@
 import {
+  ActiveStayRange,
   BedsideRecord,
   ConfigTubeView,
   DrugExecution,
@@ -84,6 +85,7 @@ export function startOfNursingDay(selectedDate: Date): Date {
 export function endOfNursingDay(selectedDate: Date): Date {
   const d = startOfNursingDay(selectedDate);
   d.setDate(d.getDate() + 1);
+  // 使用减1毫秒确保右闭，但业务判断统一用左闭右开
   d.setMilliseconds(d.getMilliseconds() - 1);
   return d;
 }
@@ -91,6 +93,74 @@ export function endOfNursingDay(selectedDate: Date): Date {
 export function formatDate(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/* ---- 患者时间解析 ---- */
+
+/**
+ * 统一解析患者时间字段，使用 databaseTimeValue 处理数据库时区。
+ * 返回绝对毫秒时间戳，解析失败返回 NaN。
+ */
+export function parsePatientDateTime(value?: string): number {
+  if (!value) { return NaN; }
+  const ts = databaseTimeValue(value);
+  return Number.isFinite(ts) ? ts : NaN;
+}
+
+/* ---- 有效住院区间 ---- */
+
+/**
+ * 计算患者在当前护理日内的有效区间和各种状态标志。
+ * 所有时间使用左闭右开 [start, end) 判断。
+ */
+export function resolveActiveStayRange(
+  patient: PatientContext,
+  nursingDayStart: Date,
+  nursingDayEnd: Date,
+): ActiveStayRange {
+  const admissionTs = parsePatientDateTime(patient.admissionTime);
+  const dischargeTs = parsePatientDateTime(patient.dischargeTime);
+
+  const admissionTime = Number.isFinite(admissionTs) ? new Date(admissionTs) : null;
+  const dischargeTime = Number.isFinite(dischargeTs) ? new Date(dischargeTs) : null;
+
+  // effectiveStart = max(nursingDayStart, admissionTime)
+  let effectiveStart = new Date(nursingDayStart);
+  let admissionClipped = false;
+  if (admissionTime && admissionTime.getTime() > nursingDayStart.getTime()) {
+    effectiveStart = admissionTime;
+    admissionClipped = true;
+  }
+
+  // effectiveEnd = min(nursingDayEnd, dischargeTime)
+  let effectiveEnd = new Date(nursingDayEnd);
+  let dischargeClipped = false;
+  if (dischargeTime && dischargeTime.getTime() < nursingDayEnd.getTime()) {
+    effectiveEnd = dischargeTime;
+    dischargeClipped = true;
+  }
+
+  // 判断整个护理日是否在入科之前
+  const beforeAdmission = !!admissionTime && nursingDayEnd.getTime() <= admissionTime.getTime();
+
+  // 判断整个护理日是否在出科之后
+  const afterDischarge = !!dischargeTime && nursingDayStart.getTime() >= dischargeTime.getTime();
+
+  // 有效区间长度 > 0
+  const hasValidRange = !beforeAdmission && !afterDischarge
+    && effectiveEnd.getTime() > effectiveStart.getTime();
+
+  return {
+    nursingDayStart,
+    nursingDayEnd,
+    effectiveStart,
+    effectiveEnd,
+    admissionClipped,
+    dischargeClipped,
+    beforeAdmission,
+    afterDischarge,
+    hasValidRange,
+  };
 }
 
 /* ---- 东八区时间工具 ---- */
@@ -123,6 +193,56 @@ export function displayAmount(value: unknown): string {
 
 function hasText(value: unknown): boolean {
   return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+/* ---- 时长文本 ---- */
+
+/**
+ * 计算两个时间之间的时长，始终显示"xx小时xx分钟"格式。
+ * 使用 Math.floor 向下取整，避免带秒时间向上取整。
+ */
+export function durationText(start: Date, end: Date): string {
+  const totalMinutes = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}小时${minutes}分钟`;
+}
+
+/* ---- 动态小结标题 ---- */
+
+/**
+ * 根据入科/出科截断情况和时间段类型，生成小结标题。
+ */
+export function buildSummaryLabel(options: {
+  defaultLabel: string;
+  kind: HljldSummaryKind;
+  actualStart: Date;
+  actualEnd: Date;
+  admissionClipped: boolean;
+  dischargeClipped: boolean;
+}): string {
+  const { kind, actualStart, actualEnd, admissionClipped, dischargeClipped } = options;
+
+  // 出科总结：始终显示实际时长
+  if (kind === 'discharge') {
+    return `${durationText(actualStart, actualEnd)}总结`;
+  }
+
+  // 入科截断：显示实际时长
+  if (admissionClipped) {
+    if (kind === '24h') {
+      return `${durationText(actualStart, actualEnd)}总结`;
+    }
+    return `${durationText(actualStart, actualEnd)}小结`;
+  }
+
+  // 出科截断且非入科截断：显示实际时长总结
+  if (dischargeClipped) {
+    return `${durationText(actualStart, actualEnd)}总结`;
+  }
+
+  // 正常情况使用默认标签
+  return options.defaultLabel;
 }
 
 /* ---- 药物方法匹配 ---- */
@@ -242,34 +362,47 @@ function drainName(code: string): string {
   return stripped.endsWith('管') ? `${stripped.slice(0, -1)}液` : stripped.replace(/管/g, '液');
 }
 
+/**
+ * 统一左闭右开区间判断：timestamp >= start && timestamp < end。
+ */
 function inRange(time: string, start: Date, end: Date): boolean {
   const value = databaseTimeValue(time);
-  return Number.isFinite(value) && value >= start.getTime() && value <= end.getTime();
-}
-
-function activeStayBoundary(patient: PatientContext, start: Date, end: Date): { start: Date; end: Date } {
-  let actualStart = new Date(start);
-  let actualEnd = new Date(end);
-  if (patient.admissionTime) {
-    const admission = new Date(patient.admissionTime);
-    if (admission > actualStart) { actualStart = admission; }
-  }
-  if (patient.dischargeTime) {
-    const discharge = new Date(patient.dischargeTime);
-    if (discharge < actualEnd) { actualEnd = discharge; }
-  }
-  return { start: actualStart, end: actualEnd };
-}
-
-function durationText(start: Date, end: Date): string {
-  const minutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return `${hours}小时${rest ? `${rest}分钟` : ''}`;
+  return Number.isFinite(value) && value >= start.getTime() && value < end.getTime();
 }
 
 function sumBedsideByCodes(records: BedsideRecord[], codes: readonly string[]): number {
   return records.filter(item => codes.includes(item.code)).reduce((sum, item) => sum + parseAmount(item.strVal), 0);
+}
+
+/* ---- 收集护理日内的引流项目名称 ---- */
+
+/**
+ * 从当前护理日有效数据中收集稳定的引流项目名称和顺序。
+ * 所有小结共用相同的 drainNames，确保项目结构一致。
+ */
+export function collectDrainNames(
+  bedside: BedsideRecord[],
+  effectiveStart: Date,
+  effectiveEnd: Date,
+): string[] {
+  const startMs = effectiveStart.getTime();
+  const endMs = effectiveEnd.getTime();
+  const seen = new Map<string, number>(); // name → first occurrence timestamp
+
+  for (const item of bedside) {
+    if (item.valid === false || !item.code.includes('引流') || !hasText(item.strVal)) { continue; }
+    const ts = databaseTimeValue(item.time);
+    if (!Number.isFinite(ts) || ts < startMs || ts >= endMs) { continue; }
+    const name = drainName(item.code);
+    if (!seen.has(name)) {
+      seen.set(name, ts);
+    }
+  }
+
+  // 按首次出现时间排序，相同名称合并
+  return Array.from(seen.entries())
+    .sort((a, b) => a[1] - b[1])
+    .map(([name]) => name);
 }
 
 /* ---- 小结 ---- */
@@ -281,10 +414,18 @@ export function buildSummary(
   source: HljldSourceData,
   periodStart: Date,
   periodEnd: Date,
+  drainNames: string[],
+  stayRange?: ActiveStayRange,
 ): HljldSummary {
-  const stay = activeStayBoundary(patient, periodStart, periodEnd);
-  const startTs = stay.start.getTime();
-  const endTs = stay.end.getTime();
+  // 使用传入的 stayRange，如果没有则重新计算
+  const stay = stayRange || resolveActiveStayRange(patient, periodStart, periodEnd);
+  const actualStart = stay.effectiveStart;
+  const actualEnd = stay.effectiveEnd;
+  const startTs = actualStart.getTime();
+  const endTs = actualEnd.getTime();
+
+  const plannedStartTs = periodStart.getTime();
+  const plannedEndTs = periodEnd.getTime();
 
   // 左闭右开：timestamp >= start && timestamp < end
   const records = source.bedside.filter(item => {
@@ -293,7 +434,17 @@ export function buildSummary(
     return Number.isFinite(ts) && ts >= startTs && ts < endTs;
   });
 
-  // 入量分类
+  // 动态标题
+  const summaryLabel = buildSummaryLabel({
+    defaultLabel: label,
+    kind,
+    actualStart,
+    actualEnd,
+    admissionClipped: stay.admissionClipped,
+    dischargeClipped: stay.dischargeClipped,
+  });
+
+  // 入量分类 - 固定使用定义
   const inputItems: HljldSummaryItem[] = INPUT_SUMMARY_DEFINITIONS.map(def => ({
     key: def.key,
     label: def.label,
@@ -302,22 +453,27 @@ export function buildSummary(
   }));
   const totalInput = inputItems.reduce((sum, item) => sum + item.amount, 0);
 
-  // 排出物分类
+  // 排出物分类 - 固定使用定义，不按当前区间过滤
   const outputItems: HljldSummaryItem[] = OUTPUT_SUMMARY_DEFINITIONS
     .map(def => ({
       key: def.key,
       label: def.label,
       amount: records.filter(item => item.code === def.code).reduce((sum, item) => sum + parseAmount(item.strVal), 0),
       unit: 'ml' as const,
-    }))
-    .filter(item => records.some(r => r.code === OUTPUT_SUMMARY_DEFINITIONS.find(d => d.key === item.key)?.code));
+    }));
   const outputTotal = outputItems.reduce((sum, item) => sum + item.amount, 0);
 
-  // 引流液分类
+  // 引流液分类 - 使用固定的 drainNames
   const drainMap = new Map<string, number>();
+  for (const name of drainNames) { drainMap.set(name, 0); }
   records.filter(item => item.code.includes('引流')).forEach(item => {
     const name = drainName(item.code);
-    drainMap.set(name, (drainMap.get(name) || 0) + parseAmount(item.strVal));
+    if (drainMap.has(name)) {
+      drainMap.set(name, (drainMap.get(name) || 0) + parseAmount(item.strVal));
+    } else {
+      // 不在护理日 drainNames 中的引流项，也加入（兜底）
+      drainMap.set(name, (drainMap.get(name) || 0) + parseAmount(item.strVal));
+    }
   });
   const drainItems: HljldSummaryItem[] = Array.from(drainMap.entries()).map(([name, amount]) => ({
     key: `drain-${name}`,
@@ -331,10 +487,15 @@ export function buildSummary(
 
   return {
     kind,
-    label,
+    label: summaryLabel,
     periodText: `${formatTime(startTs)}—${formatTime(endTs)}`,
+    plannedStart: plannedStartTs,
+    plannedEnd: plannedEndTs,
     periodStart: startTs,
     periodEnd: endTs,
+    admissionClipped: stay.admissionClipped,
+    dischargeClipped: stay.dischargeClipped,
+    available: stay.hasValidRange,
     totalInput,
     inputItems,
     totalOutput,
@@ -421,6 +582,7 @@ export function buildTubeNursingEntries(source: HljldSourceData, start: Date, en
     for (const record of (exe.tubeRecordList ?? [])) {
       if (!isValidBusinessRecord(record)) { continue; }
       const ts = databaseTimeValue(record.time);
+      // 左闭右开
       if (!Number.isFinite(ts) || ts < startMs || ts >= endMs) { continue; }
 
       const text = buildTubeNursingText(exe, record, view);
@@ -448,13 +610,15 @@ export function buildRows(
   accountMap: Map<string, string> = new Map(),
 ): HljldTimeRow[] {
   const tubeEntries = buildTubeNursingEntries(source, start, end);
+  const startMs = start.getTime();
+  const endMs = end.getTime();
 
   const events: Array<{ timestamp: number }> = [
     ...source.bedside.filter(isRenderableBedsideRecord).map(item => ({ timestamp: minuteKey(item.time) })),
     ...source.drugExecutions.filter(isRenderableDrugExecution).map(item => ({ timestamp: minuteKey(item.startTime) })),
     ...source.nurseRecords.filter(item => item.valid !== false && !!item.time && hasText(item.desc)).map(item => ({ timestamp: minuteKey(item.time) })),
     ...tubeEntries.map(item => ({ timestamp: minuteKey(item.time) })),
-  ].filter(item => Number.isFinite(item.timestamp) && item.timestamp * 60000 >= start.getTime() && item.timestamp * 60000 <= end.getTime());
+  ].filter(item => Number.isFinite(item.timestamp) && item.timestamp * 60000 >= startMs && item.timestamp * 60000 < endMs);
 
   const uniqueKeys = Array.from(new Set(events.map(item => item.timestamp).filter(k => Number.isFinite(k)))).sort((a, b) => a - b);
 
@@ -577,42 +741,107 @@ export function buildTimeline(
   dayBoundaryMs: number,
   nextMorningBoundaryMs: number,
   nowMs: number,
+  dischargeSummary?: HljldSummary,
+  effectiveEndMs?: number,
 ): HljldTimelineItem[] {
   const result: HljldTimelineItem[] = [];
   let dayInserted = false;
+  let dischargeInserted = false;
 
   const sortedGroups = [...groups].sort((a, b) => a.timestamp - b.timestamp);
 
   const showDaySummary = nowMs >= dayBoundaryMs;
   const showNextMorningSummaries = nowMs >= nextMorningBoundaryMs;
 
+  // 出科时间点
+  const dischargeMs = dischargeSummary ? dischargeSummary.periodEnd : 0;
+  const hasDischarge = !!dischargeSummary && dischargeSummary.available && dischargeMs > 0;
+
+  // 出科在17:00之前：不插入 daySummary
+  const dischargeBeforeDay = hasDischarge && dischargeMs < dayBoundaryMs;
+  // 出科等于17:00：不插入 daySummary，只插入 dischargeSummary
+  const dischargeAtDay = hasDischarge && dischargeMs === dayBoundaryMs;
+  // 出科在17:00之后、次日07:00之前
+  const dischargeBetween = hasDischarge && dischargeMs > dayBoundaryMs && dischargeMs < nextMorningBoundaryMs;
+  // 出科等于或晚于次日07:00
+  const dischargeAtOrAfterMorning = hasDischarge && dischargeMs >= nextMorningBoundaryMs;
+
   for (const group of sortedGroups) {
     // 只展示当前时间之前已经发生的数据
     if (group.timestamp > nowMs) { continue; }
+
+    // 明细不能越过有效结束时间
+    if (effectiveEndMs !== undefined && group.timestamp >= effectiveEndMs) { continue; }
 
     // 明细不能越过次日07:00
     if (group.timestamp >= nextMorningBoundaryMs) { continue; }
 
     // 已到17:00边界，当前组晚于17:00时，先插入日间小结
-    if (showDaySummary && !dayInserted && group.timestamp > dayBoundaryMs) {
+    // 但出科在17:00之前或等于17:00时不插入 daySummary
+    if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay && group.timestamp > dayBoundaryMs) {
       result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
       dayInserted = true;
+    }
+
+    // 出科时间在明细之间：在出科时间前插入 daySummary（如果需要），然后插入 dischargeSummary
+    if (hasDischarge && !dischargeInserted && dischargeBetween && group.timestamp >= dischargeMs && !dischargeBeforeDay && !dischargeAtDay) {
+      // 先确保 daySummary 已插入
+      if (showDaySummary && !dayInserted) {
+        result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
+        dayInserted = true;
+      }
+      result.push({ kind: 'discharge-summary', key: `discharge-summary-${dischargeMs}`, timestamp: dischargeMs, summary: dischargeSummary! });
+      dischargeInserted = true;
     }
 
     result.push({ kind: 'time-group', key: group.key, timestamp: group.timestamp, group });
 
     // 正好17:00：先展示完整组，再展示日间小结
-    if (showDaySummary && !dayInserted && group.timestamp === dayBoundaryMs) {
+    if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay && group.timestamp === dayBoundaryMs) {
       result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
       dayInserted = true;
     }
+
+    // 正好出科时间：先展示完整组，再展示出科总结
+    if (hasDischarge && !dischargeInserted && group.timestamp === dischargeMs) {
+      // 先确保 daySummary 已插入（出科在17:00之后的情况）
+      if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay && dischargeMs > dayBoundaryMs) {
+        result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
+        dayInserted = true;
+      }
+      result.push({ kind: 'discharge-summary', key: `discharge-summary-${dischargeMs}`, timestamp: dischargeMs, summary: dischargeSummary! });
+      dischargeInserted = true;
+    }
   }
 
-  // 已到17:00但之后没有明细，仍需展示日间小结
-  if (showDaySummary && !dayInserted) {
+  // 已到17:00但之后没有明细，仍需展示日间小结（出科不在17:00之前或等于17:00）
+  if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay) {
     result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
+    dayInserted = true;
   }
 
+  // 出科在17:00之前：在所有明细之后插入 dischargeSummary
+  if (hasDischarge && !dischargeInserted && dischargeBeforeDay) {
+    result.push({ kind: 'discharge-summary', key: `discharge-summary-${dischargeMs}`, timestamp: dischargeMs, summary: dischargeSummary! });
+    dischargeInserted = true;
+  }
+
+  // 出科等于17:00：在所有明细之后插入 dischargeSummary（替代 daySummary）
+  if (hasDischarge && !dischargeInserted && dischargeAtDay) {
+    result.push({ kind: 'discharge-summary', key: `discharge-summary-${dischargeMs}`, timestamp: dischargeMs, summary: dischargeSummary! });
+    dischargeInserted = true;
+  }
+
+  // 出科在17:00之后、次日07:00之前：如果还没插入，在最后插入
+  if (hasDischarge && !dischargeInserted && dischargeBetween) {
+    if (showDaySummary && !dayInserted) {
+      result.push({ kind: 'day-summary', key: 'day-summary-17', timestamp: dayBoundaryMs, summary: daySummary });
+    }
+    result.push({ kind: 'discharge-summary', key: `discharge-summary-${dischargeMs}`, timestamp: dischargeMs, summary: dischargeSummary! });
+    dischargeInserted = true;
+  }
+
+  // 出科等于或晚于次日07:00：正常时间轴处理，不出科总结
   // 只有到次日07:00才展示日间小结 + 24小时总结
   if (showNextMorningSummaries) {
     result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });

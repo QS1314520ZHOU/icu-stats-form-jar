@@ -3,8 +3,8 @@ import { Subject, ReplaySubject, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService, LoadResult } from './hljld-form.service';
-import { BedsideRecord, DrugExecution, HljldDisplayRow, HljldSourceData, HljldSummary, HljldTimeGroup, HljldTimelineItem, HljldViewModel, NurseRecord, PatientContext } from './hljld-form.models';
-import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, DEFAULT_REMARK_LINES, endOfNursingDay, startOfNursingDay } from './hljld-form.utils';
+import { ActiveStayRange, BedsideRecord, DrugExecution, HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimeGroup, HljldTimelineItem, HljldViewModel, NurseRecord, PatientContext } from './hljld-form.models';
+import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 
 @Component({
@@ -29,11 +29,15 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   loading = false;
   error = '';
   sourceError = '';
+  pageState: HljldPageState = 'waiting-patient';
   vm?: HljldViewModel;
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
   private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   private accountMap = new Map<string, string>();
   private readonly clockRefresh$ = interval(60_000);
+
+  /** 请求版本令牌，防止异步竞态覆盖新状态 */
+  private loadVersion = 0;
 
   constructor(
     private service: HljldFormService,
@@ -52,23 +56,54 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       map(() => ({ pid: this.patient.pid, date: new Date(this.selectedDate) })),
       filter(condition => !!condition.pid),
       distinctUntilChanged((a, b) => a.pid === b.pid && this.isSameLocalDate(a.date, b.date)),
-      switchMap(condition => this.loadCondition(condition.pid, condition.date).pipe(
-        map(result => ({ result, pid: condition.pid })),
-      )),
+      switchMap(condition => {
+        // 检查入科前/出科后状态
+        const stayRange = resolveActiveStayRange(this.patient, startOfNursingDay(condition.date), endOfNursingDay(condition.date));
+        if (stayRange.beforeAdmission) {
+          this.pageState = 'before-admission';
+          this.loading = false;
+          this.vm = undefined;
+          this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
+          this.sourceError = '';
+          this.error = '';
+          this.cdr.markForCheck();
+          return [];
+        }
+        if (stayRange.afterDischarge) {
+          this.pageState = 'after-discharge';
+          this.loading = false;
+          this.vm = undefined;
+          this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
+          this.sourceError = '';
+          this.error = '';
+          this.cdr.markForCheck();
+          return [];
+        }
+        this.pageState = 'loading';
+        this.cdr.markForCheck();
+        return this.loadCondition(condition.pid, condition.date).pipe(
+          map(result => ({ result, pid: condition.pid })),
+        );
+      }),
     ).subscribe({
       next: async ({ result, pid }) => {
+        if (!result) return; // before-admission/after-discharge
         if (pid !== this.patient.pid) return;
         this.sourceError = this.buildSourceError(result.statuses);
         this.source = result.data;
 
+        const currentVersion = this.loadVersion;
+
         // 收集签名用户ID并批量查询账户
         const accountMap = await this.collectSignatures(result.data);
 
-        if (pid !== this.patient.pid) return;
+        // 异步结果落地前检查版本和患者一致性
+        if (currentVersion !== this.loadVersion || pid !== this.patient.pid) { return; }
         this.source = result.data;
         this.accountMap = accountMap;
         this.vm = this.toViewModel(result.data, accountMap);
         this.loading = false;
+        this.pageState = 'ready';
 
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
         if (isDev) {
@@ -84,6 +119,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       },
       error: err => {
         this.loading = false;
+        this.pageState = 'error';
         this.error = err?.message || '护理数据加载异常，请检查数据接口';
         this.cdr.markForCheck();
       },
@@ -95,6 +131,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
       if (!p) {
         this.resetPatientData();
+        this.pageState = 'waiting-patient';
         this.cdr.markForCheck();
         return;
       }
@@ -102,13 +139,16 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       if (!nextPid) {
         this.resetPatientData();
         this.error = '未获取到患者数据库主键，无法查询护理记录';
+        this.pageState = 'error';
         this.cdr.markForCheck();
         return;
       }
       const previousPid = this.patient.pid;
       this.patient = this.toPatientContext(p);
       if (nextPid !== previousPid) {
+        // 患者切换：清空旧数据，设置默认日期，触发加载
         this.clearClinicalData();
+        this.initializeDateForPatient();
         this.dateChange$.next();
       }
       const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
@@ -178,6 +218,35 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
 
+  /**
+   * 根据患者状态设置默认日期。
+   * 已出科患者默认选择入科当天；在科患者默认今天。
+   */
+  private initializeDateForPatient(): void {
+    if (this.patient.isDischarged) {
+      const admissionTs = parsePatientDateTime(this.patient.admissionTime);
+      if (Number.isFinite(admissionTs)) {
+        const admission = new Date(admissionTs);
+        this.selectedDate = new Date(admission.getFullYear(), admission.getMonth(), admission.getDate());
+        this.dateInput = this.toDateString(this.selectedDate);
+        return;
+      }
+      // 入科时间无效，尝试出科日期
+      const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
+      if (Number.isFinite(dischargeTs)) {
+        const discharge = new Date(dischargeTs);
+        this.selectedDate = new Date(discharge.getFullYear(), discharge.getMonth(), discharge.getDate());
+        this.dateInput = this.toDateString(this.selectedDate);
+        return;
+      }
+      // 都无效时回退今天
+      const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+      if (isDev) { console.warn('[HLJLD][init-date] discharged patient without valid admission/discharge time, fallback to today'); }
+    }
+    this.selectedDate = new Date();
+    this.dateInput = this.toDateString(this.selectedDate);
+  }
+
   private moveDate(days: number): void {
     const value = new Date(this.selectedDate);
     value.setDate(value.getDate() + days);
@@ -214,13 +283,50 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const rangeEnd = endOfNursingDay(this.selectedDate);
     const dayBoundary = new Date(rangeStart); dayBoundary.setHours(17, 0, 0, 0);
     const nextMorning = new Date(rangeStart); nextMorning.setDate(nextMorning.getDate() + 1); nextMorning.setHours(7, 0, 0, 0);
-    const rows = buildRows(source, rangeStart, rangeEnd, accountMap);
+
+    // 计算有效住院区间
+    const stayRange = resolveActiveStayRange(this.patient, rangeStart, rangeEnd);
+
+    // 使用有效区间构建明细
+    const rows = stayRange.hasValidRange
+      ? buildRows(source, stayRange.effectiveStart, stayRange.effectiveEnd, accountMap)
+      : [];
     const timeGroups = buildDisplayGroups(rows);
-    const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary);
-    const shiftSummary = buildSummary('shift', '日间小结', this.patient, source, dayBoundary, nextMorning);
-    const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning);
+
+    // 收集护理日内的引流项目名称（用于所有小结）
+    const drainNames = collectDrainNames(source.bedside, stayRange.effectiveStart, stayRange.effectiveEnd);
+
+    // 构建三个标准小结
+    const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary, drainNames, stayRange);
+    const shiftSummary = buildSummary('shift', '日间小结', this.patient, source, dayBoundary, nextMorning, drainNames, stayRange);
+    const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning, drainNames, stayRange);
+
+    // 出科总结
+    let dischargeSummary: HljldSummary | undefined;
+    const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
+    if (Number.isFinite(dischargeTs)) {
+      const dischargeTime = new Date(dischargeTs);
+      // 出科时间在当前护理日有效区间内
+      if (dischargeTime.getTime() > stayRange.effectiveStart.getTime()
+        && dischargeTime.getTime() < nextMorning.getTime()
+        && dischargeTime.getTime() > rangeStart.getTime()) {
+        dischargeSummary = buildSummary('discharge', '出科总结', this.patient, source, stayRange.effectiveStart, dischargeTime, drainNames, stayRange);
+      }
+    }
+
     const nowMs = Date.now();
-    const timeline = buildTimeline(timeGroups, daySummary, shiftSummary, fullDaySummary, dayBoundary.getTime(), nextMorning.getTime(), nowMs);
+    const timeline = buildTimeline(
+      timeGroups,
+      daySummary,
+      shiftSummary,
+      fullDaySummary,
+      dayBoundary.getTime(),
+      nextMorning.getTime(),
+      nowMs,
+      dischargeSummary,
+      stayRange.effectiveEnd.getTime(),
+    );
+
     return {
       patient: this.patient,
       selectedDate: this.selectedDate,
@@ -233,6 +339,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       daySummary,
       shiftSummary,
       fullDaySummary,
+      dischargeSummary,
       remark: '',
     };
   }
@@ -251,6 +358,18 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   }
 
   private toPatientContext(p: any): PatientContext {
+    const admissionTime = p?.admissionTime || p?.inTime || '';
+    const dischargeTime = p?.dischargeTime || p?.outTime || '';
+
+    // 判断患者是否已出科
+    const hasDischargedStatus = (
+      p?.status === 'discharged' ||
+      p?.patientStatus === 'discharged' ||
+      p?.outTime ||
+      p?.dischargeTime
+    );
+    const isDischarged = !!hasDischargedStatus || !!dischargeTime;
+
     return {
       pid: getSmartCarePatientPid(p),
       mrn: String(p?.mrn ?? p?.hospitalNo ?? '').trim(),
@@ -259,8 +378,9 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       age: String(p?.age ?? '').trim(),
       bedNo: String(p?.hisBed ?? p?.bedNo ?? p?.bedCode ?? '').trim(),
       diagnosis: this.formatDiagnosis(p?.clinicalDiagnosis ?? p?.diagnosis ?? ''),
-      admissionTime: p?.admissionTime || p?.inTime || '',
-      dischargeTime: p?.dischargeTime || p?.outTime || '',
+      admissionTime,
+      dischargeTime,
+      isDischarged,
     };
   }
 
@@ -286,6 +406,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     this.patient = { pid: '' };
     this.vm = undefined;
     this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
+    this.accountMap = new Map();
   }
 
   private clearClinicalData(): void {
@@ -293,6 +414,8 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     this.error = '';
     this.sourceError = '';
     this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
+    this.accountMap = new Map();
+    this.loadVersion++;
   }
 
   private buildSourceError(statuses: import('./hljld-form.service').SourceStatus[]): string {

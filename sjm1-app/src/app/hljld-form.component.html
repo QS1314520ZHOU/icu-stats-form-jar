@@ -112,6 +112,13 @@
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
+
+            <!-- 出科总结 -->
+            <tr *ngIf="item.kind === 'discharge-summary' && item.summary" class="summary-row discharge-summary-row">
+              <td colspan="17" class="summary-row-cell">
+                <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
+              </td>
+            </tr>
           </ng-container>
 
           <tr *ngIf="!form.timeline.length && !loading"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
@@ -157,8 +164,16 @@
 </ng-template>
 
 <ng-template #statePanel>
-  <div class="state-panel" [class.error]="error">
-    <div *ngIf="loading" class="spinner" aria-hidden="true"></div>
-    <strong>{{ loading ? '正在加载护理记录…' : (error || '等待患者信息') }}</strong>
+  <div class="state-panel" [class.error]="pageState === 'error'">
+    <div *ngIf="pageState === 'loading'" class="spinner" aria-hidden="true"></div>
+    <strong>
+      <ng-container [ngSwitch]="pageState">
+        <ng-container *ngSwitchCase="'loading'">正在加载护理记录…</ng-container>
+        <ng-container *ngSwitchCase="'before-admission'">入科时间之前不展示，请修改时间。</ng-container>
+        <ng-container *ngSwitchCase="'after-discharge'">患者已出科，请切换时间。</ng-container>
+        <ng-container *ngSwitchCase="'error'">{{ error || '护理数据加载异常' }}</ng-container>
+        <ng-container *ngSwitchDefault>等待患者信息</ng-container>
+      </ng-container>
+    </strong>
   </div>
 </ng-template>

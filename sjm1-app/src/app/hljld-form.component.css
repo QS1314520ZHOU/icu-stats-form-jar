@@ -1,6 +1,6 @@
 :host {
   --hljld-ui-font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
-  --hljld-table-font: "DengXian", "等线", "Microsoft YaHei UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  --hljld-table-font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   --hljld-print-font: SimSun, "宋体", "Noto Serif CJK SC", serif;
   --hljld-table-font-size: 11px;
   --hljld-table-line-height: 16px;
@@ -58,7 +58,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 .patient-strip .diagnosis { flex: 1 1 300px; }
 
 /* =========================================================
-   Record table — DengXian (等线) screen font
+   Record table — Microsoft YaHei screen font, weight 500
    ========================================================= */
 
 .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; box-sizing: border-box; scrollbar-gutter: stable; }
@@ -68,11 +68,11 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   border-collapse: collapse; border-spacing: 0; table-layout: fixed;
   font-family: var(--hljld-table-font);
   font-size: var(--hljld-table-font-size);
-  font-style: normal; font-weight: 400;
+  font-style: normal; font-weight: 500;
   line-height: var(--hljld-table-line-height);
   font-synthesis: none; text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
-  color: #202020; text-shadow: none; -webkit-text-stroke: 0;
+  color: #000; text-shadow: none; -webkit-text-stroke: 0;
 }
 
 /* Column widths (17 columns, total = 100%) */
@@ -99,16 +99,16 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 
 .record-table thead th {
   background: #e5edf2; color: #181818;
-  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 400; line-height: 16px;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 600; line-height: 16px;
 }
 
 .record-table tbody td {
   min-height: 26px; white-space: normal;
-  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 400 !important; line-height: 16px; color: #222;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; color: #000;
   text-shadow: none; -webkit-text-stroke: 0;
 }
 
-.record-table tbody td b, .record-table tbody td strong { font-weight: 400 !important; }
+.record-table tbody td b, .record-table tbody td strong { font-weight: 600; }
 
 .record-table tbody tr.continuation-row td { border-top-style: dashed; border-top-color: #b8bec4; }
 .record-table tbody tr.continuation-row .time-cell { color: transparent; }
@@ -123,7 +123,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 
 .time-cell, .number, .nursing-cell, .sign-cell,
 .remark-row th, .remark-row td, .remark-line {
-  font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 400 !important; line-height: 16px;
+  font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 16px;
   text-shadow: none !important; -webkit-text-stroke: 0 !important;
 }
 
@@ -131,8 +131,8 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 
 .time-cell { white-space: nowrap !important; }
 
-.nursing-cell { text-align: left !important; vertical-align: middle; color: #222; white-space: normal; word-break: break-word; overflow-wrap: anywhere; hyphens: none; }
-.sign-cell { color: #222; white-space: normal; word-break: keep-all; overflow-wrap: normal; }
+.nursing-cell { text-align: left !important; vertical-align: middle; color: #000; white-space: normal; word-break: break-word; overflow-wrap: anywhere; hyphens: none; }
+.sign-cell { color: #000; white-space: normal; word-break: keep-all; overflow-wrap: normal; }
 
 /* =========================================================
    Summary rows
@@ -150,17 +150,18 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 .day-summary-row .summary-panel { background: #f7f3df; }
 .shift-summary-row .summary-panel { background: #f4f1e3; }
 .full-day-summary-row .summary-panel { background: #edf6ee; }
+.discharge-summary-row .summary-panel { background: #e8f0fe; }
 
 .summary-heading { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 5px; }
 
-.summary-title { font-family: var(--hljld-table-font); font-size: 11px; font-weight: 400; line-height: 15px; }
-.summary-period { font-family: var(--hljld-table-font); font-size: 9px; font-weight: 400; line-height: 13px; color: #444; }
+.summary-title { font-family: var(--hljld-table-font); font-size: 12px; font-weight: 600; line-height: 15px; }
+.summary-period { font-family: var(--hljld-table-font); font-size: 10px; font-weight: 500; line-height: 13px; color: #444; }
 
-.summary-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 18px; min-height: 20px; font-family: var(--hljld-table-font); font-size: 10px; font-weight: 400; line-height: 14px; color: #222; }
+.summary-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 18px; min-height: 20px; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; color: #000; }
 
-.summary-total, .summary-group-label { flex: 0 0 auto; white-space: nowrap; font-family: var(--hljld-table-font); font-size: 10px; font-weight: 400; line-height: 14px; }
-.summary-stat { flex: 0 0 auto; white-space: nowrap; font-family: var(--hljld-table-font); font-size: 10px; font-weight: 400; line-height: 14px; }
-.summary-stat strong, .summary-total strong { font-family: inherit; font-size: inherit; font-weight: 400; }
+.summary-total, .summary-group-label { flex: 0 0 auto; white-space: nowrap; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; }
+.summary-stat { flex: 0 0 auto; white-space: nowrap; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; }
+.summary-stat strong, .summary-total strong { font-family: inherit; font-size: inherit; font-weight: 600; }
 
 .summary-output-line { width: 100%; align-items: baseline; }
 .summary-output-line .summary-group-label { margin-left: 2px; }
@@ -169,9 +170,9 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
    Remark
    ========================================================= */
 
-.remark-row th { vertical-align: top; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 400; line-height: 16px; }
-.remark-row td { text-align: left; padding: 6px 8px; white-space: normal; word-break: break-word; line-height: 1.6; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 400; color: #222; }
-.remark-line { font-family: var(--hljld-table-font); font-size: 11px; font-weight: 400; line-height: 16px; color: #222; }
+.remark-row th { vertical-align: top; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; }
+.remark-row td { text-align: left; padding: 6px 8px; white-space: normal; word-break: break-word; line-height: 1.6; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; color: #000; }
+.remark-line { font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; color: #000; }
 .remark-line + .remark-line { margin-top: 2px; }
 
 /* =========================================================
@@ -296,7 +297,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   .no-print { display: none !important; }
   .paper { width: 100%; max-width: none; margin: 0; padding: 0; container-type: normal; }
   h1 { font-size: 15pt; margin-bottom: 2mm; }
-  .patient-strip { font-family: var(--hljld-print-font); font-size: 7pt; padding: 1.5mm 0; gap: 1mm 5mm; }
+  .patient-strip { font-family: var(--hljld-print-font); font-size: 7.5pt; padding: 1.5mm 0; gap: 1mm 5mm; }
   .table-wrap { overflow: visible; }
 
   .record-table,
@@ -308,11 +309,11 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
     font-synthesis: none; text-shadow: none !important; -webkit-text-stroke: 0 !important;
   }
 
-  .record-table { width: 100%; min-width: 0; font-size: 7pt; line-height: 9pt; }
+  .record-table { width: 100%; min-width: 0; font-size: 7.5pt; line-height: 9pt; }
   .record-table th, .record-table td { padding: 0.6mm; }
   .record-table thead { display: table-header-group; }
-  .record-table thead th { font-size: 7pt; font-weight: 500; line-height: 9pt; }
-  .record-table tbody td, .record-table tbody td b, .record-table tbody td strong { font-size: 7pt; font-weight: 400 !important; line-height: 9pt; }
+  .record-table thead th { font-size: 7.5pt; font-weight: 600; line-height: 9pt; }
+  .record-table tbody td, .record-table tbody td b, .record-table tbody td strong { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
   .record-table tr { break-inside: avoid; page-break-inside: avoid; }
   .record-table tbody tr.continuation-row td { border-top: 0.3mm dashed #888; }
 
@@ -321,10 +322,10 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   .sign-col { width: 12mm; }
 
   .summary-panel { width: 100%; padding: 1mm 2mm; }
-  .summary-title { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
-  .summary-period { font-size: 7pt; line-height: 9pt; }
-  .summary-line, .summary-total, .summary-group-label, .summary-stat { font-size: 7pt; line-height: 9pt; }
-  .remark-row th, .remark-row td, .remark-line { font-size: 7pt; line-height: 9pt; }
+  .summary-title { font-size: 8pt; font-weight: 600; line-height: 9pt; }
+  .summary-period { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+  .summary-line, .summary-total, .summary-group-label, .summary-stat { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+  .remark-row th, .remark-row td, .remark-line { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
 
   .record-table,
   .record-table th, .record-table td,

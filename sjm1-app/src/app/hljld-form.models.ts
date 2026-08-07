@@ -8,6 +8,7 @@ export interface PatientContext {
   diagnosis?: string;
   admissionTime?: string;
   dischargeTime?: string;
+  isDischarged?: boolean;
 }
 
 export interface DrugItem {
@@ -180,7 +181,7 @@ export interface HljldTimeGroup {
   rows: HljldDisplayRow[];
 }
 
-export type HljldSummaryKind = 'day' | 'shift' | '24h';
+export type HljldSummaryKind = 'day' | 'shift' | '24h' | 'discharge';
 
 export interface HljldSummaryItem {
   key: string;
@@ -193,8 +194,13 @@ export interface HljldSummary {
   kind: HljldSummaryKind;
   label: string;
   periodText: string;
+  plannedStart: number;
+  plannedEnd: number;
   periodStart: number;
   periodEnd: number;
+  admissionClipped: boolean;
+  dischargeClipped: boolean;
+  available: boolean;
   totalInput: number;
   inputItems: HljldSummaryItem[];
   totalOutput: number;
@@ -207,7 +213,28 @@ export type HljldTimelineItem =
   | { kind: 'time-group'; key: string; timestamp: number; group: HljldTimeGroup }
   | { kind: 'day-summary'; key: string; timestamp: number; summary: HljldSummary }
   | { kind: 'shift-summary'; key: string; timestamp: number; summary: HljldSummary }
-  | { kind: 'full-day-summary'; key: string; timestamp: number; summary: HljldSummary };
+  | { kind: 'full-day-summary'; key: string; timestamp: number; summary: HljldSummary }
+  | { kind: 'discharge-summary'; key: string; timestamp: number; summary: HljldSummary };
+
+export type HljldPageState =
+  | 'waiting-patient'
+  | 'loading'
+  | 'ready'
+  | 'before-admission'
+  | 'after-discharge'
+  | 'error';
+
+export interface ActiveStayRange {
+  nursingDayStart: Date;
+  nursingDayEnd: Date;
+  effectiveStart: Date;
+  effectiveEnd: Date;
+  admissionClipped: boolean;
+  dischargeClipped: boolean;
+  beforeAdmission: boolean;
+  afterDischarge: boolean;
+  hasValidRange: boolean;
+}
 
 export interface HljldViewModel {
   patient: PatientContext;
@@ -221,5 +248,6 @@ export interface HljldViewModel {
   daySummary: HljldSummary;
   shiftSummary: HljldSummary;
   fullDaySummary: HljldSummary;
+  dischargeSummary?: HljldSummary;
   remark: string;
 }
