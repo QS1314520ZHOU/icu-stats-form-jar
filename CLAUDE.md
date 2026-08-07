@@ -182,16 +182,62 @@ Angular 表单统一挂载在 `/form/<route>`。路由源文件为 `sjm1-app/src
 
 ## 构建与验证
 
-### 后端
+### JAR 交付强制规则
+
+任何对 `sjm1-app/src/**` 的修改，在交付 JAR 前必须执行：
 
 ```bash
-mvn test
+./build-jar.sh
+```
+
+**禁止直接使用：**
+
+```bash
 mvn clean package
 ```
 
-仅修改后端文档时无需构建。修改 Java 代码后至少运行相关测试或 `mvn test`；准备交付 JAR 时运行 `mvn clean package`。
+因为它不会自动编译 Angular 前端。
 
-### 前端
+`build-jar.sh` 完成并验证：
+
+1. 确认当前 Git 提交。
+2. 确认 Node.js 版本为 24+。
+3. 删除 `sjm1-app/dist` 旧产物。
+4. 在 `sjm1-app` 中执行 `npm ci` 或 `npm install`。
+5. 执行 `npm run build`。
+6. 确认构建产物位于 `sjm1-app/dist/sjm1-app/browser`。
+7. 删除旧目录 `src/main/resources/static/form`。
+8. 将 `dist/sjm1-app/browser` 中的全部文件复制到 `src/main/resources/static/form`。
+9. 执行 `mvn clean package -DskipTests`。
+10. 解压读取 JAR 中的 `BOOT-INF/classes/static/form/index.html`。
+11. 确认 JAR 内 `index.html` 引用的 `main-*.js` 与本次 Angular 构建生成的 `main-*.js` 完全一致。
+12. 确认该 `main-*.js` 真实存在于 JAR 中。
+13. 输出：Git commit、Angular main 文件名、JAR 文件路径、JAR SHA-256、构建时间。
+14. 任一验证不通过，必须判定构建失败，不能说已经完成。
+15. 不得沿用旧 `dist` 目录或旧 `target` 目录。
+16. 不得只修改 `sjm1-app/src` 而不重新生成 Spring Boot 静态资源。
+
+### 前端修改提交规则
+
+前端修改完成并通过 `npm run build` 后，必须将 `sjm1-app/dist/sjm1-app/browser/*` 同步到 `src/main/resources/static/form/`，并将以下变更一并提交：
+
+- 新的 `index.html`
+- 新的 `main-*.js`
+- 新的 `styles-*.css`
+- 新的 `polyfills-*.js`
+- 删除已不再被 `index.html` 引用的旧哈希文件
+
+提交前检查 `git status --short`，必须同时看到 `sjm1-app/src` 和 `src/main/resources/static/form` 构建产物发生变化。如果只看到 `sjm1-app/src` 发生变化，说明还没有完成可交付构建。
+
+### 后端（仅修改 Java 代码）
+
+```bash
+mvn test
+```
+
+仅修改后端文档时无需构建。修改 Java 代码后至少运行相关测试或 `mvn test`。
+
+### 前端（仅本地开发调试）
 
 ```bash
 cd sjm1-app
