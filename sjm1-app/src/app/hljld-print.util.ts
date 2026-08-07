@@ -1,90 +1,74 @@
-/**
- * 护理记录单打印分页工具 v2
- *
- * A4横向精确分页，每页一个完整<table>：
- * - <thead> 固定表头
- * - <tbody> 当前页数据 + 填充行
- * - <tfoot> 备注行（colspan=16）
- *
- * 使用真实DOM高度测量，支持长文本跨页续打。
- */
+import {
+  HljldDisplayRow,
+  HljldSummary,
+  HljldTimelineItem,
+  HljldViewModel,
+} from './hljld-form.models';
 
-import { openPrintWindow, readyPrint } from './form-print.util';
-
-// ==================== 常量 ====================
-
-const A4_WIDTH_MM = 297;
-const A4_HEIGHT_MM = 210;
-
-const PAGE_PADDING_TOP_MM = 4;
-const PAGE_PADDING_BOTTOM_MM = 3;
-const PAGE_PADDING_LEFT_MM = 7;
-const PAGE_PADDING_RIGHT_MM = 7;
-
-const SAFETY_GAP_PX = 2;
-
-const PRINT_FONT_SIZE_PT = 7.5;
-const PRINT_LINE_HEIGHT_PT = 9;
-const PRINT_HEADER_FONT_PT = 22;
-const PRINT_PAGENO_FONT_PT = 8;
-
-const COL_COUNT = 17;
-
-// ==================== 接口 ====================
-
-export interface HljldPrintConfig {
-  hostElement: HTMLElement;
+type PrintInput = {
+  vm: HljldViewModel;
   remarkLines: string[];
-}
+};
 
-interface PrintBlock {
-  key: string;
-  kind: 'time-group' | 'summary';
-  rows: HTMLTableRowElement[];
-  splittable: boolean;
-}
+type PrintBlock =
+  | {
+      kind: 'time-group';
+      key: string;
+      rows: HljldDisplayRow[];
+    }
+  | {
+      kind: 'summary';
+      key: string;
+      summaryClassName: string;
+      summary: HljldSummary;
+    };
 
-interface PatientInfo {
-  title: string;
-  bedNo: string;
-  name: string;
-  mrn: string;
-  sex: string;
-  age: string;
-  diagnosis: string;
-}
-
-interface TableStructure {
-  colgroupHtml: string;
-  theadHtml: string;
-}
-
-interface PageElements {
-  sheet: HTMLElement;
-  thead: HTMLElement;
-  tbody: HTMLElement;
-  tfoot: HTMLElement;
-  pageno: HTMLElement;
-}
-
-// ==================== CSS ====================
+type PageRefs = {
+  pageEl: HTMLElement;
+  sheetEl: HTMLElement;
+  headEl: HTMLElement;
+  titleEl: HTMLElement;
+  patientInfoEl: HTMLElement;
+  tableEl: HTMLTableElement;
+  tbodyEl: HTMLTableSectionElement;
+  tfootEl: HTMLTableSectionElement;
+  pageNoEl: HTMLElement;
+};
 
 const PRINT_CSS = `
-@page { size: A4 landscape; margin: 0; }
-html, body { margin: 0; padding: 0; background: #fff; }
-body { color: #000; font-family: 'SimSun', '宋体', serif; }
+@page {
+  size: A4 landscape;
+  margin: 0;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}
+
+body {
+  color: #000;
+  font-family: "SimSun", "宋体", serif;
+}
+
+.print-root {
+  margin: 0;
+  padding: 0;
+}
 
 .print-page {
   box-sizing: border-box;
-  width: ${A4_WIDTH_MM}mm;
-  height: ${A4_HEIGHT_MM}mm;
+  width: 297mm;
+  height: 210mm;
   margin: 0;
   padding: 0;
-  overflow: visible;
   break-after: page;
   page-break-after: always;
+  overflow: hidden;
   background: #fff;
 }
+
 .print-page:last-child {
   break-after: auto;
   page-break-after: auto;
@@ -92,802 +76,1042 @@ body { color: #000; font-family: 'SimSun', '宋体', serif; }
 
 .sheet {
   box-sizing: border-box;
+  width: 297mm;
+  height: 210mm;
+  padding: 4mm 7mm 3mm;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  width: ${A4_WIDTH_MM}mm;
-  height: ${A4_HEIGHT_MM}mm;
-  padding: ${PAGE_PADDING_TOP_MM}mm ${PAGE_PADDING_RIGHT_MM}mm ${PAGE_PADDING_BOTTOM_MM}mm ${PAGE_PADDING_LEFT_MM}mm;
-  overflow: visible;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
   background: #fff;
-  color: #000;
 }
 
 .sheet-head {
-  text-align: center;
-  padding-bottom: 1.5mm;
-}
-
-.sheet-title {
-  font-family: 'SimHei', '黑体', sans-serif;
-  font-weight: 700;
-  font-size: ${PRINT_HEADER_FONT_PT}pt;
-  line-height: 1.35;
-  margin: 0 0 1.5mm;
-  letter-spacing: 2px;
-}
-
-.patient-info {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 1.5mm 5mm;
-  font-family: 'SimSun', '宋体', serif;
-  font-size: ${PRINT_FONT_SIZE_PT}pt;
-  font-weight: 400;
-  line-height: 1.4;
+  display: block;
+  text-align: initial;
   color: #000;
 }
 
-.patient-info b { font-weight: 700; }
+.title-line {
+  text-align: center;
+  font-family: "SimHei", "黑体", "Microsoft YaHei", sans-serif;
+  font-size: 22pt;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 1px;
+  margin: 0 0 2mm 0;
+}
 
-.print-table-slot {
+.patient-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1mm 6mm;
+  text-align: left;
+  white-space: normal;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 12pt;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #000;
+  margin: 0 0 1.5mm 0;
+}
+
+.info-item,
+.diagnosis-item {
+  text-align: left;
+  white-space: nowrap;
+  color: #000;
+}
+
+.diagnosis-item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.info-item strong,
+.diagnosis-item strong {
+  font-weight: 700;
+}
+
+.print-table-wrap {
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .print-record-table {
   width: 100%;
   border-collapse: collapse;
+  border-spacing: 0;
   table-layout: fixed;
   border: 1px solid #000;
+  color: #000;
+  background: #fff;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 7.2pt;
+  line-height: 1.25;
 }
+
+.print-record-table col.col-time { width: 8%; }
+.print-record-table col.col-med-name,
+.print-record-table col.col-enteral-name { width: 6%; }
+.print-record-table col.col-med-amount,
+.print-record-table col.col-enteral-amount { width: 4%; }
+.print-record-table col.col-med-route,
+.print-record-table col.col-enteral-route { width: 4%; }
+.print-record-table col.col-output-name,
+.print-record-table col.col-drain-name { width: 6%; }
+.print-record-table col.col-output-amount,
+.print-record-table col.col-drain-amount { width: 4%; }
+.print-record-table col.col-check,
+.print-record-table col.col-treatment,
+.print-record-table col.col-basic-care,
+.print-record-table col.col-health { width: 5%; }
+.print-record-table col.col-nursing { width: 18%; }
+.print-record-table col.col-sign { width: 6%; }
 
 .print-record-table th,
 .print-record-table td {
-  box-sizing: border-box;
   border: 1px solid #000;
+  padding: 0.6mm 0.8mm;
+  text-align: center;
+  vertical-align: middle;
+  color: #000;
+  box-sizing: border-box;
   overflow: visible;
-  text-overflow: clip;
   word-break: break-word;
   overflow-wrap: anywhere;
-  vertical-align: middle;
-  padding: 0.4mm 0.5mm;
-  font-family: 'SimSun', '宋体', serif;
-  font-size: ${PRINT_FONT_SIZE_PT}pt;
-  line-height: ${PRINT_LINE_HEIGHT_PT}pt;
-  color: #000;
 }
 
 .print-record-table thead th {
-  background: #e5edf2;
-  font-weight: 600;
+  background: #fff;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
-.print-record-table thead {
-  display: table-header-group;
+.print-record-table thead tr:first-child th {
+  padding-top: 0.8mm;
+  padding-bottom: 0.8mm;
 }
 
-.print-record-table tfoot {
-  display: table-footer-group;
+.print-record-table tbody td.nursing-cell {
+  text-align: left;
+  vertical-align: top;
+}
+
+.print-record-table tbody td.sign-cell {
+  white-space: nowrap;
+}
+
+.print-record-table tbody tr.continuation-row td.time-cell {
+  color: transparent;
+}
+
+.print-summary-row td {
+  padding: 0 !important;
+}
+
+.print-summary-panel {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1mm 1.5mm;
+  text-align: left;
+  color: #000;
+}
+
+.print-summary-day .print-summary-panel {
+  background: #f7f3df;
+}
+
+.print-summary-shift .print-summary-panel {
+  background: #f4f1e3;
+}
+
+.print-summary-24h .print-summary-panel {
+  background: #edf6ee;
+}
+
+.print-summary-discharge .print-summary-panel {
+  background: #e8f0fe;
+}
+
+.print-summary-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2mm;
+  margin-bottom: 0.6mm;
+}
+
+.print-summary-title {
+  font-weight: 700;
+  font-size: 8pt;
+}
+
+.print-summary-period {
+  font-size: 7pt;
+}
+
+.print-summary-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8mm 2.4mm;
+  align-items: baseline;
+  justify-content: flex-start;
+  line-height: 1.35;
+  font-size: 7pt;
+}
+
+.print-summary-line + .print-summary-line {
+  margin-top: 0.4mm;
+}
+
+.print-summary-strong {
+  font-weight: 700;
 }
 
 .print-filler-row td {
-  height: var(--filler-height, 0);
-  padding: 0;
-  border-top: 0;
-  border-bottom: 0;
-  border-left: 1px solid #000;
-  border-right: 1px solid #000;
+  padding: 0 !important;
+  height: var(--filler-height, 0px);
+  line-height: 0;
+  font-size: 0;
+  vertical-align: top;
 }
 
-.print-remark-row {
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-
-.print-remark-row th {
-  font-weight: 500;
-  text-align: center;
-  width: 16mm;
-}
-
-.print-remark-row td {
+.print-record-table tfoot th,
+.print-record-table tfoot td {
+  font-size: 6.8pt;
+  line-height: 1.25;
   text-align: left;
-  padding: 0.5mm 1mm;
+  vertical-align: top;
+  padding: 0.8mm 1mm;
 }
 
-.remark-line + .remark-line {
+.print-record-table tfoot th {
+  width: 8%;
+  text-align: center;
+  font-weight: 700;
+}
+
+.print-remark-lines {
+  display: block;
+}
+
+.print-remark-line + .print-remark-line {
   margin-top: 0.3mm;
 }
 
 .sheet-pageno {
-  padding-top: 1.5mm;
   text-align: center;
-  font-family: 'SimSun', '宋体', serif;
-  font-size: ${PRINT_PAGENO_FONT_PT}pt;
-  line-height: 1.2;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 8pt;
+  line-height: 10pt;
   color: #000;
+  padding-top: 1.2mm;
 }
-
-.nursing-cell {
-  text-align: left !important;
-}
-
-.continuation-row .time-cell,
-.continuation-row .sign-cell {
-  color: transparent;
-}
-
-.no-print { display: none !important; }
 `;
 
-// ==================== 主入口 ====================
+export async function printHljldRecord({
+  vm,
+  remarkLines,
+}: PrintInput): Promise<void> {
+  const printWindow = window.open('', '_blank', 'width=1400,height=960');
 
-export async function printHljldRecord(config: HljldPrintConfig): Promise<void> {
-  const { hostElement, remarkLines } = config;
-
-  const patientInfo = extractPatientInfo(hostElement);
-  const tableStructure = extractTableStructure(hostElement);
-  const blocks = extractBlocks(hostElement);
-
-  if (blocks.length === 0) {
-    throw new Error('无可打印的护理记录数据');
+  if (!printWindow) {
+    throw new Error('打印窗口被拦截，请允许浏览器弹出打印窗口。');
   }
 
-  const printWin = openPrintWindow('', PRINT_CSS);
-  if (!printWin) {
-    throw new Error('打印窗口被拦截，请允许弹出窗口');
+  printWindow.document.open();
+  printWindow.document.write(`
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>护理记录打印</title>
+  <style>${PRINT_CSS}</style>
+</head>
+<body>
+  <div id="print-root" class="print-root"></div>
+</body>
+</html>
+  `);
+  printWindow.document.close();
+
+  await waitForPrintWindowReady(printWindow);
+
+  const root = printWindow.document.getElementById('print-root');
+  if (!root) {
+    throw new Error('打印根节点初始化失败。');
   }
 
-  const doc = printWin.document;
-  try {
-    if ((doc as any).fonts?.ready) {
-      await (doc as any).fonts.ready;
+  const blocks = buildPrintBlocks(vm.timeline);
+  const pages = paginateToPages(
+    printWindow.document,
+    root,
+    vm,
+    remarkLines,
+    blocks,
+  );
+
+  fillPageNumbers(pages);
+
+  const ok = validateGeneratedPages(pages);
+  if (!ok) {
+    throw new Error('打印分页校验失败，存在未完整显示的内容。');
+  }
+
+  printWindow.focus();
+
+  await nextTwoFrames(printWindow);
+
+  printWindow.print();
+  printWindow.addEventListener('afterprint', () => {
+    try {
+      printWindow.close();
+    } catch {
+      // ignore
     }
-  } catch { /* 字体加载失败继续 */ }
-
-  const pages = buildAllPages(doc, patientInfo, tableStructure, blocks, remarkLines);
-  updatePageNumbers(pages);
-
-  const isValid = validatePrintPages(printWin, pages);
-  if (!isValid) {
-    console.error('[HLJLD][print] 打印分页校验失败');
-    printWin.close();
-    throw new Error('打印分页校验失败，存在未完整显示的护理记录');
-  }
-
-  readyPrint(printWin, () => {
-    try { printWin.print(); }
-    catch (e) { console.error('[HLJLD][print] 打印执行失败', e); }
   });
 }
 
-// ==================== 提取患者信息 ====================
-
-function extractPatientInfo(host: HTMLElement): PatientInfo {
-  const titleEl = host.querySelector('h1');
-  const title = titleEl?.textContent?.trim() || '重钢总医院重症医学科护理记录单';
-
-  const strip = host.querySelector('.patient-strip');
-  const spans = strip?.querySelectorAll('span') || [];
-
-  const info: PatientInfo = { title, bedNo: '', name: '', mrn: '', sex: '', age: '', diagnosis: '' };
-
-  spans.forEach(span => {
-    const t = span.textContent || '';
-    if (t.startsWith('床号：')) info.bedNo = t.slice(4).trim();
-    else if (t.startsWith('姓名：')) info.name = t.slice(4).trim();
-    else if (t.startsWith('住院号：')) info.mrn = t.slice(5).trim();
-    else if (t.startsWith('性别：')) info.sex = t.slice(4).trim();
-    else if (t.startsWith('年龄：')) info.age = t.slice(4).trim();
-    else if (t.startsWith('诊断：')) info.diagnosis = t.slice(4).trim();
-  });
-
-  return info;
-}
-
-// ==================== 提取表格结构 ====================
-
-function extractTableStructure(host: HTMLElement): TableStructure {
-  const table = host.querySelector('.record-table');
-  if (!table) throw new Error('未找到护理记录表格');
-
-  const colgroup = table.querySelector('colgroup');
-  const thead = table.querySelector('thead');
-
-  return {
-    colgroupHtml: colgroup?.outerHTML || '',
-    theadHtml: thead?.outerHTML || '',
-  };
-}
-
-// ==================== 提取业务块 ====================
-
-function extractBlocks(host: HTMLElement): PrintBlock[] {
+function buildPrintBlocks(
+  timeline: HljldTimelineItem[],
+): PrintBlock[] {
   const blocks: PrintBlock[] = [];
-  const rows = host.querySelectorAll('tr[data-print-kind]');
-  const processed = new Set<string>();
 
-  rows.forEach(row => {
-    const kind = row.getAttribute('data-print-kind') as string;
-    const groupKey = row.getAttribute('data-print-group') || '';
-
-    if (processed.has(groupKey) && kind === 'time-group') return;
-    if (kind === 'time-group') {
-      processed.add(groupKey);
-      const groupRows = Array.from(rows).filter(
-        r => r.getAttribute('data-print-group') === groupKey
-      ) as HTMLTableRowElement[];
-      blocks.push({ key: groupKey, kind: 'time-group', rows: groupRows, splittable: true });
-    }
-
-    if (kind === 'summary') {
-      processed.add(groupKey);
-      blocks.push({ key: groupKey, kind: 'summary', rows: [row as HTMLTableRowElement], splittable: false });
-    }
-  });
-
-  // 兼容旧版：无 data-print-kind 属性
-  if (blocks.length === 0) {
-    const tbody = host.querySelector('.record-table tbody');
-    if (tbody) {
-      const allRows = Array.from(tbody.querySelectorAll('tr')) as HTMLTableRowElement[];
-      let currentKey = '';
-      let currentRows: HTMLTableRowElement[] = [];
-
-      allRows.forEach(row => {
-        if (row.classList.contains('remark-row')) return;
-
-        if (row.classList.contains('summary-row')) {
-          if (currentRows.length > 0) {
-            blocks.push({ key: currentKey, kind: 'time-group', rows: currentRows, splittable: true });
-            currentRows = [];
-          }
-          blocks.push({ key: `summary-${blocks.length}`, kind: 'summary', rows: [row], splittable: false });
-          return;
-        }
-
-        const timeCell = row.querySelector('.time-cell');
-        const timeText = timeCell?.textContent?.trim() || '';
-
-        if (timeText && !row.classList.contains('continuation-row')) {
-          if (currentRows.length > 0) {
-            blocks.push({ key: currentKey, kind: 'time-group', rows: currentRows, splittable: true });
-          }
-          currentKey = `group-${blocks.length}`;
-          currentRows = [row];
-        } else {
-          currentRows.push(row);
-        }
+  for (const item of timeline) {
+    if (item.kind === 'time-group') {
+      blocks.push({
+        kind: 'time-group',
+        key: item.key,
+        rows: item.group.rows,
       });
+      continue;
+    }
 
-      if (currentRows.length > 0) {
-        blocks.push({ key: currentKey, kind: 'time-group', rows: currentRows, splittable: true });
-      }
+    if (item.kind === 'day-summary') {
+      blocks.push({
+        kind: 'summary',
+        key: item.key,
+        summaryClassName: 'print-summary-day',
+        summary: item.summary,
+      });
+      continue;
+    }
+
+    if (item.kind === 'shift-summary') {
+      blocks.push({
+        kind: 'summary',
+        key: item.key,
+        summaryClassName: 'print-summary-shift',
+        summary: item.summary,
+      });
+      continue;
+    }
+
+    if (item.kind === 'full-day-summary') {
+      blocks.push({
+        kind: 'summary',
+        key: item.key,
+        summaryClassName: 'print-summary-24h',
+        summary: item.summary,
+      });
+      continue;
+    }
+
+    if (item.kind === 'discharge-summary') {
+      blocks.push({
+        kind: 'summary',
+        key: item.key,
+        summaryClassName: 'print-summary-discharge',
+        summary: item.summary,
+      });
     }
   }
 
   return blocks;
 }
 
-// ==================== 构建所有页面 ====================
-
-function buildAllPages(
+function paginateToPages(
   doc: Document,
-  patientInfo: PatientInfo,
-  tableStructure: TableStructure,
-  blocks: PrintBlock[],
+  root: HTMLElement,
+  vm: HljldViewModel,
   remarkLines: string[],
-): PageElements[] {
-  const pages: PageElements[] = [];
-
-  // 创建离屏测量容器
-  const measureSlot = doc.createElement('div');
-  measureSlot.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;';
-  doc.body.appendChild(measureSlot);
-
-  // 创建第一页
-  let currentPage = createPage(doc, patientInfo, tableStructure, remarkLines);
-  doc.body.appendChild(currentPage.sheet);
-  pages.push(currentPage);
-
-  // 测量固定区域高度
-  const fixedHeight = measureFixedAreas(currentPage);
-  const bodyAvailableHeight = fixedHeight.bodyAvailable;
-
-  // 逐块分页
-  let currentBodyHeight = 0;
+  blocks: PrintBlock[],
+): PageRefs[] {
+  const pages: PageRefs[] = [];
+  let page = createPage(doc, vm, remarkLines);
+  root.appendChild(page.pageEl);
+  pages.push(page);
 
   for (const block of blocks) {
     if (block.kind === 'summary') {
-      // 总结块：不可拆分
-      const blockHeight = measureBlockHeight(doc, measureSlot, tableStructure, block);
+      if (!appendSummaryBlock(page, block)) {
+        finalizePage(page);
 
-      if (currentBodyHeight + blockHeight > bodyAvailableHeight && currentBodyHeight > 0) {
-        // 当前页放不下，添加填充行后换页
-        addFillerRow(currentPage.tbody, bodyAvailableHeight - currentBodyHeight);
-        currentPage = createPage(doc, patientInfo, tableStructure, remarkLines);
-        doc.body.appendChild(currentPage.sheet);
-        pages.push(currentPage);
-        currentBodyHeight = 0;
-      }
+        page = createPage(doc, vm, remarkLines);
+        root.appendChild(page.pageEl);
+        pages.push(page);
 
-      // 检查总结本身是否超长
-      if (blockHeight > bodyAvailableHeight) {
-        console.warn(`[HLJLD][print] 总结块 ${block.key} 高度 ${blockHeight}px 超过可用高度 ${bodyAvailableHeight}px`);
-      }
-
-      appendBlockToTbody(currentPage.tbody, block);
-      currentBodyHeight += blockHeight;
-
-    } else {
-      // 时间组：逐行处理
-      for (const tr of block.rows) {
-        const trHeight = measureRowHeight(doc, measureSlot, tableStructure, tr);
-
-        if (trHeight <= bodyAvailableHeight) {
-          // 整行能放入当前页
-          if (currentBodyHeight + trHeight > bodyAvailableHeight && currentBodyHeight > 0) {
-            addFillerRow(currentPage.tbody, bodyAvailableHeight - currentBodyHeight);
-            currentPage = createPage(doc, patientInfo, tableStructure, remarkLines);
-            doc.body.appendChild(currentPage.sheet);
-            pages.push(currentPage);
-            currentBodyHeight = 0;
-          }
-          currentPage.tbody.appendChild(tr.cloneNode(true));
-          currentBodyHeight += trHeight;
-        } else {
-          // 单行超长，需要拆分
-          if (currentBodyHeight > 0) {
-            addFillerRow(currentPage.tbody, bodyAvailableHeight - currentBodyHeight);
-            currentPage = createPage(doc, patientInfo, tableStructure, remarkLines);
-            doc.body.appendChild(currentPage.sheet);
-            pages.push(currentPage);
-            currentBodyHeight = 0;
-          }
-
-          const fragments = splitOversizedRow(doc, measureSlot, tableStructure, tr, bodyAvailableHeight);
-          for (let i = 0; i < fragments.length; i++) {
-            if (i > 0) {
-              // 新 fragment 需要新页
-              currentPage = createPage(doc, patientInfo, tableStructure, remarkLines);
-              doc.body.appendChild(currentPage.sheet);
-              pages.push(currentPage);
-              currentBodyHeight = 0;
-            }
-            currentPage.tbody.appendChild(fragments[i]);
-            currentBodyHeight += measureRowHeight(doc, measureSlot, tableStructure, fragments[i]);
-          }
+        if (!appendSummaryBlock(page, block)) {
+          throw new Error(`总结块 ${block.key} 超出单页容量，请检查样式或内容。`);
         }
       }
+      continue;
     }
+
+    appendTimeGroupBlock(doc, root, vm, remarkLines, pages, block);
+    page = pages[pages.length - 1];
   }
 
-  // 最后一页添加填充行
-  if (currentBodyHeight < bodyAvailableHeight) {
-    addFillerRow(currentPage.tbody, bodyAvailableHeight - currentBodyHeight);
-  }
-
-  // 清理测量容器
-  doc.body.removeChild(measureSlot);
-
+  pages.forEach(finalizePage);
   return pages;
 }
 
-// ==================== 创建单页 ====================
-
-function createPage(
+function appendTimeGroupBlock(
   doc: Document,
-  patientInfo: PatientInfo,
-  tableStructure: TableStructure,
+  root: HTMLElement,
+  vm: HljldViewModel,
   remarkLines: string[],
-): PageElements {
-  const sheet = doc.createElement('section');
-  sheet.className = 'print-page';
+  pages: PageRefs[],
+  block: Extract<PrintBlock, { kind: 'time-group' }>,
+): void {
+  let currentPage = pages[pages.length - 1];
+  const groupRows = block.rows;
 
-  const remarksHtml = remarkLines
-    .map(line => `<div class="remark-line">${escapeHtml(line)}</div>`)
-    .join('');
+  const groupNodes = groupRows.map(row => createDisplayRowTr(doc, row));
 
-  sheet.innerHTML = `
-    <article class="sheet">
-      <header class="sheet-head">
-        <div class="sheet-title">${escapeHtml(patientInfo.title)}</div>
-        <div class="patient-info">
-          <span>床号：<b>${escapeHtml(patientInfo.bedNo || '—')}</b></span>
-          <span>姓名：<b>${escapeHtml(patientInfo.name || '—')}</b></span>
-          <span>住院号：<b>${escapeHtml(patientInfo.mrn || '—')}</b></span>
-          <span>性别：<b>${escapeHtml(patientInfo.sex || '—')}</b></span>
-          <span>年龄：<b>${escapeHtml(patientInfo.age || '—')}</b></span>
-          <span>诊断：<b>${escapeHtml(patientInfo.diagnosis || '—')}</b></span>
-        </div>
-      </header>
-
-      <div class="print-table-slot">
-        <table class="print-record-table">
-          ${tableStructure.colgroupHtml}
-          ${tableStructure.theadHtml}
-          <tbody></tbody>
-          <tfoot>
-            <tr class="print-remark-row">
-              <th>备注</th>
-              <td colspan="${COL_COUNT - 1}">${remarksHtml}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      <footer class="sheet-pageno">
-        第<span class="page-current"></span>页 共<span class="page-total"></span>页
-      </footer>
-    </article>
-  `;
-
-  const article = sheet.querySelector('.sheet') as HTMLElement;
-  const thead = article.querySelector('thead') as HTMLElement;
-  const tbody = article.querySelector('tbody') as HTMLElement;
-  const tfoot = article.querySelector('tfoot') as HTMLElement;
-  const pageno = article.querySelector('.sheet-pageno') as HTMLElement;
-
-  return { sheet, thead, tbody, tfoot, pageno };
-}
-
-// ==================== 测量固定区域 ====================
-
-function measureFixedAreas(page: PageElements): { bodyAvailable: number } {
-  const sheetRect = page.sheet.getBoundingClientRect();
-  const article = page.sheet.querySelector('.sheet')!;
-  const articleStyle = getComputedStyle(article);
-  const headEl = page.sheet.querySelector('.sheet-head')!;
-  const headRect = headEl.getBoundingClientRect();
-  const footerRect = page.pageno.getBoundingClientRect();
-  const theadRect = page.thead.getBoundingClientRect();
-  const tfootRect = page.tfoot.getBoundingClientRect();
-
-  const paddingTop = parseFloat(articleStyle.paddingTop) || 0;
-  const paddingBottom = parseFloat(articleStyle.paddingBottom) || 0;
-  const pageVerticalPadding = paddingTop + paddingBottom;
-
-  const bodyAvailable = sheetRect.height
-    - pageVerticalPadding
-    - headRect.height
-    - footerRect.height
-    - theadRect.height
-    - tfootRect.height
-    - SAFETY_GAP_PX;
-
-  return { bodyAvailable: Math.max(0, bodyAvailable) };
-}
-
-// ==================== 测量块高度 ====================
-
-function measureBlockHeight(
-  doc: Document,
-  container: HTMLElement,
-  tableStructure: TableStructure,
-  block: PrintBlock,
-): number {
-  const wrapper = doc.createElement('div');
-  wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;';
-  wrapper.innerHTML = `
-    <table class="print-record-table">
-      ${tableStructure.colgroupHtml}
-      ${tableStructure.theadHtml}
-      <tbody></tbody>
-      <tfoot><tr><th>备注</th><td colspan="16"></td></tr></tfoot>
-    </table>
-  `;
-  container.appendChild(wrapper);
-
-  const tbody = wrapper.querySelector('tbody')!;
-  block.rows.forEach(tr => tbody.appendChild(tr.cloneNode(true)));
-
-  const table = wrapper.querySelector('.print-record-table') as HTMLElement;
-  const height = table.offsetHeight;
-
-  container.removeChild(wrapper);
-  return height;
-}
-
-// ==================== 测量单行高度 ====================
-
-function measureRowHeight(
-  doc: Document,
-  container: HTMLElement,
-  tableStructure: TableStructure,
-  tr: HTMLTableRowElement,
-): number {
-  const wrapper = doc.createElement('div');
-  wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;';
-  wrapper.innerHTML = `
-    <table class="print-record-table">
-      ${tableStructure.colgroupHtml}
-      ${tableStructure.theadHtml}
-      <tbody></tbody>
-      <tfoot><tr><th>备注</th><td colspan="16"></td></tr></tfoot>
-    </table>
-  `;
-  container.appendChild(wrapper);
-
-  const tbody = wrapper.querySelector('tbody')!;
-  tbody.appendChild(tr.cloneNode(true));
-
-  const row = tbody.querySelector('tr') as HTMLElement;
-  const height = row.offsetHeight;
-
-  container.removeChild(wrapper);
-  return height;
-}
-
-// ==================== 添加填充行 ====================
-
-function addFillerRow(tbody: HTMLElement, fillerHeight: number): void {
-  if (fillerHeight <= 0) return;
-
-  const tr = tbody.ownerDocument!.createElement('tr');
-  tr.className = 'print-filler-row';
-  tr.setAttribute('aria-hidden', 'true');
-
-  for (let i = 0; i < COL_COUNT; i++) {
-    const td = tbody.ownerDocument!.createElement('td');
-    tr.appendChild(td);
+  if (tryAppendNodes(currentPage, groupNodes)) {
+    return;
   }
 
-  tr.style.setProperty('--filler-height', `${fillerHeight}px`);
-  tbody.appendChild(tr);
+  removeNodes(groupNodes);
+
+  const emptyPage = createPage(doc, vm, remarkLines);
+  root.appendChild(emptyPage.pageEl);
+
+  if (tryAppendNodes(emptyPage, groupRows.map(row => createDisplayRowTr(doc, row)))) {
+    pages.push(emptyPage);
+    return;
+  }
+
+  emptyPage.pageEl.remove();
+
+  const newPage = createPage(doc, vm, remarkLines);
+  root.appendChild(newPage.pageEl);
+  pages.push(newPage);
+
+  for (const row of groupRows) {
+    currentPage = pages[pages.length - 1];
+    const singleRowNode = createDisplayRowTr(doc, row);
+
+    if (tryAppendNodes(currentPage, [singleRowNode])) {
+      continue;
+    }
+
+    removeNodes([singleRowNode]);
+
+    if (pageHasData(currentPage)) {
+      finalizePage(currentPage);
+
+      const nextPage = createPage(doc, vm, remarkLines);
+      root.appendChild(nextPage.pageEl);
+      pages.push(nextPage);
+      currentPage = nextPage;
+
+      const retriedNode = createDisplayRowTr(doc, row);
+      if (tryAppendNodes(currentPage, [retriedNode])) {
+        continue;
+      }
+
+      removeNodes([retriedNode]);
+    }
+
+    splitOversizedDisplayRow(doc, root, vm, remarkLines, pages, row);
+  }
 }
 
-// ==================== 追加块到 tbody ====================
-
-function appendBlockToTbody(tbody: HTMLElement, block: PrintBlock): void {
-  block.rows.forEach(tr => {
-    tbody.appendChild(tr.cloneNode(true));
-  });
-}
-
-// ==================== 长文本拆分 ====================
-
-function splitOversizedRow(
+function splitOversizedDisplayRow(
   doc: Document,
-  container: HTMLElement,
-  tableStructure: TableStructure,
-  originalRow: HTMLTableRowElement,
-  availableHeight: number,
-): HTMLTableRowElement[] {
-  const fragments: HTMLTableRowElement[] = [];
-  const nursingCell = originalRow.querySelector('.nursing-cell') as HTMLTableCellElement | null;
+  root: HTMLElement,
+  vm: HljldViewModel,
+  remarkLines: string[],
+  pages: PageRefs[],
+  row: HljldDisplayRow,
+): void {
+  const originalText = row.nursingRecord || '';
 
-  if (!nursingCell) {
-    // 没有护理记录单元格，直接返回原行
-    fragments.push(originalRow.cloneNode(true) as HTMLTableRowElement);
-    return fragments;
+  if (!originalText) {
+    throw new Error(
+      `行 ${row.key} 超过单页高度且没有可拆分的护理记录文本。`,
+    );
   }
 
-  const fullText = nursingCell.textContent || '';
-  if (!fullText.trim()) {
-    fragments.push(originalRow.cloneNode(true) as HTMLTableRowElement);
-    return fragments;
-  }
-
-  let remaining = fullText;
-  let isFirst = true;
+  let remaining = originalText;
+  let fragmentIndex = 0;
 
   while (remaining.length > 0) {
-    const fitLength = findMaxFittingText(
-      doc, container, tableStructure, originalRow, nursingCell, remaining, availableHeight
+    let currentPage = pages[pages.length - 1];
+
+    if (pageHasData(currentPage)) {
+      finalizePage(currentPage);
+
+      const nextPage = createPage(doc, vm, remarkLines);
+      root.appendChild(nextPage.pageEl);
+      pages.push(nextPage);
+      currentPage = nextPage;
+    }
+
+    const cutIndex = findMaxFittingTextIndex(
+      currentPage,
+      row,
+      remaining,
+      fragmentIndex === 0,
     );
 
-    // 确保至少消费一个字符
-    const cutAt = Math.max(1, fitLength);
-    const textForThisPage = remaining.slice(0, cutAt);
-    remaining = remaining.slice(cutAt);
+    if (cutIndex <= 0) {
+      throw new Error(
+        `无法为行 ${row.key} 找到可打印的文本切分位置。`,
+      );
+    }
 
-    const fragment = createFragmentRow(
-      doc, originalRow, nursingCell, textForThisPage, !isFirst, remaining.length === 0
+    const currentText = remaining.slice(0, cutIndex);
+    remaining = remaining.slice(cutIndex);
+
+    const fragmentRow = createDisplayRowTr(
+      doc,
+      createSplitRowFragment(
+        row,
+        currentText,
+        fragmentIndex === 0,
+        remaining.length === 0,
+      ),
     );
-    fragments.push(fragment);
-    isFirst = false;
+
+    if (!tryAppendNodes(currentPage, [fragmentRow])) {
+      removeNodes([fragmentRow]);
+      throw new Error(
+        `拆分后的护理记录片段仍无法放入页面，行 ${row.key}。`,
+      );
+    }
+
+    fragmentIndex += 1;
   }
-
-  return fragments;
 }
 
-// ==================== 二分查找最大适应文本 ====================
-
-function findMaxFittingText(
-  doc: Document,
-  container: HTMLElement,
-  tableStructure: TableStructure,
-  rowTemplate: HTMLTableRowElement,
-  nursingCell: HTMLTableCellElement,
+function findMaxFittingTextIndex(
+  page: PageRefs,
+  row: HljldDisplayRow,
   fullText: string,
-  availableHeight: number,
+  firstFragment: boolean,
 ): number {
   let low = 1;
   let high = fullText.length;
   let best = 0;
 
   while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const candidate = rowTemplate.cloneNode(true) as HTMLTableRowElement;
-    const candidateCell = candidate.querySelector('.nursing-cell') as HTMLTableCellElement;
-    if (candidateCell) {
-      candidateCell.textContent = fullText.slice(0, mid);
-    }
+    const middle = Math.floor((low + high) / 2);
 
-    const wrapper = doc.createElement('div');
-    wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;';
-    wrapper.innerHTML = `
-      <table class="print-record-table">
-        ${tableStructure.colgroupHtml}
-        ${tableStructure.theadHtml}
-        <tbody></tbody>
-        <tfoot><tr><th>备注</th><td colspan="16"></td></tr></tfoot>
-      </table>
-    `;
-    container.appendChild(wrapper);
-    const tbody = wrapper.querySelector('tbody')!;
-    tbody.appendChild(candidate);
-    const row = tbody.querySelector('tr') as HTMLElement;
-    const height = row.offsetHeight;
-    container.removeChild(wrapper);
+    const candidateText = fullText.slice(0, middle);
+    const candidateRow = createDisplayRowTr(
+      page.pageEl.ownerDocument,
+      createSplitRowFragment(
+        row,
+        candidateText,
+        firstFragment,
+        false,
+      ),
+    );
 
-    if (height <= availableHeight + 0.5) {
-      best = mid;
-      low = mid + 1;
+    page.tbodyEl.appendChild(candidateRow);
+
+    const fits = !isOverflowing(page);
+
+    candidateRow.remove();
+
+    if (fits) {
+      best = middle;
+      low = middle + 1;
     } else {
-      high = mid - 1;
+      high = middle - 1;
     }
   }
 
-  // 优先在自然断点处切割
-  return moveToNaturalBreak(fullText, best);
+  if (best <= 0) {
+    return 0;
+  }
+
+  return moveCutToNaturalBoundary(fullText, best);
 }
 
-// ==================== 移动到自然断点 ====================
+function moveCutToNaturalBoundary(text: string, index: number): number {
+  if (index >= text.length) {
+    return text.length;
+  }
 
-function moveToNaturalBreak(text: string, position: number): number {
-  if (position >= text.length) return text.length;
-  if (position <= 0) return 1;
+  const preferredChars = new Set(['。', '；', '，', '、', '：', ' ']);
 
-  // 向前搜索自然断点（中文标点、换行、空格）
-  const breakChars = ['。', '；', '，', '、', '\n', ' '];
-  const searchRange = Math.min(20, position);
-
-  for (let i = 0; i < searchRange; i++) {
-    const checkPos = position - i;
-    if (checkPos > 0 && breakChars.includes(text[checkPos - 1])) {
-      return checkPos;
+  for (let cursor = index; cursor > Math.max(0, index - 20); cursor -= 1) {
+    if (preferredChars.has(text[cursor - 1] || '')) {
+      return cursor;
     }
   }
 
-  return position;
+  return index;
 }
 
-// ==================== 创建分片行 ====================
+function createSplitRowFragment(
+  row: HljldDisplayRow,
+  nursingRecord: string,
+  firstFragment: boolean,
+  lastFragment: boolean,
+): HljldDisplayRow {
+  return {
+    ...row,
+    key: `${row.key}__fragment__${Math.random().toString(36).slice(2)}`,
+    firstLine: firstFragment ? row.firstLine : false,
+    timeText: firstFragment ? row.timeText : '',
+    medication: firstFragment ? row.medication : undefined,
+    enteral: firstFragment ? row.enteral : undefined,
+    output: firstFragment ? row.output : undefined,
+    drain: firstFragment ? row.drain : undefined,
+    examination: firstFragment ? row.examination : '',
+    treatment: firstFragment ? row.treatment : '',
+    basicCare: firstFragment ? row.basicCare : '',
+    healthEducation: firstFragment ? row.healthEducation : '',
+    nursingRecord,
+    signature: lastFragment ? row.signature : '',
+  };
+}
 
-function createFragmentRow(
+function appendSummaryBlock(
+  page: PageRefs,
+  block: Extract<PrintBlock, { kind: 'summary' }>,
+): boolean {
+  const node = createSummaryTr(
+    page.pageEl.ownerDocument,
+    block.summary,
+    block.summaryClassName,
+  );
+
+  const ok = tryAppendNodes(page, [node]);
+
+  if (!ok) {
+    removeNodes([node]);
+  }
+
+  return ok;
+}
+
+function tryAppendNodes(
+  page: PageRefs,
+  nodes: HTMLElement[],
+): boolean {
+  nodes.forEach(node => page.tbodyEl.appendChild(node));
+
+  if (isOverflowing(page)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isOverflowing(page: PageRefs): boolean {
+  const tbodyRect = page.tbodyEl.getBoundingClientRect();
+  const tfootRect = page.tfootEl.getBoundingClientRect();
+
+  return tbodyRect.bottom > tfootRect.top - 0.5;
+}
+
+function createPage(
   doc: Document,
-  originalRow: HTMLTableRowElement,
-  nursingCell: HTMLTableCellElement,
-  text: string,
-  isContinuation: boolean,
-  isLast: boolean,
-): HTMLTableRowElement {
-  const fragment = originalRow.cloneNode(true) as HTMLTableRowElement;
+  vm: HljldViewModel,
+  remarkLines: string[],
+): PageRefs {
+  const pageEl = doc.createElement('section');
+  pageEl.className = 'print-page';
 
-  if (isContinuation) {
-    fragment.classList.add('continuation-row');
-    // 清空日期时间和签名列
-    const timeCell = fragment.querySelector('.time-cell');
-    if (timeCell) timeCell.textContent = '';
-    const signCell = fragment.querySelector('.sign-cell');
-    if (signCell) signCell.textContent = '';
-  }
+  const sheetEl = doc.createElement('article');
+  sheetEl.className = 'sheet';
+  pageEl.appendChild(sheetEl);
 
-  // 设置护理记录文本
-  const fragNursingCell = fragment.querySelector('.nursing-cell') as HTMLTableCellElement;
-  if (fragNursingCell) {
-    fragNursingCell.textContent = text;
-  }
+  const headEl = doc.createElement('header');
+  headEl.className = 'sheet-head';
+  sheetEl.appendChild(headEl);
 
-  // 签名只放最后一个 fragment
-  if (!isLast) {
-    const signCell = fragment.querySelector('.sign-cell');
-    if (signCell) signCell.textContent = '';
-  }
+  const titleEl = doc.createElement('div');
+  titleEl.className = 'title-line';
+  titleEl.textContent = '重钢总医院重症医学科护理记录单';
+  headEl.appendChild(titleEl);
 
-  return fragment;
+  const patientInfoEl = doc.createElement('div');
+  patientInfoEl.className = 'patient-info-row';
+  patientInfoEl.innerHTML = `
+    <span class="info-item">床号：<strong>${escapeHtml(vm.patient.bedNo || '—')}</strong></span>
+    <span class="info-item">姓名：<strong>${escapeHtml(vm.patient.name || '—')}</strong></span>
+    <span class="info-item">住院号：<strong>${escapeHtml(vm.patient.mrn || '—')}</strong></span>
+    <span class="info-item">性别：<strong>${escapeHtml(vm.patient.sex || '—')}</strong></span>
+    <span class="info-item">年龄：<strong>${escapeHtml(String(vm.patient.age ?? '—'))}</strong></span>
+    <span class="diagnosis-item">诊断：<strong>${escapeHtml(vm.patient.diagnosis || '—')}</strong></span>
+  `;
+  headEl.appendChild(patientInfoEl);
+
+  const tableWrap = doc.createElement('div');
+  tableWrap.className = 'print-table-wrap';
+  sheetEl.appendChild(tableWrap);
+
+  const tableEl = doc.createElement('table');
+  tableEl.className = 'print-record-table';
+  tableWrap.appendChild(tableEl);
+
+  tableEl.appendChild(createColGroup(doc));
+  tableEl.appendChild(createThead(doc));
+
+  const tbodyEl = doc.createElement('tbody');
+  tableEl.appendChild(tbodyEl);
+
+  const tfootEl = doc.createElement('tfoot');
+  tfootEl.appendChild(createRemarkRow(doc, remarkLines));
+  tableEl.appendChild(tfootEl);
+
+  const pageNoEl = doc.createElement('footer');
+  pageNoEl.className = 'sheet-pageno';
+  pageNoEl.innerHTML = `
+    第<span class="page-current"></span>页 共<span class="page-total"></span>页
+  `;
+  sheetEl.appendChild(pageNoEl);
+
+  return {
+    pageEl,
+    sheetEl,
+    headEl,
+    titleEl,
+    patientInfoEl,
+    tableEl,
+    tbodyEl,
+    tfootEl,
+    pageNoEl,
+  };
 }
 
-// ==================== 更新页码 ====================
+function finalizePage(page: PageRefs): void {
+  removeExistingFillerRow(page);
 
-function updatePageNumbers(pages: PageElements[]): void {
-  const total = pages.length;
-  pages.forEach((page, i) => {
-    const current = page.pageno.querySelector('.page-current');
-    const totalEl = page.pageno.querySelector('.page-total');
-    if (current) current.textContent = String(i + 1);
-    if (totalEl) totalEl.textContent = String(total);
+  const tbodyRect = page.tbodyEl.getBoundingClientRect();
+  const tfootRect = page.tfootEl.getBoundingClientRect();
+  const remaining = Math.floor(tfootRect.top - tbodyRect.bottom - 1);
+
+  if (remaining <= 1) {
+    return;
+  }
+
+  const fillerTr = document.createElement('tr');
+  fillerTr.className = 'print-filler-row';
+  fillerTr.style.setProperty('--filler-height', `${remaining}px`);
+
+  for (let i = 0; i < 17; i += 1) {
+    fillerTr.appendChild(document.createElement('td'));
+  }
+
+  page.tbodyEl.appendChild(fillerTr);
+}
+
+function removeExistingFillerRow(page: PageRefs): void {
+  const filler = page.tbodyEl.querySelector('.print-filler-row');
+  if (filler) {
+    filler.remove();
+  }
+}
+
+function pageHasData(page: PageRefs): boolean {
+  return Array.from(page.tbodyEl.children).some(
+    child => !(child as HTMLElement).classList.contains('print-filler-row'),
+  );
+}
+
+function createColGroup(doc: Document): HTMLTableColElement['parentNode'] {
+  const colgroup = doc.createElement('colgroup');
+
+  const classes = [
+    'col-time',
+    'col-med-name',
+    'col-med-amount',
+    'col-med-route',
+    'col-enteral-name',
+    'col-enteral-amount',
+    'col-enteral-route',
+    'col-output-name',
+    'col-output-amount',
+    'col-drain-name',
+    'col-drain-amount',
+    'col-check',
+    'col-treatment',
+    'col-basic-care',
+    'col-health',
+    'col-nursing',
+    'col-sign',
+  ];
+
+  classes.forEach(className => {
+    const col = doc.createElement('col');
+    col.className = className;
+    colgroup.appendChild(col);
   });
+
+  return colgroup;
 }
 
-// ==================== 增强验证 ====================
+function createThead(doc: Document): HTMLTableSectionElement {
+  const thead = doc.createElement('thead');
 
-function validatePrintPages(printWin: Window, pages: PageElements[]): boolean {
-  const doc = printWin.document;
-  let valid = true;
+  const row1 = doc.createElement('tr');
+  row1.innerHTML = `
+    <th rowspan="2">日期时间</th>
+    <th colspan="3">药物治疗</th>
+    <th colspan="3">胃肠摄入</th>
+    <th colspan="2">排出物</th>
+    <th colspan="2">引流液</th>
+    <th rowspan="2">检查</th>
+    <th rowspan="2">治疗</th>
+    <th rowspan="2">基础护理</th>
+    <th rowspan="2">健康教育</th>
+    <th rowspan="2">护理记录</th>
+    <th rowspan="2">签名</th>
+  `;
 
-  // 1. 检查页数
-  const printPages = doc.querySelectorAll('.print-page');
-  if (printPages.length !== pages.length) {
-    console.error(`[HLJLD][validate] 页数不匹配: DOM ${printPages.length} vs pages ${pages.length}`);
-    valid = false;
+  const row2 = doc.createElement('tr');
+  row2.innerHTML = `
+    <th>名称</th><th>量/ml</th><th>途径</th>
+    <th>名称</th><th>量/ml</th><th>途径</th>
+    <th>名称</th><th>量/ml</th>
+    <th>名称</th><th>量/ml</th>
+  `;
+
+  thead.appendChild(row1);
+  thead.appendChild(row2);
+  return thead;
+}
+
+function createRemarkRow(
+  doc: Document,
+  remarkLines: string[],
+): HTMLTableRowElement {
+  const tr = doc.createElement('tr');
+  tr.className = 'print-remark-row';
+
+  const th = doc.createElement('th');
+  th.textContent = '备注';
+  tr.appendChild(th);
+
+  const td = doc.createElement('td');
+  td.colSpan = 16;
+
+  const wrapper = doc.createElement('div');
+  wrapper.className = 'print-remark-lines';
+
+  remarkLines.forEach(line => {
+    const div = doc.createElement('div');
+    div.className = 'print-remark-line';
+    div.textContent = line;
+    wrapper.appendChild(div);
+  });
+
+  td.appendChild(wrapper);
+  tr.appendChild(td);
+
+  return tr;
+}
+
+function createDisplayRowTr(
+  doc: Document,
+  row: HljldDisplayRow,
+): HTMLTableRowElement {
+  const tr = doc.createElement('tr');
+
+  if (!row.firstLine) {
+    tr.classList.add('continuation-row');
   }
+
+  tr.appendChild(cell(doc, row.timeText, 'time-cell'));
+  tr.appendChild(cell(doc, row.medication?.name || ''));
+  tr.appendChild(cell(doc, row.medication?.amount || ''));
+  tr.appendChild(cell(doc, row.medication?.route || ''));
+
+  tr.appendChild(cell(doc, row.enteral?.name || ''));
+  tr.appendChild(cell(doc, row.enteral?.amount || ''));
+  tr.appendChild(cell(doc, row.enteral?.route || ''));
+
+  tr.appendChild(cell(doc, row.output?.name || ''));
+  tr.appendChild(cell(doc, row.output?.amount || ''));
+
+  tr.appendChild(cell(doc, row.drain?.name || ''));
+  tr.appendChild(cell(doc, row.drain?.amount || ''));
+
+  tr.appendChild(cell(doc, row.examination || ''));
+  tr.appendChild(cell(doc, row.treatment || ''));
+  tr.appendChild(cell(doc, row.basicCare || ''));
+  tr.appendChild(cell(doc, row.healthEducation || ''));
+  tr.appendChild(cell(doc, row.nursingRecord || '', 'nursing-cell'));
+  tr.appendChild(cell(doc, row.signature || '', 'sign-cell'));
+
+  return tr;
+}
+
+function createSummaryTr(
+  doc: Document,
+  summary: HljldSummary,
+  summaryClassName: string,
+): HTMLTableRowElement {
+  const tr = doc.createElement('tr');
+  tr.className = `print-summary-row ${summaryClassName}`;
+
+  const td = doc.createElement('td');
+  td.colSpan = 17;
+
+  td.innerHTML = `
+    <section class="print-summary-panel">
+      <div class="print-summary-title-row">
+        <strong class="print-summary-title">${escapeHtml(summary.label)}</strong>
+        <span class="print-summary-period">${escapeHtml(summary.periodText || '')}</span>
+      </div>
+
+      <div class="print-summary-line">
+        <span>总入量：<span class="print-summary-strong">${formatAmount(summary.totalInput)} ml</span></span>
+        ${summary.inputItems.map(item => `
+          <span>${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span></span>
+        `).join('')}
+      </div>
+
+      <div class="print-summary-line">
+        <span>总出量：<span class="print-summary-strong">${formatAmount(summary.totalOutput)} ml</span></span>
+        <span>排出物：</span>
+        ${summary.outputItems.map(item => `
+          <span>${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span></span>
+        `).join('')}
+        <span>引流液：</span>
+        ${summary.drainItems.map(item => `
+          <span>${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span></span>
+        `).join('')}
+      </div>
+
+      <div class="print-summary-line">
+        <span>平衡量：<span class="print-summary-strong">${formatAmount(summary.balance)} ml</span></span>
+      </div>
+    </section>
+  `;
+
+  tr.appendChild(td);
+  return tr;
+}
+
+function cell(
+  doc: Document,
+  text: string,
+  className = '',
+): HTMLTableCellElement {
+  const td = doc.createElement('td');
+  if (className) {
+    td.className = className;
+  }
+  td.textContent = text;
+  return td;
+}
+
+function fillPageNumbers(pages: PageRefs[]): void {
+  const total = pages.length;
 
   pages.forEach((page, index) => {
-    const pageNum = index + 1;
+    const current = page.pageNoEl.querySelector('.page-current');
+    const totalNode = page.pageNoEl.querySelector('.page-total');
 
-    // 2. 检查 sheet 是否超出 A4
-    const sheet = page.sheet.querySelector('.sheet') as HTMLElement;
-    if (sheet) {
-      const sheetRect = sheet.getBoundingClientRect();
-      const a4HeightPx = 210 * 3.78;
-      if (sheetRect.height > a4HeightPx + 5) {
-        console.error(`[HLJLD][validate] 第${pageNum}页 sheet 高度 ${sheetRect.height.toFixed(1)}px 超出 A4 ${a4HeightPx.toFixed(1)}px`);
-        valid = false;
-      }
+    if (current) {
+      current.textContent = String(index + 1);
     }
 
-    // 3. 检查表格是否超出 table-slot
-    const tableSlot = page.sheet.querySelector('.print-table-slot') as HTMLElement;
-    const table = page.sheet.querySelector('.print-record-table') as HTMLElement;
-    if (tableSlot && table) {
-      if (table.scrollHeight > table.clientHeight + 2) {
-        console.error(`[HLJLD][validate] 第${pageNum}页 表格溢出 scrollHeight ${table.scrollHeight} > clientHeight ${table.clientHeight}`);
-        valid = false;
-      }
-    }
-
-    // 4. 检查每个 td 是否被裁剪
-    const cells = page.tbody.querySelectorAll('td');
-    cells.forEach((td, cellIndex) => {
-      const tdEl = td as HTMLElement;
-      if (tdEl.scrollHeight > tdEl.clientHeight + 1) {
-        console.error(`[HLJLD][validate] 第${pageNum}页 td#${cellIndex} 被裁剪 scrollHeight ${tdEl.scrollHeight} > clientHeight ${tdEl.clientHeight}`);
-        valid = false;
-      }
-    });
-
-    // 5. 检查页码
-    const pageCurrent = page.pageno.querySelector('.page-current');
-    const pageTotal = page.pageno.querySelector('.page-total');
-    if (!pageCurrent?.textContent || !pageTotal?.textContent) {
-      console.error(`[HLJLD][validate] 第${pageNum}页 缺少页码`);
-      valid = false;
-    }
-
-    // 6. 检查每页有 thead
-    if (!page.thead) {
-      console.error(`[HLJLD][validate] 第${pageNum}页 缺少 thead`);
-      valid = false;
-    }
-
-    // 7. 检查每页有 tfoot 备注
-    if (!page.tfoot) {
-      console.error(`[HLJLD][validate] 第${pageNum}页 缺少 tfoot`);
-      valid = false;
+    if (totalNode) {
+      totalNode.textContent = String(total);
     }
   });
-
-  return valid;
 }
 
-// ==================== 工具函数 ====================
+function validateGeneratedPages(pages: PageRefs[]): boolean {
+  let ok = true;
 
-function escapeHtml(text: string): string {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  for (const [pageIndex, page] of pages.entries()) {
+    if (!page.pageNoEl.textContent?.trim()) {
+      console.error('[HLJLD][print-validate] missing page number', pageIndex + 1);
+      ok = false;
+    }
+
+    if (!page.tfootEl.querySelector('.print-remark-row')) {
+      console.error('[HLJLD][print-validate] missing remark row', pageIndex + 1);
+      ok = false;
+    }
+
+    const cells = page.pageEl.querySelectorAll('td, th');
+
+    cells.forEach(cellNode => {
+      const el = cellNode as HTMLElement;
+      if (el.scrollHeight > el.clientHeight + 1) {
+        console.error('[HLJLD][print-validate] cell overflow', {
+          page: pageIndex + 1,
+          text: el.textContent?.slice(0, 40),
+        });
+        ok = false;
+      }
+    });
+  }
+
+  return ok;
+}
+
+function removeNodes(nodes: HTMLElement[]): void {
+  nodes.forEach(node => node.remove());
+}
+
+function formatAmount(value: number): string {
+  return new Intl.NumberFormat('zh-CN', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  }).format(value);
+}
+
+function escapeHtml(value: string): string {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+async function waitForPrintWindowReady(win: Window): Promise<void> {
+  await new Promise<void>(resolve => {
+    if (win.document.readyState === 'complete') {
+      resolve();
+      return;
+    }
+
+    const handler = () => {
+      win.removeEventListener('load', handler);
+      resolve();
+    };
+
+    win.addEventListener('load', handler);
+  });
+
+  const fonts = (win.document as Document & { fonts?: FontFaceSet }).fonts;
+  if (fonts?.ready) {
+    await fonts.ready;
+  }
+
+  await nextTwoFrames(win);
+}
+
+async function nextTwoFrames(win: Window): Promise<void> {
+  await new Promise<void>(resolve => {
+    win.requestAnimationFrame(() => {
+      win.requestAnimationFrame(() => resolve());
+    });
+  });
 }

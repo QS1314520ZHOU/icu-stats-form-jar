@@ -248,7 +248,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
     try {
       await printHljldRecord({
-        hostElement: this.elementRef.nativeElement,
+        vm: this.vm,
         remarkLines: this.defaultRemarkLines,
       });
     } catch (error) {
