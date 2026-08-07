@@ -56,10 +56,14 @@ public class HljldController {
             @RequestParam String pid,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date startTime,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date endTime) {
-        System.out.println("[HLJLD][nurse-records] pid=" + pid + ", startTime=" + startTime + ", endTime=" + endTime);
+        String pidTrimmed = pid != null ? pid.trim() : "";
+        System.out.println("[HLJLD][nurse-records] pid=" + pidTrimmed
+            + ", pidLength=" + pidTrimmed.length()
+            + ", startTime=" + startTime
+            + ", endTime=" + endTime);
         Query query = new Query();
         query.addCriteria(
-                Criteria.where("pid").is(pid)
+                Criteria.where("pid").is(pidTrimmed)
                         .and("time").gte(startTime).lt(endTime)
                         .and("valid").ne(false)
                         .and("desc").nin(null, ""));

@@ -110,10 +110,12 @@ public class HandoverReportController {
         tubeQuery.with(Sort.by(Sort.Direction.ASC, "startTime"));
         List<Document> tubeDocs = mongoTemplate.find(tubeQuery, Document.class, "tubeExe");
 
-        // draft
+        // draft - 使用当天范围查询，避免Date精确匹配时区问题
         Query draftQuery = new Query();
-        draftQuery.addCriteria(Criteria.where("departmentId").is(department != null ? department : departmentCode)
-            .and("reportDate").is(reportDate));
+        draftQuery.addCriteria(new Criteria().andOperator(
+            Criteria.where("departmentId").is(department != null ? department : departmentCode),
+            Criteria.where("reportDate").gte(dayStart).lt(dayEnd)
+        ));
         Document draftDoc = mongoTemplate.findOne(draftQuery, Document.class, "handoverDrafts");
 
         System.out.println("[HANDOVER] department=" + department + ", departmentCode=" + departmentCode
@@ -133,7 +135,9 @@ public class HandoverReportController {
         snapshot.put("tubeExecutions", normalizeDocuments(tubeDocs));
         snapshot.put("nurseRecords", normalizeDocuments(nurseDocs));
         snapshot.put("nurseAccounts", normalizeDocuments(acctDocs));
-        snapshot.put("draft", draftDoc != null ? normalizeUtcValue(draftDoc) : defaultDraft(department != null ? department : departmentCode, reportDate));
+        snapshot.put("draft", draftDoc != null
+            ? normalizeUtcValue(draftDoc)
+            : normalizeUtcValue(new Document(defaultDraft(department != null ? department : departmentCode, reportDate))));
 
         return ResponseEntity.ok(snapshot);
     }
@@ -155,9 +159,23 @@ public class HandoverReportController {
             return ResponseEntity.badRequest().body(error);
         }
 
-        // 查找现有草稿
+        // 计算当天范围
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        cal.setTime(reportDate);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date dayStart = cal.getTime();
+        cal.add(Calendar.DAY_OF_MONTH, 1);
+        Date dayEnd = cal.getTime();
+
+        // 查找现有草稿 - 使用当天范围查询
         Query query = new Query();
-        query.addCriteria(Criteria.where("departmentId").is(departmentId).and("reportDate").is(reportDate));
+        query.addCriteria(new Criteria().andOperator(
+            Criteria.where("departmentId").is(departmentId),
+            Criteria.where("reportDate").gte(dayStart).lt(dayEnd)
+        ));
         Document existing = mongoTemplate.findOne(query, Document.class, "handoverDrafts");
 
         // 版本检查
@@ -497,38 +515,57 @@ public class HandoverReportController {
 
     /**
      * 标准化患者文档，确保生成正确的 id 和 nurseRecordPid（十六进制字符串）。
+     * nurseRecordPid 优先级：nurseRecordPid > pid > patientId > id > _id
      */
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> normalizePatientDocuments(List<Document> docs) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Document doc : docs) {
             Map<String, Object> normalized = (Map<String, Object>) normalizeUtcValue(doc);
-            // 确保 id 字段是十六进制字符串
-            if (normalized.containsKey("_id") && !normalized.containsKey("id")) {
-                normalized.put("id", normalized.get("_id"));
-            }
-            // 生成 nurseRecordPid（如果不存在）
-            if (!normalized.containsKey("nurseRecordPid")) {
-                Object idValue = normalized.getOrDefault("id", normalized.get("_id"));
-                String pid = "";
-                if (idValue instanceof ObjectId) {
-                    pid = ((ObjectId) idValue).toHexString();
-                } else if (idValue != null) {
-                    pid = String.valueOf(idValue);
-                }
-                if (pid.isEmpty()) {
-                    // 尝试从 _id 获取
-                    Object rawId = doc.get("_id");
-                    if (rawId instanceof ObjectId) {
-                        pid = ((ObjectId) rawId).toHexString();
-                    } else if (rawId != null) {
-                        pid = String.valueOf(rawId);
-                    }
-                }
-                normalized.put("nurseRecordPid", pid);
-            }
+
+            // 确保 id 字段是可用字符串
+            String id = firstNonBlank(
+                stringValue(normalized.get("id")),
+                stringValue(normalized.get("_id"))
+            );
+            normalized.put("id", id);
+
+            // nurseRecordPid 优先级：nurseRecordPid > pid > patientId > id > _id
+            String nurseRecordPid = firstNonBlank(
+                stringValue(normalized.get("nurseRecordPid")),
+                stringValue(normalized.get("pid")),
+                stringValue(normalized.get("patientId")),
+                id
+            );
+            normalized.put("nurseRecordPid", nurseRecordPid);
+
             result.add(normalized);
         }
         return result;
+    }
+
+    /**
+     * 将对象转换为字符串，过滤无效值。
+     */
+    private String stringValue(Object value) {
+        if (value == null) return "";
+        String text = String.valueOf(value).trim();
+        if (text.isEmpty() || "null".equalsIgnoreCase(text)
+            || "undefined".equalsIgnoreCase(text) || "[object Object]".equals(text)) {
+            return "";
+        }
+        return text;
+    }
+
+    /**
+     * 返回第一个非空字符串。
+     */
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 }

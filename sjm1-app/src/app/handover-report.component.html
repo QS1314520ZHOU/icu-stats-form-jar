@@ -257,7 +257,7 @@
             <div class="dialog-error">{{ criticalSelectionError }}</div>
           }
           <div class="critical-patient-list">
-            @for (patient of snapshot?.patients; track patientKey(patient)) {
+            @for (patient of criticalCandidatePatients; track patientKey(patient)) {
               <label class="critical-patient-row" [class.disabled]="!hasPatientKey(patient)">
                 <input
                   type="checkbox"

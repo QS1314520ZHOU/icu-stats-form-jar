@@ -237,11 +237,60 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * 检查患者是否可选为危重患者。
+   * 排除当日入院/转入/出院/转出/死亡的患者。
+   */
+  isCriticalSelectable(patient: DepartmentPatient): boolean {
+    const ranges = this.vm?.ranges;
+    if (!ranges) return false;
+
+    const admissionShift = this.resolvePatientEventShift(patient.icuAdmissionTime, ranges);
+    const dischargeShift = this.resolvePatientEventShift(patient.icuDischargeTime, ranges);
+
+    const admissionType = String(patient.admissionType ?? '');
+    const dischargedType = String(patient.dischargedType ?? '');
+
+    const isSameDayAdmission = !!admissionShift && (admissionType.includes('入院') || admissionType.includes('转入'));
+    const isSameDayDischarge = !!dischargeShift && (
+      dischargedType.includes('出院') ||
+      dischargedType.includes('转出') ||
+      dischargedType.includes('转科') ||
+      dischargedType.includes('死亡')
+    );
+
+    return !isSameDayAdmission && !isSameDayDischarge;
+  }
+
+  /**
+   * 解析患者事件发生的班次。
+   */
+  private resolvePatientEventShift(time: string | undefined, ranges: Record<string, { start: Date; end: Date }>): string | null {
+    if (!time) return null;
+    const ts = new Date(time).getTime();
+    if (isNaN(ts)) return null;
+
+    for (const [key, range] of Object.entries(ranges)) {
+      if (ts >= range.start.getTime() && ts < range.end.getTime()) {
+        return key;
+      }
+    }
+    return null;
+  }
+
+  /**
    * 检查患者是否在临时选择中。
    */
   isPendingCriticalSelected(patient: DepartmentPatient): boolean {
     const id = this.patientKey(patient);
     return !!id && this.pendingCriticalPatientIds.has(id);
+  }
+
+  /**
+   * 获取可选为危重患者的患者列表。
+   * 排除当日入院/转入/出院/转出/死亡的患者。
+   */
+  get criticalCandidatePatients(): DepartmentPatient[] {
+    return this.snapshot?.patients?.filter(p => this.isCriticalSelectable(p)) ?? [];
   }
 
   /**
