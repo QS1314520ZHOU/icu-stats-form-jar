@@ -2,6 +2,7 @@ package com.smartcare.backend.controller;
 
 import java.util.*;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -125,7 +126,7 @@ public class HandoverReportController {
         snapshot.put("departmentId", department != null ? department : departmentCode);
         snapshot.put("departmentName", department != null ? department : departmentCode);
         snapshot.put("reportDate", reportDate);
-        snapshot.put("patients", normalizeDocuments(patientDocs));
+        snapshot.put("patients", normalizePatientDocuments(patientDocs));
         snapshot.put("bedsideRecords", normalizeDocuments(bedsideDocs));
         snapshot.put("bloodSugarRecords", normalizeDocuments(bsDocs));
         snapshot.put("orders", Collections.emptyList());
@@ -464,6 +465,7 @@ public class HandoverReportController {
     @SuppressWarnings("unchecked")
     private Object normalizeUtcValue(Object value) {
         if (value instanceof Date) return ((Date) value).toInstant().toString();
+        if (value instanceof ObjectId) return ((ObjectId) value).toHexString();
         if (value instanceof Document) {
             Map<String, Object> result = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : ((Document) value).entrySet()) {
@@ -490,6 +492,43 @@ public class HandoverReportController {
     private List<Map<String, Object>> normalizeDocuments(List<Document> docs) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Document doc : docs) result.add((Map<String, Object>) normalizeUtcValue(doc));
+        return result;
+    }
+
+    /**
+     * 标准化患者文档，确保生成正确的 id 和 nurseRecordPid（十六进制字符串）。
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> normalizePatientDocuments(List<Document> docs) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Document doc : docs) {
+            Map<String, Object> normalized = (Map<String, Object>) normalizeUtcValue(doc);
+            // 确保 id 字段是十六进制字符串
+            if (normalized.containsKey("_id") && !normalized.containsKey("id")) {
+                normalized.put("id", normalized.get("_id"));
+            }
+            // 生成 nurseRecordPid（如果不存在）
+            if (!normalized.containsKey("nurseRecordPid")) {
+                Object idValue = normalized.getOrDefault("id", normalized.get("_id"));
+                String pid = "";
+                if (idValue instanceof ObjectId) {
+                    pid = ((ObjectId) idValue).toHexString();
+                } else if (idValue != null) {
+                    pid = String.valueOf(idValue);
+                }
+                if (pid.isEmpty()) {
+                    // 尝试从 _id 获取
+                    Object rawId = doc.get("_id");
+                    if (rawId instanceof ObjectId) {
+                        pid = ((ObjectId) rawId).toHexString();
+                    } else if (rawId != null) {
+                        pid = String.valueOf(rawId);
+                    }
+                }
+                normalized.put("nurseRecordPid", pid);
+            }
+            result.add(normalized);
+        }
         return result;
     }
 }

@@ -189,7 +189,7 @@
                     {{ metric.category }}
                   </th>
                 }
-                <th scope="row">
+                <th scope="row" [attr.colspan]="!metric.category ? 2 : null">
                   <span>{{ metric.label }}</span>
                   @if (metric.warning) {
                     <span class="metric-warning no-print" [title]="metric.warning">数据待确认</span>

@@ -217,9 +217,15 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   /**
    * 统一获得患者唯一ID。
    * 优先使用id，其次使用_id。
+   * 防御性处理：过滤无效值如 [object Object]、undefined、null。
    */
   patientKey(patient: DepartmentPatient): string {
-    const id = String(patient.id ?? patient._id ?? '').trim();
+    const raw = patient.id ?? patient._id ?? '';
+    const id = String(raw).trim();
+    // 过滤无效值：[object Object]、undefined、null 的字符串形式
+    if (!id || id === '[object Object]' || id === 'undefined' || id === 'null') {
+      return '';
+    }
     return id;
   }
 
