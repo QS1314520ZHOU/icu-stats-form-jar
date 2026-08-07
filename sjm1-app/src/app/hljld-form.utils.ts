@@ -85,8 +85,6 @@ export function startOfNursingDay(selectedDate: Date): Date {
 export function endOfNursingDay(selectedDate: Date): Date {
   const d = startOfNursingDay(selectedDate);
   d.setDate(d.getDate() + 1);
-  // 使用减1毫秒确保右闭，但业务判断统一用左闭右开
-  d.setMilliseconds(d.getMilliseconds() - 1);
   return d;
 }
 
@@ -415,10 +413,10 @@ export function buildSummary(
   periodStart: Date,
   periodEnd: Date,
   drainNames: string[],
-  stayRange?: ActiveStayRange,
 ): HljldSummary {
-  // 使用传入的 stayRange，如果没有则重新计算
-  const stay = stayRange || resolveActiveStayRange(patient, periodStart, periodEnd);
+  // 关键：每个小结必须按自己的 periodStart/periodEnd 计算有效范围，
+  // 不能复用整个护理日的 stayRange。
+  const stay = resolveActiveStayRange(patient, periodStart, periodEnd);
   const actualStart = stay.effectiveStart;
   const actualEnd = stay.effectiveEnd;
   const startTs = actualStart.getTime();
@@ -842,8 +840,9 @@ export function buildTimeline(
   }
 
   // 出科等于或晚于次日07:00：正常时间轴处理，不出科总结
-  // 只有到次日07:00才展示日间小结 + 24小时总结
-  if (showNextMorningSummaries) {
+  // 只有到次日07:00才展示 shift + 24h 总结
+  // 但如果次日07:00前已出科，则不再追加这两个总结
+  if (showNextMorningSummaries && !hasDischarge) {
     result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });
     result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
   }

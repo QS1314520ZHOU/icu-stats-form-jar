@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Subject, ReplaySubject, firstValueFrom, interval } from 'rxjs';
+import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
-import { HljldFormService, LoadResult } from './hljld-form.service';
-import { ActiveStayRange, BedsideRecord, DrugExecution, HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimeGroup, HljldTimelineItem, HljldViewModel, NurseRecord, PatientContext } from './hljld-form.models';
+import { HljldFormService } from './hljld-form.service';
+import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext } from './hljld-form.models';
 import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 
@@ -16,11 +16,6 @@ import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 })
 export class HljldFormComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
-
-  /*
-   * ReplaySubject(1) 缓存最近一次加载触发。
-   * 即使患者 BehaviorSubject 同步发送，也不会丢失第一次加载事件。
-   */
   private readonly dateChange$ = new ReplaySubject<void>(1);
 
   patient: PatientContext = { pid: '' };
@@ -36,7 +31,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   private accountMap = new Map<string, string>();
   private readonly clockRefresh$ = interval(60_000);
 
-  /** 请求版本令牌，防止异步竞态覆盖新状态 */
+  /** 请求版本令牌，每次日期请求递增，防止异步竞态 */
   private loadVersion = 0;
 
   constructor(
@@ -46,18 +41,16 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    /*
-     * 必须先订阅加载触发流，再订阅 patient$。
-     * 否则 BehaviorSubject 同步发送缓存患者时，
-     * 第一次 dateChange$.next() 会发生在订阅建立之前。
-     */
     this.dateChange$.pipe(
       takeUntil(this.destroy$),
       map(() => ({ pid: this.patient.pid, date: new Date(this.selectedDate) })),
       filter(condition => !!condition.pid),
       distinctUntilChanged((a, b) => a.pid === b.pid && this.isSameLocalDate(a.date, b.date)),
       switchMap(condition => {
-        // 检查入科前/出科后状态
+        // 每次请求前递增版本号，防止同患者快速切换日期时旧结果覆盖
+        const requestVersion = ++this.loadVersion;
+        const dateKey = this.toDateString(condition.date);
+
         const stayRange = resolveActiveStayRange(this.patient, startOfNursingDay(condition.date), endOfNursingDay(condition.date));
         if (stayRange.beforeAdmission) {
           this.pageState = 'before-admission';
@@ -67,7 +60,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
           this.sourceError = '';
           this.error = '';
           this.cdr.markForCheck();
-          return [];
+          return EMPTY;
         }
         if (stayRange.afterDischarge) {
           this.pageState = 'after-discharge';
@@ -77,28 +70,25 @@ export class HljldFormComponent implements OnInit, OnDestroy {
           this.sourceError = '';
           this.error = '';
           this.cdr.markForCheck();
-          return [];
+          return EMPTY;
         }
         this.pageState = 'loading';
         this.cdr.markForCheck();
         return this.loadCondition(condition.pid, condition.date).pipe(
-          map(result => ({ result, pid: condition.pid })),
+          map(result => ({ result, pid: condition.pid, requestVersion, dateKey })),
         );
       }),
     ).subscribe({
-      next: async ({ result, pid }) => {
-        if (!result) return; // before-admission/after-discharge
-        if (pid !== this.patient.pid) return;
+      next: async ({ result, pid, requestVersion, dateKey }) => {
+        if (!result) { return; }
+        if (requestVersion !== this.loadVersion || pid !== this.patient.pid) { return; }
         this.sourceError = this.buildSourceError(result.statuses);
         this.source = result.data;
 
-        const currentVersion = this.loadVersion;
-
-        // 收集签名用户ID并批量查询账户
         const accountMap = await this.collectSignatures(result.data);
 
-        // 异步结果落地前检查版本和患者一致性
-        if (currentVersion !== this.loadVersion || pid !== this.patient.pid) { return; }
+        // 落地前再次校验版本、患者和日期
+        if (requestVersion !== this.loadVersion || pid !== this.patient.pid || dateKey !== this.toDateString(this.selectedDate)) { return; }
         this.source = result.data;
         this.accountMap = accountMap;
         this.vm = this.toViewModel(result.data, accountMap);
@@ -125,9 +115,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       },
     });
 
-    /*
-     * 加载流建立后，再订阅患者。
-     */
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
       if (!p) {
         this.resetPatientData();
@@ -146,7 +133,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       const previousPid = this.patient.pid;
       this.patient = this.toPatientContext(p);
       if (nextPid !== previousPid) {
-        // 患者切换：清空旧数据，设置默认日期，触发加载
         this.clearClinicalData();
         this.initializeDateForPatient();
         this.dateChange$.next();
@@ -164,7 +150,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     });
 
-    // 每分钟检查是否到达统计边界，重新构建时间轴
     this.clockRefresh$.pipe(
       takeUntil(this.destroy$),
       filter(() => !!this.patient.pid && !!this.source.bedside.length),
@@ -218,10 +203,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
 
-  /**
-   * 根据患者状态设置默认日期。
-   * 已出科患者默认选择入科当天；在科患者默认今天。
-   */
   private initializeDateForPatient(): void {
     if (this.patient.isDischarged) {
       const admissionTs = parsePatientDateTime(this.patient.admissionTime);
@@ -231,7 +212,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         this.dateInput = this.toDateString(this.selectedDate);
         return;
       }
-      // 入科时间无效，尝试出科日期
       const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
       if (Number.isFinite(dischargeTs)) {
         const discharge = new Date(dischargeTs);
@@ -239,7 +219,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         this.dateInput = this.toDateString(this.selectedDate);
         return;
       }
-      // 都无效时回退今天
       const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
       if (isDev) { console.warn('[HLJLD][init-date] discharged patient without valid admission/discharge time, fallback to today'); }
     }
@@ -282,36 +261,31 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const rangeStart = startOfNursingDay(this.selectedDate);
     const rangeEnd = endOfNursingDay(this.selectedDate);
     const dayBoundary = new Date(rangeStart); dayBoundary.setHours(17, 0, 0, 0);
-    const nextMorning = new Date(rangeStart); nextMorning.setDate(nextMorning.getDate() + 1); nextMorning.setHours(7, 0, 0, 0);
+    // nextMorning = endOfNursingDay = 次日07:00（不再减1ms）
+    const nextMorning = endOfNursingDay(this.selectedDate);
 
-    // 计算有效住院区间
-    const stayRange = resolveActiveStayRange(this.patient, rangeStart, rangeEnd);
+    // 护理日级有效区间：用于页面入科前/出科后判断、明细、引流项目收集
+    const nursingDayStay = resolveActiveStayRange(this.patient, rangeStart, rangeEnd);
 
-    // 使用有效区间构建明细
-    const rows = stayRange.hasValidRange
-      ? buildRows(source, stayRange.effectiveStart, stayRange.effectiveEnd, accountMap)
+    const rows = nursingDayStay.hasValidRange
+      ? buildRows(source, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd, accountMap)
       : [];
     const timeGroups = buildDisplayGroups(rows);
 
-    // 收集护理日内的引流项目名称（用于所有小结）
-    const drainNames = collectDrainNames(source.bedside, stayRange.effectiveStart, stayRange.effectiveEnd);
+    const drainNames = nursingDayStay.hasValidRange
+      ? collectDrainNames(source.bedside, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd)
+      : [];
 
-    // 构建三个标准小结
-    const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary, drainNames, stayRange);
-    const shiftSummary = buildSummary('shift', '日间小结', this.patient, source, dayBoundary, nextMorning, drainNames, stayRange);
-    const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning, drainNames, stayRange);
+    // 每个小结自行根据自己的 periodStart/periodEnd 计算有效范围
+    const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary, drainNames);
+    const shiftSummary = buildSummary('shift', '小结', this.patient, source, dayBoundary, nextMorning, drainNames);
+    const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning, drainNames);
 
-    // 出科总结
+    // 出科总结：出科时间在当前护理日 07:00 到次日07:00之间
     let dischargeSummary: HljldSummary | undefined;
     const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
-    if (Number.isFinite(dischargeTs)) {
-      const dischargeTime = new Date(dischargeTs);
-      // 出科时间在当前护理日有效区间内
-      if (dischargeTime.getTime() > stayRange.effectiveStart.getTime()
-        && dischargeTime.getTime() < nextMorning.getTime()
-        && dischargeTime.getTime() > rangeStart.getTime()) {
-        dischargeSummary = buildSummary('discharge', '出科总结', this.patient, source, stayRange.effectiveStart, dischargeTime, drainNames, stayRange);
-      }
+    if (Number.isFinite(dischargeTs) && dischargeTs > rangeStart.getTime() && dischargeTs < nextMorning.getTime()) {
+      dischargeSummary = buildSummary('discharge', '出科总结', this.patient, source, rangeStart, new Date(dischargeTs), drainNames);
     }
 
     const nowMs = Date.now();
@@ -324,7 +298,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       nextMorning.getTime(),
       nowMs,
       dischargeSummary,
-      stayRange.effectiveEnd.getTime(),
+      nursingDayStay.effectiveEnd.getTime(),
     );
 
     return {
@@ -344,9 +318,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     };
   }
 
-  /**
-   * 只收集 param_Yishi 的 editUser，批量查询账户信息。
-   */
   private async collectSignatures(source: HljldSourceData): Promise<Map<string, string>> {
     const userIds = source.bedside
       .filter(item => item.valid !== false && item.code === 'param_Yishi' && !!item.time && !!item.editUser)
@@ -361,7 +332,6 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const admissionTime = p?.admissionTime || p?.inTime || '';
     const dischargeTime = p?.dischargeTime || p?.outTime || '';
 
-    // 判断患者是否已出科
     const hasDischargedStatus = (
       p?.status === 'discharged' ||
       p?.patientStatus === 'discharged' ||
@@ -420,7 +390,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
   private buildSourceError(statuses: import('./hljld-form.service').SourceStatus[]): string {
     const errors = statuses.filter(s => s.status === 'error');
-    if (!errors.length) return '';
+    if (!errors.length) { return ''; }
     const names = errors.map(e => `${e.source}(${e.httpStatus || '?'})`).join('、');
     return `部分数据接口异常：${names}`;
   }
