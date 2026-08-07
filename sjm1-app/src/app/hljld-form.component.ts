@@ -166,12 +166,19 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  previousDay(): void { this.moveDate(-1); }
-  nextDay(): void { this.moveDate(1); }
+  previousDay(): void {
+    if (!this.canPreviousDay()) { return; }
+    this.moveDate(-1);
+  }
+
+  nextDay(): void {
+    if (!this.canNextDay()) { return; }
+    this.moveDate(1);
+  }
+
   today(): void {
-    this.selectedDate = new Date();
-    this.dateInput = this.toDateString(this.selectedDate);
-    this.dateChange$.next();
+    if (!this.canSelectToday()) { return; }
+    this.setSelectedDate(new Date());
   }
 
   openDatePicker(event: Event): void {
@@ -185,11 +192,11 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
   onDateInput(value: string): void {
     const date = new Date(`${value}T00:00:00`);
-    if (!Number.isNaN(date.getTime())) {
-      this.selectedDate = date;
-      this.dateInput = this.toDateString(date);
-      this.dateChange$.next();
+    if (Number.isNaN(date.getTime()) || !this.isSelectableDate(date)) {
+      this.restoreDateInput();
+      return;
     }
+    this.setSelectedDate(date);
   }
 
   isTodaySelected(): boolean {
@@ -198,45 +205,141 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     return s.getFullYear() === t.getFullYear() && s.getMonth() === t.getMonth() && s.getDate() === t.getDate();
   }
 
+  get minDateInput(): string | null {
+    const minimum = this.getMinimumSelectableDate();
+    return minimum ? this.toDateString(minimum) : null;
+  }
+
+  get maxDateInput(): string {
+    return this.toDateString(this.getMaximumSelectableDate());
+  }
+
+  canPreviousDay(): boolean {
+    const minimum = this.getMinimumSelectableDate();
+    if (!minimum) { return true; }
+    const previous = this.addCalendarDays(this.selectedDate, -1);
+    return this.compareCalendarDate(previous, minimum) >= 0;
+  }
+
+  canNextDay(): boolean {
+    const next = this.addCalendarDays(this.selectedDate, 1);
+    const maximum = this.getMaximumSelectableDate();
+    return this.compareCalendarDate(next, maximum) <= 0;
+  }
+
+  canSelectToday(): boolean {
+    const today = this.startOfCalendarDate(new Date());
+    const minimum = this.getMinimumSelectableDate();
+    const maximum = this.getMaximumSelectableDate();
+    return (!minimum || this.compareCalendarDate(today, minimum) >= 0)
+      && this.compareCalendarDate(today, maximum) <= 0;
+  }
+
   print(): void { window.print(); }
   trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
 
   private initializeDateForPatient(): void {
+    let targetDate = new Date();
+
     if (this.patient.isDischarged) {
       const admissionTs = parsePatientDateTime(this.patient.admissionTime);
+      const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
+
       if (Number.isFinite(admissionTs)) {
         const admission = new Date(admissionTs);
-        this.selectedDate = new Date(admission.getFullYear(), admission.getMonth(), admission.getDate());
-        this.dateInput = this.toDateString(this.selectedDate);
-        return;
+        targetDate = new Date(admission.getFullYear(), admission.getMonth(), admission.getDate());
+      } else if (Number.isFinite(dischargeTs)) {
+        targetDate = this.nursingDateForTimestamp(dischargeTs);
+      } else {
+        const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+        if (isDev) { console.warn('[HLJLD][init-date] discharged patient without valid admission/discharge time, fallback to today'); }
       }
-      const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
-      if (Number.isFinite(dischargeTs)) {
-        const discharge = new Date(dischargeTs);
-        this.selectedDate = new Date(discharge.getFullYear(), discharge.getMonth(), discharge.getDate());
-        this.dateInput = this.toDateString(this.selectedDate);
-        return;
-      }
-      const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
-      if (isDev) { console.warn('[HLJLD][init-date] discharged patient without valid admission/discharge time, fallback to today'); }
     }
-    this.selectedDate = new Date();
-    this.dateInput = this.toDateString(this.selectedDate);
+
+    this.selectedDate = targetDate;
+    this.clampSelectedDateToRange();
   }
 
   private moveDate(days: number): void {
-    const value = new Date(this.selectedDate);
-    value.setDate(value.getDate() + days);
-    this.selectedDate = value;
-    this.dateInput = this.toDateString(value);
+    const target = this.addCalendarDays(this.selectedDate, days);
+    if (!this.isSelectableDate(target)) { return; }
+    this.setSelectedDate(target);
+  }
+
+  private setSelectedDate(date: Date): void {
+    this.selectedDate = this.startOfCalendarDate(date);
+    this.dateInput = this.toDateString(this.selectedDate);
     this.dateChange$.next();
   }
 
   private toDateString(date: Date): string {
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
+  private getMinimumSelectableDate(): Date | null {
+    const admissionTs = parsePatientDateTime(this.patient.admissionTime);
+    if (!Number.isFinite(admissionTs)) { return null; }
+    return this.nursingDateForTimestamp(admissionTs);
+  }
+
+  private getMaximumSelectableDate(): Date {
+    if (this.patient.isDischarged) {
+      const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
+      if (Number.isFinite(dischargeTs)) {
+        return this.nursingDateForTimestamp(dischargeTs);
+      }
+    }
+    return this.startOfCalendarDate(new Date());
+  }
+
+  private nursingDateForTimestamp(timestamp: number): Date {
+    const value = new Date(timestamp);
+    const nursingDate = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    if (value.getHours() < 7) {
+      nursingDate.setDate(nursingDate.getDate() - 1);
+    }
+    return nursingDate;
+  }
+
+  private startOfCalendarDate(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  private addCalendarDays(date: Date, days: number): Date {
+    const result = this.startOfCalendarDate(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  }
+
+  private compareCalendarDate(left: Date, right: Date): number {
+    return this.startOfCalendarDate(left).getTime() - this.startOfCalendarDate(right).getTime();
+  }
+
+  private isSelectableDate(date: Date): boolean {
+    const minimum = this.getMinimumSelectableDate();
+    const maximum = this.getMaximumSelectableDate();
+    if (minimum && this.compareCalendarDate(date, minimum) < 0) { return false; }
+    return this.compareCalendarDate(date, maximum) <= 0;
+  }
+
+  private restoreDateInput(): void {
+    this.dateInput = this.toDateString(this.selectedDate);
+    this.cdr.markForCheck();
+  }
+
+  private clampSelectedDateToRange(): void {
+    const minimum = this.getMinimumSelectableDate();
+    const maximum = this.getMaximumSelectableDate();
+    if (minimum && this.compareCalendarDate(this.selectedDate, minimum) < 0) {
+      this.selectedDate = new Date(minimum);
+    }
+    if (this.compareCalendarDate(this.selectedDate, maximum) > 0) {
+      this.selectedDate = new Date(maximum);
+    }
+    this.dateInput = this.toDateString(this.selectedDate);
   }
 
   private isSameLocalDate(a: Date, b: Date): boolean {
@@ -332,13 +435,32 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const admissionTime = p?.admissionTime || p?.inTime || '';
     const dischargeTime = p?.dischargeTime || p?.outTime || '';
 
+    // 状态标准化：兼容多种出科状态文本
+    const status = String(p?.status ?? p?.patientStatus ?? '').trim().toLowerCase();
     const hasDischargedStatus = (
-      p?.status === 'discharged' ||
-      p?.patientStatus === 'discharged' ||
-      p?.outTime ||
-      p?.dischargeTime
+      status === 'discharged' ||
+      status === '已出科' ||
+      status === '出科' ||
+      status === '转出' ||
+      status === '已转出' ||
+      !!p?.outTime ||
+      !!p?.dischargeTime
     );
-    const isDischarged = !!hasDischargedStatus || !!dischargeTime;
+
+    // 出科判断必须依赖有效出科时间，不能只依赖状态文字
+    const dischargeTs = parsePatientDateTime(dischargeTime);
+    const isDischarged = hasDischargedStatus && Number.isFinite(dischargeTs);
+
+    // 开发环境下记录患者状态字段，便于调试
+    const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+    if (isDev && hasDischargedStatus && !isDischarged) {
+      console.warn('[HLJLD][patient-context] patient status indicates discharged but no valid dischargeTime:', {
+        status: p?.status,
+        patientStatus: p?.patientStatus,
+        outTime: p?.outTime,
+        dischargeTime: p?.dischargeTime,
+      });
+    }
 
     return {
       pid: getSmartCarePatientPid(p),

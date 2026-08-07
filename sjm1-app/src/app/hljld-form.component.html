@@ -1,20 +1,63 @@
-<section class="hljld-shell" *ngIf="vm as form; else statePanel">
-  <header class="toolbar no-print" aria-label="护理记录单工具栏">
+<section class="hljld-shell">
+  <header class="toolbar no-print" aria-label="护理记录日期工具栏">
     <div class="date-tools" role="group" aria-label="护理记录日期选择">
-      <button type="button" class="nav-arrow nav-arrow-left" (click)="previousDay()" aria-label="前一天" title="前一天">‹</button>
+      <button
+        type="button"
+        class="nav-arrow nav-arrow-left"
+        (click)="previousDay()"
+        [disabled]="!canPreviousDay()"
+        aria-label="前一天"
+        title="前一天"
+      >‹</button>
+
       <label class="date-picker">
         <span class="sr-only">选择护理记录日期</span>
-        <input type="date" [value]="dateInput" aria-label="选择护理记录日期" title="选择护理记录日期" (click)="openDatePicker($event)" (keydown.enter)="openDatePicker($event)" (keydown.space)="openDatePicker($event)" (change)="onDateInput($any($event.target).value)" />
+        <input
+          type="date"
+          [value]="dateInput"
+          [min]="minDateInput"
+          [max]="maxDateInput"
+          aria-label="选择护理记录日期"
+          title="选择护理记录日期"
+          (click)="openDatePicker($event)"
+          (keydown.enter)="openDatePicker($event)"
+          (keydown.space)="openDatePicker($event)"
+          (change)="onDateInput($any($event.target).value)"
+        />
       </label>
-      <button type="button" class="nav-arrow nav-arrow-right" (click)="nextDay()" aria-label="后一天" title="后一天">›</button>
-      <button type="button" class="today-button" [class.today-button-active]="isTodaySelected()" (click)="today()">今天</button>
+
+      <button
+        type="button"
+        class="nav-arrow nav-arrow-right"
+        (click)="nextDay()"
+        [disabled]="!canNextDay()"
+        aria-label="后一天"
+        title="后一天"
+      >›</button>
+
+      <button
+        type="button"
+        class="today-button"
+        [class.today-button-active]="isTodaySelected()"
+        [disabled]="!canSelectToday()"
+        (click)="today()"
+      >今天</button>
     </div>
+
     <div class="toolbar-spacer"></div>
+
     <div *ngIf="sourceError" class="source-warning" role="status">{{ sourceError }}</div>
-    <button type="button" class="print-button" (click)="print()">打印</button>
+
+    <button
+      type="button"
+      class="print-button"
+      [disabled]="!vm"
+      (click)="print()"
+    >打印</button>
   </header>
 
-  <main class="paper">
+  <ng-container *ngIf="vm as form; else statePanel">
+    <main class="paper">
     <h1>重钢总医院重症医学科护理记录单</h1>
     <div class="patient-strip">
       <span>床号：<b>{{ form.patient.bedNo || '—' }}</b></span>
@@ -133,7 +176,8 @@
         </tbody>
       </table>
     </div>
-  </main>
+    </main>
+  </ng-container>
 </section>
 
 <ng-template #summaryTemplate let-summary="summary">

@@ -748,8 +748,22 @@ export function buildTimeline(
 
   const sortedGroups = [...groups].sort((a, b) => a.timestamp - b.timestamp);
 
-  const showDaySummary = nowMs >= dayBoundaryMs;
-  const showNextMorningSummaries = nowMs >= nextMorningBoundaryMs;
+  // 日间小结显示条件：必须有效且时间段大于0分钟
+  const showDaySummary =
+    daySummary.available
+    && daySummary.periodEnd > daySummary.periodStart
+    && nowMs >= dayBoundaryMs;
+
+  // 次日07:00小结和24小时总结显示条件
+  const showShiftSummary =
+    shiftSummary.available
+    && shiftSummary.periodEnd > shiftSummary.periodStart
+    && nowMs >= nextMorningBoundaryMs;
+
+  const showFullDaySummary =
+    fullDaySummary.available
+    && fullDaySummary.periodEnd > fullDaySummary.periodStart
+    && nowMs >= nextMorningBoundaryMs;
 
   // 出科时间点
   const dischargeMs = dischargeSummary ? dischargeSummary.periodEnd : 0;
@@ -842,9 +856,13 @@ export function buildTimeline(
   // 出科等于或晚于次日07:00：正常时间轴处理，不出科总结
   // 只有到次日07:00才展示 shift + 24h 总结
   // 但如果次日07:00前已出科，则不再追加这两个总结
-  if (showNextMorningSummaries && !hasDischarge) {
-    result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });
-    result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
+  if (!hasDischarge) {
+    if (showShiftSummary) {
+      result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });
+    }
+    if (showFullDaySummary) {
+      result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
+    }
   }
 
   return result;
