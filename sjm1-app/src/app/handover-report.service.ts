@@ -1,7 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, catchError, map, throwError } from 'rxjs';
-import { DepartmentDailySnapshot, DraftConflictError, HandoverDraft, NurseRecord } from './handover-report.models';
+import {
+  DepartmentDailySnapshot,
+  DraftConflictError,
+  DraftPatchRequest,
+  HandoverDraft,
+  NurseRecord,
+} from './handover-report.models';
 
 @Injectable()
 export class HandoverReportService {
@@ -44,10 +50,12 @@ export class HandoverReportService {
       );
   }
 
-  saveDraft(draft: HandoverDraft): Observable<HandoverDraft> {
-    return this.http.put<HandoverDraft>(`${this.baseUrl}/draft`, draft, {
-      headers: { 'If-Match': String(draft.version) },
-    }).pipe(
+  /**
+   * 字段级补丁保存，支持并发修改。
+   * 不再使用整份PUT覆盖。
+   */
+  patchDraft(request: DraftPatchRequest): Observable<HandoverDraft> {
+    return this.http.patch<HandoverDraft>(`${this.baseUrl}/draft`, request).pipe(
       catchError((error: HttpErrorResponse) => {
         if (error.status === 409 || error.status === 412) {
           return throwError(() => new DraftConflictError(error.error?.latestDraft));
@@ -55,6 +63,188 @@ export class HandoverReportService {
         return throwError(() => error);
       }),
     );
+  }
+
+  /**
+   * 替换危重患者选择。
+   */
+  replaceCriticalPatients(request: {
+    departmentId: string;
+    reportDate: string;
+    baseVersion: number;
+    patientIds: string[];
+    selectedBy: string;
+  }): Observable<HandoverDraft> {
+    return this.patchDraft({
+      departmentId: request.departmentId,
+      reportDate: request.reportDate,
+      baseVersion: request.baseVersion,
+      changes: [
+        {
+          type: 'replaceCriticalPatients',
+          patientIds: request.patientIds,
+          selectedBy: request.selectedBy,
+        },
+      ],
+    });
+  }
+
+  /**
+   * 设置患者交班文本。
+   */
+  setPatientText(request: {
+    departmentId: string;
+    reportDate: string;
+    baseVersion: number;
+    rowKey: string;
+    shift: 'day' | 'evening' | 'night';
+    value: string;
+    expectedFieldVersion?: number;
+  }): Observable<HandoverDraft> {
+    return this.patchDraft({
+      departmentId: request.departmentId,
+      reportDate: request.reportDate,
+      baseVersion: request.baseVersion,
+      changes: [
+        {
+          type: 'setPatientText',
+          rowKey: request.rowKey,
+          shift: request.shift,
+          value: request.value,
+          expectedFieldVersion: request.expectedFieldVersion,
+        },
+      ],
+    });
+  }
+
+  /**
+   * 设置手工安全指标。
+   */
+  setManualMetric(request: {
+    departmentId: string;
+    reportDate: string;
+    baseVersion: number;
+    metricKey: string;
+    shift: 'day' | 'evening' | 'night';
+    value: string;
+    expectedFieldVersion?: number;
+  }): Observable<HandoverDraft> {
+    return this.patchDraft({
+      departmentId: request.departmentId,
+      reportDate: request.reportDate,
+      baseVersion: request.baseVersion,
+      changes: [
+        {
+          type: 'setManualMetric',
+          metricKey: request.metricKey,
+          shift: request.shift,
+          value: request.value,
+          expectedFieldVersion: request.expectedFieldVersion,
+        },
+      ],
+    });
+  }
+
+  /**
+   * 设置班次护士签名。
+   */
+  setShiftSignature(request: {
+    departmentId: string;
+    reportDate: string;
+    baseVersion: number;
+    shift: 'day' | 'evening' | 'night';
+    accountId: string;
+    expectedFieldVersion?: number;
+  }): Observable<HandoverDraft> {
+    return this.patchDraft({
+      departmentId: request.departmentId,
+      reportDate: request.reportDate,
+      baseVersion: request.baseVersion,
+      changes: [
+        {
+          type: 'setShiftSignature',
+          shift: request.shift,
+          accountId: request.accountId,
+          expectedFieldVersion: request.expectedFieldVersion,
+        },
+      ],
+    });
+  }
+
+  /**
+   * 设置护士长签名。
+   */
+  setHeadNurseSignature(request: {
+    departmentId: string;
+    reportDate: string;
+    baseVersion: number;
+    accountId: string;
+    expectedFieldVersion?: number;
+  }): Observable<HandoverDraft> {
+    return this.patchDraft({
+      departmentId: request.departmentId,
+      reportDate: request.reportDate,
+      baseVersion: request.baseVersion,
+      changes: [
+        {
+          type: 'setHeadNurseSignature',
+          accountId: request.accountId,
+          expectedFieldVersion: request.expectedFieldVersion,
+        },
+      ],
+    });
+  }
+
+  /**
+   * 设置备注。
+   */
+  setRemark(request: {
+    departmentId: string;
+    reportDate: string;
+    baseVersion: number;
+    shift: 'day' | 'evening' | 'night';
+    value: string;
+    expectedFieldVersion?: number;
+  }): Observable<HandoverDraft> {
+    return this.patchDraft({
+      departmentId: request.departmentId,
+      reportDate: request.reportDate,
+      baseVersion: request.baseVersion,
+      changes: [
+        {
+          type: 'setRemark',
+          shift: request.shift,
+          value: request.value,
+          expectedFieldVersion: request.expectedFieldVersion,
+        },
+      ],
+    });
+  }
+
+  /**
+   * 设置"其它"内容。
+   */
+  setOtherText(request: {
+    departmentId: string;
+    reportDate: string;
+    baseVersion: number;
+    shift: 'day' | 'evening' | 'night';
+    value: string;
+    expectedFieldVersion?: number;
+  }): Observable<HandoverDraft> {
+    return this.patchDraft({
+      departmentId: request.departmentId,
+      reportDate: request.reportDate,
+      baseVersion: request.baseVersion,
+      changes: [
+        {
+          type: 'setOtherText',
+          shift: request.shift,
+          value: request.value,
+          expectedFieldVersion: request.expectedFieldVersion,
+        },
+      ],
+    });
   }
 
   private normalizeArray<T>(response: T[] | { data?: T[] } | null | undefined): T[] {

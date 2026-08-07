@@ -6,6 +6,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -136,19 +137,32 @@ public class HandoverReportController {
         return ResponseEntity.ok(snapshot);
     }
 
-    @PutMapping("/draft")
-    public ResponseEntity<?> saveDraft(@RequestBody Map<String, Object> body) {
+    /**
+     * 字段级补丁保存，支持并发修改。
+     * 不再使用整份PUT覆盖。
+     */
+    @PatchMapping("/draft")
+    public ResponseEntity<?> patchDraft(@RequestBody Map<String, Object> body) {
         String departmentId = String.valueOf(body.getOrDefault("departmentId", ""));
         Date reportDate = parseDate(body.get("reportDate"));
-        Integer requestVersion = (Integer) body.getOrDefault("version", 0);
+        Integer baseVersion = (Integer) body.getOrDefault("baseVersion", 0);
+        List<Map<String, Object>> changes = (List<Map<String, Object>>) body.getOrDefault("changes", Collections.emptyList());
 
+        if (changes.isEmpty()) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", "未提供任何修改");
+            return ResponseEntity.badRequest().body(error);
+        }
+
+        // 查找现有草稿
         Query query = new Query();
         query.addCriteria(Criteria.where("departmentId").is(departmentId).and("reportDate").is(reportDate));
         Document existing = mongoTemplate.findOne(query, Document.class, "handoverDrafts");
 
+        // 版本检查
         if (existing != null) {
             Integer currentVersion = (Integer) existing.getOrDefault("version", 0);
-            if (requestVersion != null && !requestVersion.equals(currentVersion)) {
+            if (baseVersion != null && !baseVersion.equals(currentVersion)) {
                 Map<String, Object> error = new LinkedHashMap<>();
                 error.put("error", "版本冲突，请刷新后合并");
                 error.put("latestDraft", normalizeUtcValue(existing));
@@ -156,16 +170,271 @@ public class HandoverReportController {
             }
         }
 
-        body.put("version", (existing != null ? (Integer) existing.getOrDefault("version", 0) : 0) + 1);
-        body.put("updatedAt", new Date());
-
-        if (existing != null) {
-            mongoTemplate.save(body, "handoverDrafts");
-        } else {
-            mongoTemplate.insert(body, "handoverDrafts");
+        // 如果草稿不存在，创建默认草稿
+        if (existing == null) {
+            existing = new Document(defaultDraft(departmentId, reportDate));
+            mongoTemplate.insert(existing, "handoverDrafts");
         }
 
-        return ResponseEntity.ok(body);
+        // 应用所有变更
+        Update update = new Update();
+        Map<String, Object> fieldVersions = (Map<String, Object>) existing.getOrDefault("fieldVersions", new LinkedHashMap<>());
+        boolean hasConflict = false;
+        String conflictField = null;
+
+        for (Map<String, Object> change : changes) {
+            String type = String.valueOf(change.get("type"));
+
+            switch (type) {
+                case "replaceCriticalPatients":
+                    applyReplaceCriticalPatients(update, change);
+                    break;
+                case "setPatientText":
+                    if (applySetPatientText(update, change, fieldVersions)) {
+                        hasConflict = true;
+                        conflictField = "patientText." + change.get("rowKey") + "." + change.get("shift");
+                    }
+                    break;
+                case "setManualMetric":
+                    if (applySetManualMetric(update, change, fieldVersions)) {
+                        hasConflict = true;
+                        conflictField = "manualMetrics." + change.get("metricKey") + "." + change.get("shift");
+                    }
+                    break;
+                case "setShiftSignature":
+                    if (applySetShiftSignature(update, change, fieldVersions)) {
+                        hasConflict = true;
+                        conflictField = "shiftSignatures." + change.get("shift");
+                    }
+                    break;
+                case "setHeadNurseSignature":
+                    if (applySetHeadNurseSignature(update, change, fieldVersions)) {
+                        hasConflict = true;
+                        conflictField = "headNurseSignature";
+                    }
+                    break;
+                case "setRemark":
+                    if (applySetRemark(update, change, fieldVersions)) {
+                        hasConflict = true;
+                        conflictField = "remarks." + change.get("shift");
+                    }
+                    break;
+                case "setOtherText":
+                    if (applySetOtherText(update, change, fieldVersions)) {
+                        hasConflict = true;
+                        conflictField = "otherTexts." + change.get("shift");
+                    }
+                    break;
+                default:
+                    Map<String, Object> error = new LinkedHashMap<>();
+                    error.put("error", "未知的变更类型: " + type);
+                    return ResponseEntity.badRequest().body(error);
+            }
+        }
+
+        // 如果有字段级冲突，返回409
+        if (hasConflict) {
+            Document latest = mongoTemplate.findOne(query, Document.class, "handoverDrafts");
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("error", "字段已被其他用户修改: " + conflictField);
+            error.put("latestDraft", normalizeUtcValue(latest));
+            return ResponseEntity.status(409).body(error);
+        }
+
+        // 递增全局版本号
+        update.inc("version", 1);
+        update.set("updatedAt", new Date());
+        update.set("fieldVersions", fieldVersions);
+
+        // 执行原子更新
+        mongoTemplate.updateFirst(query, update, "handoverDrafts");
+
+        // 返回更新后的草稿
+        Document updated = mongoTemplate.findOne(query, Document.class, "handoverDrafts");
+        return ResponseEntity.ok(normalizeUtcValue(updated));
+    }
+
+    /**
+     * 替换危重患者选择。
+     */
+    @SuppressWarnings("unchecked")
+    private void applyReplaceCriticalPatients(Update update, Map<String, Object> change) {
+        List<String> patientIds = (List<String>) change.getOrDefault("patientIds", Collections.emptyList());
+        String selectedBy = String.valueOf(change.getOrDefault("selectedBy", ""));
+
+        List<Map<String, Object>> criticalPatients = new ArrayList<>();
+        for (String patientId : patientIds) {
+            Map<String, Object> selection = new LinkedHashMap<>();
+            selection.put("patientId", patientId);
+            selection.put("selectedAt", new Date());
+            selection.put("selectedBy", selectedBy);
+            criticalPatients.add(selection);
+        }
+
+        update.set("criticalPatients", criticalPatients);
+    }
+
+    /**
+     * 设置患者交班文本。
+     * 返回true表示有字段级冲突。
+     */
+    @SuppressWarnings("unchecked")
+    private boolean applySetPatientText(Update update, Map<String, Object> change, Map<String, Object> fieldVersions) {
+        String rowKey = String.valueOf(change.get("rowKey"));
+        String shift = String.valueOf(change.get("shift"));
+        String value = String.valueOf(change.getOrDefault("value", ""));
+        Integer expectedVersion = (Integer) change.get("expectedFieldVersion");
+
+        String fieldPath = "patientTexts." + rowKey + "." + shift;
+        Integer currentFieldVersion = (Integer) fieldVersions.getOrDefault(fieldPath, 0);
+
+        // 字段级版本检查
+        if (expectedVersion != null && !expectedVersion.equals(currentFieldVersion)) {
+            return true;
+        }
+
+        // 使用MongoDB嵌套路径更新
+        update.set(fieldPath, value);
+
+        // 递增字段版本
+        fieldVersions.put(fieldPath, currentFieldVersion + 1);
+
+        return false;
+    }
+
+    /**
+     * 设置手工安全指标。
+     * 返回true表示有字段级冲突。
+     */
+    @SuppressWarnings("unchecked")
+    private boolean applySetManualMetric(Update update, Map<String, Object> change, Map<String, Object> fieldVersions) {
+        String metricKey = String.valueOf(change.get("metricKey"));
+        String shift = String.valueOf(change.get("shift"));
+        String value = String.valueOf(change.getOrDefault("value", ""));
+        Integer expectedVersion = (Integer) change.get("expectedFieldVersion");
+
+        String fieldPath = "manualMetrics." + metricKey + "." + shift;
+        Integer currentFieldVersion = (Integer) fieldVersions.getOrDefault(fieldPath, 0);
+
+        // 字段级版本检查
+        if (expectedVersion != null && !expectedVersion.equals(currentFieldVersion)) {
+            return true;
+        }
+
+        // 使用MongoDB嵌套路径更新
+        update.set(fieldPath, value);
+
+        // 递增字段版本
+        fieldVersions.put(fieldPath, currentFieldVersion + 1);
+
+        return false;
+    }
+
+    /**
+     * 设置班次护士签名。
+     * 返回true表示有字段级冲突。
+     */
+    @SuppressWarnings("unchecked")
+    private boolean applySetShiftSignature(Update update, Map<String, Object> change, Map<String, Object> fieldVersions) {
+        String shift = String.valueOf(change.get("shift"));
+        String accountId = String.valueOf(change.getOrDefault("accountId", ""));
+        Integer expectedVersion = (Integer) change.get("expectedFieldVersion");
+
+        String fieldPath = "shiftSignatures." + shift;
+        Integer currentFieldVersion = (Integer) fieldVersions.getOrDefault(fieldPath, 0);
+
+        // 字段级版本检查
+        if (expectedVersion != null && !expectedVersion.equals(currentFieldVersion)) {
+            return true;
+        }
+
+        // 使用MongoDB嵌套路径更新
+        update.set(fieldPath, accountId);
+
+        // 递增字段版本
+        fieldVersions.put(fieldPath, currentFieldVersion + 1);
+
+        return false;
+    }
+
+    /**
+     * 设置护士长签名。
+     * 返回true表示有字段级冲突。
+     */
+    @SuppressWarnings("unchecked")
+    private boolean applySetHeadNurseSignature(Update update, Map<String, Object> change, Map<String, Object> fieldVersions) {
+        String accountId = String.valueOf(change.getOrDefault("accountId", ""));
+        Integer expectedVersion = (Integer) change.get("expectedFieldVersion");
+
+        String fieldPath = "headNurseSignature";
+        Integer currentFieldVersion = (Integer) fieldVersions.getOrDefault(fieldPath, 0);
+
+        // 字段级版本检查
+        if (expectedVersion != null && !expectedVersion.equals(currentFieldVersion)) {
+            return true;
+        }
+
+        // 使用MongoDB嵌套路径更新
+        update.set(fieldPath, accountId);
+
+        // 递增字段版本
+        fieldVersions.put(fieldPath, currentFieldVersion + 1);
+
+        return false;
+    }
+
+    /**
+     * 设置备注。
+     * 返回true表示有字段级冲突。
+     */
+    @SuppressWarnings("unchecked")
+    private boolean applySetRemark(Update update, Map<String, Object> change, Map<String, Object> fieldVersions) {
+        String shift = String.valueOf(change.get("shift"));
+        String value = String.valueOf(change.getOrDefault("value", ""));
+        Integer expectedVersion = (Integer) change.get("expectedFieldVersion");
+
+        String fieldPath = "remarks." + shift;
+        Integer currentFieldVersion = (Integer) fieldVersions.getOrDefault(fieldPath, 0);
+
+        // 字段级版本检查
+        if (expectedVersion != null && !expectedVersion.equals(currentFieldVersion)) {
+            return true;
+        }
+
+        // 使用MongoDB嵌套路径更新
+        update.set(fieldPath, value);
+
+        // 递增字段版本
+        fieldVersions.put(fieldPath, currentFieldVersion + 1);
+
+        return false;
+    }
+
+    /**
+     * 设置"其它"内容。
+     * 返回true表示有字段级冲突。
+     */
+    @SuppressWarnings("unchecked")
+    private boolean applySetOtherText(Update update, Map<String, Object> change, Map<String, Object> fieldVersions) {
+        String shift = String.valueOf(change.get("shift"));
+        String value = String.valueOf(change.getOrDefault("value", ""));
+        Integer expectedVersion = (Integer) change.get("expectedFieldVersion");
+
+        String fieldPath = "otherTexts." + shift;
+        Integer currentFieldVersion = (Integer) fieldVersions.getOrDefault(fieldPath, 0);
+
+        // 字段级版本检查
+        if (expectedVersion != null && !expectedVersion.equals(currentFieldVersion)) {
+            return true;
+        }
+
+        // 使用MongoDB嵌套路径更新
+        update.set(fieldPath, value);
+
+        // 递增字段版本
+        fieldVersions.put(fieldPath, currentFieldVersion + 1);
+
+        return false;
     }
 
     private Map<String, Object> defaultDraft(String departmentId, Date reportDate) {
@@ -174,9 +443,12 @@ public class HandoverReportController {
         draft.put("reportDate", reportDate);
         draft.put("version", 0);
         draft.put("criticalPatients", Collections.emptyList());
-        draft.put("patientTextOverrides", Collections.emptyMap());
+        draft.put("patientTexts", Collections.emptyMap());
         draft.put("manualMetrics", Collections.emptyMap());
         draft.put("shiftSignatures", Collections.emptyMap());
+        draft.put("remarks", Collections.emptyMap());
+        draft.put("otherTexts", Collections.emptyMap());
+        draft.put("fieldVersions", Collections.emptyMap());
         return draft;
     }
 

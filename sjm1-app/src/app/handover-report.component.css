@@ -1,312 +1,717 @@
-:host {
-  --hljld-font: "Microsoft YaHei", "Noto Sans SC", "PingFang SC", Arial, sans-serif;
-  display: block;
-  width: 100%;
-  min-width: 0;
-  min-height: 100%;
-  box-sizing: border-box;
-  color: #222;
-  background: #f3f5f7;
-  font-family: var(--hljld-font);
+/* ==================== 基础样式 ==================== */
+
+.handover-report {
+  padding: 16px;
+  font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
 }
 
-.handover-shell { width: 100%; min-width: 0; padding: 0; box-sizing: border-box; }
+/* ==================== 工具栏 ==================== */
 
-/* Toolbar */
-.toolbar { width: 100%; max-width: none; min-height: 52px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 8px 12px; background: #fff; border-top: 0; border-right: 0; border-left: 0; border-bottom: 1px solid #dfe3e8; border-radius: 0; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
-.date-tools { display: inline-flex; align-items: stretch; flex: 0 0 auto; gap: 0; min-width: 0; }
-.nav-arrow { flex: 0 0 36px; width: 36px; height: 36px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: 0; border: 1px solid #ccd3da; background: #fff; color: #333; font-size: 20px; line-height: 1; cursor: pointer; }
-.nav-arrow:first-child { border-radius: 6px 0 0 6px; }
-.nav-arrow:nth-of-type(2) { border-radius: 0 6px 6px 0; }
-.nav-arrow:hover { background: #f6f8fa; }
-.date-tools input[type="date"] { height: 36px; box-sizing: border-box; border: 1px solid #ccd3da; border-left: 0; border-right: 0; padding: 0 8px; font: inherit; text-align: center; }
-.today-button { flex: 0 0 auto; height: 36px; box-sizing: border-box; margin-left: 8px; padding: 0 18px; border: 1px solid #ccd3da; border-radius: 6px; background: #fff; color: #222; font: inherit; cursor: pointer; }
-.toolbar-spacer { flex: 1 1 auto; min-width: 12px; }
-.save-state { font-size: 12px; color: #666; }
-.print-button { flex: 0 0 auto; height: 36px; box-sizing: border-box; padding: 0 18px; border: 1px solid #1677c8; border-radius: 6px; background: #1677c8; color: #fff; font-weight: 600; cursor: pointer; }
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
 
-/* Paper */
-.paper { width: calc(100% - 32px); max-width: 1480px; margin: 0 auto; padding: 18px 20px 24px; box-sizing: border-box; background: #fff; }
-h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-serif; font-size: 22px; letter-spacing: 2px; }
-.report-meta { display: flex; gap: 24px; align-items: center; padding: 8px 0; font-size: 13px; }
-.report-meta label { display: inline-flex; align-items: center; gap: 4px; }
-.report-meta input { height: 28px; padding: 2px 8px; border: 1px solid #ccc; border-radius: 4px; font: inherit; }
+.toolbar input[type="date"] {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 14px;
+}
 
-/* Tables */
-.summary-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 16px; font-family: var(--hljld-font); font-size: 12px; }
-.summary-table th, .summary-table td, .patient-table th, .patient-table td { border: 1px solid #2b2b2b; padding: 4px 8px; text-align: center; font-family: var(--hljld-font); }
-.summary-table th, .patient-table th { background: #edf3f7; font-weight: 600; }
-.patient-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
-.patient-table td { text-align: left; vertical-align: top; }
+/* ==================== 按钮 ==================== */
 
-.summary-table .report-title-row th {
-  height: 38px;
-  border-top: 0;
-  border-right: 0;
-  border-left: 0;
+.btn {
+  padding: 6px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
   background: #fff;
-  color: #111;
-  font-family: SimHei, "黑体", "Microsoft YaHei", sans-serif;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  text-align: center;
-}
-
-.summary-table .report-meta-row th,
-.summary-table .report-meta-row td {
-  height: 30px;
-  padding: 3px 8px;
-  background: #fff;
-  text-align: center;
-}
-
-.summary-table .report-meta-row th { font-weight: 500; }
-
-.head-nurse-input {
-  width: 100%;
-  height: 24px;
-  box-sizing: border-box;
-  border: 0;
-  border-bottom: 1px solid #333;
-  border-radius: 0;
-  outline: 0;
-  background: transparent;
-  font: inherit;
-  text-align: center;
-}
-
-.special-care-header { color: #e60012; font-weight: 600; }
-
-.shift-col { width: 8%; }
-.total-col { width: 13%; }
-.count-col { width: 8%; }
-.critical-col { width: 8%; }
-.special-care-col { width: 12%; }
-.remark-col { width: 13%; }
-.patient-table textarea { width: 100%; min-height: 60px; border: 1px solid #ccc; border-radius: 4px; padding: 4px; font: inherit; resize: vertical; }
-.insert-button { display: block; margin-bottom: 4px; padding: 2px 8px; border: 1px solid #1677c8; border-radius: 4px; background: #e6f4ff; color: #1677c8; font-size: 11px; cursor: pointer; }
-
-/* Error / Loading */
-.error-banner { color: #b42318; padding: 8px 12px; margin-bottom: 8px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; }
-.loading { padding: 14px 16px; font-family: var(--hljld-font); }
-
-/* Dialog */
-.overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(15,23,42,.45); }
-.dialog { display: flex; flex-direction: column; width: min(520px, 94vw); max-height: 80vh; border-radius: 8px; background: #fff; overflow: hidden; }
-.dh { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #e5e7eb; }
-.dh h2 { margin: 0; font-size: 18px; }
-.ic { width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: #64748b; font-size: 28px; cursor: pointer; }
-.db { flex: 1; overflow: auto; padding: 16px; }
-.df { display: flex; justify-content: flex-end; gap: 8px; padding: 11px 18px; border-top: 1px solid #e5e7eb; background: #f8fafc; }
-.btn { height: 32px; padding: 0 14px; border: 1px solid #c9cdd4; border-radius: 4px; background: #fff; font: inherit; cursor: pointer; }
-.btn.primary { border-color: #1677c8; background: #1677c8; color: #fff; font-weight: 600; }
-.critical-option, .record-option { padding: 4px 0; font-size: 13px; }
-.nurse-record-list { max-height: 400px; overflow-y: auto; }
-.empty-hint { color: #999; font-size: 13px; text-align: center; padding: 16px; }
-
-.dialog-subtitle { margin-top: 4px; color: #64748b; font-size: 13px; }
-
-.nurse-record-dialog { width: min(920px, 96vw); }
-
-.record-state, .record-error { padding: 24px 16px; text-align: center; }
-.record-state { color: #64748b; }
-.record-error { color: #b42318; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; }
-.retry-button { display: block; margin: 12px auto 0; }
-
-.record-table-header, .record-table-row {
-  display: grid;
-  grid-template-columns: 52px 52px 120px minmax(260px, 1fr) 100px;
-  align-items: start;
-  min-width: 700px;
-}
-.record-table-header {
-  position: sticky; top: 0; z-index: 1;
-  background: #edf3f7; border: 1px solid #d8dee6;
-  font-size: 12px; font-weight: 600;
-}
-.record-table-row {
+  color: #333;
+  font-size: 14px;
   cursor: pointer;
-  border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; border-left: 1px solid #e5e7eb;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.btn.primary:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.btn-small {
+  padding: 2px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-small:hover {
+  background: #e2e8f0;
+  color: #333;
+}
+
+.btn-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #3b82f6;
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: #2563eb;
+}
+
+/* ==================== 保存状态 ==================== */
+
+.save-status {
+  margin-left: auto;
   font-size: 13px;
+  color: #64748b;
 }
-.record-table-row:hover { background: #f8fbfe; }
-.record-table-header > span, .record-table-row > span {
-  min-width: 0; padding: 8px; box-sizing: border-box;
+
+.save-status-saving {
+  color: #f59e0b;
 }
-.record-select-column, .record-index-column { text-align: center; }
-.record-content-column { white-space: pre-wrap; word-break: break-word; }
-.record-user-column { word-break: break-word; }
 
-.btn:disabled { border-color: #cbd5e1; background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+.save-status-saved {
+  color: #10b981;
+}
 
-/* Safety Report Section */
+.save-status-error {
+  color: #ef4444;
+}
+
+.save-status-conflict {
+  color: #ef4444;
+}
+
+.unsaved-indicator {
+  color: #f59e0b;
+}
+
+.conflict-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ==================== 加载与错误 ==================== */
+
+.loading {
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.error {
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #b42318;
+}
+
+/* ==================== 患者交班表格 ==================== */
+
+.patient-section {
+  margin-bottom: 24px;
+}
+
+.patient-section h2 {
+  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.patient-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.patient-table th,
+.patient-table td {
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.patient-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+}
+
+.patient-table .bed-col {
+  width: 60px;
+}
+
+.patient-table .name-col {
+  width: 80px;
+}
+
+.patient-table .status-col {
+  width: 60px;
+}
+
+.patient-table .critical-row {
+  background: #fef2f2;
+}
+
+.patient-text-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.patient-text-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.patient-text-display {
+  display: block;
+  min-height: 48px;
+  padding: 6px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ==================== 统计信息 ==================== */
+
+.statistics-section {
+  margin-bottom: 24px;
+}
+
+.statistics-section h2 {
+  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.statistics-table {
+  width: auto;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.statistics-table th,
+.statistics-table td {
+  padding: 8px 16px;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.statistics-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+}
+
+.statistics-table td:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+/* ==================== 安全交班报告 ==================== */
+
 .safety-report-section {
-  margin-top: 24px;
+  margin-bottom: 24px;
 }
 
 .safety-report-section h2 {
-  margin: 0 0 12px;
-  color: #111;
-  font-family: SimHei, "黑体", "Microsoft YaHei", sans-serif;
-  font-size: 20px;
+  margin-bottom: 12px;
+  font-size: 18px;
   font-weight: 600;
-  letter-spacing: 2px;
+  color: #1e293b;
   text-align: center;
 }
 
 .safety-report-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
-  font-size: 12px;
+  background: #fff;
+  border: 2px solid #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .safety-report-table th,
 .safety-report-table td {
-  border: 1px solid #2b2b2b;
-  padding: 5px 8px;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  text-align: left;
   vertical-align: middle;
 }
 
 .safety-report-table thead th {
-  background: #edf3f7;
+  background: #f1f5f9;
   font-weight: 600;
+  color: #1e293b;
+  text-align: center;
+  border-bottom: 2px solid #1e293b;
+}
+
+.safety-report-table .category-column {
+  width: 100px;
+}
+
+.safety-report-table .metric-column {
+  width: 180px;
+}
+
+.safety-report-table .category-cell {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 2px solid #1e293b;
+}
+
+.safety-report-table .metric-label-cell {
+  font-weight: 500;
+  color: #334155;
+}
+
+.safety-report-table td:nth-child(3),
+.safety-report-table td:nth-child(4),
+.safety-report-table td:nth-child(5) {
   text-align: center;
 }
 
-.safety-report-table tbody th {
-  background: #f8fafc;
-  font-weight: 500;
-  text-align: left;
-}
-
-.metric-name-column {
-  width: 28%;
-}
-
-.metric-warning {
-  display: inline-block;
-  margin-left: 6px;
-  color: #b45309;
-  font-size: 11px;
-  font-weight: 400;
-}
+/* ==================== 安全指标输入 ==================== */
 
 .metric-input {
-  display: block;
   width: 100%;
-  min-height: 30px;
-  box-sizing: border-box;
+  min-width: 100px;
   padding: 4px 6px;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  background: #fff;
-  color: #111;
-  font: inherit;
-  line-height: 1.5;
-  resize: vertical;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: horizontal;
+  font-family: inherit;
 }
 
 .metric-input:focus {
-  border-color: #1677c8;
-  outline: 2px solid rgba(22, 119, 200, 0.15);
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .metric-auto-value {
-  display: block;
-  min-height: 20px;
-  color: #111;
-  line-height: 1.5;
-  text-align: center;
-  white-space: pre-wrap;
-  word-break: break-word;
+  display: inline-block;
+  padding: 4px 6px;
+  font-size: 13px;
+  color: #475569;
 }
 
-.signature-row th,
-.signature-row td {
-  background: #fff;
+.metric-emphasis {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* ==================== 签名行 ==================== */
+
+.signature-row {
+  border-top: 2px solid #1e293b;
+}
+
+.signature-row th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+  text-align: center;
 }
 
 .signature-select {
   width: 100%;
-  height: 30px;
-  box-sizing: border-box;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  padding: 4px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+  font-size: 13px;
   background: #fff;
-  font: inherit;
+}
+
+.signature-select:focus {
+  outline: none;
+  border-color: #3b82f6;
 }
 
 .signature-print-value {
   display: none;
 }
 
-@media (max-width: 760px) {
-  .nurse-record-list { overflow-x: auto; }
+/* ==================== 弹窗 ==================== */
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
-/* Print */
+.dialog {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.dh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dh h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.ic {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  font-size: 24px;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ic:hover {
+  background: #f1f5f9;
+  color: #333;
+}
+
+.db {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.df {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.dialog-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  color: #b42318;
+  font-size: 13px;
+}
+
+.selected-count {
+  margin-right: auto;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* ==================== 危重患者弹窗 ==================== */
+
+.critical-dialog {
+  width: min(560px, 94vw);
+}
+
+.critical-patient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.critical-patient-row {
+  display: grid;
+  grid-template-columns: 24px 70px minmax(120px, 1fr) auto;
+  align-items: center;
+  min-height: 34px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #eef1f4;
+  cursor: pointer;
+}
+
+.critical-patient-row:hover {
+  background: #f6f9fc;
+}
+
+.critical-patient-row.disabled {
+  color: #999;
+  cursor: not-allowed;
+}
+
+.critical-patient-row input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.critical-bed {
+  color: #333;
+}
+
+.critical-name {
+  color: #111;
+}
+
+.patient-id-error {
+  color: #b42318;
+  font-size: 12px;
+}
+
+/* ==================== 护理记录弹窗 ==================== */
+
+.nurse-record-dialog {
+  width: min(700px, 94vw);
+}
+
+.nurse-record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.nurse-record-row {
+  display: grid;
+  grid-template-columns: 20px 60px 1fr auto;
+  align-items: start;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid #eef1f4;
+  cursor: pointer;
+}
+
+.nurse-record-row:hover {
+  background: #f6f9fc;
+}
+
+.nurse-record-row input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.record-time {
+  font-size: 12px;
+  color: #64748b;
+  font-family: monospace;
+}
+
+.record-desc {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.record-recorder {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.empty-hint {
+  padding: 24px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* ==================== 打印样式 ==================== */
+
 @media print {
-  @page { size: A4 landscape; margin: 7mm; }
-  :host, .handover-shell { background: #fff; padding: 0; min-width: 0; }
-  .no-print { display: none !important; }
-  .paper { width: 100%; max-width: none; margin: 0; padding: 0; }
-  h1 { font-size: 15pt; }
-  .summary-table, .patient-table { font-size: 8pt; }
-  .summary-table th, .summary-table td, .patient-table th, .patient-table td { padding: 1mm 2mm; }
-  .patient-table tr { break-inside: avoid; page-break-inside: avoid; }
-
-  .summary-table .report-title-row th { height: 10mm; font-size: 15pt; }
-  .summary-table .report-meta-row th, .summary-table .report-meta-row td { height: 6mm; padding: 0.5mm 1mm; }
-  .head-nurse-input { border: 0; }
-  .summary-table .special-care-header { color: #e60012 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .patient-table textarea { border: none; padding: 0; font-size: 8pt; min-height: 0; overflow: visible; resize: none; }
-  .insert-button, .overlay, .dialog { display: none !important; }
-
-  .safety-report-section {
-    break-before: page;
-    page-break-before: always;
-    margin-top: 0;
+  .no-print {
+    display: none !important;
   }
 
-  .safety-report-section h2 {
-    margin-bottom: 3mm;
-    font-size: 15pt;
+  .handover-report {
+    padding: 0;
   }
 
+  .toolbar {
+    display: none;
+  }
+
+  /* 患者表格 */
+  .patient-table {
+    border: 1px solid #000;
+    page-break-inside: avoid;
+  }
+
+  .patient-table th,
+  .patient-table td {
+    border: 1px solid #000;
+    padding: 6px 8px;
+  }
+
+  .patient-table th {
+    background: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .patient-text-input {
+    border: none;
+    padding: 0;
+    min-height: auto;
+    resize: none;
+    overflow: visible;
+  }
+
+  .patient-text-display {
+    min-height: auto;
+  }
+
+  /* 统计表格 */
+  .statistics-table {
+    border: 1px solid #000;
+    page-break-inside: avoid;
+  }
+
+  .statistics-table th,
+  .statistics-table td {
+    border: 1px solid #000;
+  }
+
+  .statistics-table th {
+    background: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 安全报告表格 */
   .safety-report-table {
-    font-size: 8pt;
+    border: 2px solid #000;
+    page-break-inside: avoid;
   }
 
   .safety-report-table th,
   .safety-report-table td {
-    padding: 1mm 1.5mm;
+    border: 1px solid #000;
+    padding: 4px 6px;
   }
 
-  .safety-report-table tr {
-    break-inside: avoid;
-    page-break-inside: avoid;
+  .safety-report-table thead th {
+    background: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    border-bottom: 2px solid #000;
+  }
+
+  .safety-report-table .category-cell {
+    background: #f8f8f8 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    border-right: 2px solid #000;
   }
 
   .metric-input {
-    min-height: 0;
+    border: none;
     padding: 0;
-    border: 0;
-    border-radius: 0;
-    overflow: visible;
+    min-width: auto;
     resize: none;
+    overflow: visible;
+    background: transparent;
   }
 
-  .metric-warning {
-    display: none !important;
+  .metric-auto-value {
+    padding: 0;
   }
 
+  .metric-emphasis {
+    color: #000;
+    font-weight: bold;
+  }
+
+  /* 签名 */
   .signature-select {
-    display: none !important;
+    display: none;
   }
 
   .signature-print-value {
     display: inline;
+  }
+
+  /* 弹窗 */
+  .overlay {
+    display: none !important;
   }
 }

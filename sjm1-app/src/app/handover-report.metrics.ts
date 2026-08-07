@@ -3,36 +3,13 @@ import {
   DepartmentPatient,
   MetricRow,
   OrderRecord,
+  SAFETY_REPORT_SCHEMA,
   ShiftKey,
   ShiftRange,
   TubeExecution,
 } from './handover-report.models';
 
 const SHIFT_KEYS: ShiftKey[] = ['day', 'evening', 'night'];
-
-const MANUAL_METRICS: Array<{
-  key: string;
-  label: string;
-  valueType: 'text' | 'number';
-}> = [
-  { key: 'responsibleNurseCount', label: '管床责任护士人数', valueType: 'number' },
-  { key: 'arrearsPatients', label: '欠费患者', valueType: 'text' },
-  { key: 'medicalDisputeRisk', label: '医疗纠纷隐患', valueType: 'text' },
-  { key: 'equipmentSafety', label: '仪器、设备安全', valueType: 'text' },
-  { key: 'fireFacilitySafety', label: '消防、设施安全', valueType: 'text' },
-  { key: 'unplannedExtubation', label: '非计划拔管', valueType: 'text' },
-  { key: 'deepVeinCatheterBlockage', label: '深静脉导管堵塞', valueType: 'text' },
-  { key: 'gradeThreePhlebitis', label: '液体外渗发生三级静脉炎', valueType: 'text' },
-  { key: 'pressureInjuryOccurred', label: '发生压力性损伤', valueType: 'text' },
-  { key: 'vteOccurred', label: '发生VTE', valueType: 'text' },
-  { key: 'aspirationOccurred', label: '误吸', valueType: 'text' },
-  { key: 'thrombosisHighRisk', label: '血栓高风险', valueType: 'text' },
-  { key: 'occupationalExposure', label: '职业暴露', valueType: 'text' },
-  { key: 'criticalValue', label: '危急值（含特殊感染疾病）', valueType: 'text' },
-  { key: 'diarrhea', label: '腹泻', valueType: 'text' },
-  { key: 'newMultidrugResistantInfection', label: '新增多重耐药菌感染', valueType: 'text' },
-  { key: 'noDefecationThreeDays', label: '3天未解大便', valueType: 'text' },
-];
 
 function timestamp(value?: string): number {
   if (!value) { return Number.NaN; }
@@ -250,197 +227,181 @@ function nonPlannedAdmissionBeds(
   );
 }
 
-function manualMetricRows(snapshot: DepartmentDailySnapshot): MetricRow[] {
-  return MANUAL_METRICS.map(definition => ({
-    key: definition.key,
-    label: definition.label,
-    mode: 'manual' as const,
-    valueType: definition.valueType as 'text' | 'number',
-    values: {
-      day: snapshot.draft.manualMetrics[`${definition.key}.day`] ?? '',
-      evening: snapshot.draft.manualMetrics[`${definition.key}.evening`] ?? '',
-      night: snapshot.draft.manualMetrics[`${definition.key}.night`] ?? '',
-    },
-  }));
+/**
+ * 计算手工指标的值（使用嵌套结构）。
+ */
+function getManualMetricValue(
+  snapshot: DepartmentDailySnapshot,
+  metricKey: string,
+  shift: ShiftKey,
+): string {
+  const nested = snapshot.draft.manualMetrics[metricKey];
+  if (!nested) { return ''; }
+  return nested[shift] ?? '';
 }
 
+/**
+ * 构建单个自动指标的值。
+ */
+function buildAutoMetricValues(
+  snapshot: DepartmentDailySnapshot,
+  patients: Map<string, DepartmentPatient>,
+  ranges: Record<ShiftKey, ShiftRange>,
+  calculate: (range: ShiftRange, shift: ShiftKey) => string,
+): Record<ShiftKey, string> {
+  return {
+    day: calculate(ranges.day, 'day'),
+    evening: calculate(ranges.evening, 'evening'),
+    night: calculate(ranges.night, 'night'),
+  };
+}
+
+/**
+ * 根据SAFETY_REPORT_SCHEMA计算自动指标的值。
+ */
+function calculateAutoMetricValues(
+  key: string,
+  snapshot: DepartmentDailySnapshot,
+  patients: Map<string, DepartmentPatient>,
+  ranges: Record<ShiftKey, ShiftRange>,
+): Record<ShiftKey, string> | null {
+  const buildValues = (calculate: (range: ShiftRange) => string) =>
+    buildAutoMetricValues(snapshot, patients, ranges, (range) => calculate(range));
+
+  switch (key) {
+    case 'temperatureAbove38':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_T', value => {
+        const temperature = numberValue(value);
+        return Number.isFinite(temperature) && temperature >= 38;
+      }));
+    case 'hypoglycemia':
+      return buildValues(range => bloodSugarBeds(snapshot, patients, range));
+    case 'bladderIrrigation':
+      return buildValues(range => orderBeds(snapshot, range, '膀胱冲洗'));
+    case 'invasiveVentilation':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_XiYangTuJing', value => value === '有创'));
+    case 'newNasoentericTube':
+      return buildValues(range => tubeBeds(snapshot, patients, range, '鼻肠管'));
+    case 'newTrachealIntubation':
+      return buildValues(range => tubeBeds(snapshot, patients, range, '气管插管'));
+    case 'newTracheotomy':
+      return buildValues(range => tubeBeds(snapshot, patients, range, '气切导管'));
+    case 'ventilatorWeaning':
+      return buildValues(range => ventilatorWeaningBeds(snapshot, patients, range));
+    case 'trachealTubeRemoval':
+      return buildValues(range => tubeBeds(snapshot, patients, range, '气管插管'));
+    case 'reintubationWithin48Hours':
+      return buildValues(range => reintubationBeds(snapshot, patients, range));
+    case 'invasiveBloodPressure':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ibp_d', value => value.length > 0));
+    case 'crrtTreatment':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_CBP_Mode', value => value.length > 0));
+    case 'proneVentilation':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_TiWei', value => value === '俯卧位'));
+    case 'iabpTreatment':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_iabp心率', value => value.length > 0));
+    case 'piccoMonitoring':
+      return { day: '—', evening: '—', night: '—' };
+    case 'ecmoTreatment':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ECMOMoShi', value => value.length > 0));
+    case 'removeIsolation':
+      return buildValues(range => orderBeds(snapshot, range, '解除隔离'));
+    case 'pressureInjuryHighRisk':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_yaChuang_score', value => value.includes('高度危险')));
+    case 'fallHighRisk':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_patientFallDangerFactorV2', value => value.includes('高度危险')));
+    case 'unplannedExtubationHighRisk':
+      return { day: '—', evening: '—', night: '—' };
+    case 'suicideHighRisk':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_commitSuicideScore', value => value.includes('高度危险')));
+    case 'incontinenceDermatitis':
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_incontinenceScore', value => value.includes('高度危险')));
+    case 'unplannedPostoperativeAdmission':
+      return buildValues(range => nonPlannedAdmissionBeds(snapshot, range));
+    case 'returnIcuWithin24Hours':
+      return { day: '—', evening: '—', night: '—' };
+    case 'returnIcuWithin48Hours':
+      return { day: '—', evening: '—', night: '—' };
+    default:
+      return null;
+  }
+}
+
+/**
+ * 生成rowspan信息，按连续分类计算。
+ */
+function computeCategoryRowSpans(metrics: MetricRow[]): MetricRow[] {
+  let currentCategory = '';
+  let categoryStartIndex = -1;
+
+  for (let i = 0; i < metrics.length; i++) {
+    const metric = metrics[i];
+    if (metric.category !== currentCategory) {
+      // 新分类开始
+      if (currentCategory !== '' && categoryStartIndex >= 0) {
+        // 设置前一个分类的rowspan
+        const rowSpan = i - categoryStartIndex;
+        for (let j = categoryStartIndex; j < i; j++) {
+          metrics[j].categoryRowSpan = rowSpan;
+        }
+      }
+      currentCategory = metric.category;
+      categoryStartIndex = i;
+      metric.showCategory = true;
+    } else {
+      metric.showCategory = false;
+    }
+  }
+
+  // 处理最后一个分类
+  if (currentCategory !== '' && categoryStartIndex >= 0) {
+    const rowSpan = metrics.length - categoryStartIndex;
+    for (let j = categoryStartIndex; j < metrics.length; j++) {
+      metrics[j].categoryRowSpan = rowSpan;
+    }
+  }
+
+  return metrics;
+}
+
+/**
+ * 根据SAFETY_REPORT_SCHEMA构建安全指标，严格按照固定顺序和分类。
+ */
 export function buildSafetyMetrics(
   snapshot: DepartmentDailySnapshot,
   ranges: Record<ShiftKey, ShiftRange>,
 ): MetricRow[] {
   const patients = patientMap(snapshot);
 
-  const buildValues = (
-    calculate: (range: ShiftRange, shift: ShiftKey) => string,
-  ): Record<ShiftKey, string> => ({
-    day: calculate(ranges.day, 'day'),
-    evening: calculate(ranges.evening, 'evening'),
-    night: calculate(ranges.night, 'night'),
+  const metrics: MetricRow[] = SAFETY_REPORT_SCHEMA.map(definition => {
+    let values: Record<ShiftKey, string>;
+
+    if (definition.mode === 'manual') {
+      // 手工指标从嵌套结构读取
+      values = {
+        day: getManualMetricValue(snapshot, definition.key, 'day'),
+        evening: getManualMetricValue(snapshot, definition.key, 'evening'),
+        night: getManualMetricValue(snapshot, definition.key, 'night'),
+      };
+    } else {
+      // 自动指标计算
+      const calculatedValues = calculateAutoMetricValues(
+        definition.key,
+        snapshot,
+        patients,
+        ranges,
+      );
+      values = calculatedValues ?? { day: '—', evening: '—', night: '—' };
+    }
+
+    return {
+      ...definition,
+      categoryRowSpan: 1,
+      showCategory: false,
+      values,
+    };
   });
 
-  const autoRows: MetricRow[] = [
-    {
-      key: 'temperatureAbove38',
-      label: '体温≥38℃',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_T', value => {
-        const temperature = numberValue(value);
-        return Number.isFinite(temperature) && temperature >= 38;
-      })),
-    },
-    {
-      key: 'hypoglycemia',
-      label: '低血糖',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bloodSugarBeds(snapshot, patients, range)),
-    },
-    {
-      key: 'bladderIrrigation',
-      label: '膀胱冲洗',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => orderBeds(snapshot, range, '膀胱冲洗')),
-      warning: snapshot.orders.length === 0 ? '医嘱数据源暂无数据' : undefined,
-    },
-    {
-      key: 'invasiveVentilation',
-      label: '有创机械通气',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_XiYangTuJing', value => value === '有创')),
-    },
-    {
-      key: 'newNasoentericTube',
-      label: '新增鼻肠营养管',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => tubeBeds(snapshot, patients, range, '鼻肠管')),
-    },
-    {
-      key: 'newTrachealIntubation',
-      label: '新增气管插管',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => tubeBeds(snapshot, patients, range, '气管插管')),
-    },
-    {
-      key: 'newTracheotomy',
-      label: '新增气管切开',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => tubeBeds(snapshot, patients, range, '气切导管')),
-    },
-    {
-      key: 'ventilatorWeaning',
-      label: '呼吸机脱机',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => ventilatorWeaningBeds(snapshot, patients, range)),
-    },
-    {
-      key: 'reintubationWithin48Hours',
-      label: '拔管后48h再插管',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => reintubationBeds(snapshot, patients, range)),
-    },
-    {
-      key: 'invasiveBloodPressure',
-      label: '有创血压监测',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ibp_d', value => value.length > 0)),
-    },
-    {
-      key: 'crrtTreatment',
-      label: 'CRRT治疗',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_CBP_Mode', value => value.length > 0)),
-    },
-    {
-      key: 'proneVentilation',
-      label: '俯卧位通气',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_TiWei', value => value === '俯卧位')),
-    },
-    {
-      key: 'iabpTreatment',
-      label: 'IABP治疗',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_iabp心率', value => value.length > 0)),
-    },
-    {
-      key: 'piccoMonitoring',
-      label: 'PICCO监测',
-      mode: 'auto',
-      valueType: 'beds',
-      values: { day: '—', evening: '—', night: '—' },
-      warning: '需要确认PICCO真实bedside code',
-    },
-    {
-      key: 'ecmoTreatment',
-      label: 'ECMO治疗',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ECMOMoShi', value => value.length > 0)),
-    },
-    {
-      key: 'removeIsolation',
-      label: '解除多重耐药菌床旁隔离',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => orderBeds(snapshot, range, '解除隔离')),
-      warning: snapshot.orders.length === 0 ? '医嘱数据源暂无数据' : undefined,
-    },
-    {
-      key: 'pressureInjuryHighRisk',
-      label: '压力性损伤高风险',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_yaChuang_score', value => value.includes('高度危险'))),
-    },
-    {
-      key: 'fallHighRisk',
-      label: '跌倒/坠床高风险',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_patientFallDangerFactorV2', value => value.includes('高度危险'))),
-    },
-    {
-      key: 'unplannedExtubationHighRisk',
-      label: '意外拔管高风险',
-      mode: 'auto',
-      valueType: 'beds',
-      values: { day: '—', evening: '—', night: '—' },
-      warning: '需要确认意外拔管评分真实code',
-    },
-    {
-      key: 'suicideHighRisk',
-      label: '自杀高风险',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_commitSuicideScore', value => value.includes('高度危险'))),
-    },
-    {
-      key: 'incontinenceDermatitis',
-      label: '发生失禁性皮炎',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_incontinenceScore', value => value.includes('高度危险'))),
-    },
-    {
-      key: 'unplannedPostoperativeAdmission',
-      label: '术后患者非计划转入ICU',
-      mode: 'auto',
-      valueType: 'beds',
-      values: buildValues(range => nonPlannedAdmissionBeds(snapshot, range)),
-    },
-  ];
-
-  return [...manualMetricRows(snapshot), ...autoRows];
+  // 计算分类rowspan
+  return computeCategoryRowSpans(metrics);
 }

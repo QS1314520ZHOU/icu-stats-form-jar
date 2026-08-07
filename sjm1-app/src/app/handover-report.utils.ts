@@ -167,9 +167,12 @@ function buildPatientRows(snapshot: DepartmentDailySnapshot, ranges: Record<Shif
     rows.push(row);
   }
 
+  // 从嵌套结构读取患者交班文本
   for (const row of rows) {
+    const patientTexts = snapshot.draft.patientTexts[row.key];
+    if (!patientTexts) continue;
     for (const shift of SHIFT_KEYS) {
-      const override = snapshot.draft.patientTextOverrides[`${row.key}.${shift}`];
+      const override = patientTexts[shift];
       if (override !== undefined) row.shiftTexts[shift] = override;
     }
   }
