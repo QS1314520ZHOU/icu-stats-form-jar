@@ -649,6 +649,15 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
     }
   }
 
+  shiftLabel(shift: ShiftKey): string {
+    switch (shift) {
+      case 'day': return '白班';
+      case 'evening': return '中班';
+      case 'night': return '夜班';
+      default: return '';
+    }
+  }
+
   trackMetric(_: number, metric: MetricRow): string {
     return metric.key;
   }

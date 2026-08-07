@@ -184,24 +184,33 @@
           <tbody>
             @for (metric of vm.metrics; track trackMetric($index, metric)) {
               <tr>
-                @if (metric.showCategory) {
-                  <th class="category-cell" [attr.rowspan]="metric.categoryRowSpan">
-                    {{ metric.category }}
+                @if (!metric.category) {
+                  <th colspan="2" class="standalone-metric-cell">
+                    {{ metric.label }}
+                    @if (metric.warning) {
+                      <span class="metric-warning no-print" [title]="metric.warning">数据待确认</span>
+                    }
+                  </th>
+                } @else {
+                  @if (metric.showCategory) {
+                    <th class="category-cell" [attr.rowspan]="metric.categoryRowSpan">
+                      {{ metric.category }}
+                    </th>
+                  }
+                  <th class="metric-label-cell">
+                    {{ metric.label }}
+                    @if (metric.warning) {
+                      <span class="metric-warning no-print" [title]="metric.warning">数据待确认</span>
+                    }
                   </th>
                 }
-                <th scope="row" [attr.colspan]="!metric.category ? 2 : null">
-                  <span>{{ metric.label }}</span>
-                  @if (metric.warning) {
-                    <span class="metric-warning no-print" [title]="metric.warning">数据待确认</span>
-                  }
-                </th>
                 @for (shift of metricShifts; track shift) {
                   <td>
                     @if (metric.mode === 'manual') {
                       <textarea
                         class="metric-input"
                         rows="1"
-                        [value]="metric.values[shift]"
+                        [value]="metric.values[shift] ?? ''"
                         [attr.aria-label]="metric.label + metricShiftLabel(shift)"
                         (input)="updateManualMetric(metric.key, shift, $any($event.target).value)"
                       ></textarea>
