@@ -23,6 +23,21 @@ type PrintBlock =
       summary: HljldSummary;
     };
 
+type SplittableField =
+  | 'nursingRecord'
+  | 'examination'
+  | 'treatment'
+  | 'basicCare'
+  | 'healthEducation';
+
+const SPLITTABLE_FIELDS: SplittableField[] = [
+  'nursingRecord',
+  'examination',
+  'treatment',
+  'basicCare',
+  'healthEducation',
+];
+
 type PageRefs = {
   pageEl: HTMLElement;
   sheetEl: HTMLElement;
@@ -308,6 +323,7 @@ body {
   line-height: 10pt;
   color: #000;
   padding-top: 1.2mm;
+  min-height: 10pt;
 }
 `;
 
@@ -321,8 +337,9 @@ export async function printHljldRecord({
     throw new Error('打印窗口被拦截，请允许浏览器弹出打印窗口。');
   }
 
-  printWindow.document.open();
-  printWindow.document.write(`
+  try {
+    printWindow.document.open();
+    printWindow.document.write(`
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -334,44 +351,52 @@ export async function printHljldRecord({
   <div id="print-root" class="print-root"></div>
 </body>
 </html>
-  `);
-  printWindow.document.close();
+    `);
+    printWindow.document.close();
 
-  await waitForPrintWindowReady(printWindow);
+    await waitForPrintWindowReady(printWindow);
 
-  const root = printWindow.document.getElementById('print-root');
-  if (!root) {
-    throw new Error('打印根节点初始化失败。');
-  }
+    const root = printWindow.document.getElementById('print-root');
+    if (!root) {
+      throw new Error('打印根节点初始化失败。');
+    }
 
-  const blocks = buildPrintBlocks(vm.timeline);
-  const pages = paginateToPages(
-    printWindow.document,
-    root,
-    vm,
-    remarkLines,
-    blocks,
-  );
+    const blocks = buildPrintBlocks(vm.timeline);
+    const pages = paginateToPages(
+      printWindow.document,
+      root,
+      vm,
+      remarkLines,
+      blocks,
+    );
 
-  fillPageNumbers(pages);
+    fillPageNumbers(pages);
 
-  const ok = validateGeneratedPages(pages);
-  if (!ok) {
-    throw new Error('打印分页校验失败，存在未完整显示的内容。');
-  }
+    const ok = validateGeneratedPages(pages);
+    if (!ok) {
+      throw new Error('打印分页校验失败，存在未完整显示的内容。');
+    }
 
-  printWindow.focus();
+    printWindow.focus();
+    await nextTwoFrames(printWindow);
+    printWindow.print();
 
-  await nextTwoFrames(printWindow);
-
-  printWindow.print();
-  printWindow.addEventListener('afterprint', () => {
+    printWindow.addEventListener('afterprint', () => {
+      try {
+        printWindow.close();
+      } catch {
+        // ignore
+      }
+    });
+  } catch (error) {
+    console.error('[HLJLD][print-error]', error);
     try {
       printWindow.close();
     } catch {
       // ignore
     }
-  });
+    throw error;
+  }
 }
 
 function buildPrintBlocks(
@@ -539,15 +564,15 @@ function splitOversizedDisplayRow(
   pages: PageRefs[],
   row: HljldDisplayRow,
 ): void {
-  const originalText = row.nursingRecord || '';
+  const targetField = findSplittableField(row);
 
-  if (!originalText) {
+  if (!targetField) {
     throw new Error(
-      `行 ${row.key} 超过单页高度且没有可拆分的护理记录文本。`,
+      `行 ${row.key} 超过单页高度且没有可拆分的长文本字段。`,
     );
   }
 
-  let remaining = originalText;
+  let remaining = String(row[targetField] || '');
   let fragmentIndex = 0;
 
   while (remaining.length > 0) {
@@ -562,16 +587,17 @@ function splitOversizedDisplayRow(
       currentPage = nextPage;
     }
 
-    const cutIndex = findMaxFittingTextIndex(
+    const cutIndex = findMaxFittingTextIndexByField(
       currentPage,
       row,
+      targetField,
       remaining,
       fragmentIndex === 0,
     );
 
     if (cutIndex <= 0) {
       throw new Error(
-        `无法为行 ${row.key} 找到可打印的文本切分位置。`,
+        `无法为行 ${row.key} 的字段 ${targetField} 找到可打印的文本切分位置。`,
       );
     }
 
@@ -580,8 +606,9 @@ function splitOversizedDisplayRow(
 
     const fragmentRow = createDisplayRowTr(
       doc,
-      createSplitRowFragment(
+      createSplitRowFragmentByField(
         row,
+        targetField,
         currentText,
         fragmentIndex === 0,
         remaining.length === 0,
@@ -591,12 +618,107 @@ function splitOversizedDisplayRow(
     if (!tryAppendNodes(currentPage, [fragmentRow])) {
       removeNodes([fragmentRow]);
       throw new Error(
-        `拆分后的护理记录片段仍无法放入页面，行 ${row.key}。`,
+        `拆分后的片段仍无法放入页面，行 ${row.key}，字段 ${targetField}。`,
       );
     }
 
     fragmentIndex += 1;
   }
+}
+
+function findSplittableField(row: HljldDisplayRow): SplittableField | null {
+  for (const field of SPLITTABLE_FIELDS) {
+    const value = String(row[field] || '').trim();
+    if (value.length > 0) {
+      return field;
+    }
+  }
+  return null;
+}
+
+function findMaxFittingTextIndexByField(
+  page: PageRefs,
+  row: HljldDisplayRow,
+  field: SplittableField,
+  fullText: string,
+  firstFragment: boolean,
+): number {
+  let low = 1;
+  let high = fullText.length;
+  let best = 0;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+
+    const candidateText = fullText.slice(0, middle);
+    const candidateRow = createDisplayRowTr(
+      page.pageEl.ownerDocument,
+      createSplitRowFragmentByField(
+        row,
+        field,
+        candidateText,
+        firstFragment,
+        false,
+      ),
+    );
+
+    page.tbodyEl.appendChild(candidateRow);
+    const fits = !isOverflowing(page);
+    candidateRow.remove();
+
+    if (fits) {
+      best = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  if (best <= 0) {
+    return 0;
+  }
+
+  return moveCutToNaturalBoundary(fullText, best);
+}
+
+function createSplitRowFragmentByField(
+  row: HljldDisplayRow,
+  field: SplittableField,
+  fragmentText: string,
+  firstFragment: boolean,
+  lastFragment: boolean,
+): HljldDisplayRow {
+  const nextRow: HljldDisplayRow = {
+    ...row,
+    key: `${row.key}__${field}__fragment__${Math.random().toString(36).slice(2)}`,
+    firstLine: firstFragment ? row.firstLine : false,
+
+    timeText: firstFragment ? row.timeText : '',
+    medication: firstFragment ? row.medication : undefined,
+    enteral: firstFragment ? row.enteral : undefined,
+    output: firstFragment ? row.output : undefined,
+    drain: firstFragment ? row.drain : undefined,
+
+    examination: firstFragment ? row.examination : '',
+    treatment: firstFragment ? row.treatment : '',
+    basicCare: firstFragment ? row.basicCare : '',
+    healthEducation: firstFragment ? row.healthEducation : '',
+    nursingRecord: firstFragment ? row.nursingRecord : '',
+
+    signature: lastFragment ? row.signature : '',
+  };
+
+  nextRow[field] = fragmentText as never;
+
+  if (!firstFragment) {
+    if (field !== 'examination') nextRow.examination = '';
+    if (field !== 'treatment') nextRow.treatment = '';
+    if (field !== 'basicCare') nextRow.basicCare = '';
+    if (field !== 'healthEducation') nextRow.healthEducation = '';
+    if (field !== 'nursingRecord') nextRow.nursingRecord = '';
+  }
+
+  return nextRow;
 }
 
 function findMaxFittingTextIndex(
@@ -649,10 +771,11 @@ function moveCutToNaturalBoundary(text: string, index: number): number {
     return text.length;
   }
 
-  const preferredChars = new Set(['。', '；', '，', '、', '：', ' ']);
+  const preferredChars = new Set(['。', '；', '，', '、', '：', ' ', '\n']);
 
-  for (let cursor = index; cursor > Math.max(0, index - 20); cursor -= 1) {
-    if (preferredChars.has(text[cursor - 1] || '')) {
+  for (let cursor = index; cursor > Math.max(1, index - 24); cursor -= 1) {
+    const char = text[cursor - 1] || '';
+    if (preferredChars.has(char)) {
       return cursor;
     }
   }
@@ -1021,16 +1144,15 @@ function fillPageNumbers(pages: PageRefs[]): void {
   const total = pages.length;
 
   pages.forEach((page, index) => {
-    const current = page.pageNoEl.querySelector('.page-current');
-    const totalNode = page.pageNoEl.querySelector('.page-total');
+    const current = page.pageNoEl.querySelector('.page-current') as HTMLElement | null;
+    const totalNode = page.pageNoEl.querySelector('.page-total') as HTMLElement | null;
 
-    if (current) {
-      current.textContent = String(index + 1);
+    if (!(current instanceof HTMLElement) || !(totalNode instanceof HTMLElement)) {
+      throw new Error(`第 ${index + 1} 页页码节点缺失`);
     }
 
-    if (totalNode) {
-      totalNode.textContent = String(total);
-    }
+    current.textContent = String(index + 1);
+    totalNode.textContent = String(total);
   });
 }
 
@@ -1038,8 +1160,11 @@ function validateGeneratedPages(pages: PageRefs[]): boolean {
   let ok = true;
 
   for (const [pageIndex, page] of pages.entries()) {
-    if (!page.pageNoEl.textContent?.trim()) {
-      console.error('[HLJLD][print-validate] missing page number', pageIndex + 1);
+    const current = page.pageNoEl.querySelector('.page-current') as HTMLElement | null;
+    const total = page.pageNoEl.querySelector('.page-total') as HTMLElement | null;
+
+    if (!current?.textContent?.trim() || !total?.textContent?.trim()) {
+      console.error('[HLJLD][print-validate] missing page number value', pageIndex + 1);
       ok = false;
     }
 
@@ -1048,14 +1173,21 @@ function validateGeneratedPages(pages: PageRefs[]): boolean {
       ok = false;
     }
 
-    const cells = page.pageEl.querySelectorAll('td, th');
+    const dataRows = Array.from(page.tbodyEl.querySelectorAll('tr'))
+      .filter(row => !row.classList.contains('print-filler-row'));
 
+    if (dataRows.length === 0) {
+      console.error('[HLJLD][print-validate] blank data page', pageIndex + 1);
+      ok = false;
+    }
+
+    const cells = page.pageEl.querySelectorAll('td, th');
     cells.forEach(cellNode => {
       const el = cellNode as HTMLElement;
       if (el.scrollHeight > el.clientHeight + 1) {
         console.error('[HLJLD][print-validate] cell overflow', {
           page: pageIndex + 1,
-          text: el.textContent?.slice(0, 40),
+          text: el.textContent?.slice(0, 60),
         });
         ok = false;
       }
