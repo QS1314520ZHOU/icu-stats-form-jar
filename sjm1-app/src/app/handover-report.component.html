@@ -83,9 +83,65 @@
       </table>
     </section>
 
-    <section class="report-page safety-report">
-      <h1>重症医学科病区交班报告</h1>
-      <p class="placeholder">（安全交班指标区域 — 待后续实现）</p>
+    <section class="safety-report-section" aria-labelledby="safety-report-title">
+      <h2 id="safety-report-title">重症医学科病区交班报告</h2>
+
+      <table class="safety-report-table">
+        <thead>
+          <tr>
+            <th class="metric-name-column">项目</th>
+            @for (shift of metricShifts; track shift) {
+              <th>{{ metricShiftLabel(shift) }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (metric of vm.metrics; track metric.key) {
+            <tr>
+              <th scope="row">
+                <span>{{ metric.label }}</span>
+                @if (metric.warning) {
+                  <span class="metric-warning no-print" [title]="metric.warning">数据待确认</span>
+                }
+              </th>
+              @for (shift of metricShifts; track shift) {
+                <td>
+                  @if (metric.mode === 'manual') {
+                    <textarea
+                      class="metric-input"
+                      rows="1"
+                      [value]="metric.values[shift]"
+                      [attr.aria-label]="metric.label + metricShiftLabel(shift)"
+                      (input)="updateManualMetric(metric.key, shift, $any($event.target).value)"
+                    ></textarea>
+                  } @else {
+                    <span class="metric-auto-value">{{ metric.values[shift] || '—' }}</span>
+                  }
+                </td>
+              }
+            </tr>
+          }
+
+          <tr class="signature-row">
+            <th scope="row">护士签名</th>
+            @for (shift of metricShifts; track shift) {
+              <td>
+                <select
+                  class="signature-select no-print-control"
+                  [value]="snapshot.draft.shiftSignatures[shift] || ''"
+                  (change)="setShiftSignature(shift, $any($event.target).value)"
+                >
+                  <option value="">请选择</option>
+                  @for (account of snapshot.nurseAccounts; track account.id) {
+                    <option [value]="account.id">{{ account.trueName }}</option>
+                  }
+                </select>
+                <span class="signature-print-value">{{ signatureName(shift) }}</span>
+              </td>
+            }
+          </tr>
+        </tbody>
+      </table>
     </section>
   </main>
 

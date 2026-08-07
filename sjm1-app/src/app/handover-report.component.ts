@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { ReplaySubject, Subject, combineLatest, EMPTY } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
-import { DepartmentContext, DepartmentDailySnapshot, DraftConflictError, HandoverPatientRow, HandoverReportViewModel, NurseRecord, NurseRecordOption, ShiftKey } from './handover-report.models';
+import { DepartmentContext, DepartmentDailySnapshot, DraftConflictError, HandoverPatientRow, HandoverReportViewModel, MetricRow, NurseRecord, NurseRecordOption, ShiftKey } from './handover-report.models';
 import { HandoverReportService } from './handover-report.service';
 import { HostPatientService } from './services/host-patient.service';
 import { buildHandoverReport } from './handover-report.utils';
@@ -144,7 +144,7 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const pid = String(row.patientId ?? '').trim();
+    const pid = String(row.nurseRecordPid ?? row.patientId ?? '').trim();
     if (!pid) {
       this.nurseRecordError = '当前患者缺少护理记录关联ID，无法查询护理记录';
       this.cdr.markForCheck();
@@ -177,7 +177,9 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
       const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
       if (isDev) {
         console.info('[HANDOVER][nurse-records]', {
-          patientId: pid,
+          patientName: row.name,
+          patientId: row.patientId,
+          nurseRecordPid: pid,
           shift,
           startTime: range.start.toISOString(),
           endTime: range.end.toISOString(),
@@ -258,7 +260,7 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
     const desc = String(record?.desc ?? '').trim();
     const sourceId = String(record?.id ?? record?._id ?? '').trim();
     const id = sourceId || `${pid}:${time}:${index}`;
-    const recorder = String(record?.trueName ?? record?.username ?? record?.editUser ?? record?.userId ?? '').trim();
+    const recorder = String(record?.username ?? record?.trueName ?? record?.editUser ?? record?.userId ?? '').trim();
     return { id, pid, time, desc, recorder, valid: record?.valid !== false };
   }
 
@@ -286,4 +288,31 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   private saveSoon(): void { this.rebuild(); this.save$.next(); }
   private moveDate(days: number): void { const d = new Date(this.selectedDate); d.setDate(d.getDate() + days); this.selectedDate = d; this.dateInput = this.toDateInput(d); this.dateInput$.next(this.dateInput); this.reload$.next(); }
   private toDateInput(date: Date): string { const pad = (n: number) => String(n).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`; }
+
+  readonly metricShifts: ShiftKey[] = ['day', 'evening', 'night'];
+
+  updateManualMetric(metricKey: string, shift: ShiftKey, value: string): void {
+    if (!this.snapshot) { return; }
+    this.snapshot.draft.manualMetrics[`${metricKey}.${shift}`] = value;
+    this.saveSoon();
+  }
+
+  metricShiftLabel(shift: ShiftKey): string {
+    switch (shift) {
+      case 'day': return '白班';
+      case 'evening': return '中班';
+      case 'night': return '夜班';
+    }
+  }
+
+  trackMetric(_: number, metric: MetricRow): string {
+    return metric.key;
+  }
+
+  signatureName(shift: ShiftKey): string {
+    const accountId = this.snapshot?.draft.shiftSignatures[shift];
+    if (!accountId) { return ''; }
+    const account = this.snapshot?.nurseAccounts.find(item => item.id === accountId);
+    return account?.trueName ?? '';
+  }
 }

@@ -8,6 +8,7 @@ import {
   ShiftRange,
   ShiftStatistics,
 } from './handover-report.models';
+import { buildSafetyMetrics } from './handover-report.metrics';
 
 const SHIFT_KEYS: ShiftKey[] = ['day', 'evening', 'night'];
 
@@ -49,6 +50,10 @@ function isInDepartmentAt(patient: DepartmentPatient, settlementTime: Date): boo
 
 function patientId(patient: DepartmentPatient): string {
   return String(patient.id ?? patient._id ?? '').trim();
+}
+
+function nurseRecordPid(patient: DepartmentPatient): string {
+  return String(patient.nurseRecordPid ?? patient.id ?? patient._id ?? '').trim();
 }
 
 function bedNo(patient: DepartmentPatient): string {
@@ -112,6 +117,7 @@ function createRow(patient: DepartmentPatient, status: HandoverStatus, eventShif
   return {
     key: `${status}:${id}:${eventTime}`,
     patientId: id,
+    nurseRecordPid: nurseRecordPid(patient),
     bedNo: bedNo(patient),
     name: patient.name || '',
     mrn: patient.mrn || '',
@@ -200,5 +206,6 @@ export function buildHandoverReport(snapshot: DepartmentDailySnapshot, selectedD
   const ranges = buildShiftRanges(selectedDate);
   const rows = buildPatientRows(snapshot, ranges);
   const statistics = buildStatistics(snapshot, ranges, rows);
-  return { ranges, rows, statistics, metrics: [] };
+  const metrics = buildSafetyMetrics(snapshot, ranges);
+  return { ranges, rows, statistics, metrics };
 }

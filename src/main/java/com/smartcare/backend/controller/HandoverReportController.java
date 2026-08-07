@@ -95,6 +95,19 @@ public class HandoverReportController {
         acctQuery.addCriteria(Criteria.where("profession").in(Arrays.asList("Nurse", "Matron", "PracticeNurse")));
         List<Document> acctDocs = mongoTemplate.find(acctQuery, Document.class, "account");
 
+        // tube executions (48h window for reintubation indicators)
+        Calendar tubeCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        tubeCal.setTime(dayStart);
+        tubeCal.add(Calendar.HOUR_OF_DAY, -48);
+        Date tubeStart = tubeCal.getTime();
+
+        Query tubeQuery = new Query();
+        tubeQuery.addCriteria(Criteria.where("startTime").gte(tubeStart).lt(dayEnd)
+            .and("valid").ne(false)
+            .and("status").ne("invalid"));
+        tubeQuery.with(Sort.by(Sort.Direction.ASC, "startTime"));
+        List<Document> tubeDocs = mongoTemplate.find(tubeQuery, Document.class, "tubeExe");
+
         // draft
         Query draftQuery = new Query();
         draftQuery.addCriteria(Criteria.where("departmentId").is(department != null ? department : departmentCode)
@@ -105,7 +118,7 @@ public class HandoverReportController {
             + ", dayStart=" + dayStart + ", dayEnd=" + dayEnd
             + ", patients=" + patientDocs.size() + ", bedside=" + bedsideDocs.size()
             + ", bloodSugar=" + bsDocs.size() + ", nurseRecords=" + nurseDocs.size()
-            + ", nurseAccounts=" + acctDocs.size());
+            + ", nurseAccounts=" + acctDocs.size() + ", tubeExecutions=" + tubeDocs.size());
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("departmentId", department != null ? department : departmentCode);
@@ -115,7 +128,7 @@ public class HandoverReportController {
         snapshot.put("bedsideRecords", normalizeDocuments(bedsideDocs));
         snapshot.put("bloodSugarRecords", normalizeDocuments(bsDocs));
         snapshot.put("orders", Collections.emptyList());
-        snapshot.put("tubeExecutions", Collections.emptyList());
+        snapshot.put("tubeExecutions", normalizeDocuments(tubeDocs));
         snapshot.put("nurseRecords", normalizeDocuments(nurseDocs));
         snapshot.put("nurseAccounts", normalizeDocuments(acctDocs));
         snapshot.put("draft", draftDoc != null ? normalizeUtcValue(draftDoc) : defaultDraft(department != null ? department : departmentCode, reportDate));

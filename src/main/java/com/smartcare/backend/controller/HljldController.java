@@ -56,14 +56,16 @@ public class HljldController {
             @RequestParam String pid,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date startTime,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date endTime) {
+        System.out.println("[HLJLD][nurse-records] pid=" + pid + ", startTime=" + startTime + ", endTime=" + endTime);
         Query query = new Query();
         query.addCriteria(
                 Criteria.where("pid").is(pid)
-                        .and("time").gte(startTime).lte(endTime)
+                        .and("time").gte(startTime).lt(endTime)
                         .and("valid").ne(false)
                         .and("desc").nin(null, ""));
         query.with(Sort.by(Sort.Direction.ASC, "time"));
         List<Document> docs = mongoTemplate.find(query, Document.class, "nurseRecords");
+        System.out.println("[HLJLD][nurse-records] resultCount=" + docs.size());
         return normalizeDocuments(docs);
     }
 

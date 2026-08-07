@@ -18,8 +18,15 @@ export interface ShiftRange {
 }
 
 export interface DepartmentPatient {
-  id: string;
+  id?: string;
   _id?: string;
+
+  /**
+   * 后端根据真实数据库关联关系生成。
+   * 护理记录、床旁数据、血糖和管道查询统一使用该字段。
+   */
+  nurseRecordPid?: string;
+
   departmentId?: string;
   mrn?: string;
   name?: string;
@@ -30,6 +37,7 @@ export interface DepartmentPatient {
   icuAdmissionTime?: string;
   icuDischargeTime?: string;
   admissionType?: string;
+  admissionPlan?: string;
   dischargedType?: string;
   dischargedDepartment?: string;
   patientOperations?: Array<{
@@ -141,7 +149,17 @@ export interface DepartmentDailySnapshot {
 
 export interface HandoverPatientRow {
   key: string;
+
+  /**
+   * 用于草稿、危重患者选择等交班报告内部关联。
+   */
   patientId: string;
+
+  /**
+   * 用于护理记录和临床数据查询。
+   */
+  nurseRecordPid: string;
+
   bedNo: string;
   name: string;
   mrn: string;
@@ -165,12 +183,21 @@ export interface ShiftStatistics {
   specialCare: number;
 }
 
+export type MetricMode = 'manual' | 'auto';
+
+export type MetricValueType = 'text' | 'number' | 'beds';
+
 export interface MetricRow {
-  group: string;
   key: string;
   label: string;
-  mode: 'auto' | 'manual';
+  mode: MetricMode;
+  valueType: MetricValueType;
   values: Record<ShiftKey, string>;
+
+  /**
+   * 数据源不可用或规则尚未确认时显示。
+   */
+  warning?: string;
 }
 
 export interface HandoverReportViewModel {
