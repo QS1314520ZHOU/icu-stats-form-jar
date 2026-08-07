@@ -601,6 +601,48 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   // ==================== 签名 ====================
 
   /**
+   * 保存护士长签名。
+   */
+  saveHeadNurseSignature(): void {
+    if (!this.snapshot) { return; }
+
+    this.hasUnsavedChanges = true;
+
+    this.service.setHeadNurseSignature({
+      departmentId: this.snapshot.draft.departmentId,
+      reportDate: this.snapshot.draft.reportDate,
+      baseVersion: this.snapshot.draft.version,
+      accountId: this.snapshot.draft.headNurseSignature || '',
+    }).pipe(
+      takeUntil(this.destroy$),
+    ).subscribe({
+      next: draft => {
+        if (!this.snapshot) { return; }
+        this.snapshot.draft = draft;
+        this.hasUnsavedChanges = false;
+        this.saveStatus = 'saved';
+        this.cdr.markForCheck();
+        setTimeout(() => {
+          if (this.saveStatus === 'saved') {
+            this.saveStatus = 'idle';
+            this.cdr.markForCheck();
+          }
+        }, 3000);
+      },
+      error: error => {
+        if (error instanceof DraftConflictError) {
+          this.saveStatus = 'conflict';
+          this.saveError = '签名已被其他用户修改，请刷新后重试。';
+        } else {
+          this.saveStatus = 'error';
+          this.saveError = '签名保存失败';
+        }
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  /**
    * 设置班次护士签名。
    */
   setShiftSignature(shift: ShiftKey, accountId: string): void {

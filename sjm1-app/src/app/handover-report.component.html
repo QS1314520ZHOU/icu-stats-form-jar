@@ -1,249 +1,261 @@
-<div class="handover-report">
+<div class="handover-shell">
   <!-- 顶部工具栏 -->
-  <div class="toolbar no-print">
-    <button type="button" class="btn" (click)="previousDay()">← 前一天</button>
-    <input
-      type="date"
-      [value]="dateInput"
-      (change)="onDateChange($any($event.target).value)"
-    />
-    <button type="button" class="btn" (click)="nextDay()">后一天 →</button>
-    <button type="button" class="btn" (click)="today()">今天</button>
-    <button type="button" class="btn" (click)="openCriticalDialog()">危重患者</button>
-    <button type="button" class="btn primary" (click)="print()">打印</button>
-
-    <!-- 保存状态 -->
-    <span class="save-status" [class]="'save-status-' + saveStatus">
+  <header class="toolbar no-print">
+    <div class="date-tools">
+      <button type="button" class="nav-arrow" (click)="previousDay()">‹</button>
+      <input type="date" [value]="dateInput" (change)="onDateChange($any($event.target).value)" />
+      <button type="button" class="nav-arrow" (click)="nextDay()">›</button>
+    </div>
+    <button type="button" class="today-button" (click)="today()">今天</button>
+    <button type="button" class="today-button" (click)="openCriticalDialog()">危重患者选择</button>
+    <span class="toolbar-spacer"></span>
+    <div class="save-state" [class.save-state-error]="saveStatus === 'error' || saveStatus === 'conflict'">
       @switch (saveStatus) {
-        @case ('saving') { 保存中... }
-        @case ('saved') { ✓ 已保存 }
-        @case ('error') { ✗ {{ saveError }} }
+        @case ('saving') { 保存中… }
+        @case ('saved') { 已保存 }
+        @case ('error') { {{ saveError || '保存失败' }} }
         @case ('conflict') {
-          <span class="conflict-warning">
-            ⚠ {{ saveError }}
-            <button type="button" class="btn-link" (click)="reloadDraft()">重新加载</button>
-          </span>
+          {{ saveError || '数据已被其他用户修改' }}
+          <button type="button" class="reload-link" (click)="reloadDraft()">重新加载</button>
         }
         @default {
           @if (hasUnsavedChanges) {
-            <span class="unsaved-indicator">● 有未保存修改</span>
+            有未保存修改
+          } @else {
+            已自动保存
           }
         }
       }
-    </span>
-  </div>
+    </div>
+    <button type="button" class="print-button" (click)="print()">打印</button>
+  </header>
 
-  <!-- 加载状态 -->
-  @if (loading) {
-    <div class="loading">加载中...</div>
-  }
-
-  <!-- 错误提示 -->
   @if (error) {
-    <div class="error">{{ error }}</div>
+    <div class="error-banner no-print">{{ error }}</div>
+  }
+  @if (loading) {
+    <div class="loading no-print">加载中…</div>
   }
 
-  <!-- 主要内容 -->
-  @if (vm && !loading) {
-    <!-- 患者交班表格 -->
-    <section class="patient-section">
-      <h2>患者交班</h2>
-      <table class="patient-table">
-        <thead>
-          <tr>
-            <th class="bed-col">床号</th>
-            <th class="name-col">姓名</th>
-            <th class="status-col">状态</th>
-            <th>白班</th>
-            <th>中班</th>
-            <th>夜班</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of vm.rows; track trackRow($index, row)) {
-            <tr [class.critical-row]="row.status === '病危'">
-              <td class="bed-col">{{ row.bedNo }}</td>
-              <td class="name-col">{{ row.name }}</td>
-              <td class="status-col">{{ statusText(row.status) }}</td>
+  @if (vm && snapshot) {
+    <main class="paper">
+      <section class="report-page">
+
+        <!-- 班次统计表 -->
+        <table class="summary-table">
+          <colgroup>
+            <col class="shift-col" />
+            <col class="total-col" />
+            <col span="6" class="count-col" />
+            <col class="critical-col" />
+            <col class="special-care-col" />
+            <col class="remark-col" />
+          </colgroup>
+          <thead>
+            <tr class="report-title-row">
+              <th colspan="11">护士交接班病情报告本</th>
+            </tr>
+            <tr class="report-meta-row">
+              <th>科室</th>
+              <td colspan="3">{{ snapshot.departmentName || snapshot.departmentId }}</td>
+              <th>日期</th>
+              <td colspan="3">{{ dateInput }}</td>
+              <th colspan="2">护士长签名</th>
+              <td>
+                <input
+                  class="head-nurse-input"
+                  [value]="snapshot.draft.headNurseSignature || ''"
+                  (input)="snapshot.draft.headNurseSignature = $any($event.target).value; saveHeadNurseSignature()"
+                  aria-label="护士长签名"
+                />
+              </td>
+            </tr>
+            <tr>
+              <th>班别</th>
+              <th>病人总数</th>
+              <th>出院</th>
+              <th>转出</th>
+              <th>死亡</th>
+              <th>转入</th>
+              <th>入院</th>
+              <th>手术</th>
+              <th>病危</th>
+              <th class="special-care-header">特级护理</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (shift of ['day', 'evening', 'night']; track shift) {
+              <tr>
+                <th>{{ shift === 'day' ? '白班' : shift === 'evening' ? '中班' : '夜班' }}</th>
+                <td>{{ vm.statistics[shift].total }}</td>
+                <td>{{ vm.statistics[shift].discharged ?? 0 }}</td>
+                <td>{{ vm.statistics[shift].transferredOut ?? 0 }}</td>
+                <td>{{ vm.statistics[shift].death ?? 0 }}</td>
+                <td>{{ vm.statistics[shift].transferredIn ?? 0 }}</td>
+                <td>{{ vm.statistics[shift].admission ?? 0 }}</td>
+                <td>{{ vm.statistics[shift].operation ?? 0 }}</td>
+                <td>{{ vm.statistics[shift].critical }}</td>
+                <td>{{ vm.statistics[shift].specialCare ?? 0 }}</td>
+                <td></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        <!-- 患者交班表 -->
+        <table class="patient-table">
+          <thead>
+            <tr>
+              <th>床号</th>
+              <th>姓名</th>
+              <th>状态</th>
+              <th>住院号</th>
+              <th>诊断</th>
+              <th>白班</th>
+              <th>中班</th>
+              <th>夜班</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of vm.rows; track trackRow($index, row)) {
+              <tr [class.critical-row]="row.status === '病危'">
+                <td>{{ row.bedNo }}</td>
+                <td>{{ row.name }}</td>
+                <td class="status-cell">{{ statusText(row.status) }}</td>
+                <td>{{ row.mrn }}</td>
+                <td>{{ row.diagnosis }}</td>
+                @for (shift of ['day', 'evening', 'night']; track shift) {
+                  <td>
+                    @if (canEditShift(row, $any(shift))) {
+                      <button
+                        type="button"
+                        class="insert-button no-print"
+                        (click)="openNurseRecords(row, $any(shift))"
+                      >插入护理记录</button>
+                      <textarea
+                        [value]="row.shiftTexts[$any(shift)] || ''"
+                        (input)="updatePatientText(row, $any(shift), $any($event.target).value)"
+                      ></textarea>
+                    } @else {
+                      <span>{{ row.shiftTexts[$any(shift)] || '' }}</span>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="5"></td>
               @for (shift of ['day', 'evening', 'night']; track shift) {
                 <td>
-                  @if (canEditShift(row, $any(shift))) {
-                    <textarea
-                      class="patient-text-input"
-                      rows="2"
-                      [value]="row.shiftTexts[$any(shift)] || ''"
-                      (input)="updatePatientText(row, $any(shift), $any($event.target).value)"
-                    ></textarea>
-                    <button
-                      type="button"
-                      class="btn-small no-print"
-                      (click)="openNurseRecords(row, $any(shift))"
-                      title="插入护理记录"
-                    >
-                      +
-                    </button>
-                  } @else {
-                    <span class="patient-text-display">{{ row.shiftTexts[$any(shift)] || '' }}</span>
-                  }
+                  护士签名：
+                  <select
+                    [value]="snapshot.draft.shiftSignatures[$any(shift)] || ''"
+                    (change)="setShiftSignature($any(shift), $any($event.target).value)"
+                  >
+                    <option value=""></option>
+                    @for (account of snapshot.nurseAccounts; track account.id) {
+                      <option [value]="account.id">{{ account.trueName }}</option>
+                    }
+                  </select>
                 </td>
               }
             </tr>
-          }
-        </tbody>
-      </table>
-    </section>
+          </tfoot>
+        </table>
+      </section>
 
-    <!-- 统计信息 -->
-    <section class="statistics-section">
-      <h2>统计</h2>
-      <table class="statistics-table">
-        <thead>
-          <tr>
-            <th></th>
-            <th>白班</th>
-            <th>中班</th>
-            <th>夜班</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>总数</td>
-            @for (shift of ['day', 'evening', 'night']; track shift) {
-              <td>{{ vm.statistics[shift].total }}</td>
-            }
-          </tr>
-          <tr>
-            <td>出院</td>
-            @for (shift of ['day', 'evening', 'night']; track shift) {
-              <td>{{ vm.statistics[shift].discharged }}</td>
-            }
-          </tr>
-          <tr>
-            <td>转出</td>
-            @for (shift of ['day', 'evening', 'night']; track shift) {
-              <td>{{ vm.statistics[shift].transferredOut }}</td>
-            }
-          </tr>
-          <tr>
-            <td>死亡</td>
-            @for (shift of ['day', 'evening', 'night']; track shift) {
-              <td>{{ vm.statistics[shift].death }}</td>
-            }
-          </tr>
-          <tr>
-            <td>转入</td>
-            @for (shift of ['day', 'evening', 'night']; track shift) {
-              <td>{{ vm.statistics[shift].transferredIn }}</td>
-            }
-          </tr>
-          <tr>
-            <td>入院</td>
-            @for (shift of ['day', 'evening', 'night']; track shift) {
-              <td>{{ vm.statistics[shift].admission }}</td>
-            }
-          </tr>
-          <tr>
-            <td>手术</td>
-            @for (shift of ['day', 'evening', 'night']; track shift) {
-              <td>{{ vm.statistics[shift].operation }}</td>
-            }
-          </tr>
-        </tbody>
-      </table>
-    </section>
+      <!-- 重症医学科病区交班报告 -->
+      <section class="safety-report-section" aria-labelledby="safety-report-title">
+        <h2 id="safety-report-title">重症医学科病区交班报告</h2>
 
-    <!-- 安全交班报告 -->
-    <section class="safety-report-section">
-      <h2>重症医学科病区交班报告</h2>
-      <table class="safety-report-table">
-        <thead>
-          <tr>
-            <th class="category-column">分类</th>
-            <th class="metric-column">项目</th>
-            <th>白班</th>
-            <th>中班</th>
-            <th>夜班</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (metric of vm.metrics; track trackMetric($index, metric)) {
+        <table class="safety-report-table">
+          <thead>
             <tr>
-              @if (metric.showCategory) {
-                <th class="category-cell" [attr.rowspan]="metric.categoryRowSpan">
-                  {{ metric.category }}
-                </th>
+              <th class="category-column">分类</th>
+              <th class="metric-name-column">项目</th>
+              @for (shift of metricShifts; track shift) {
+                <th>{{ metricShiftLabel(shift) }}</th>
               }
+            </tr>
+          </thead>
+          <tbody>
+            @for (metric of vm.metrics; track trackMetric($index, metric)) {
+              <tr>
+                @if (metric.showCategory) {
+                  <th class="category-cell" [attr.rowspan]="metric.categoryRowSpan">
+                    {{ metric.category }}
+                  </th>
+                }
+                <th scope="row">
+                  <span>{{ metric.label }}</span>
+                  @if (metric.warning) {
+                    <span class="metric-warning no-print" [title]="metric.warning">数据待确认</span>
+                  }
+                </th>
+                @for (shift of metricShifts; track shift) {
+                  <td>
+                    @if (metric.mode === 'manual') {
+                      <textarea
+                        class="metric-input"
+                        rows="1"
+                        [value]="metric.values[shift]"
+                        [attr.aria-label]="metric.label + metricShiftLabel(shift)"
+                        (input)="updateManualMetric(metric.key, shift, $any($event.target).value)"
+                      ></textarea>
+                    } @else {
+                      <span
+                        class="metric-auto-value"
+                        [class.metric-emphasis]="metric.emphasize && metric.values[shift] && metric.values[shift] !== '—'"
+                      >{{ metric.values[shift] || '—' }}</span>
+                    }
+                  </td>
+                }
+              </tr>
+            }
 
-              <th class="metric-label-cell">{{ metric.label }}</th>
-
+            <tr class="signature-row">
+              <th colspan="2" scope="row">护士签名</th>
               @for (shift of metricShifts; track shift) {
                 <td>
-                  @if (metric.mode === 'manual') {
-                    <textarea
-                      class="metric-input"
-                      rows="1"
-                      [value]="metric.values[shift]"
-                      (input)="updateManualMetric(metric.key, shift, $any($event.target).value)"
-                    ></textarea>
-                  } @else {
-                    <span
-                      class="metric-auto-value"
-                      [class.metric-emphasis]="metric.emphasize && metric.values[shift] && metric.values[shift] !== '—'"
-                    >
-                      {{ metric.values[shift] || '—' }}
-                    </span>
-                  }
+                  <select
+                    class="signature-select no-print-control"
+                    [value]="snapshot.draft.shiftSignatures[$any(shift)] || ''"
+                    (change)="setShiftSignature($any(shift), $any($event.target).value)"
+                  >
+                    <option value="">请选择</option>
+                    @for (account of snapshot.nurseAccounts; track account.id) {
+                      <option [value]="account.id">{{ account.trueName }}</option>
+                    }
+                  </select>
+                  <span class="signature-print-value">{{ signatureName(shift) }}</span>
                 </td>
               }
             </tr>
-          }
-
-          <!-- 护士签名行 -->
-          <tr class="signature-row">
-            <th colspan="2">护士签名</th>
-            @for (shift of metricShifts; track shift) {
-              <td>
-                <select
-                  class="signature-select no-print"
-                  [value]="snapshot?.draft?.shiftSignatures?.[$any(shift)] || ''"
-                  (change)="setShiftSignature($any(shift), $any($event.target).value)"
-                >
-                  <option value="">请选择</option>
-                  @for (account of snapshot?.nurseAccounts; track account.id) {
-                    <option [value]="account.id">{{ account.trueName }}</option>
-                  }
-                </select>
-                <span class="signature-print-value">{{ signatureName(shift) }}</span>
-              </td>
-            }
-          </tr>
-        </tbody>
-      </table>
-    </section>
+          </tbody>
+        </table>
+      </section>
+    </main>
   }
 
   <!-- 危重患者选择弹窗 -->
   @if (criticalDialogVisible) {
-    <div class="overlay no-print" role="dialog" aria-modal="true" aria-labelledby="critical-dialog-title">
-      <section class="dialog critical-dialog">
-        <header class="dh">
-          <h2 id="critical-dialog-title">危重患者选择</h2>
+    <div class="overlay no-print" (click)="cancelCriticalSelection()">
+      <section class="dialog critical-dialog" (click)="$event.stopPropagation()">
+        <div class="dh">
+          <h2>危重患者选择</h2>
           <button
-            type="button"
             class="ic"
-            aria-label="关闭"
             [disabled]="criticalSelectionSaving"
             (click)="cancelCriticalSelection()"
-          >
-            ×
-          </button>
-        </header>
-
+          >×</button>
+        </div>
         <div class="db">
           @if (criticalSelectionError) {
             <div class="dialog-error">{{ criticalSelectionError }}</div>
           }
-
           <div class="critical-patient-list">
             @for (patient of snapshot?.patients; track patientKey(patient)) {
               <label class="critical-patient-row" [class.disabled]="!hasPatientKey(patient)">
@@ -262,83 +274,92 @@
             }
           </div>
         </div>
-
-        <footer class="df">
+        <div class="df">
           <span class="selected-count">已选择 {{ pendingCriticalPatientIds.size }} 人</span>
           <button
             type="button"
             class="btn"
             [disabled]="criticalSelectionSaving"
             (click)="cancelCriticalSelection()"
-          >
-            取消
-          </button>
+          >取消</button>
           <button
             type="button"
             class="btn primary"
             [disabled]="criticalSelectionSaving"
             (click)="confirmCriticalSelection()"
-          >
-            {{ criticalSelectionSaving ? '保存中…' : '确定' }}
-          </button>
-        </footer>
+          >{{ criticalSelectionSaving ? '保存中…' : '确定' }}</button>
+        </div>
       </section>
     </div>
   }
 
-  <!-- 护理记录选择弹窗 -->
+  <!-- 护理记录插入弹窗 -->
   @if (nurseRecordDialogVisible) {
-    <div class="overlay no-print" role="dialog" aria-modal="true" aria-labelledby="nurse-record-dialog-title">
-      <section class="dialog nurse-record-dialog">
-        <header class="dh">
-          <h2 id="nurse-record-dialog-title">插入护理记录</h2>
+    <div class="overlay no-print" (click)="closeNurseRecordDialog()">
+      <section class="dialog nurse-record-dialog" (click)="$event.stopPropagation()">
+        <div class="dh">
+          <div>
+            <h2>插入护理记录</h2>
+            @if (recordTarget) {
+              <div class="dialog-subtitle">{{ recordTarget.row.bedNo }} {{ recordTarget.row.name }} · {{ shiftLabel(recordTarget.shift) }}</div>
+            }
+          </div>
           <button type="button" class="ic" aria-label="关闭" (click)="closeNurseRecordDialog()">×</button>
-        </header>
-
+        </div>
         <div class="db">
           @if (nurseRecordLoading) {
-            <div class="loading">加载中...</div>
+            <div class="record-state">正在加载护理记录…</div>
           }
 
-          @if (nurseRecordError) {
-            <div class="dialog-error">{{ nurseRecordError }}</div>
-          }
-
-          @if (!nurseRecordLoading && !nurseRecordError) {
-            <div class="nurse-record-list">
-              @if (nurseRecords.length === 0) {
-                <div class="empty-hint">当前班次无护理记录</div>
-              }
-              @for (record of nurseRecords; track record.id) {
-                <label class="nurse-record-row">
-                  <input
-                    type="checkbox"
-                    [checked]="selectedRecordIds.has(record.id)"
-                    (change)="toggleNurseRecord(record.id, $any($event.target).checked)"
-                  />
-                  <span class="record-time">{{ formatRecordTime(record.time) }}</span>
-                  <span class="record-desc">{{ record.desc }}</span>
-                  @if (record.recorder) {
-                    <span class="record-recorder">{{ record.recorder }}</span>
-                  }
-                </label>
+          @if (!nurseRecordLoading && nurseRecordError) {
+            <div class="record-error">
+              {{ nurseRecordError }}
+              @if (recordTarget) {
+                <button type="button" class="btn retry-button" (click)="openNurseRecords(recordTarget.row, recordTarget.shift)">重新查询</button>
               }
             </div>
           }
-        </div>
 
-        <footer class="df">
-          <span class="selected-count">已选择 {{ selectedRecordIds.size }} 条</span>
+          @if (!nurseRecordLoading && !nurseRecordError && nurseRecords.length > 0) {
+            <div class="nurse-record-list">
+              <div class="record-table-header">
+                <span class="record-select-column">选择</span>
+                <span class="record-index-column">序号</span>
+                <span class="record-time-column">记录时间</span>
+                <span class="record-content-column">内容</span>
+                <span class="record-user-column">记录者</span>
+              </div>
+              @for (record of nurseRecords; track record.id; let i = $index) {
+                <div class="record-table-row">
+                  <span class="record-select-column">
+                    <input
+                      type="checkbox"
+                      [checked]="selectedRecordIds.has(record.id)"
+                      (change)="toggleNurseRecord(record.id, $any($event.target).checked)"
+                    />
+                  </span>
+                  <span class="record-index-column">{{ i + 1 }}</span>
+                  <span class="record-time-column">{{ formatRecordTime(record.time) }}</span>
+                  <span class="record-content-column">{{ record.desc }}</span>
+                  <span class="record-user-column">{{ record.recorder || '—' }}</span>
+                </div>
+              }
+            </div>
+          }
+
+          @if (!nurseRecordLoading && !nurseRecordError && nurseRecords.length === 0) {
+            <div class="empty-hint">该班次无护理记录</div>
+          }
+        </div>
+        <div class="df">
           <button type="button" class="btn" (click)="closeNurseRecordDialog()">取消</button>
           <button
             type="button"
             class="btn primary"
-            [disabled]="selectedRecordIds.size === 0"
+            [disabled]="nurseRecordLoading || selectedRecordIds.size === 0"
             (click)="applyNurseRecords()"
-          >
-            插入
-          </button>
-        </footer>
+          >插入所选</button>
+        </div>
       </section>
     </div>
   }
