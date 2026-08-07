@@ -23,22 +23,25 @@ type PrintBlock =
       summary: HljldSummary;
     };
 
-type SplittableField =
+type NarrativeField =
   | 'nursingRecord'
-  | 'examination'
-  | 'treatment'
+  | 'healthEducation'
   | 'basicCare'
-  | 'healthEducation';
+  | 'treatment'
+  | 'examination';
 
-const SPLITTABLE_FIELDS: SplittableField[] = [
+type NarrativeSegment = {
+  field: NarrativeField;
+  text: string;
+};
+
+const NARRATIVE_FIELD_ORDER: NarrativeField[] = [
   'nursingRecord',
   'healthEducation',
   'basicCare',
   'treatment',
   'examination',
 ];
-
-const MIN_SPLITTABLE_TEXT_LENGTH = 8;
 
 type PageRefs = {
   pageEl: HTMLElement;
@@ -558,77 +561,7 @@ function appendTimeGroupBlock(
   }
 }
 
-function splitOversizedDisplayRow(
-  doc: Document,
-  root: HTMLElement,
-  vm: HljldViewModel,
-  remarkLines: string[],
-  pages: PageRefs[],
-  row: HljldDisplayRow,
-): void {
-  const targetField = findSplittableField(row);
-
-  if (!targetField) {
-    throw new Error(
-      `${row.key} 的字段 ${targetField} 超过单页高度且没有可拆分的长文本字段。`,
-    );
-  }
-
-  let remaining = getSplittableFieldText(row, targetField);
-  let fragmentIndex = 0;
-
-  while (remaining.length > 0) {
-    let currentPage = pages[pages.length - 1];
-
-    if (pageHasData(currentPage)) {
-      finalizePage(currentPage);
-
-      const nextPage = createPage(doc, vm, remarkLines);
-      root.appendChild(nextPage.pageEl);
-      pages.push(nextPage);
-      currentPage = nextPage;
-    }
-
-    const cutIndex = findMaxFittingTextIndexByField(
-      currentPage,
-      row,
-      targetField,
-      remaining,
-      fragmentIndex === 0,
-    );
-
-    if (cutIndex <= 0) {
-      throw new Error(
-        `无法为 ${row.key} 的字段 ${targetField} 找到可打印的文本切分位置`,
-      );
-    }
-
-    const currentText = remaining.slice(0, cutIndex);
-    remaining = remaining.slice(cutIndex);
-
-    const fragmentRow = createDisplayRowTr(
-      doc,
-      createSplitRowFragmentByField(
-        row,
-        targetField,
-        currentText,
-        fragmentIndex === 0,
-        remaining.length === 0,
-      ),
-    );
-
-    if (!tryAppendNodes(currentPage, [fragmentRow])) {
-      removeNodes([fragmentRow]);
-      throw new Error(
-        `拆分后的片段仍无法放入页面：${row.key} / ${targetField}`,
-      );
-    }
-
-    fragmentIndex += 1;
-  }
-}
-
-function getSplittableFieldText(row: HljldDisplayRow, field: SplittableField): string {
+function getNarrativeFieldText(row: HljldDisplayRow, field: NarrativeField): string {
   switch (field) {
     case 'nursingRecord':
       return String(row.nursingRecord || '');
@@ -645,54 +578,115 @@ function getSplittableFieldText(row: HljldDisplayRow, field: SplittableField): s
   }
 }
 
-function findSplittableField(row: HljldDisplayRow): SplittableField | null {
-  let bestField: SplittableField | null = null;
-  let bestScore = -1;
-
-  for (const field of SPLITTABLE_FIELDS) {
-    const text = getSplittableFieldText(row, field).trim();
-    if (!text) {
-      continue;
-    }
-
-    const hasLineBreak = /\r?\n/.test(text);
-    const isLongEnough = text.length >= MIN_SPLITTABLE_TEXT_LENGTH;
-
-    // 太短且没有换行的字段，不参与拆分
-    if (!isLongEnough && !hasLineBreak) {
-      continue;
-    }
-
-    let score = text.length;
-
-    // 护理记录优先级最高
-    if (field === 'nursingRecord') {
-      score += 10000;
-    } else if (field === 'healthEducation') {
-      score += 4000;
-    } else if (field === 'basicCare') {
-      score += 3000;
-    } else if (field === 'treatment') {
-      score += 2000;
-    } else if (field === 'examination') {
-      score += 1000;
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestField = field;
-    }
-  }
-
-  return bestField;
+function buildNarrativeSegments(row: HljldDisplayRow): NarrativeSegment[] {
+  return NARRATIVE_FIELD_ORDER
+    .map(field => ({
+      field,
+      text: getNarrativeFieldText(row, field).trim(),
+    }))
+    .filter(segment => segment.text.length > 0);
 }
 
-function findMaxFittingTextIndexByField(
+function splitOversizedDisplayRow(
+  doc: Document,
+  root: HTMLElement,
+  vm: HljldViewModel,
+  remarkLines: string[],
+  pages: PageRefs[],
+  row: HljldDisplayRow,
+): void {
+  const segments = buildNarrativeSegments(row);
+
+  console.info('[HLJLD][print-split-row]', {
+    rowKey: row.key,
+    segments: segments.map(item => ({
+      field: item.field,
+      length: item.text.length,
+    })),
+  });
+
+  if (!segments.length) {
+    throw new Error(
+      `${row.key} 超过单页高度，但该行没有可分页的叙述字段，请检查列宽、字号或固定字段内容。`,
+    );
+  }
+
+  let segmentIndex = 0;
+  let fragmentSerial = 0;
+
+  while (segmentIndex < segments.length) {
+    const segment = segments[segmentIndex];
+    let remaining = segment.text;
+
+    while (remaining.length > 0) {
+      let currentPage = pages[pages.length - 1];
+
+      if (pageHasData(currentPage)) {
+        finalizePage(currentPage);
+
+        const nextPage = createPage(doc, vm, remarkLines);
+        root.appendChild(nextPage.pageEl);
+        pages.push(nextPage);
+        currentPage = nextPage;
+      }
+
+      const cutIndex = findMaxFittingSegmentTextIndex(
+        currentPage,
+        row,
+        segment.field,
+        remaining,
+        fragmentSerial === 0,
+      );
+
+      if (cutIndex <= 0) {
+        console.error('[HLJLD][print-split-failed]', {
+          rowKey: row.key,
+          field: segment.field,
+          remainingLength: remaining.length,
+          pageIndex: pages.length,
+        });
+        throw new Error(
+          `无法为 ${row.key} 的字段 ${segment.field} 生成可打印片段，请检查该行是否存在多个并发超高字段。`,
+        );
+      }
+
+      const currentText = remaining.slice(0, cutIndex);
+      remaining = remaining.slice(cutIndex);
+
+      const isLastOverallFragment =
+        segmentIndex === segments.length - 1 && remaining.length === 0;
+
+      const fragmentRow = createDisplayRowTr(
+        doc,
+        createSegmentRowFragment(
+          row,
+          segment.field,
+          currentText,
+          fragmentSerial === 0,
+          isLastOverallFragment,
+        ),
+      );
+
+      if (!tryAppendNodes(currentPage, [fragmentRow])) {
+        removeNodes([fragmentRow]);
+        throw new Error(
+          `拆分后的片段仍无法放入页面：${row.key} / ${segment.field}`,
+        );
+      }
+
+      fragmentSerial += 1;
+    }
+
+    segmentIndex += 1;
+  }
+}
+
+function findMaxFittingSegmentTextIndex(
   page: PageRefs,
   row: HljldDisplayRow,
-  field: SplittableField,
+  field: NarrativeField,
   fullText: string,
-  firstFragment: boolean,
+  firstOverallFragment: boolean,
 ): number {
   let low = 1;
   let high = fullText.length;
@@ -700,15 +694,15 @@ function findMaxFittingTextIndexByField(
 
   while (low <= high) {
     const middle = Math.floor((low + high) / 2);
-
     const candidateText = fullText.slice(0, middle);
+
     const candidateRow = createDisplayRowTr(
       page.pageEl.ownerDocument,
-      createSplitRowFragmentByField(
+      createSegmentRowFragment(
         row,
         field,
         candidateText,
-        firstFragment,
+        firstOverallFragment,
         false,
       ),
     );
@@ -732,89 +726,52 @@ function findMaxFittingTextIndexByField(
   return moveCutToNaturalBoundary(fullText, best);
 }
 
-function createSplitRowFragmentByField(
+function createSegmentRowFragment(
   row: HljldDisplayRow,
-  field: SplittableField,
+  field: NarrativeField,
   fragmentText: string,
-  firstFragment: boolean,
-  lastFragment: boolean,
+  firstOverallFragment: boolean,
+  lastOverallFragment: boolean,
 ): HljldDisplayRow {
   const nextRow: HljldDisplayRow = {
     ...row,
-    key: `${row.key}__${field}__fragment__${Math.random().toString(36).slice(2)}`,
-    firstLine: firstFragment ? row.firstLine : false,
+    key: `${row.key}__${field}__segment__${Math.random().toString(36).slice(2)}`,
+    firstLine: firstOverallFragment ? row.firstLine : false,
 
-    timeText: firstFragment ? row.timeText : '',
-    medication: firstFragment ? row.medication : undefined,
-    enteral: firstFragment ? row.enteral : undefined,
-    output: firstFragment ? row.output : undefined,
-    drain: firstFragment ? row.drain : undefined,
+    timeText: firstOverallFragment ? row.timeText : '',
+    medication: firstOverallFragment ? row.medication : undefined,
+    enteral: firstOverallFragment ? row.enteral : undefined,
+    output: firstOverallFragment ? row.output : undefined,
+    drain: firstOverallFragment ? row.drain : undefined,
 
-    examination: firstFragment ? row.examination : '',
-    treatment: firstFragment ? row.treatment : '',
-    basicCare: firstFragment ? row.basicCare : '',
-    healthEducation: firstFragment ? row.healthEducation : '',
-    nursingRecord: firstFragment ? row.nursingRecord : '',
+    examination: '',
+    treatment: '',
+    basicCare: '',
+    healthEducation: '',
+    nursingRecord: '',
 
-    signature: lastFragment ? row.signature : '',
+    signature: lastOverallFragment ? row.signature : '',
   };
 
-  nextRow[field] = fragmentText as never;
-
-  if (!firstFragment) {
-    if (field !== 'examination') nextRow.examination = '';
-    if (field !== 'treatment') nextRow.treatment = '';
-    if (field !== 'basicCare') nextRow.basicCare = '';
-    if (field !== 'healthEducation') nextRow.healthEducation = '';
-    if (field !== 'nursingRecord') nextRow.nursingRecord = '';
+  switch (field) {
+    case 'nursingRecord':
+      nextRow.nursingRecord = fragmentText;
+      break;
+    case 'healthEducation':
+      nextRow.healthEducation = fragmentText;
+      break;
+    case 'basicCare':
+      nextRow.basicCare = fragmentText;
+      break;
+    case 'treatment':
+      nextRow.treatment = fragmentText;
+      break;
+    case 'examination':
+      nextRow.examination = fragmentText;
+      break;
   }
 
   return nextRow;
-}
-
-function findMaxFittingTextIndex(
-  page: PageRefs,
-  row: HljldDisplayRow,
-  fullText: string,
-  firstFragment: boolean,
-): number {
-  let low = 1;
-  let high = fullText.length;
-  let best = 0;
-
-  while (low <= high) {
-    const middle = Math.floor((low + high) / 2);
-
-    const candidateText = fullText.slice(0, middle);
-    const candidateRow = createDisplayRowTr(
-      page.pageEl.ownerDocument,
-      createSplitRowFragment(
-        row,
-        candidateText,
-        firstFragment,
-        false,
-      ),
-    );
-
-    page.tbodyEl.appendChild(candidateRow);
-
-    const fits = !isOverflowing(page);
-
-    candidateRow.remove();
-
-    if (fits) {
-      best = middle;
-      low = middle + 1;
-    } else {
-      high = middle - 1;
-    }
-  }
-
-  if (best <= 0) {
-    return 0;
-  }
-
-  return moveCutToNaturalBoundary(fullText, best);
 }
 
 function moveCutToNaturalBoundary(text: string, index: number): number {
@@ -832,30 +789,6 @@ function moveCutToNaturalBoundary(text: string, index: number): number {
   }
 
   return index;
-}
-
-function createSplitRowFragment(
-  row: HljldDisplayRow,
-  nursingRecord: string,
-  firstFragment: boolean,
-  lastFragment: boolean,
-): HljldDisplayRow {
-  return {
-    ...row,
-    key: `${row.key}__fragment__${Math.random().toString(36).slice(2)}`,
-    firstLine: firstFragment ? row.firstLine : false,
-    timeText: firstFragment ? row.timeText : '',
-    medication: firstFragment ? row.medication : undefined,
-    enteral: firstFragment ? row.enteral : undefined,
-    output: firstFragment ? row.output : undefined,
-    drain: firstFragment ? row.drain : undefined,
-    examination: firstFragment ? row.examination : '',
-    treatment: firstFragment ? row.treatment : '',
-    basicCare: firstFragment ? row.basicCare : '',
-    healthEducation: firstFragment ? row.healthEducation : '',
-    nursingRecord,
-    signature: lastFragment ? row.signature : '',
-  };
 }
 
 function appendSummaryBlock(
@@ -1121,10 +1054,10 @@ function createDisplayRowTr(
   tr.appendChild(cell(doc, row.drain?.name || ''));
   tr.appendChild(cell(doc, row.drain?.amount || ''));
 
-  tr.appendChild(cell(doc, row.examination || ''));
-  tr.appendChild(cell(doc, row.treatment || ''));
-  tr.appendChild(cell(doc, row.basicCare || ''));
-  tr.appendChild(cell(doc, row.healthEducation || ''));
+  tr.appendChild(cell(doc, row.examination || '', 'exam-cell'));
+  tr.appendChild(cell(doc, row.treatment || '', 'treatment-cell'));
+  tr.appendChild(cell(doc, row.basicCare || '', 'basic-care-cell'));
+  tr.appendChild(cell(doc, row.healthEducation || '', 'health-cell'));
   tr.appendChild(cell(doc, row.nursingRecord || '', 'nursing-cell'));
   tr.appendChild(cell(doc, row.signature || '', 'sign-cell'));
 
