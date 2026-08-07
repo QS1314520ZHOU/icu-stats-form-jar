@@ -32,11 +32,13 @@ type SplittableField =
 
 const SPLITTABLE_FIELDS: SplittableField[] = [
   'nursingRecord',
-  'examination',
-  'treatment',
-  'basicCare',
   'healthEducation',
+  'basicCare',
+  'treatment',
+  'examination',
 ];
+
+const MIN_SPLITTABLE_TEXT_LENGTH = 8;
 
 type PageRefs = {
   pageEl: HTMLElement;
@@ -568,11 +570,11 @@ function splitOversizedDisplayRow(
 
   if (!targetField) {
     throw new Error(
-      `行 ${row.key} 超过单页高度且没有可拆分的长文本字段。`,
+      `${row.key} 的字段 ${targetField} 超过单页高度且没有可拆分的长文本字段。`,
     );
   }
 
-  let remaining = String(row[targetField] || '');
+  let remaining = getSplittableFieldText(row, targetField);
   let fragmentIndex = 0;
 
   while (remaining.length > 0) {
@@ -597,7 +599,7 @@ function splitOversizedDisplayRow(
 
     if (cutIndex <= 0) {
       throw new Error(
-        `无法为行 ${row.key} 的字段 ${targetField} 找到可打印的文本切分位置。`,
+        `无法为 ${row.key} 的字段 ${targetField} 找到可打印的文本切分位置`,
       );
     }
 
@@ -618,7 +620,7 @@ function splitOversizedDisplayRow(
     if (!tryAppendNodes(currentPage, [fragmentRow])) {
       removeNodes([fragmentRow]);
       throw new Error(
-        `拆分后的片段仍无法放入页面，行 ${row.key}，字段 ${targetField}。`,
+        `拆分后的片段仍无法放入页面：${row.key} / ${targetField}`,
       );
     }
 
@@ -626,14 +628,63 @@ function splitOversizedDisplayRow(
   }
 }
 
+function getSplittableFieldText(row: HljldDisplayRow, field: SplittableField): string {
+  switch (field) {
+    case 'nursingRecord':
+      return String(row.nursingRecord || '');
+    case 'healthEducation':
+      return String(row.healthEducation || '');
+    case 'basicCare':
+      return String(row.basicCare || '');
+    case 'treatment':
+      return String(row.treatment || '');
+    case 'examination':
+      return String(row.examination || '');
+    default:
+      return '';
+  }
+}
+
 function findSplittableField(row: HljldDisplayRow): SplittableField | null {
+  let bestField: SplittableField | null = null;
+  let bestScore = -1;
+
   for (const field of SPLITTABLE_FIELDS) {
-    const value = String(row[field] || '').trim();
-    if (value.length > 0) {
-      return field;
+    const text = getSplittableFieldText(row, field).trim();
+    if (!text) {
+      continue;
+    }
+
+    const hasLineBreak = /\r?\n/.test(text);
+    const isLongEnough = text.length >= MIN_SPLITTABLE_TEXT_LENGTH;
+
+    // 太短且没有换行的字段，不参与拆分
+    if (!isLongEnough && !hasLineBreak) {
+      continue;
+    }
+
+    let score = text.length;
+
+    // 护理记录优先级最高
+    if (field === 'nursingRecord') {
+      score += 10000;
+    } else if (field === 'healthEducation') {
+      score += 4000;
+    } else if (field === 'basicCare') {
+      score += 3000;
+    } else if (field === 'treatment') {
+      score += 2000;
+    } else if (field === 'examination') {
+      score += 1000;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestField = field;
     }
   }
-  return null;
+
+  return bestField;
 }
 
 function findMaxFittingTextIndexByField(
