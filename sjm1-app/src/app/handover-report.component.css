@@ -105,6 +105,45 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
 .nurse-record-list { max-height: 400px; overflow-y: auto; }
 .empty-hint { color: #999; font-size: 13px; text-align: center; padding: 16px; }
 
+.dialog-subtitle { margin-top: 4px; color: #64748b; font-size: 13px; }
+
+.nurse-record-dialog { width: min(920px, 96vw); }
+
+.record-state, .record-error { padding: 24px 16px; text-align: center; }
+.record-state { color: #64748b; }
+.record-error { color: #b42318; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; }
+.retry-button { display: block; margin: 12px auto 0; }
+
+.record-table-header, .record-table-row {
+  display: grid;
+  grid-template-columns: 52px 52px 120px minmax(260px, 1fr) 100px;
+  align-items: start;
+  min-width: 700px;
+}
+.record-table-header {
+  position: sticky; top: 0; z-index: 1;
+  background: #edf3f7; border: 1px solid #d8dee6;
+  font-size: 12px; font-weight: 600;
+}
+.record-table-row {
+  cursor: pointer;
+  border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; border-left: 1px solid #e5e7eb;
+  font-size: 13px;
+}
+.record-table-row:hover { background: #f8fbfe; }
+.record-table-header > span, .record-table-row > span {
+  min-width: 0; padding: 8px; box-sizing: border-box;
+}
+.record-select-column, .record-index-column { text-align: center; }
+.record-content-column { white-space: pre-wrap; word-break: break-word; }
+.record-user-column { word-break: break-word; }
+
+.btn:disabled { border-color: #cbd5e1; background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+
+@media (max-width: 760px) {
+  .nurse-record-list { overflow-x: auto; }
+}
+
 /* Print */
 @media print {
   @page { size: A4 landscape; margin: 7mm; }
@@ -121,4 +160,5 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   .head-nurse-input { border: 0; }
   .summary-table .special-care-header { color: #e60012 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .patient-table textarea { border: none; padding: 0; font-size: 8pt; min-height: 0; overflow: visible; resize: none; }
+  .insert-button, .overlay, .dialog { display: none !important; }
 }

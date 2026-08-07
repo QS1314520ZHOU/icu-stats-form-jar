@@ -9,7 +9,7 @@ import {
   ShiftStatistics,
 } from './handover-report.models';
 
-const SHIFT_KEYS: ShiftKey[] = ['night', 'day', 'evening'];
+const SHIFT_KEYS: ShiftKey[] = ['day', 'evening', 'night'];
 
 const STATUS_ORDER: Record<HandoverStatus, number> = {
   '出院': 1, '转出': 2, '死亡': 3, '转入': 4, '入院': 5, '病危': 6, '手术': 7,
@@ -96,8 +96,12 @@ function defaultEventText(patient: DepartmentPatient, status: HandoverStatus): s
   }
 }
 
+/**
+ * 页面交班书写顺序：白班 → 中班 → 夜班。
+ * 转入、入院等患者从事件发生班次开始，允许在当前班次及后续班次插入护理记录。
+ */
 function editableShiftsFrom(eventShift: ShiftKey): ShiftKey[] {
-  const order: ShiftKey[] = ['night', 'day', 'evening'];
+  const order: ShiftKey[] = ['day', 'evening', 'night'];
   const index = order.indexOf(eventShift);
   return index < 0 ? [] : order.slice(index);
 }

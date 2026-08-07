@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { ReplaySubject, Subject, combineLatest, debounceTime, EMPTY } from 'rxjs';
-import { catchError, distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
-import { DepartmentContext, DepartmentDailySnapshot, DraftConflictError, HandoverPatientRow, HandoverReportViewModel, NurseRecord, ShiftKey } from './handover-report.models';
+import { ReplaySubject, Subject, combineLatest, EMPTY } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
+import { DepartmentContext, DepartmentDailySnapshot, DraftConflictError, HandoverPatientRow, HandoverReportViewModel, NurseRecord, NurseRecordOption, ShiftKey } from './handover-report.models';
 import { HandoverReportService } from './handover-report.service';
 import { HostPatientService } from './services/host-patient.service';
 import { buildHandoverReport } from './handover-report.utils';
@@ -32,8 +32,13 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   criticalDialogVisible = false;
   nurseRecordDialogVisible = false;
   recordTarget?: { row: HandoverPatientRow; shift: ShiftKey };
-  nurseRecords: NurseRecord[] = [];
+  nurseRecords: NurseRecordOption[] = [];
   selectedRecordIds = new Set<string>();
+  nurseRecordLoading = false;
+  nurseRecordError = '';
+
+  /** 防止上一个患者的请求晚返回覆盖当前弹窗 */
+  private nurseRecordRequestSequence = 0;
 
   constructor(
     private readonly service: HandoverReportService,
@@ -125,12 +130,73 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   }
 
   openNurseRecords(row: HandoverPatientRow, shift: ShiftKey): void {
+    const range = this.vm?.ranges?.[shift];
+
     this.recordTarget = { row, shift };
     this.selectedRecordIds.clear();
-    this.nurseRecords = (this.snapshot?.nurseRecords || [])
-      .filter(r => r.valid !== false && r.pid === row.patientId)
-      .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    this.nurseRecords = [];
+    this.nurseRecordError = '';
     this.nurseRecordDialogVisible = true;
+
+    if (!range) {
+      this.nurseRecordError = '未获取到当前班次时间范围';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const pid = String(row.patientId ?? '').trim();
+    if (!pid) {
+      this.nurseRecordError = '当前患者缺少护理记录关联ID，无法查询护理记录';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const requestSequence = ++this.nurseRecordRequestSequence;
+    this.nurseRecordLoading = true;
+    this.cdr.markForCheck();
+
+    this.service.loadNurseRecords(pid, range.start, range.end).pipe(
+      takeUntil(this.destroy$),
+      map(records => records.map((record, index) => this.toNurseRecordOption(record, index))),
+      catchError(error => {
+        if (requestSequence !== this.nurseRecordRequestSequence) { return EMPTY; }
+        this.nurseRecordError = error?.error?.message || error?.message || '护理记录查询失败，请稍后重试';
+        this.nurseRecords = [];
+        return EMPTY;
+      }),
+      finalize(() => {
+        if (requestSequence === this.nurseRecordRequestSequence) {
+          this.nurseRecordLoading = false;
+          this.cdr.markForCheck();
+        }
+      }),
+    ).subscribe(records => {
+      if (requestSequence !== this.nurseRecordRequestSequence) { return; }
+      this.nurseRecords = records;
+
+      const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+      if (isDev) {
+        console.info('[HANDOVER][nurse-records]', {
+          patientId: pid,
+          shift,
+          startTime: range.start.toISOString(),
+          endTime: range.end.toISOString(),
+          count: records.length,
+        });
+      }
+
+      this.cdr.markForCheck();
+    });
+  }
+
+  closeNurseRecordDialog(): void {
+    this.nurseRecordRequestSequence++;
+    this.nurseRecordDialogVisible = false;
+    this.nurseRecordLoading = false;
+    this.nurseRecordError = '';
+    this.nurseRecords = [];
+    this.selectedRecordIds.clear();
+    this.recordTarget = undefined;
     this.cdr.markForCheck();
   }
 
@@ -140,11 +206,30 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   }
 
   applyNurseRecords(): void {
-    if (!this.recordTarget) return;
-    const text = this.nurseRecords.filter(r => this.selectedRecordIds.has(r.id)).map(r => r.desc).join('\n');
-    const old = this.recordTarget.row.shiftTexts[this.recordTarget.shift] || '';
-    this.updatePatientText(this.recordTarget.row, this.recordTarget.shift, [old, text].filter(Boolean).join('\n'));
-    this.nurseRecordDialogVisible = false;
+    if (!this.recordTarget || this.selectedRecordIds.size === 0) { return; }
+
+    const selectedText = this.nurseRecords
+      .filter(record => this.selectedRecordIds.has(record.id))
+      .map(record => this.formatNurseRecordForInsert(record))
+      .filter(Boolean)
+      .join('\n');
+
+    if (!selectedText) { return; }
+
+    const { row, shift } = this.recordTarget;
+    const oldText = String(row.shiftTexts[shift] ?? '').trimEnd();
+    const nextText = oldText ? `${oldText}\n${selectedText}` : selectedText;
+
+    this.updatePatientText(row, shift, nextText);
+    this.closeNurseRecordDialog();
+  }
+
+  shiftLabel(shift: ShiftKey): string {
+    switch (shift) {
+      case 'day': return '白班';
+      case 'evening': return '中班';
+      case 'night': return '夜班';
+    }
   }
 
   setShiftSignature(shift: ShiftKey, accountId: string): void {
@@ -165,6 +250,29 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
     if (patientDeptCode) return { departmentName: patientDeptCode, departmentCode: patientDeptCode, queryValue: patientDeptCode, source: 'patient.deptCode' };
     if (accountDeptCode) return { departmentName: accountDeptCode, departmentCode: accountDeptCode, queryValue: accountDeptCode, source: 'account.departmentCode' };
     return null;
+  }
+
+  private toNurseRecordOption(record: NurseRecord, index: number): NurseRecordOption {
+    const pid = String(record?.pid ?? '').trim();
+    const time = String(record?.time ?? '').trim();
+    const desc = String(record?.desc ?? '').trim();
+    const sourceId = String(record?.id ?? record?._id ?? '').trim();
+    const id = sourceId || `${pid}:${time}:${index}`;
+    const recorder = String(record?.trueName ?? record?.username ?? record?.editUser ?? record?.userId ?? '').trim();
+    return { id, pid, time, desc, recorder, valid: record?.valid !== false };
+  }
+
+  private formatNurseRecordForInsert(record: NurseRecordOption): string {
+    const timeText = this.formatRecordTime(record.time);
+    const recorderText = record.recorder ? ` ${record.recorder}` : '';
+    return [timeText, record.desc, recorderText].filter(Boolean).join(' ').trim();
+  }
+
+  private formatRecordTime(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) { return value; }
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   }
 
   private rebuild(): void {

@@ -37,14 +37,14 @@
           <tr *ngFor="let shift of ['day', 'evening', 'night']">
             <th>{{ shift === 'day' ? '白班' : shift === 'evening' ? '中班' : '夜班' }}</th>
             <td>{{ vm.statistics[shift].total }}</td>
-            <td>{{ vm.statistics[shift].discharged || '' }}</td>
-            <td>{{ vm.statistics[shift].transferredOut || '' }}</td>
-            <td>{{ vm.statistics[shift].death || '' }}</td>
-            <td>{{ vm.statistics[shift].transferredIn || '' }}</td>
-            <td>{{ vm.statistics[shift].admission || '' }}</td>
-            <td>{{ vm.statistics[shift].operation || '' }}</td>
+            <td>{{ vm.statistics[shift].discharged ?? 0 }}</td>
+            <td>{{ vm.statistics[shift].transferredOut ?? 0 }}</td>
+            <td>{{ vm.statistics[shift].death ?? 0 }}</td>
+            <td>{{ vm.statistics[shift].transferredIn ?? 0 }}</td>
+            <td>{{ vm.statistics[shift].admission ?? 0 }}</td>
+            <td>{{ vm.statistics[shift].operation ?? 0 }}</td>
             <td>{{ vm.statistics[shift].critical }}</td>
-            <td>{{ vm.statistics[shift].specialCare || '' }}</td>
+            <td>{{ vm.statistics[shift].specialCare ?? 0 }}</td>
             <td></td>
           </tr>
         </tbody>
@@ -103,18 +103,51 @@
   </div>
 
   <!-- 护理记录插入弹窗 -->
-  <div class="overlay no-print" *ngIf="nurseRecordDialogVisible" (click)="nurseRecordDialogVisible = false">
-    <section class="dialog" (click)="$event.stopPropagation()">
-      <div class="dh"><h2>插入护理记录</h2><button class="ic" (click)="nurseRecordDialogVisible = false">×</button></div>
-      <div class="db nurse-record-list">
-        <div *ngFor="let record of nurseRecords; let i = index" class="record-option">
-          <label><input type="checkbox" [checked]="selectedRecordIds.has(record.id)" (change)="toggleNurseRecord(record.id, $any($event.target).checked)" /> {{ i + 1 }}. {{ record.time }} {{ record.desc }}</label>
+  <div class="overlay no-print" *ngIf="nurseRecordDialogVisible" (click)="closeNurseRecordDialog()">
+    <section class="dialog nurse-record-dialog" (click)="$event.stopPropagation()">
+      <div class="dh">
+        <div>
+          <h2>插入护理记录</h2>
+          <div class="dialog-subtitle" *ngIf="recordTarget">{{ recordTarget.row.bedNo }} {{ recordTarget.row.name }} · {{ shiftLabel(recordTarget.shift) }}</div>
         </div>
-        <div *ngIf="!nurseRecords.length" class="empty-hint">该班次无护理记录</div>
+        <button type="button" class="ic" aria-label="关闭" (click)="closeNurseRecordDialog()">×</button>
+      </div>
+      <div class="db">
+        <!-- 加载中 -->
+        <div *ngIf="nurseRecordLoading" class="record-state">正在加载护理记录…</div>
+
+        <!-- 查询失败 -->
+        <div *ngIf="!nurseRecordLoading && nurseRecordError" class="record-error">
+          {{ nurseRecordError }}
+          <button *ngIf="recordTarget" type="button" class="btn retry-button" (click)="openNurseRecords(recordTarget.row, recordTarget.shift)">重新查询</button>
+        </div>
+
+        <!-- 有记录 -->
+        <div *ngIf="!nurseRecordLoading && !nurseRecordError && nurseRecords.length > 0" class="nurse-record-list">
+          <div class="record-table-header">
+            <span class="record-select-column">选择</span>
+            <span class="record-index-column">序号</span>
+            <span class="record-time-column">记录时间</span>
+            <span class="record-content-column">内容</span>
+            <span class="record-user-column">记录者</span>
+          </div>
+          <div *ngFor="let record of nurseRecords; let i = index" class="record-table-row">
+            <span class="record-select-column">
+              <input type="checkbox" [checked]="selectedRecordIds.has(record.id)" (change)="toggleNurseRecord(record.id, $any($event.target).checked)" />
+            </span>
+            <span class="record-index-column">{{ i + 1 }}</span>
+            <span class="record-time-column">{{ record.time | date: 'MM-dd HH:mm' }}</span>
+            <span class="record-content-column">{{ record.desc }}</span>
+            <span class="record-user-column">{{ record.recorder || '—' }}</span>
+          </div>
+        </div>
+
+        <!-- 无记录 -->
+        <div *ngIf="!nurseRecordLoading && !nurseRecordError && nurseRecords.length === 0" class="empty-hint">该班次无护理记录</div>
       </div>
       <div class="df">
-        <button class="btn" (click)="nurseRecordDialogVisible = false">取消</button>
-        <button class="btn primary" (click)="applyNurseRecords()">插入所选</button>
+        <button type="button" class="btn" (click)="closeNurseRecordDialog()">取消</button>
+        <button type="button" class="btn primary" [disabled]="nurseRecordLoading || selectedRecordIds.size === 0" (click)="applyNurseRecords()">插入所选</button>
       </div>
     </section>
   </div>

@@ -80,13 +80,25 @@ export interface TubeExecution {
 }
 
 export interface NurseRecord {
+  id?: string;
+  _id?: string;
+  pid: string;
+  time: string;
+  desc?: string;
+  username?: string;
+  trueName?: string;
+  userId?: string;
+  editUser?: string;
+  valid?: boolean;
+}
+
+export interface NurseRecordOption {
   id: string;
   pid: string;
   time: string;
   desc: string;
-  username?: string;
-  trueName?: string;
-  valid?: boolean;
+  recorder: string;
+  valid: boolean;
 }
 
 export interface NurseAccount {
