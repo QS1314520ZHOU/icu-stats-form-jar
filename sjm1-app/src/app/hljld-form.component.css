@@ -352,3 +352,13 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
     -webkit-text-fill-color: transparent !important;
   }
 }
+
+/* =========================================================
+   Print pagination (for new print window)
+   ========================================================= */
+
+/* 打印按钮禁用状态 */
+.print-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

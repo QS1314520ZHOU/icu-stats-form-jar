@@ -51,9 +51,9 @@
     <button
       type="button"
       class="print-button"
-      [disabled]="!vm"
+      [disabled]="!vm || printing"
       (click)="print()"
-    >打印</button>
+    >{{ printing ? '正在生成打印页…' : '打印' }}</button>
   </header>
 
   <ng-container *ngIf="vm as form; else statePanel">
@@ -114,7 +114,7 @@
           <ng-container *ngFor="let item of form.timeline; trackBy: trackTimelineItem">
             <!-- 时间组：循环组内行 -->
             <ng-container *ngIf="item.kind === 'time-group'">
-              <tr *ngFor="let row of item.group.rows; trackBy: trackRow" [class.continuation-row]="!row.firstLine">
+              <tr *ngFor="let row of item.group.rows; trackBy: trackRow" [class.continuation-row]="!row.firstLine" [attr.data-print-group]="row.groupKey" data-print-kind="time-group">
                 <td class="time-cell">{{ row.timeText }}</td>
                 <td>{{ row.medication?.name || '' }}</td>
                 <td class="number">{{ row.medication?.amount || '' }}</td>
@@ -136,28 +136,28 @@
             </ng-container>
 
             <!-- 日间小结 -->
-            <tr *ngIf="item.kind === 'day-summary' && item.summary" class="summary-row day-summary-row">
+            <tr *ngIf="item.kind === 'day-summary' && item.summary" class="summary-row day-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
               <td colspan="17" class="summary-row-cell">
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
 
             <!-- 夜间小结 -->
-            <tr *ngIf="item.kind === 'shift-summary' && item.summary" class="summary-row shift-summary-row">
+            <tr *ngIf="item.kind === 'shift-summary' && item.summary" class="summary-row shift-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
               <td colspan="17" class="summary-row-cell">
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
 
             <!-- 24小时总结 -->
-            <tr *ngIf="item.kind === 'full-day-summary' && item.summary" class="summary-row full-day-summary-row">
+            <tr *ngIf="item.kind === 'full-day-summary' && item.summary" class="summary-row full-day-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
               <td colspan="17" class="summary-row-cell">
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
 
             <!-- 出科总结 -->
-            <tr *ngIf="item.kind === 'discharge-summary' && item.summary" class="summary-row discharge-summary-row">
+            <tr *ngIf="item.kind === 'discharge-summary' && item.summary" class="summary-row discharge-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
               <td colspan="17" class="summary-row-cell">
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>

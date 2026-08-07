@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
@@ -6,6 +6,7 @@ import { HljldFormService } from './hljld-form.service';
 import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext } from './hljld-form.models';
 import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
+import { printHljldRecord } from './hljld-print.util';
 
 @Component({
   standalone: false,
@@ -27,6 +28,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   pageState: HljldPageState = 'waiting-patient';
   vm?: HljldViewModel;
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
+  printing = false;
   private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   private accountMap = new Map<string, string>();
   private readonly clockRefresh$ = interval(60_000);
@@ -38,6 +40,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     private service: HljldFormService,
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
+    private elementRef: ElementRef<HTMLElement>,
   ) {}
 
   ngOnInit(): void {
@@ -235,7 +238,31 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       && this.compareCalendarDate(today, maximum) <= 0;
   }
 
-  print(): void { window.print(); }
+  async print(): Promise<void> {
+    if (!this.vm || this.printing) {
+      return;
+    }
+
+    this.printing = true;
+    this.cdr.markForCheck();
+
+    try {
+      await printHljldRecord({
+        hostElement: this.elementRef.nativeElement,
+        remarkLines: this.defaultRemarkLines,
+      });
+    } catch (error) {
+      console.error('[HLJLD][print-error]', error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : '打印页生成失败，请重试',
+      );
+    } finally {
+      this.printing = false;
+      this.cdr.markForCheck();
+    }
+  }
   trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
