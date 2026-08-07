@@ -67,6 +67,27 @@ const DISPLAY_BEDSIDE_CODES = new Set<string>([
   'param_外出检查', 'param_物理治疗', 'param_基础护理1', 'param_健康教育',
 ]);
 
+/**
+ * 历史引流编码白名单。
+ * 数据库中仍存在这些code，但配置名称已修改。
+ */
+const LEGACY_DRAIN_CODES = new Set<string>([
+  'param_tube_胃肠减压',
+]);
+
+/**
+ * 判断bedside项目是否属于引流量。
+ *
+ * 兼容：
+ * 1. 历史编码param_tube_胃肠减压；
+ * 2. code中包含"引流"的项目。
+ */
+export function isDrainCode(code?: string): boolean {
+  const normalizedCode = String(code ?? '').trim();
+  if (!normalizedCode) { return false; }
+  return LEGACY_DRAIN_CODES.has(normalizedCode) || normalizedCode.includes('引流');
+}
+
 export const DEFAULT_REMARK_LINES = [
   '检查：A：CT    B：核磁共振    C：胃镜    D：肠镜    E：超声检查    F：床旁胸片',
   '治疗：A：机械辅助排痰    B：气压治疗    C：雾化吸入    D：支气管镜灌洗    E：TDP照射    F：针灸治疗    G：运动治疗    H：肺复张',
@@ -285,7 +306,7 @@ export function enteralDisplayName(rawName: string): string {
 function isRenderableBedsideRecord(record: BedsideRecord): boolean {
   if (!record || !record.time || !record.code) { return false; }
   if (record.code === 'param_Yishi') { return false; }
-  if (!DISPLAY_BEDSIDE_CODES.has(record.code) && !record.code.includes('引流')) { return false; }
+  if (!DISPLAY_BEDSIDE_CODES.has(record.code) && !isDrainCode(record.code)) { return false; }
   return hasText(record.strVal) || hasText(record.remark);
 }
 
@@ -356,7 +377,14 @@ function bedsideInputCell(record: BedsideRecord): NameAmountRoute {
 }
 
 function drainName(code: string): string {
-  const stripped = code.replace(/^param_tube_/, '').replace(/^param_/, '');
+  const normalizedCode = String(code ?? '').trim();
+
+  // 兼容历史code，业务显示名称已调整为"胃管负压引流量"
+  if (normalizedCode === 'param_tube_胃肠减压') {
+    return '胃管负压引流量';
+  }
+
+  const stripped = normalizedCode.replace(/^param_tube_/, '').replace(/^param_/, '');
   return stripped.endsWith('管') ? `${stripped.slice(0, -1)}液` : stripped.replace(/管/g, '液');
 }
 
@@ -388,7 +416,7 @@ export function collectDrainNames(
   const seen = new Map<string, number>(); // name → first occurrence timestamp
 
   for (const item of bedside) {
-    if (item.valid === false || !item.code.includes('引流') || !hasText(item.strVal)) { continue; }
+    if (item.valid === false || !isDrainCode(item.code) || !hasText(item.strVal)) { continue; }
     const ts = databaseTimeValue(item.time);
     if (!Number.isFinite(ts) || ts < startMs || ts >= endMs) { continue; }
     const name = drainName(item.code);
@@ -462,21 +490,12 @@ export function buildSummary(
   const outputTotal = outputItems.reduce((sum, item) => sum + item.amount, 0);
 
   // 引流液分类 - 使用固定的 drainNames
-  const drainMap = new Map<string, number>();
-  for (const name of drainNames) { drainMap.set(name, 0); }
-  records.filter(item => item.code.includes('引流')).forEach(item => {
-    const name = drainName(item.code);
-    if (drainMap.has(name)) {
-      drainMap.set(name, (drainMap.get(name) || 0) + parseAmount(item.strVal));
-    } else {
-      // 不在护理日 drainNames 中的引流项，也加入（兜底）
-      drainMap.set(name, (drainMap.get(name) || 0) + parseAmount(item.strVal));
-    }
-  });
-  const drainItems: HljldSummaryItem[] = Array.from(drainMap.entries()).map(([name, amount]) => ({
+  const drainItems: HljldSummaryItem[] = drainNames.map(name => ({
     key: `drain-${name}`,
     label: name,
-    amount,
+    amount: records
+      .filter(item => isDrainCode(item.code) && drainName(item.code) === name)
+      .reduce((total, item) => total + parseAmount(item.strVal), 0),
     unit: 'ml' as const,
   }));
   const drainTotal = drainItems.reduce((sum, item) => sum + item.amount, 0);
@@ -643,7 +662,7 @@ export function buildRows(
       .filter(item => Boolean(OUTPUT_CODE_NAMES[item.code]))
       .map(item => ({ name: OUTPUT_CODE_NAMES[item.code], amount: displayAmount(item.strVal), numericAmount: parseAmount(item.strVal) }));
     const drains: NameAmount[] = bedside
-      .filter(item => item.code.includes('引流'))
+      .filter(item => isDrainCode(item.code))
       .map(item => ({ name: drainName(item.code), amount: displayAmount(item.strVal), numericAmount: parseAmount(item.strVal) }));
 
     const values = (code: string) => bedside.filter(item => item.code === code).map(item => displayAmount(item.strVal)).filter(Boolean);
