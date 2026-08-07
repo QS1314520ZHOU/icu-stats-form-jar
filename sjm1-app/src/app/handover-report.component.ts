@@ -382,12 +382,20 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   updatePatientText(row: HandoverPatientRow, shift: ShiftKey, value: string): void {
     if (!this.snapshot) { return; }
 
-    // 更新本地视图
+    // 更新 draft
     if (!this.snapshot.draft.patientTexts[row.key]) {
       this.snapshot.draft.patientTexts[row.key] = {};
     }
     this.snapshot.draft.patientTexts[row.key][shift] = value;
+
+    // 关键：立即同步当前表格显示
+    row.shiftTexts = {
+      ...row.shiftTexts,
+      [shift]: value,
+    };
+
     this.hasUnsavedChanges = true;
+    this.cdr.markForCheck();
 
     // 使用防抖字段级保存
     this.debouncedSavePatientText(row.key, shift, value);
@@ -463,7 +471,7 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
     const range = this.vm?.ranges?.[shift];
 
     this.recordTarget = { row, shift };
-    this.selectedRecordIds.clear();
+    this.selectedRecordIds = new Set<string>();
     this.nurseRecords = [];
     this.nurseRecordError = '';
     this.nurseRecordDialogVisible = true;
@@ -527,14 +535,20 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
     this.nurseRecordLoading = false;
     this.nurseRecordError = '';
     this.nurseRecords = [];
-    this.selectedRecordIds.clear();
+    this.selectedRecordIds = new Set<string>();
     this.recordTarget = undefined;
     this.cdr.markForCheck();
   }
 
   toggleNurseRecord(recordId: string, checked: boolean): void {
-    if (checked) this.selectedRecordIds.add(recordId);
-    else this.selectedRecordIds.delete(recordId);
+    const next = new Set(this.selectedRecordIds);
+    if (checked) {
+      next.add(recordId);
+    } else {
+      next.delete(recordId);
+    }
+    this.selectedRecordIds = next;
+    this.cdr.markForCheck();
   }
 
   applyNurseRecords(): void {
@@ -559,6 +573,8 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
   // ==================== 安全指标 ====================
 
   readonly metricShifts: ShiftKey[] = ['day', 'evening', 'night'];
+
+  private saveRemarkTimers = new Map<string, any>();
 
   /**
    * 更新手工安全指标，使用字段级补丁保存。
@@ -635,6 +651,71 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
         } else {
           this.saveStatus = 'error';
           this.saveError = '保存失败';
+        }
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  updateRemark(shift: ShiftKey, value: string): void {
+    if (!this.snapshot) { return; }
+
+    if (!this.snapshot.draft.remarks) {
+      this.snapshot.draft.remarks = {};
+    }
+    this.snapshot.draft.remarks[shift] = value;
+    this.hasUnsavedChanges = true;
+    this.cdr.markForCheck();
+
+    const timerKey = `remark.${shift}`;
+    if (this.saveRemarkTimers.has(timerKey)) {
+      clearTimeout(this.saveRemarkTimers.get(timerKey));
+    }
+
+    const timerId = setTimeout(() => {
+      this.saveRemarkTimers.delete(timerKey);
+      this.doSaveRemark(shift, value);
+    }, 500);
+
+    this.saveRemarkTimers.set(timerKey, timerId);
+  }
+
+  private doSaveRemark(shift: ShiftKey, value: string): void {
+    if (!this.snapshot) { return; }
+
+    this.saveStatus = 'saving';
+    this.cdr.markForCheck();
+
+    this.service.setRemark({
+      departmentId: this.snapshot.draft.departmentId,
+      reportDate: this.snapshot.draft.reportDate,
+      baseVersion: this.snapshot.draft.version,
+      shift,
+      value,
+    }).pipe(
+      takeUntil(this.destroy$),
+    ).subscribe({
+      next: draft => {
+        if (!this.snapshot) { return; }
+        this.snapshot.draft = draft;
+        this.hasUnsavedChanges = false;
+        this.saveStatus = 'saved';
+        this.cdr.markForCheck();
+
+        setTimeout(() => {
+          if (this.saveStatus === 'saved') {
+            this.saveStatus = 'idle';
+            this.cdr.markForCheck();
+          }
+        }, 3000);
+      },
+      error: error => {
+        if (error instanceof DraftConflictError) {
+          this.saveStatus = 'conflict';
+          this.saveError = '备注已被其他用户修改，请刷新后重试。';
+        } else {
+          this.saveStatus = 'error';
+          this.saveError = '备注保存失败';
         }
         this.cdr.markForCheck();
       },
@@ -790,10 +871,34 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
     const pid = String(record?.pid ?? '').trim();
     const time = String(record?.time ?? '').trim();
     const desc = String(record?.desc ?? '').trim();
-    const sourceId = String(record?.id ?? record?._id ?? '').trim();
+
+    const rawId = String(record?.id ?? record?._id ?? '').trim();
+    const sourceId =
+      rawId &&
+      rawId !== '[object Object]' &&
+      rawId !== 'undefined' &&
+      rawId !== 'null'
+        ? rawId
+        : '';
+
     const id = sourceId || `${pid}:${time}:${index}`;
-    const recorder = String(record?.username ?? record?.trueName ?? record?.editUser ?? record?.userId ?? '').trim();
-    return { id, pid, time, desc, recorder, valid: record?.valid !== false };
+
+    const recorder = String(
+      record?.username ??
+      record?.trueName ??
+      record?.editUser ??
+      record?.userId ??
+      ''
+    ).trim();
+
+    return {
+      id,
+      pid,
+      time,
+      desc,
+      recorder,
+      valid: record?.valid !== false,
+    };
   }
 
   private formatNurseRecordForInsert(record: NurseRecordOption): string {

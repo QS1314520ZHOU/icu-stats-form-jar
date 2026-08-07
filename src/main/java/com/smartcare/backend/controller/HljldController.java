@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -153,12 +154,16 @@ public class HljldController {
     }
 
     /**
-     * 递归将 Document 中的 Date 字段转换为 UTC ISO 字符串，
-     * 避免 Jackson 按 GMT+8 序列化导致前端重复加8小时。
+     * 递归将 Document 中的 Date/ObjectId 字段转换为可直接给前端使用的值：
+     * - Date -> UTC ISO 字符串
+     * - ObjectId -> 24位十六进制字符串
      */
     private Object normalizeUtcValue(Object value) {
         if (value instanceof Date) {
             return ((Date) value).toInstant().toString();
+        }
+        if (value instanceof ObjectId) {
+            return ((ObjectId) value).toHexString();
         }
         if (value instanceof Document) {
             Document source = (Document) value;

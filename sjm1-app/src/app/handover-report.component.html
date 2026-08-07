@@ -97,7 +97,15 @@
                 <td>{{ vm.statistics[shift].operation ?? 0 }}</td>
                 <td>{{ vm.statistics[shift].critical }}</td>
                 <td>{{ vm.statistics[shift].specialCare ?? 0 }}</td>
-                <td></td>
+                <td>
+                  <textarea
+                    class="remark-input"
+                    rows="1"
+                    [value]="snapshot.draft.remarks?.[$any(shift)] || ''"
+                    [attr.aria-label]="'备注' + (shift === 'day' ? '白班' : shift === 'evening' ? '中班' : '夜班')"
+                    (input)="updateRemark($any(shift), $any($event.target).value)"
+                  ></textarea>
+                </td>
               </tr>
             }
           </tbody>
