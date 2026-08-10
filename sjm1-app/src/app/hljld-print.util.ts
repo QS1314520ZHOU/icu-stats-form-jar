@@ -435,6 +435,7 @@ function buildPrintBlocks(
   timeline: HljldTimelineItem[],
 ): PrintBlock[] {
   const blocks: PrintBlock[] = [];
+  const seenSummaryKeys = new Set<string>();
 
   for (const item of timeline) {
     if (item.kind === 'time-group') {
@@ -446,12 +447,35 @@ function buildPrintBlocks(
       continue;
     }
 
+    // 小结去重：相同 kind + periodStart + periodEnd 视为同一小结
+    const summary = item.summary;
+    const dedupKey = [
+      item.kind,
+      summary?.kind ?? '',
+      summary?.periodStart ?? 0,
+      summary?.periodEnd ?? 0,
+      summary?.label ?? '',
+    ].join('|');
+    if (seenSummaryKeys.has(dedupKey)) {
+      // 诊断：记录被去重的小结
+      const s = summary;
+      console.warn(
+        '[HLJLD][print-dedup] 跳过重复小结:',
+        item.kind,
+        s?.kind,
+        `${s?.periodText ?? ''} ${s?.label ?? ''}`,
+        `key=${dedupKey}`,
+      );
+      continue;
+    }
+    seenSummaryKeys.add(dedupKey);
+
     if (item.kind === 'day-summary') {
       blocks.push({
         kind: 'summary',
         key: item.key,
         summaryClassName: 'print-summary-day',
-        summary: item.summary,
+        summary,
       });
       continue;
     }
@@ -461,7 +485,7 @@ function buildPrintBlocks(
         kind: 'summary',
         key: item.key,
         summaryClassName: 'print-summary-shift',
-        summary: item.summary,
+        summary,
       });
       continue;
     }
@@ -471,7 +495,7 @@ function buildPrintBlocks(
         kind: 'summary',
         key: item.key,
         summaryClassName: 'print-summary-24h',
-        summary: item.summary,
+        summary,
       });
       continue;
     }
@@ -481,7 +505,7 @@ function buildPrintBlocks(
         kind: 'summary',
         key: item.key,
         summaryClassName: 'print-summary-discharge',
-        summary: item.summary,
+        summary,
       });
     }
   }
@@ -504,6 +528,13 @@ function paginateToPages(
   for (const block of blocks) {
     if (block.kind === 'summary') {
       if (!appendSummaryBlock(page, block)) {
+        console.warn(
+          '[HLJLD][print-pagination] 小结块移至下一页:',
+          block.summaryClassName,
+          block.summary?.kind,
+          block.summary?.periodText,
+          block.summary?.label,
+        );
         finalizePage(page);
 
         page = createPage(doc, vm, remarkLines);
@@ -511,7 +542,11 @@ function paginateToPages(
         pages.push(page);
 
         if (!appendSummaryBlock(page, block)) {
-          throw new Error(`总结块 ${block.key} 超出单页容量，请检查样式或内容。`);
+          throw new Error(
+            `总结块 ${block.key} 超出单页容量，请检查样式或内容。` +
+            `\n  kind=${block.summary?.kind} label=${block.summary?.label} period=${block.summary?.periodText}` +
+            `\n  className=${block.summaryClassName}`,
+          );
         }
       }
       continue;
@@ -851,24 +886,15 @@ function tryAppendNodes(
 }
 
 function isOverflowing(page: PageRefs): boolean {
-  const sheetRect = page.sheetEl.getBoundingClientRect();
-  const headRect = page.headEl.getBoundingClientRect();
+  const tableWrap = page.tableEl.parentElement;
   const tfootRect = page.tfootEl.getBoundingClientRect();
   const pageNoRect = page.pageNoEl.getBoundingClientRect();
-
-  // Available height = sheet height - header - footer(remarks) - pageno - padding
-  const sheetPaddingTop = parseFloat(getComputedStyle(page.sheetEl).paddingTop) || 0;
-  const sheetPaddingBottom = parseFloat(getComputedStyle(page.sheetEl).paddingBottom) || 0;
-  const availableBottom = sheetRect.bottom - sheetPaddingBottom - pageNoRect.height;
-  const headBottom = headRect.bottom;
-
-  // Content area is between head bottom and available bottom
-  const availableHeight = availableBottom - headBottom;
-  const usedHeight = tfootRect.top - headBottom;
-
-  // Tolerance for sub-pixel rounding
   const tolerance = 2;
-  return usedHeight > availableHeight + tolerance;
+  // 小结块底部越过页码区 → 溢出
+  const exceedsFooter = tfootRect.bottom > pageNoRect.top - tolerance;
+  // 表格内容超出容器 → 溢出（备用检测，兼容某些浏览器差异）
+  const exceedsTableWrap = !!tableWrap && page.tableEl.scrollHeight > tableWrap.clientHeight + tolerance;
+  return exceedsFooter || exceedsTableWrap;
 }
 
 function createPage(
@@ -945,9 +971,9 @@ function createPage(
 function finalizePage(page: PageRefs): void {
   removeExistingFillerRow(page);
 
-  const tbodyRect = page.tbodyEl.getBoundingClientRect();
   const tfootRect = page.tfootEl.getBoundingClientRect();
-  const remaining = Math.floor(tfootRect.top - tbodyRect.bottom - 1);
+  const pageNoRect = page.pageNoEl.getBoundingClientRect();
+  const remaining = Math.floor(pageNoRect.top - tfootRect.bottom - 1);
 
   if (remaining <= 1) {
     return;
@@ -963,6 +989,11 @@ function finalizePage(page: PageRefs): void {
   }
 
   page.tbodyEl.appendChild(fillerTr);
+
+  // 添加占位行后再次检测，若溢出则移除
+  if (isOverflowing(page)) {
+    fillerTr.remove();
+  }
 }
 
 function removeExistingFillerRow(page: PageRefs): void {
@@ -1113,6 +1144,10 @@ function createSummaryTr(
 ): HTMLTableRowElement {
   const tr = doc.createElement('tr');
   tr.className = `print-summary-row ${summaryClassName}`;
+  // 诊断数据：便于排查分页问题
+  tr.dataset.summaryKind = summary.kind;
+  tr.dataset.summaryLabel = summary.label;
+  tr.dataset.summaryPeriod = summary.periodText;
 
   const td = doc.createElement('td');
   td.colSpan = 17;

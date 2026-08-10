@@ -873,12 +873,12 @@ export function buildTimeline(
   }
 
   // 出科等于或晚于次日07:00：正常时间轴处理，不出科总结
-  // 次日07:00展示：日间小结（与17:00相同）+ 24小时总结
+  // 次日07:00展示：夜班小结（17:00→次日07:00）+ 24小时总结
   // 但如果次日07:00前已出科，则不再追加这两个总结
   if (!hasDischarge) {
-    if (showDaySummary) {
-      // 次日07:00再次展示日间小结，统计区间与17:00相同：[当日07:00, 当日17:00)
-      result.push({ kind: 'day-summary', key: 'day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: daySummary });
+    // 次日07:00展示：夜班小结（17:00→次日07:00）+ 24小时总结
+    if (showShiftSummary) {
+      result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });
     }
     if (showFullDaySummary) {
       result.push({ kind: 'full-day-summary', key: 'full-day-summary-next-07', timestamp: nextMorningBoundaryMs, summary: fullDaySummary });
