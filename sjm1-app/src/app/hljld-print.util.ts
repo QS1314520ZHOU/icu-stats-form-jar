@@ -367,6 +367,26 @@ export async function printHljldRecord({
     }
 
     const blocks = buildPrintBlocks(vm.timeline);
+
+    // Empty timeline: generate a single page with header + "no records" message
+    if (blocks.length === 0) {
+      const emptyPage = createPage(printWindow.document, vm, remarkLines);
+      root.appendChild(emptyPage.pageEl);
+      const emptyRow = printWindow.document.createElement('tr');
+      const emptyTd = printWindow.document.createElement('td');
+      emptyTd.colSpan = 17;
+      emptyTd.textContent = '该护理日暂无记录';
+      emptyTd.style.cssText = 'text-align:center;padding:20px;color:#999;font-size:12pt;';
+      emptyRow.appendChild(emptyTd);
+      emptyPage.tbodyEl.appendChild(emptyRow);
+      fillPageNumbers([emptyPage]);
+      printWindow.addEventListener('afterprint', () => { try { printWindow.close(); } catch { /* ignore */ } });
+      printWindow.focus();
+      await nextTwoFrames(printWindow);
+      printWindow.print();
+      return;
+    }
+
     const pages = paginateToPages(
       printWindow.document,
       root,
@@ -375,17 +395,20 @@ export async function printHljldRecord({
       blocks,
     );
 
+    // Wait for layout to stabilize before filling page numbers
+    await nextTwoFrames(printWindow);
+
     fillPageNumbers(pages);
+
+    // Re-check after page numbers added
+    await nextTwoFrames(printWindow);
 
     const ok = validateGeneratedPages(pages);
     if (!ok) {
       throw new Error('打印分页校验失败，存在未完整显示的内容。');
     }
 
-    printWindow.focus();
-    await nextTwoFrames(printWindow);
-    printWindow.print();
-
+    // Register afterprint BEFORE calling print()
     printWindow.addEventListener('afterprint', () => {
       try {
         printWindow.close();
@@ -393,6 +416,10 @@ export async function printHljldRecord({
         // ignore
       }
     });
+
+    printWindow.focus();
+    await nextTwoFrames(printWindow);
+    printWindow.print();
   } catch (error) {
     console.error('[HLJLD][print-error]', error);
     try {
@@ -824,10 +851,24 @@ function tryAppendNodes(
 }
 
 function isOverflowing(page: PageRefs): boolean {
-  const tbodyRect = page.tbodyEl.getBoundingClientRect();
+  const sheetRect = page.sheetEl.getBoundingClientRect();
+  const headRect = page.headEl.getBoundingClientRect();
   const tfootRect = page.tfootEl.getBoundingClientRect();
+  const pageNoRect = page.pageNoEl.getBoundingClientRect();
 
-  return tbodyRect.bottom > tfootRect.top - 0.5;
+  // Available height = sheet height - header - footer(remarks) - pageno - padding
+  const sheetPaddingTop = parseFloat(getComputedStyle(page.sheetEl).paddingTop) || 0;
+  const sheetPaddingBottom = parseFloat(getComputedStyle(page.sheetEl).paddingBottom) || 0;
+  const availableBottom = sheetRect.bottom - sheetPaddingBottom - pageNoRect.height;
+  const headBottom = headRect.bottom;
+
+  // Content area is between head bottom and available bottom
+  const availableHeight = availableBottom - headBottom;
+  const usedHeight = tfootRect.top - headBottom;
+
+  // Tolerance for sub-pixel rounding
+  const tolerance = 2;
+  return usedHeight > availableHeight + tolerance;
 }
 
 function createPage(
@@ -912,12 +953,13 @@ function finalizePage(page: PageRefs): void {
     return;
   }
 
-  const fillerTr = document.createElement('tr');
+  const doc = page.pageEl.ownerDocument;
+  const fillerTr = doc.createElement('tr');
   fillerTr.className = 'print-filler-row';
   fillerTr.style.setProperty('--filler-height', `${remaining}px`);
 
   for (let i = 0; i < 17; i += 1) {
-    fillerTr.appendChild(document.createElement('td'));
+    fillerTr.appendChild(doc.createElement('td'));
   }
 
   page.tbodyEl.appendChild(fillerTr);
@@ -1128,10 +1170,10 @@ function fillPageNumbers(pages: PageRefs[]): void {
   const total = pages.length;
 
   pages.forEach((page, index) => {
-    const current = page.pageNoEl.querySelector('.page-current') as HTMLElement | null;
-    const totalNode = page.pageNoEl.querySelector('.page-total') as HTMLElement | null;
+    const current = page.pageNoEl.querySelector('.page-current');
+    const totalNode = page.pageNoEl.querySelector('.page-total');
 
-    if (!(current instanceof HTMLElement) || !(totalNode instanceof HTMLElement)) {
+    if (!current || !totalNode) {
       throw new Error(`第 ${index + 1} 页页码节点缺失`);
     }
 
@@ -1142,10 +1184,11 @@ function fillPageNumbers(pages: PageRefs[]): void {
 
 function validateGeneratedPages(pages: PageRefs[]): boolean {
   let ok = true;
+  const overflowTolerance = 2;
 
   for (const [pageIndex, page] of pages.entries()) {
-    const current = page.pageNoEl.querySelector('.page-current') as HTMLElement | null;
-    const total = page.pageNoEl.querySelector('.page-total') as HTMLElement | null;
+    const current = page.pageNoEl.querySelector('.page-current');
+    const total = page.pageNoEl.querySelector('.page-total');
 
     if (!current?.textContent?.trim() || !total?.textContent?.trim()) {
       console.error('[HLJLD][print-validate] missing page number value', pageIndex + 1);
@@ -1168,9 +1211,21 @@ function validateGeneratedPages(pages: PageRefs[]): boolean {
     const cells = page.pageEl.querySelectorAll('td, th');
     cells.forEach(cellNode => {
       const el = cellNode as HTMLElement;
-      if (el.scrollHeight > el.clientHeight + 1) {
+      if (el.scrollHeight > el.clientHeight + overflowTolerance) {
+        const tr = el.closest('tr');
+        const rowKey = (tr as HTMLElement)?.getAttribute('data-row-key') ?? 'unknown';
+        const colClass = Array.from(el.classList).find(c => c.endsWith('-cell')) ?? el.className;
+        const sheetRect = page.sheetEl.getBoundingClientRect();
+        const headRect = page.headEl.getBoundingClientRect();
+        const tfootRect = page.tfootEl.getBoundingClientRect();
+        const availableHeight = Math.round(sheetRect.height - headRect.height - tfootRect.height - 30);
         console.error('[HLJLD][print-validate] cell overflow', {
           page: pageIndex + 1,
+          rowKey,
+          field: colClass,
+          clientHeight: el.clientHeight,
+          scrollHeight: el.scrollHeight,
+          availableHeight,
           text: el.textContent?.slice(0, 60),
         });
         ok = false;

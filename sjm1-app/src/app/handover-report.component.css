@@ -13,7 +13,7 @@
 .handover-shell { width: 100%; min-width: 0; padding: 0; box-sizing: border-box; }
 
 /* Toolbar */
-.toolbar { width: 100%; max-width: none; min-height: 52px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 8px 12px; background: #fff; border-top: 0; border-right: 0; border-left: 0; border-bottom: 1px solid #dfe3e8; border-radius: 0; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.toolbar { width: 100%; max-width: none; min-height: 52px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; margin: 0; padding: 8px 12px; background: #fff; border-top: 0; border-right: 0; border-left: 0; border-bottom: 1px solid #dfe3e8; border-radius: 0; box-shadow: 0 1px 3px rgba(0,0,0,.05); position: sticky; top: 0; z-index: 50; }
 .date-tools { display: inline-flex; align-items: stretch; flex: 0 0 auto; gap: 0; min-width: 0; }
 .nav-arrow { flex: 0 0 36px; width: 36px; height: 36px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: 0; border: 1px solid #ccd3da; background: #fff; color: #333; font-size: 20px; line-height: 1; cursor: pointer; }
 .nav-arrow:first-child { border-radius: 6px 0 0 6px; }
@@ -28,7 +28,7 @@
 .print-button { flex: 0 0 auto; height: 36px; box-sizing: border-box; padding: 0 18px; border: 1px solid #1677c8; border-radius: 6px; background: #1677c8; color: #fff; font-weight: 600; cursor: pointer; }
 
 /* Paper */
-.paper { width: calc(100% - 32px); max-width: 1480px; margin: 0 auto; padding: 18px 20px 24px; box-sizing: border-box; background: #fff; }
+.paper { width: calc(100% - 32px); max-width: 1480px; margin: 12px auto 0; padding: 18px 20px 24px; box-sizing: border-box; background: #fff; }
 h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-serif; font-size: 22px; letter-spacing: 2px; }
 .report-meta { display: flex; gap: 24px; align-items: center; padding: 8px 0; font-size: 13px; }
 .report-meta label { display: inline-flex; align-items: center; gap: 4px; }
