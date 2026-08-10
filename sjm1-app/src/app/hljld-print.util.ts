@@ -609,6 +609,7 @@ function appendTimeGroupBlock(
 
   removeNodes(groupNodes);
 
+  // 尝试整体放入空白新页
   const emptyPage = createPage(doc, vm, remarkLines);
   root.appendChild(emptyPage.pageEl);
 
@@ -619,6 +620,7 @@ function appendTimeGroupBlock(
 
   emptyPage.pageEl.remove();
 
+  // 逐行处理
   const newPage = createPage(doc, vm, remarkLines);
   root.appendChild(newPage.pageEl);
   pages.push(newPage);
@@ -633,6 +635,20 @@ function appendTimeGroupBlock(
 
     removeNodes([singleRowNode]);
 
+    // 检查是否可以利用当前页剩余空间拆分长叙述记录
+    const remainingHeight = getRemainingPrintableHeight(currentPage);
+    const segments = buildNarrativeSegments(row);
+    const narrativeLength = segments.reduce((total, seg) => total + seg.text.length, 0);
+    const shouldUseCurrentPage =
+      remainingHeight >= MIN_SPLIT_SPACE_PX
+      && narrativeLength >= 200;
+
+    if (shouldUseCurrentPage) {
+      splitDisplayRowAcrossPages(doc, root, vm, remarkLines, pages, row, true);
+      continue;
+    }
+
+    // 标准流程：finalize 当前页，在新页处理
     if (pageHasData(currentPage)) {
       finalizePage(currentPage);
 
@@ -883,6 +899,157 @@ function moveCutToNaturalBoundary(text: string, index: number): number {
   return index;
 }
 
+/* ---- 当前页剩余可用高度 ---- */
+
+const MIN_SPLIT_SPACE_PX = 120;
+
+function getRemainingPrintableHeight(page: PageRefs): number {
+  const tbodyRect = page.tbodyEl.getBoundingClientRect();
+  const wrapRect = page.tableWrapEl.getBoundingClientRect();
+  const tfootRect = page.tfootEl.getBoundingClientRect();
+  const safetyGap = 4;
+  // 可用空间 = 容器底部 - tbody底部 - 备注高度 - 安全间距
+  return Math.max(0, wrapRect.bottom - tbodyRect.bottom - tfootRect.height - safetyGap);
+}
+
+/* ---- 跨当前页拆分叙述记录 ---- */
+
+/**
+ * 尝试将长叙述记录拆分到当前页和后续页。
+ * useCurrentPage=true 时，优先使用当前页剩余空间放首段。
+ */
+function splitDisplayRowAcrossPages(
+  doc: Document,
+  root: HTMLElement,
+  vm: HljldViewModel,
+  remarkLines: string[],
+  pages: PageRefs[],
+  row: HljldDisplayRow,
+  useCurrentPage: boolean,
+): void {
+  const segments = buildNarrativeSegments(row);
+
+  console.info('[HLJLD][print-split-across]', {
+    rowKey: row.key,
+    useCurrentPage,
+    segments: segments.map(s => ({ field: s.field, length: s.text.length })),
+  });
+
+  if (!segments.length) {
+    throw new Error(
+      `${row.key} 超过单页高度，但该行没有可分页的叙述字段。`,
+    );
+  }
+
+  let segmentIndex = 0;
+  let fragmentSerial = 0;
+  let isFirstFragment = true;
+
+  while (segmentIndex < segments.length) {
+    const segment = segments[segmentIndex];
+    let remaining = segment.text;
+
+    while (remaining.length > 0) {
+      let currentPage = pages[pages.length - 1];
+
+      // 首段且允许使用当前页：尝试在当前页放入
+      if (isFirstFragment && useCurrentPage && pageHasData(currentPage)) {
+        const cutIndex = findMaxFittingSegmentTextIndex(
+          currentPage,
+          row,
+          segment.field,
+          remaining,
+          true,
+        );
+
+        if (cutIndex > 0) {
+          const currentText = remaining.slice(0, cutIndex);
+          remaining = remaining.slice(cutIndex);
+
+          const isLastOverallFragment =
+            segmentIndex === segments.length - 1 && remaining.length === 0;
+
+          const fragmentRow = createDisplayRowTr(
+            doc,
+            createSegmentRowFragment(row, segment.field, currentText, true, isLastOverallFragment),
+          );
+
+          if (tryAppendNodes(currentPage, [fragmentRow])) {
+            fragmentSerial += 1;
+            isFirstFragment = false;
+            // 当前页放了首段后，finalize 当前页，后续内容到新页
+            finalizePage(currentPage);
+            const nextPage = createPage(doc, vm, remarkLines);
+            root.appendChild(nextPage.pageEl);
+            pages.push(nextPage);
+            continue;
+          }
+          removeNodes([fragmentRow]);
+        }
+      }
+
+      // 标准流程：确保当前页有空间
+      if (pageHasData(currentPage)) {
+        finalizePage(currentPage);
+        const nextPage = createPage(doc, vm, remarkLines);
+        root.appendChild(nextPage.pageEl);
+        pages.push(nextPage);
+        currentPage = nextPage;
+      }
+
+      const firstFrag = fragmentSerial === 0;
+      const cutIndex = findMaxFittingSegmentTextIndex(
+        currentPage,
+        row,
+        segment.field,
+        remaining,
+        firstFrag,
+      );
+
+      if (cutIndex <= 0) {
+        console.error('[HLJLD][print-split-failed]', {
+          rowKey: row.key,
+          field: segment.field,
+          remainingLength: remaining.length,
+          pageIndex: pages.length,
+        });
+        throw new Error(
+          `无法为 ${row.key} 的字段 ${segment.field} 生成可打印片段。`,
+        );
+      }
+
+      const currentText = remaining.slice(0, cutIndex);
+      remaining = remaining.slice(cutIndex);
+
+      const isLastOverallFragment =
+        segmentIndex === segments.length - 1 && remaining.length === 0;
+
+      const fragmentRow = createDisplayRowTr(
+        doc,
+        createSegmentRowFragment(
+          row,
+          segment.field,
+          currentText,
+          fragmentSerial === 0,
+          isLastOverallFragment,
+        ),
+      );
+
+      if (!tryAppendNodes(currentPage, [fragmentRow])) {
+        removeNodes([fragmentRow]);
+        throw new Error(
+          `拆分后的片段仍无法放入页面：${row.key} / ${segment.field}`,
+        );
+      }
+
+      fragmentSerial += 1;
+      isFirstFragment = false;
+    }
+
+    segmentIndex += 1;
+  }
+}
+
 function appendSummaryBlock(
   page: PageRefs,
   block: SummaryPrintBlock,
@@ -1054,6 +1221,8 @@ function createPage(
   };
 }
 
+const MAX_FILLER_HEIGHT_PX = 120;
+
 function finalizePage(page: PageRefs): void {
   removeExistingFillerRow(page);
 
@@ -1066,6 +1235,9 @@ function finalizePage(page: PageRefs): void {
     return;
   }
 
+  // 限制 filler 最大高度，避免大面积空白
+  const fillerHeight = Math.min(remaining, MAX_FILLER_HEIGHT_PX);
+
   const doc = page.pageEl.ownerDocument;
   const fillerTr = doc.createElement('tr');
   fillerTr.className = 'print-filler-row';
@@ -1073,7 +1245,7 @@ function finalizePage(page: PageRefs): void {
 
   const fillerTd = doc.createElement('td');
   fillerTd.colSpan = 17;
-  fillerTd.style.height = `${remaining}px`;
+  fillerTd.style.height = `${fillerHeight}px`;
   fillerTr.appendChild(fillerTd);
 
   page.tbodyEl.appendChild(fillerTr);
