@@ -872,11 +872,11 @@ export function buildTimeline(
     dischargeInserted = true;
   }
 
-  // 出科等于或晚于次日07:00：正常时间轴处理，不出科总结
   // 次日07:00展示：夜班小结（17:00→次日07:00）+ 24小时总结
-  // 但如果次日07:00前已出科，则不再追加这两个总结
-  if (!hasDischarge) {
-    // 次日07:00展示：夜班小结（17:00→次日07:00）+ 24小时总结
+  // 次日07:00前出科：不追加；次日07:00时或之后出科：应显示
+  const shouldAppendNextMorningSummaries =
+    !hasDischarge || dischargeAtOrAfterMorning;
+  if (shouldAppendNextMorningSummaries) {
     if (showShiftSummary) {
       result.push({ kind: 'shift-summary', key: 'shift-summary-next-07', timestamp: nextMorningBoundaryMs, summary: shiftSummary });
     }

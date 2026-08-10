@@ -10,18 +10,22 @@ type PrintInput = {
   remarkLines: string[];
 };
 
+type SummaryPrintBlock = {
+  kind: 'summary';
+  key: string;
+  timestamp: number;
+  summaryClassName: string;
+  summary: HljldSummary;
+};
+
 type PrintBlock =
   | {
       kind: 'time-group';
       key: string;
+      timestamp: number;
       rows: HljldDisplayRow[];
     }
-  | {
-      kind: 'summary';
-      key: string;
-      summaryClassName: string;
-      summary: HljldSummary;
-    };
+  | SummaryPrintBlock;
 
 type NarrativeField =
   | 'nursingRecord'
@@ -49,6 +53,7 @@ type PageRefs = {
   headEl: HTMLElement;
   titleEl: HTMLElement;
   patientInfoEl: HTMLElement;
+  tableWrapEl: HTMLElement;
   tableEl: HTMLTableElement;
   tbodyEl: HTMLTableSectionElement;
   tfootEl: HTMLTableSectionElement;
@@ -292,10 +297,10 @@ body {
 
 .print-filler-row td {
   padding: 0 !important;
-  height: var(--filler-height, 0px);
   line-height: 0;
   font-size: 0;
   vertical-align: top;
+  background: #fff;
 }
 
 .print-record-table tfoot th,
@@ -404,8 +409,9 @@ export async function printHljldRecord({
     await nextTwoFrames(printWindow);
 
     const ok = validateGeneratedPages(pages);
-    if (!ok) {
-      throw new Error('打印分页校验失败，存在未完整显示的内容。');
+    const seqOk = validateSummarySequence(pages);
+    if (!ok || !seqOk) {
+      throw new Error('打印分页校验失败，存在未完整显示的内容或重复总结。');
     }
 
     // Register afterprint BEFORE calling print()
@@ -442,6 +448,7 @@ function buildPrintBlocks(
       blocks.push({
         kind: 'time-group',
         key: item.key,
+        timestamp: item.timestamp,
         rows: item.group.rows,
       });
       continue;
@@ -474,6 +481,7 @@ function buildPrintBlocks(
       blocks.push({
         kind: 'summary',
         key: item.key,
+        timestamp: item.timestamp,
         summaryClassName: 'print-summary-day',
         summary,
       });
@@ -484,6 +492,7 @@ function buildPrintBlocks(
       blocks.push({
         kind: 'summary',
         key: item.key,
+        timestamp: item.timestamp,
         summaryClassName: 'print-summary-shift',
         summary,
       });
@@ -494,6 +503,7 @@ function buildPrintBlocks(
       blocks.push({
         kind: 'summary',
         key: item.key,
+        timestamp: item.timestamp,
         summaryClassName: 'print-summary-24h',
         summary,
       });
@@ -504,6 +514,7 @@ function buildPrintBlocks(
       blocks.push({
         kind: 'summary',
         key: item.key,
+        timestamp: item.timestamp,
         summaryClassName: 'print-summary-discharge',
         summary,
       });
@@ -525,35 +536,54 @@ function paginateToPages(
   root.appendChild(page.pageEl);
   pages.push(page);
 
-  for (const block of blocks) {
+  let i = 0;
+  while (i < blocks.length) {
+    const block = blocks[i];
+
     if (block.kind === 'summary') {
-      if (!appendSummaryBlock(page, block)) {
-        console.warn(
-          '[HLJLD][print-pagination] 小结块移至下一页:',
-          block.summaryClassName,
-          block.summary?.kind,
-          block.summary?.periodText,
-          block.summary?.label,
-        );
-        finalizePage(page);
+      // 收集连续同时间戳的 summary 组
+      const { summaries, nextIndex } = collectSummaryGroup(blocks, i);
 
-        page = createPage(doc, vm, remarkLines);
-        root.appendChild(page.pageEl);
-        pages.push(page);
+      // 尝试整组加入当前页
+      if (appendSummaryGroup(page, summaries)) {
+        i = nextIndex;
+        continue;
+      }
 
-        if (!appendSummaryBlock(page, block)) {
+      // 整组放不下当前页：先 finalize 当前页
+      console.warn(
+        '[HLJLD][print-pagination] 小结组移至下一页:',
+        summaries.map(s => `${s.summaryClassName} ${s.summary?.periodText}`).join(', '),
+      );
+      finalizePage(page);
+
+      page = createPage(doc, vm, remarkLines);
+      root.appendChild(page.pageEl);
+      pages.push(page);
+
+      // 在新页尝试整组加入
+      if (appendSummaryGroup(page, summaries)) {
+        i = nextIndex;
+        continue;
+      }
+
+      // 整组在空白页也放不下：逐个尝试
+      for (const summary of summaries) {
+        if (!appendSummaryBlock(page, summary)) {
           throw new Error(
-            `总结块 ${block.key} 超出单页容量，请检查样式或内容。` +
-            `\n  kind=${block.summary?.kind} label=${block.summary?.label} period=${block.summary?.periodText}` +
-            `\n  className=${block.summaryClassName}`,
+            `总结块 ${summary.key} 超出单页容量，请检查样式或内容。` +
+            `\n  kind=${summary.summary?.kind} label=${summary.summary?.label} period=${summary.summary?.periodText}` +
+            `\n  className=${summary.summaryClassName}`,
           );
         }
       }
+      i = nextIndex;
       continue;
     }
 
     appendTimeGroupBlock(doc, root, vm, remarkLines, pages, block);
     page = pages[pages.length - 1];
+    i += 1;
   }
 
   pages.forEach(finalizePage);
@@ -855,7 +885,7 @@ function moveCutToNaturalBoundary(text: string, index: number): number {
 
 function appendSummaryBlock(
   page: PageRefs,
-  block: Extract<PrintBlock, { kind: 'summary' }>,
+  block: SummaryPrintBlock,
 ): boolean {
   const node = createSummaryTr(
     page.pageEl.ownerDocument,
@@ -872,6 +902,58 @@ function appendSummaryBlock(
   return ok;
 }
 
+/**
+ * 从 startIndex 开始收集连续且时间戳相同的 summary block。
+ * shift-summary + full-day-summary 同时间戳视为同一组。
+ */
+function collectSummaryGroup(
+  blocks: PrintBlock[],
+  startIndex: number,
+): {
+  summaries: SummaryPrintBlock[];
+  nextIndex: number;
+} {
+  const first = blocks[startIndex];
+  if (first.kind !== 'summary') {
+    return { summaries: [], nextIndex: startIndex };
+  }
+  const summaries: SummaryPrintBlock[] = [first];
+  let nextIndex = startIndex + 1;
+  while (nextIndex < blocks.length) {
+    const candidate = blocks[nextIndex];
+    if (
+      candidate.kind !== 'summary'
+      || candidate.timestamp !== first.timestamp
+    ) {
+      break;
+    }
+    summaries.push(candidate);
+    nextIndex += 1;
+  }
+  return { summaries, nextIndex };
+}
+
+/**
+ * 将一组 summary 作为一个整体尝试追加到当前页。
+ * 整组放不下时全部移除，返回 false。
+ */
+function appendSummaryGroup(
+  page: PageRefs,
+  summaries: SummaryPrintBlock[],
+): boolean {
+  const doc = page.pageEl.ownerDocument;
+  const nodes = summaries.map(block =>
+    createSummaryTr(doc, block.summary, block.summaryClassName),
+  );
+  nodes.forEach(node => page.tbodyEl.appendChild(node));
+
+  if (isOverflowing(page)) {
+    nodes.forEach(node => node.remove());
+    return false;
+  }
+  return true;
+}
+
 function tryAppendNodes(
   page: PageRefs,
   nodes: HTMLElement[],
@@ -886,15 +968,18 @@ function tryAppendNodes(
 }
 
 function isOverflowing(page: PageRefs): boolean {
-  const tableWrap = page.tableEl.parentElement;
+  const tableRect = page.tableEl.getBoundingClientRect();
+  const tableWrapRect = page.tableWrapEl.getBoundingClientRect();
   const tfootRect = page.tfootEl.getBoundingClientRect();
   const pageNoRect = page.pageNoEl.getBoundingClientRect();
   const tolerance = 2;
+  // 表格底部越过容器底部，或内容高度超出容器 → 溢出
+  const exceedsTableWrap =
+    tableRect.bottom > tableWrapRect.bottom + tolerance
+    || page.tableEl.scrollHeight > page.tableWrapEl.clientHeight + tolerance;
   // 小结块底部越过页码区 → 溢出
-  const exceedsFooter = tfootRect.bottom > pageNoRect.top - tolerance;
-  // 表格内容超出容器 → 溢出（备用检测，兼容某些浏览器差异）
-  const exceedsTableWrap = !!tableWrap && page.tableEl.scrollHeight > tableWrap.clientHeight + tolerance;
-  return exceedsFooter || exceedsTableWrap;
+  const overlapsPageNumber = tfootRect.bottom > pageNoRect.top - tolerance;
+  return exceedsTableWrap || overlapsPageNumber;
 }
 
 function createPage(
@@ -961,6 +1046,7 @@ function createPage(
     headEl,
     titleEl,
     patientInfoEl,
+    tableWrapEl: tableWrap,
     tableEl,
     tbodyEl,
     tfootEl,
@@ -973,20 +1059,22 @@ function finalizePage(page: PageRefs): void {
 
   const tfootRect = page.tfootEl.getBoundingClientRect();
   const pageNoRect = page.pageNoEl.getBoundingClientRect();
-  const remaining = Math.floor(pageNoRect.top - tfootRect.bottom - 1);
+  const safetyGap = 4;
+  const remaining = Math.floor(pageNoRect.top - tfootRect.bottom - safetyGap);
 
-  if (remaining <= 1) {
+  if (remaining <= 2) {
     return;
   }
 
   const doc = page.pageEl.ownerDocument;
   const fillerTr = doc.createElement('tr');
   fillerTr.className = 'print-filler-row';
-  fillerTr.style.setProperty('--filler-height', `${remaining}px`);
+  fillerTr.setAttribute('aria-hidden', 'true');
 
-  for (let i = 0; i < 17; i += 1) {
-    fillerTr.appendChild(doc.createElement('td'));
-  }
+  const fillerTd = doc.createElement('td');
+  fillerTd.colSpan = 17;
+  fillerTd.style.height = `${remaining}px`;
+  fillerTr.appendChild(fillerTd);
 
   page.tbodyEl.appendChild(fillerTr);
 
@@ -1148,6 +1236,13 @@ function createSummaryTr(
   tr.dataset.summaryKind = summary.kind;
   tr.dataset.summaryLabel = summary.label;
   tr.dataset.summaryPeriod = summary.periodText;
+  tr.dataset.summaryPeriodStart = String(summary.periodStart);
+  tr.dataset.summaryPeriodEnd = String(summary.periodEnd);
+  tr.dataset.summaryIdentity = [
+    summary.kind,
+    summary.periodStart,
+    summary.periodEnd,
+  ].join('|');
 
   const td = doc.createElement('td');
   td.colSpan = 17;
@@ -1243,6 +1338,42 @@ function validateGeneratedPages(pages: PageRefs[]): boolean {
       ok = false;
     }
 
+    // 整页溢出校验
+    if (isOverflowing(page)) {
+      const tableRect = page.tableEl.getBoundingClientRect();
+      const wrapRect = page.tableWrapEl.getBoundingClientRect();
+      const tfootRect = page.tfootEl.getBoundingClientRect();
+      const pageNoRect = page.pageNoEl.getBoundingClientRect();
+      console.error('[HLJLD][print-validate] page overflow', {
+        page: pageIndex + 1,
+        tableBottom: Math.round(tableRect.bottom),
+        tableWrapBottom: Math.round(wrapRect.bottom),
+        remarkBottom: Math.round(tfootRect.bottom),
+        pageNumberTop: Math.round(pageNoRect.top),
+      });
+      ok = false;
+    }
+
+    // 备注完整校验
+    const remarkRow = page.tfootEl.querySelector<HTMLElement>('.print-remark-row');
+    if (remarkRow) {
+      const remarkRect = remarkRow.getBoundingClientRect();
+      const wrapRect = page.tableWrapEl.getBoundingClientRect();
+      const pageNoRect = page.pageNoEl.getBoundingClientRect();
+      if (
+        remarkRect.bottom > wrapRect.bottom + overflowTolerance
+        || remarkRect.bottom > pageNoRect.top
+      ) {
+        console.error('[HLJLD][print-validate] remark clipped', {
+          page: pageIndex + 1,
+          remarkBottom: Math.round(remarkRect.bottom),
+          wrapBottom: Math.round(wrapRect.bottom),
+          pageNumberTop: Math.round(pageNoRect.top),
+        });
+        ok = false;
+      }
+    }
+
     const cells = page.pageEl.querySelectorAll('td, th');
     cells.forEach(cellNode => {
       const el = cellNode as HTMLElement;
@@ -1269,6 +1400,27 @@ function validateGeneratedPages(pages: PageRefs[]): boolean {
   }
 
   return ok;
+}
+
+/**
+ * 校验总结数量和顺序：不允许重复总结。
+ */
+function validateSummarySequence(pages: PageRefs[]): boolean {
+  const rows = pages.flatMap(page =>
+    Array.from(
+      page.tbodyEl.querySelectorAll<HTMLElement>('.print-summary-row'),
+    ),
+  );
+  const identities = rows.map(row => [
+    row.dataset.summaryKind,
+    row.dataset.summaryPeriodStart,
+    row.dataset.summaryPeriodEnd,
+  ].join('|'));
+  if (new Set(identities).size !== identities.length) {
+    console.error('[HLJLD][print-validate] duplicate summaries found');
+    return false;
+  }
+  return true;
 }
 
 function removeNodes(nodes: HTMLElement[]): void {
