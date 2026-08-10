@@ -99,12 +99,14 @@
                 <td>{{ vm.statistics[shift].specialCare ?? 0 }}</td>
                 <td>
                   <textarea
-                    class="remark-input"
+                    #autoResizeTextarea
+                    class="remark-input screen-only"
                     rows="1"
                     [value]="snapshot.draft.remarks?.[$any(shift)] || ''"
                     [attr.aria-label]="'备注' + (shift === 'day' ? '白班' : shift === 'evening' ? '中班' : '夜班')"
-                    (input)="updateRemark($any(shift), $any($event.target).value)"
+                    (input)="onTextareaInput($event); updateRemark($any(shift), $any($event.target).value)"
                   ></textarea>
+                  <div class="print-only print-text">{{ snapshot.draft.remarks?.[$any(shift)] || '' }}</div>
                 </td>
               </tr>
             }
@@ -142,9 +144,12 @@
                         (click)="openNurseRecords(row, $any(shift))"
                       >插入护理记录</button>
                       <textarea
+                        #autoResizeTextarea
+                        class="screen-only"
                         [value]="row.shiftTexts[$any(shift)] || ''"
-                        (input)="updatePatientText(row, $any(shift), $any($event.target).value)"
+                        (input)="onTextareaInput($event); updatePatientText(row, $any(shift), $any($event.target).value)"
                       ></textarea>
+                      <div class="print-only print-text">{{ row.shiftTexts[$any(shift)] || '' }}</div>
                     } @else {
                       <span>{{ row.shiftTexts[$any(shift)] || '' }}</span>
                     }
@@ -158,7 +163,7 @@
               <td colspan="5"></td>
               @for (shift of ['day', 'evening', 'night']; track shift) {
                 <td>
-                  护士签名：
+                  <span class="screen-only">护士签名：
                   <select
                     [value]="snapshot.draft.shiftSignatures[$any(shift)] || ''"
                     (change)="setShiftSignature($any(shift), $any($event.target).value)"
@@ -168,6 +173,8 @@
                       <option [value]="account.id">{{ account.trueName }}</option>
                     }
                   </select>
+                  </span>
+                  <span class="print-only">护士签名：{{ signatureName(shift) }}</span>
                 </td>
               }
             </tr>
@@ -179,7 +186,7 @@
       <section class="safety-report-section" aria-labelledby="safety-report-title">
         <h2 id="safety-report-title">重症医学科病区交班报告</h2>
 
-        <table class="safety-report-table">
+        <table class="safety-report-table screen-only-table">
           <thead>
             <tr>
               <th class="category-column">分类</th>
@@ -216,12 +223,14 @@
                   <td>
                     @if (metric.mode === 'manual') {
                       <textarea
-                        class="metric-input"
+                        #autoResizeTextarea
+                        class="metric-input screen-only"
                         rows="1"
                         [value]="metric.values[shift] ?? ''"
                         [attr.aria-label]="metric.label + metricShiftLabel(shift)"
-                        (input)="updateManualMetric(metric.key, shift, $any($event.target).value)"
+                        (input)="onTextareaInput($event); updateManualMetric(metric.key, shift, $any($event.target).value)"
                       ></textarea>
+                      <div class="print-only print-text">{{ metric.values[shift] || '—' }}</div>
                     } @else {
                       <span
                         class="metric-auto-value"
@@ -249,6 +258,57 @@
                   </select>
                   <span class="signature-print-value">{{ signatureName(shift) }}</span>
                 </td>
+              }
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 打印专用安全表格（无 rowspan，支持分页） -->
+        <table class="safety-report-table print-safety-table print-only-table">
+          <thead>
+            <tr>
+              <th class="category-column">分类</th>
+              <th class="metric-name-column">项目</th>
+              @for (shift of metricShifts; track shift) {
+                <th>{{ metricShiftLabel(shift) }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (metric of vm.metrics; track trackMetric($index, metric)) {
+              <tr>
+                @if (!metric.category) {
+                  <th colspan="2" class="standalone-metric-cell">
+                    {{ metric.label }}
+                  </th>
+                } @else {
+                  <td class="print-category-cell">
+                    @if (metric.showCategory) {
+                      {{ metric.category }}
+                    }
+                  </td>
+                  <th class="metric-label-cell">
+                    {{ metric.label }}
+                  </th>
+                }
+                @for (shift of metricShifts; track shift) {
+                  <td>
+                    @if (metric.mode === 'manual') {
+                      {{ snapshot.draft.manualMetrics?.[metric.key]?.[shift] || '—' }}
+                    } @else {
+                      <span
+                        class="metric-auto-value"
+                        [class.metric-emphasis]="metric.emphasize && metric.values[shift] && metric.values[shift] !== '—'"
+                      >{{ metric.values[shift] || '—' }}</span>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+            <tr class="signature-row">
+              <th colspan="2" scope="row">护士签名</th>
+              @for (shift of metricShifts; track shift) {
+                <td>{{ signatureName(shift) }}</td>
               }
             </tr>
           </tbody>

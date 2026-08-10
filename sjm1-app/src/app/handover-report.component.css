@@ -86,7 +86,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
 .critical-col { width: 8%; }
 .special-care-col { width: 12%; }
 .remark-col { width: 13%; }
-.patient-table textarea { width: 100%; min-height: 60px; border: 1px solid #ccc; border-radius: 4px; padding: 4px; font: inherit; resize: vertical; }
+.patient-table textarea { width: 100%; min-height: 60px; border: 1px solid #ccc; border-radius: 4px; padding: 4px; font: inherit; resize: none; overflow-y: hidden; }
 .insert-button { display: block; margin-bottom: 4px; padding: 2px 8px; border: 1px solid #1677c8; border-radius: 4px; background: #e6f4ff; color: #1677c8; font-size: 11px; cursor: pointer; }
 .critical-row { background: #fef2f2; }
 
@@ -286,7 +286,11 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   color: #111;
   font: inherit;
   line-height: 1.5;
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .metric-input:focus {
@@ -353,12 +357,30 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   color: #111;
   font: inherit;
   line-height: 1.4;
-  resize: vertical;
+  resize: none;
+  overflow-y: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .remark-input:focus {
   border-color: #1677c8;
   outline: 2px solid rgba(22, 119, 200, 0.15);
+}
+
+/* ==================== 屏幕/打印双模式 ==================== */
+
+.screen-only { display: block; }
+.print-only { display: none; }
+.screen-only-table { display: table; }
+.print-only-table { display: none; }
+
+.print-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.45;
 }
 
 /* ==================== 打印样式 ==================== */
@@ -375,13 +397,38 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   h1 { font-size: 15pt; }
   .summary-table, .patient-table { font-size: 8pt; }
   .summary-table th, .summary-table td, .patient-table th, .patient-table td { padding: 1mm 2mm; }
-  .patient-table tr { break-inside: avoid; page-break-inside: avoid; }
+
+  /* 隐藏屏幕交互控件 */
+  .screen-only { display: none !important; }
+  .screen-only-table { display: none !important; }
+  textarea, button, .insert-button, .overlay, .dialog { display: none !important; }
+  select, .signature-select { display: none !important; }
+
+  /* 显示打印专用内容 */
+  .print-only { display: block !important; }
+  .print-only-table { display: table !important; }
+  .signature-print-value { display: inline !important; white-space: pre-wrap; }
+
+  /* 患者表格打印 */
+  .patient-table tr { break-inside: auto; page-break-inside: auto; }
+  .patient-table thead { display: table-header-group; }
+  .patient-table td { height: auto !important; overflow: visible !important; vertical-align: top; }
+  .patient-table .print-text {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
 
   .summary-table .report-title-row th { height: 10mm; font-size: 15pt; }
   .summary-table .report-meta-row th, .summary-table .report-meta-row td { height: 6mm; padding: 0.5mm 1mm; }
   .head-nurse-input { border: 0; }
   .summary-table .special-care-header { color: #e60012 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .patient-table textarea { border: none; padding: 0; font-size: 8pt; min-height: 0; overflow: visible; resize: none; }
+
+  /* 备注打印 */
   .remark-input {
     min-height: 0;
     padding: 0;
@@ -390,7 +437,6 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
     overflow: visible;
     resize: none;
   }
-  .insert-button, .overlay, .dialog { display: none !important; }
 
   .safety-report-section {
     break-before: page;
@@ -410,11 +456,11 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   .safety-report-table th,
   .safety-report-table td {
     padding: 1mm 1.5mm;
-  }
-
-  .safety-report-table tr {
-    break-inside: avoid;
-    page-break-inside: avoid;
+    height: auto;
+    overflow: visible;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
 
   .metric-input {
@@ -430,11 +476,43 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
     display: none !important;
   }
 
-  .signature-select {
-    display: none !important;
+  /* 打印专用安全表格样式 */
+  .print-safety-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 8pt;
   }
 
-  .signature-print-value {
-    display: inline;
+  .print-safety-table thead {
+    display: table-header-group;
+  }
+
+  .print-safety-table tbody {
+    display: table-row-group;
+  }
+
+  .print-safety-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-safety-table th,
+  .print-safety-table td {
+    padding: 1mm 1.5mm;
+    height: auto;
+    overflow: visible;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .print-category-cell {
+    width: 22mm;
+    color: #475569;
+  }
+
+  .print-safety-table .metric-label-cell {
+    width: 44mm;
   }
 }

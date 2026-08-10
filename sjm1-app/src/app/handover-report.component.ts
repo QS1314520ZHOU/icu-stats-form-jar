@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChildren } from '@angular/core';
 import { ReplaySubject, Subject, combineLatest, EMPTY } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import {
@@ -29,10 +29,13 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
   styleUrls: ['./handover-report.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HandoverReportComponent implements OnInit, OnDestroy {
+export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly reload$ = new ReplaySubject<void>(1);
   private readonly dateInput$ = new ReplaySubject<string>(1);
+
+  @ViewChildren('autoResizeTextarea')
+  private autoResizeTextareas!: QueryList<ElementRef<HTMLTextAreaElement>>;
 
   selectedDate = new Date();
   dateInput = this.toDateInput(this.selectedDate);
@@ -162,6 +165,38 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
     }
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  ngAfterViewInit(): void {
+    this.resizeAllTextareas();
+    this.autoResizeTextareas?.changes
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.resizeAllTextareas();
+      });
+  }
+
+  // ==================== textarea 自动高度 ====================
+
+  autoResizeTextarea(textarea: HTMLTextAreaElement): void {
+    if (!textarea) { return; }
+    textarea.style.height = 'auto';
+    const minHeight = parseFloat(getComputedStyle(textarea).minHeight) || 30;
+    textarea.style.height = `${Math.max(textarea.scrollHeight, minHeight)}px`;
+  }
+
+  onTextareaInput(event: Event): void {
+    const textarea = event.target as HTMLTextAreaElement | null;
+    if (!textarea) { return; }
+    this.autoResizeTextarea(textarea);
+  }
+
+  private resizeAllTextareas(): void {
+    requestAnimationFrame(() => {
+      this.autoResizeTextareas?.forEach(ref => {
+        this.autoResizeTextarea(ref.nativeElement);
+      });
+    });
   }
 
   previousDay(): void { this.moveDate(-1); }
@@ -840,7 +875,14 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
 
   // ==================== 打印 ====================
 
-  print(): void { window.print(); }
+  print(): void {
+    this.resizeAllTextareas();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+      });
+    });
+  }
 
   // ==================== 其他工具方法 ====================
 
@@ -930,6 +972,9 @@ export class HandoverReportComponent implements OnInit, OnDestroy {
       });
     }
     this.cdr.markForCheck();
+    queueMicrotask(() => {
+      this.resizeAllTextareas();
+    });
   }
 
   private moveDate(days: number): void {
