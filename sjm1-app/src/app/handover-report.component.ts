@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChildren } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { ReplaySubject, Subject, combineLatest, EMPTY } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import {
@@ -16,6 +16,17 @@ import {
 import { HandoverReportService } from './handover-report.service';
 import { HostPatientService } from './services/host-patient.service';
 import { buildHandoverReport } from './handover-report.utils';
+import {
+  HandoverPrintPage,
+  PatientTableMeasurement,
+  createMeasurementContainer,
+  destroyMeasurementContainer,
+  measurePatientTableRows,
+  paginatePatientTable,
+  waitForFonts,
+  waitForStableRender,
+  generatePrintPagesHtml,
+} from './handover-report-print.util';
 
 /**
  * 保存状态类型。
@@ -36,6 +47,9 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
 
   @ViewChildren('autoResizeTextarea')
   private autoResizeTextareas!: QueryList<ElementRef<HTMLTextAreaElement>>;
+
+  @ViewChild('printContainer')
+  printContainerRef!: ElementRef<HTMLDivElement>;
 
   selectedDate = new Date();
   dateInput = this.toDateInput(this.selectedDate);
@@ -58,6 +72,11 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
    * 是否有未保存的修改。
    */
   hasUnsavedChanges = false;
+
+  /**
+   * 是否正在准备打印（分页渲染中）。
+   */
+  isPreparingPrint = false;
 
   snapshot?: DepartmentDailySnapshot;
   vm?: HandoverReportViewModel;
@@ -875,13 +894,104 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
 
   // ==================== 打印 ====================
 
-  print(): void {
-    this.resizeAllTextareas();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.print();
-      });
-    });
+  /**
+   * 打印流程：
+   * 1. isPreparingPrint = true
+   * 2. resizeAllTextareas → waitForFonts → waitForStableRender
+   * 3. 在度量容器中测量每行高度
+   * 4. paginatePatientTable 分页
+   * 5. generatePrintPagesHtml 生成显式打印页面 HTML
+   * 6. 注入打印容器 → detectChanges → waitForStableRender → window.print()
+   * 7. afterprint 清理
+   */
+  async print(): Promise<void> {
+    if (this.isPreparingPrint) { return; }
+    if (!this.snapshot || !this.vm) { return; }
+
+    this.isPreparingPrint = true;
+    this.cdr.markForCheck();
+
+    try {
+      // 1. 调整 textarea 高度
+      this.resizeAllTextareas();
+
+      // 2. 等待字体加载
+      await waitForFonts(document);
+
+      // 3. 等待渲染稳定
+      await waitForStableRender();
+
+      // 4. 创建度量容器
+      const measureContainer = createMeasurementContainer(document);
+
+      // 5. 度量每行高度
+      const measurement = measurePatientTableRows(
+        this.vm.rows,
+        measureContainer,
+        document,
+      );
+
+      // 6. 分页
+      const pages = paginatePatientTable(this.vm.rows, measurement);
+
+      // 7. 获取安全报告打印 HTML
+      const safetyPrintTable = document.querySelector('.print-safety-table') as HTMLElement | null;
+      const metricsHtml = safetyPrintTable ? safetyPrintTable.outerHTML : '';
+
+      // 8. 生成显式打印页面 HTML
+      const pagesHtml = generatePrintPagesHtml(
+        pages,
+        { statistics: this.vm.statistics },
+        {
+          departmentName: this.snapshot.departmentName,
+          departmentId: this.snapshot.departmentId,
+          draft: this.snapshot.draft,
+        },
+        this.dateInput,
+        (shift: ShiftKey) => this.signatureName(shift),
+        metricsHtml,
+      );
+
+      // 9. 注入打印容器
+      const containerEl = this.printContainerRef?.nativeElement;
+      if (containerEl) {
+        containerEl.innerHTML = pagesHtml;
+      }
+
+      // 10. 清理度量容器
+      destroyMeasurementContainer(measureContainer);
+
+      // 11. 触发变更检测，让 Angular 渲染打印页面
+      this.cdr.detectChanges();
+
+      // 12. 等待渲染稳定
+      await waitForStableRender();
+
+      // 13. 打印
+      window.print();
+
+      // 14. afterprint 清理
+      const onAfterPrint = (): void => {
+        if (containerEl) {
+          containerEl.innerHTML = '';
+        }
+        this.isPreparingPrint = false;
+        this.cdr.markForCheck();
+        window.removeEventListener('afterprint', onAfterPrint);
+      };
+      window.addEventListener('afterprint', onAfterPrint);
+
+      // 兜底：如果 afterprint 未触发（某些浏览器），3秒后自动清理
+      setTimeout(() => {
+        if (this.isPreparingPrint) {
+          onAfterPrint();
+        }
+      }, 3000);
+    } catch (err) {
+      console.error('[HANDOVER] 打印准备失败', err);
+      this.isPreparingPrint = false;
+      this.cdr.markForCheck();
+    }
   }
 
   // ==================== 其他工具方法 ====================

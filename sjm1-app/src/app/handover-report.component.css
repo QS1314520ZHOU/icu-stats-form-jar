@@ -38,8 +38,16 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
 .summary-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 16px; font-family: var(--hljld-font); font-size: 12px; }
 .summary-table th, .summary-table td, .patient-table th, .patient-table td { border: 1px solid #2b2b2b; padding: 4px 8px; text-align: center; font-family: var(--hljld-font); }
 .summary-table th, .patient-table th { background: #edf3f7; font-weight: 600; }
-.patient-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+.patient-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; table-layout: fixed; }
 .patient-table td { text-align: left; vertical-align: top; }
+
+/* 患者表 colgroup 列宽 — CSS 自定义属性精确控制 */
+.patient-table .bed-col { width: var(--bed-width, 6%); }
+.patient-table .name-col { width: var(--name-width, 7%); }
+.patient-table .status-col { width: var(--status-width, 6%); }
+.patient-table .mrn-col { width: var(--mrn-width, 10%); }
+.patient-table .diagnosis-col { width: var(--diagnosis-width, 17%); }
+.patient-table .patient-shift-col { width: var(--shift-width, 18%); }
 
 .summary-table .report-title-row th {
   height: 38px;
@@ -515,4 +523,132 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   .print-safety-table .metric-label-cell {
     width: 44mm;
   }
+
+  /* ==================== 打印测量容器 ==================== */
+  .handover-measurement-container {
+    position: fixed;
+    left: -100000px;
+    top: 0;
+    visibility: hidden;
+    pointer-events: none;
+    width: 283mm;
+    font-family: "Microsoft YaHei", "Noto Sans SC", "PingFang SC", Arial, sans-serif;
+    font-size: 8pt;
+    line-height: 1.4;
+  }
+
+  .handover-measurement-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 8pt;
+  }
+
+  /* ==================== 显式打印页面 ==================== */
+  .handover-print-container {
+    display: none;
+    width: 283mm;
+    font-family: "Microsoft YaHei", "Noto Sans SC", "PingFang SC", Arial, sans-serif;
+  }
+
+  .handover-print-page {
+    width: 283mm;
+    min-height: 196mm;
+    max-height: 196mm;
+    overflow: hidden;
+    page-break-after: always;
+    break-after: page;
+    box-sizing: border-box;
+    padding: 0;
+  }
+
+  .handover-print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* 打印患者表 — 等宽列 */
+  .handover-print-patient-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 8pt;
+    margin-bottom: 0;
+  }
+
+  .handover-print-patient-table th,
+  .handover-print-patient-table td {
+    border: 1px solid #2b2b2b;
+    padding: 1mm 2mm;
+    text-align: center;
+    vertical-align: top;
+    overflow: hidden;
+  }
+
+  .handover-print-patient-table thead th {
+    background: #edf3f7;
+    font-weight: 600;
+  }
+
+  .handover-print-patient-table tfoot td {
+    background: #fff;
+    font-size: 8pt;
+    white-space: pre-wrap;
+  }
+
+  .handover-print-patient-table .critical-row {
+    background: #fef2f2;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* 打印统计表 */
+  .handover-print-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 8pt;
+    margin-bottom: 3mm;
+  }
+
+  .handover-print-summary-table th,
+  .handover-print-summary-table td {
+    border: 1px solid #2b2b2b;
+    padding: 1mm 2mm;
+    text-align: center;
+  }
+
+  .handover-print-summary-table thead th {
+    background: #edf3f7;
+    font-weight: 600;
+  }
+
+  .handover-print-summary-table .report-title-row th {
+    background: #fff;
+    font-family: SimHei, "黑体", "Microsoft YaHei", sans-serif;
+    font-size: 15pt;
+    font-weight: 600;
+    letter-spacing: 2px;
+    height: 10mm;
+  }
+
+  .handover-print-summary-table .report-meta-row th,
+  .handover-print-summary-table .report-meta-row td {
+    height: 6mm;
+    padding: 0.5mm 1mm;
+  }
+
+  .handover-print-summary-table .special-care-header {
+    color: #e60012 !important;
+    font-weight: 600;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .handover-print-summary-table .shift-col { width: 8%; }
+  .handover-print-summary-table .total-col { width: 13%; }
+  .handover-print-summary-table .count-col { width: 8%; }
+  .handover-print-summary-table .critical-col { width: 8%; }
+  .handover-print-summary-table .special-care-col { width: 12%; }
+  .handover-print-summary-table .remark-col { width: 13%; }
 }

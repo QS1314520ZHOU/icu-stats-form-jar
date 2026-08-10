@@ -115,6 +115,16 @@
 
         <!-- 患者交班表 -->
         <table class="patient-table">
+          <colgroup>
+            <col class="bed-col" />
+            <col class="name-col" />
+            <col class="status-col" />
+            <col class="mrn-col" />
+            <col class="diagnosis-col" />
+            <col class="patient-shift-col" />
+            <col class="patient-shift-col" />
+            <col class="patient-shift-col" />
+          </colgroup>
           <thead>
             <tr>
               <th>床号</th>
@@ -315,6 +325,9 @@
         </table>
       </section>
     </main>
+
+    <!-- 打印专用容器：显式分页渲染 -->
+    <main class="print-only handover-print-container" #printContainer></main>
   }
 
   <!-- 危重患者选择弹窗 -->
