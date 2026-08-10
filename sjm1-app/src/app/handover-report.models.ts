@@ -601,6 +601,50 @@ export interface HandoverReportViewModel {
   metrics: MetricRow[];
 }
 
+// ==================== 打印分页模型 ====================
+
+/**
+ * 患者行打印片段。
+ * 长患者行可拆分为多个片段，每个片段包含部分班次文本。
+ */
+export interface HandoverPatientPrintFragment {
+  /** 片段唯一标识 */
+  fragmentKey: string;
+  /** 来源患者行 key */
+  sourceRowKey: string;
+  /** 片段序号（从 0 开始） */
+  fragmentIndex: number;
+  /** 是否为该患者的第一个片段 */
+  isFirstFragment: boolean;
+  /** 是否为该患者的最后一个片段 */
+  isLastFragment: boolean;
+
+  /** 固定信息列 */
+  bedNo: string;
+  name: string;
+  status: string;
+  mrn: string;
+  diagnosis: string;
+
+  /** 班次文本（拆分后的部分） */
+  shiftTexts: Partial<Record<ShiftKey, string>>;
+}
+
+/**
+ * 打印页。
+ */
+export interface HandoverPatientPrintPage {
+  pageIndex: number;
+  /** 是否显示报告标题和统计表 */
+  showReportHeader: boolean;
+  /** 是否显示患者表表头 */
+  showPatientHeader: boolean;
+  /** 是否显示护士签名 */
+  showSignature: boolean;
+  /** 该页的患者片段列表 */
+  fragments: HandoverPatientPrintFragment[];
+}
+
 // ==================== 并发补丁相关类型 ====================
 
 export type DraftChange =

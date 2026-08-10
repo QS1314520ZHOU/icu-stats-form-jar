@@ -25,6 +25,15 @@ function text(value: unknown): string {
   return String(value ?? '').trim();
 }
 
+/**
+ * 清理遗留的 '—' 占位符，统一替换为空字符串。
+ */
+export function normalizeMetricDisplayValue(value: string | undefined | null): string {
+  if (value == null) { return ''; }
+  const trimmed = String(value).trim();
+  return trimmed === '—' ? '' : trimmed;
+}
+
 function numberValue(value: unknown): number {
   const result = Number(text(value));
   return Number.isFinite(result) ? result : Number.NaN;
@@ -51,7 +60,7 @@ function formatBeds(values: Iterable<string>): string {
     const numberDiff = bedNumber(left) - bedNumber(right);
     return numberDiff !== 0 ? numberDiff : left.localeCompare(right, 'zh-CN');
   });
-  return beds.length > 0 ? beds.join('、') : '—';
+  return beds.join('、');
 }
 
 function patientMap(snapshot: DepartmentDailySnapshot): Map<string, DepartmentPatient> {
@@ -301,7 +310,7 @@ function calculateAutoMetricValues(
     case 'iabpTreatment':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_iabp心率', value => value.length > 0));
     case 'piccoMonitoring':
-      return { day: '—', evening: '—', night: '—' };
+      return { day: '', evening: '', night: '' };
     case 'ecmoTreatment':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ECMOMoShi', value => value.length > 0));
     case 'removeIsolation':
@@ -311,7 +320,7 @@ function calculateAutoMetricValues(
     case 'fallHighRisk':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_patientFallDangerFactorV2', value => value.includes('高度危险')));
     case 'unplannedExtubationHighRisk':
-      return { day: '—', evening: '—', night: '—' };
+      return { day: '', evening: '', night: '' };
     case 'suicideHighRisk':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_commitSuicideScore', value => value.includes('高度危险')));
     case 'incontinenceDermatitis':
@@ -319,9 +328,9 @@ function calculateAutoMetricValues(
     case 'unplannedPostoperativeAdmission':
       return buildValues(range => nonPlannedAdmissionBeds(snapshot, range));
     case 'returnIcuWithin24Hours':
-      return { day: '—', evening: '—', night: '—' };
+      return { day: '', evening: '', night: '' };
     case 'returnIcuWithin48Hours':
-      return { day: '—', evening: '—', night: '—' };
+      return { day: '', evening: '', night: '' };
     default:
       return null;
   }
@@ -391,7 +400,7 @@ export function buildSafetyMetrics(
         patients,
         ranges,
       );
-      values = calculatedValues ?? { day: '—', evening: '—', night: '—' };
+      values = calculatedValues ?? { day: '', evening: '', night: '' };
     }
 
     return {

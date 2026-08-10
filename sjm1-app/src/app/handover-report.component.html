@@ -192,7 +192,7 @@
         </table>
       </section>
 
-      <!-- 重症医学科病区交班报告 -->
+      <!-- 重症医学科病区交班报告（屏幕编辑） -->
       <section class="safety-report-section" aria-labelledby="safety-report-title">
         <h2 id="safety-report-title">重症医学科病区交班报告</h2>
 
@@ -240,12 +240,12 @@
                         [attr.aria-label]="metric.label + metricShiftLabel(shift)"
                         (input)="onTextareaInput($event); updateManualMetric(metric.key, shift, $any($event.target).value)"
                       ></textarea>
-                      <div class="print-only print-text">{{ metric.values[shift] || '—' }}</div>
+                      <div class="print-only print-text">{{ metric.values[shift] || '' }}</div>
                     } @else {
                       <span
                         class="metric-auto-value"
-                        [class.metric-emphasis]="metric.emphasize && metric.values[shift] && metric.values[shift] !== '—'"
-                      >{{ metric.values[shift] || '—' }}</span>
+                        [class.metric-emphasis]="metric.emphasize && metric.values[shift]"
+                      >{{ metric.values[shift] || '' }}</span>
                     }
                   </td>
                 }
@@ -272,9 +272,13 @@
             </tr>
           </tbody>
         </table>
+      </section>
+    </main>
 
-        <!-- 打印专用安全表格（无 rowspan，支持分页） -->
-        <table class="safety-report-table print-safety-table print-only-table">
+    <!-- 打印专用安全表格（无 rowspan，支持分页）——放在 .paper 外面以便打印时显示 -->
+    <section class="safety-report-section print-only" aria-labelledby="safety-report-title-print">
+      <h2 id="safety-report-title-print">重症医学科病区交班报告</h2>
+      <table class="safety-report-table print-safety-table">
           <thead>
             <tr>
               <th class="category-column">分类</th>
@@ -304,12 +308,12 @@
                 @for (shift of metricShifts; track shift) {
                   <td>
                     @if (metric.mode === 'manual') {
-                      {{ snapshot.draft.manualMetrics?.[metric.key]?.[shift] || '—' }}
+                      {{ snapshot.draft.manualMetrics?.[metric.key]?.[shift] || '' }}
                     } @else {
                       <span
                         class="metric-auto-value"
-                        [class.metric-emphasis]="metric.emphasize && metric.values[shift] && metric.values[shift] !== '—'"
-                      >{{ metric.values[shift] || '—' }}</span>
+                        [class.metric-emphasis]="metric.emphasize && metric.values[shift]"
+                      >{{ metric.values[shift] || '' }}</span>
                     }
                   </td>
                 }
@@ -324,7 +328,137 @@
           </tbody>
         </table>
       </section>
-    </main>
+
+    <!-- 屏幕外测量容器（print-only，在打印时渲染用于测量行高） -->
+    <div class="print-measure-host print-only">
+      <table class="patient-table print-patient-table measure-patient-table">
+        <colgroup>
+          <col class="bed-col" />
+          <col class="name-col" />
+          <col class="status-col" />
+          <col class="mrn-col" />
+          <col class="diagnosis-col" />
+          <col class="patient-shift-col" />
+          <col class="patient-shift-col" />
+          <col class="patient-shift-col" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>床号</th><th>姓名</th><th>状态</th><th>住院号</th><th>诊断</th>
+            <th>白班</th><th>中班</th><th>夜班</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- 显式分页打印页（print-only，由 Angular 模板渲染） -->
+    <section class="handover-explicit-print print-only">
+      @for (page of printPages; track page.pageIndex) {
+        <section class="handover-print-page">
+          @if (page.showReportHeader) {
+            <div class="print-report-header">
+              <table class="summary-table print-summary-table">
+                <colgroup>
+                  <col class="shift-col" />
+                  <col class="total-col" />
+                  <col span="6" class="count-col" />
+                  <col class="critical-col" />
+                  <col class="special-care-col" />
+                  <col class="remark-col" />
+                </colgroup>
+                <thead>
+                  <tr class="report-title-row">
+                    <th colspan="11">护士交接班病情报告本</th>
+                  </tr>
+                  <tr class="report-meta-row">
+                    <th>科室</th>
+                    <td colspan="3">{{ snapshot!.departmentName || snapshot!.departmentId }}</td>
+                    <th>日期</th>
+                    <td colspan="3">{{ dateInput }}</td>
+                    <th colspan="2">护士长签名</th>
+                    <td>{{ snapshot!.draft.headNurseSignature || '' }}</td>
+                  </tr>
+                  <tr>
+                    <th>班别</th>
+                    <th>病人总数</th>
+                    <th>出院</th>
+                    <th>转出</th>
+                    <th>死亡</th>
+                    <th>转入</th>
+                    <th>入院</th>
+                    <th>手术</th>
+                    <th>病危</th>
+                    <th class="special-care-header">特级护理</th>
+                    <th>备注</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (shift of ['day', 'evening', 'night']; track shift) {
+                    <tr>
+                      <th>{{ shift === 'day' ? '白班' : shift === 'evening' ? '中班' : '夜班' }}</th>
+                      <td>{{ vm!.statistics[shift].total }}</td>
+                      <td>{{ vm!.statistics[shift].discharged ?? 0 }}</td>
+                      <td>{{ vm!.statistics[shift].transferredOut ?? 0 }}</td>
+                      <td>{{ vm!.statistics[shift].death ?? 0 }}</td>
+                      <td>{{ vm!.statistics[shift].transferredIn ?? 0 }}</td>
+                      <td>{{ vm!.statistics[shift].admission ?? 0 }}</td>
+                      <td>{{ vm!.statistics[shift].operation ?? 0 }}</td>
+                      <td>{{ vm!.statistics[shift].critical }}</td>
+                      <td>{{ vm!.statistics[shift].specialCare ?? 0 }}</td>
+                      <td><div class="print-text">{{ snapshot!.draft.remarks?.[$any(shift)] || '' }}</div></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+
+          <table class="patient-table print-patient-table">
+            <colgroup>
+              <col class="bed-col" />
+              <col class="name-col" />
+              <col class="status-col" />
+              <col class="mrn-col" />
+              <col class="diagnosis-col" />
+              <col class="patient-shift-col" />
+              <col class="patient-shift-col" />
+              <col class="patient-shift-col" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>床号</th><th>姓名</th><th>状态</th><th>住院号</th><th>诊断</th>
+                <th>白班</th><th>中班</th><th>夜班</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (fragment of page.fragments; track fragment.fragmentKey) {
+                <tr class="patient-print-fragment">
+                  <td>{{ fragment.bedNo }}</td>
+                  <td>{{ fragment.name }}</td>
+                  <td class="patient-status-cell">{{ fragment.status }}</td>
+                  <td>{{ fragment.mrn }}</td>
+                  <td style="white-space:pre-wrap;word-break:break-word;">{{ fragment.diagnosis }}</td>
+                  @for (shift of ['day', 'evening', 'night']; track shift) {
+                    <td style="white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;">{{ fragment.shiftTexts[$any(shift)] || '' }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+            @if (page.showSignature) {
+              <tfoot>
+                <tr>
+                  <td colspan="5"></td>
+                  @for (shift of ['day', 'evening', 'night']; track shift) {
+                    <td>护士签名：{{ signatureName(shift) }}</td>
+                  }
+                </tr>
+              </tfoot>
+            }
+          </table>
+        </section>
+      }
+    </section>
   }
 
   <!-- 危重患者选择弹窗 -->
@@ -352,8 +486,8 @@
                   [checked]="isPendingCriticalSelected(patient)"
                   (change)="togglePendingCritical(patient, $any($event.target).checked)"
                 />
-                <span class="critical-bed">{{ patient.hisBed || patient.bedNo || '—' }}</span>
-                <span class="critical-name">{{ patient.name || '—' }}</span>
+                <span class="critical-bed">{{ patient.hisBed || patient.bedNo || '' }}</span>
+                <span class="critical-name">{{ patient.name || '' }}</span>
                 @if (!hasPatientKey(patient)) {
                   <span class="patient-id-error">患者ID缺失</span>
                 }
@@ -428,7 +562,7 @@
                   <span class="record-index-column">{{ i + 1 }}</span>
                   <span class="record-time-column">{{ formatRecordTime(record.time) }}</span>
                   <span class="record-content-column">{{ record.desc }}</span>
-                  <span class="record-user-column">{{ record.recorder || '—' }}</span>
+                  <span class="record-user-column">{{ record.recorder || '' }}</span>
                 </div>
               }
             </div>
