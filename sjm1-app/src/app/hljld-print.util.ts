@@ -598,75 +598,39 @@ function appendTimeGroupBlock(
   pages: PageRefs[],
   block: Extract<PrintBlock, { kind: 'time-group' }>,
 ): void {
-  let currentPage = pages[pages.length - 1];
+  const currentPage = pages[pages.length - 1];
   const groupRows = block.rows;
 
   const groupNodes = groupRows.map(row => createDisplayRowTr(doc, row));
 
+  // 1. 整组能放当前页，直接完成
   if (tryAppendNodes(currentPage, groupNodes)) {
     return;
   }
 
   removeNodes(groupNodes);
 
-  // 尝试整体放入空白新页
+  // 2. 当前页放不下整组时，先检查是否应该使用剩余空间拆分
+  if (shouldSplitGroupIntoCurrentPage(currentPage, groupRows)) {
+    splitTimeGroupAcrossPages(doc, root, vm, remarkLines, pages, groupRows);
+    return;
+  }
+
+  // 3. 不适合拆分时，才整体移动到新页
   const emptyPage = createPage(doc, vm, remarkLines);
   root.appendChild(emptyPage.pageEl);
 
-  if (tryAppendNodes(emptyPage, groupRows.map(row => createDisplayRowTr(doc, row)))) {
+  const newNodes = groupRows.map(row => createDisplayRowTr(doc, row));
+  if (tryAppendNodes(emptyPage, newNodes)) {
     pages.push(emptyPage);
     return;
   }
 
+  removeNodes(newNodes);
   emptyPage.pageEl.remove();
 
-  // 逐行处理
-  const newPage = createPage(doc, vm, remarkLines);
-  root.appendChild(newPage.pageEl);
-  pages.push(newPage);
-
-  for (const row of groupRows) {
-    currentPage = pages[pages.length - 1];
-    const singleRowNode = createDisplayRowTr(doc, row);
-
-    if (tryAppendNodes(currentPage, [singleRowNode])) {
-      continue;
-    }
-
-    removeNodes([singleRowNode]);
-
-    // 检查是否可以利用当前页剩余空间拆分长叙述记录
-    const remainingHeight = getRemainingPrintableHeight(currentPage);
-    const segments = buildNarrativeSegments(row);
-    const narrativeLength = segments.reduce((total, seg) => total + seg.text.length, 0);
-    const shouldUseCurrentPage =
-      remainingHeight >= MIN_SPLIT_SPACE_PX
-      && narrativeLength >= 200;
-
-    if (shouldUseCurrentPage) {
-      splitDisplayRowAcrossPages(doc, root, vm, remarkLines, pages, row, true);
-      continue;
-    }
-
-    // 标准流程：finalize 当前页，在新页处理
-    if (pageHasData(currentPage)) {
-      finalizePage(currentPage);
-
-      const nextPage = createPage(doc, vm, remarkLines);
-      root.appendChild(nextPage.pageEl);
-      pages.push(nextPage);
-      currentPage = nextPage;
-
-      const retriedNode = createDisplayRowTr(doc, row);
-      if (tryAppendNodes(currentPage, [retriedNode])) {
-        continue;
-      }
-
-      removeNodes([retriedNode]);
-    }
-
-    splitOversizedDisplayRow(doc, root, vm, remarkLines, pages, row);
-  }
+  // 4. 空白页仍放不下，再逐行拆分
+  appendRowsWithSplitting(doc, root, vm, remarkLines, pages, groupRows);
 }
 
 function getNarrativeFieldText(row: HljldDisplayRow, field: NarrativeField): string {
@@ -901,8 +865,6 @@ function moveCutToNaturalBoundary(text: string, index: number): number {
 
 /* ---- 当前页剩余可用高度 ---- */
 
-const MIN_SPLIT_SPACE_PX = 120;
-
 function getRemainingPrintableHeight(page: PageRefs): number {
   const tbodyRect = page.tbodyEl.getBoundingClientRect();
   const wrapRect = page.tableWrapEl.getBoundingClientRect();
@@ -912,39 +874,219 @@ function getRemainingPrintableHeight(page: PageRefs): number {
   return Math.max(0, wrapRect.bottom - tbodyRect.bottom - tfootRect.height - safetyGap);
 }
 
-/* ---- 跨当前页拆分叙述记录 ---- */
+/** 获取当前页剩余空间占容器高度的比例 */
+function getRemainingRatio(page: PageRefs): number {
+  const wrapRect = page.tableWrapEl.getBoundingClientRect();
+  const remaining = getRemainingPrintableHeight(page);
+  return wrapRect.height > 0 ? remaining / wrapRect.height : 0;
+}
+
+/* ---- 当前页拆分判断 ---- */
+
+const MIN_FRAGMENT_HEIGHT_PX = 80;
+const MIN_FRAGMENT_CHARACTERS = 16;
+const LARGE_GAP_RATIO = 0.12;
+
+/** 测试当前页能否放入一个有效的叙述片段 */
+function canFitUsefulFragment(
+  page: PageRefs,
+  row: HljldDisplayRow,
+): boolean {
+  const segments = buildNarrativeSegments(row);
+  if (!segments.length) { return false; }
+  const first = segments[0];
+  const cutIndex = findMaxFittingSegmentTextIndex(
+    page,
+    row,
+    first.field,
+    first.text,
+    true,
+  );
+  return cutIndex >= MIN_FRAGMENT_CHARACTERS;
+}
+
+/** 判断是否应该将时间组拆分到当前页 */
+function shouldSplitGroupIntoCurrentPage(
+  page: PageRefs,
+  rows: HljldDisplayRow[],
+): boolean {
+  if (!pageHasData(page)) { return false; }
+  const remainingHeight = getRemainingPrintableHeight(page);
+  const remainingRatio = getRemainingRatio(page);
+  // 空间太小不拆分
+  if (remainingHeight < MIN_FRAGMENT_HEIGHT_PX) { return false; }
+  // 空间比例太小不拆分
+  if (remainingRatio < LARGE_GAP_RATIO) { return false; }
+  // 检查第一行是否包含可拆分叙述字段且能放下有效片段
+  const firstRow = rows[0];
+  return canFitUsefulFragment(page, firstRow);
+}
+
+/* ---- 时间组跨页拆分 ---- */
 
 /**
- * 尝试将长叙述记录拆分到当前页和后续页。
- * useCurrentPage=true 时，优先使用当前页剩余空间放首段。
+ * 将时间组拆分到当前页和后续页。
+ * 按行顺序处理：普通短行先放当前页，长叙述行截取后剩余放下一页。
+ * 续页不显示时间、不重复固定数据，签名只在最后片段显示。
  */
-function splitDisplayRowAcrossPages(
+function splitTimeGroupAcrossPages(
+  doc: Document,
+  root: HTMLElement,
+  vm: HljldViewModel,
+  remarkLines: string[],
+  pages: PageRefs[],
+  rows: HljldDisplayRow[],
+): void {
+  let currentPage = pages[pages.length - 1];
+  let isFirstRowOfGroup = true;
+
+  for (const row of rows) {
+    currentPage = pages[pages.length - 1];
+
+    // 普通短行：尝试直接放入当前页
+    const singleNode = createDisplayRowTr(doc, row);
+    if (tryAppendNodes(currentPage, [singleNode])) {
+      isFirstRowOfGroup = false;
+      continue;
+    }
+    removeNodes([singleNode]);
+
+    // 长叙述行：尝试在当前页截取有效片段
+    const remainingHeight = getRemainingPrintableHeight(currentPage);
+    const remainingRatio = getRemainingRatio(currentPage);
+    const segments = buildNarrativeSegments(row);
+    const canSplit = segments.length > 0
+      && remainingHeight >= MIN_FRAGMENT_HEIGHT_PX
+      && remainingRatio >= LARGE_GAP_RATIO;
+
+    if (canSplit && canFitUsefulFragment(currentPage, row)) {
+      // 在当前页放入首段
+      splitRowFirstFragmentToCurrentPage(doc, currentPage, row, isFirstRowOfGroup);
+      isFirstRowOfGroup = false;
+
+      // finalize 当前页，剩余内容到新页
+      finalizePage(currentPage);
+      const nextPage = createPage(doc, vm, remarkLines);
+      root.appendChild(nextPage.pageEl);
+      pages.push(nextPage);
+
+      // 将剩余叙述放到新页
+      splitRowRemainingToNewPage(doc, root, vm, remarkLines, pages, row);
+      continue;
+    }
+
+    // 不能拆分：finalize 当前页，在新页整体放入
+    if (pageHasData(currentPage)) {
+      finalizePage(currentPage);
+      const nextPage = createPage(doc, vm, remarkLines);
+      root.appendChild(nextPage.pageEl);
+      pages.push(nextPage);
+      currentPage = pages[pages.length - 1];
+    }
+
+    const retryNode = createDisplayRowTr(doc, row);
+    if (tryAppendNodes(currentPage, [retryNode])) {
+      isFirstRowOfGroup = false;
+      continue;
+    }
+
+    removeNodes([retryNode]);
+    splitOversizedDisplayRow(doc, root, vm, remarkLines, pages, row);
+    isFirstRowOfGroup = false;
+  }
+}
+
+/**
+ * 将行的首段叙述截取放入当前页。
+ */
+function splitRowFirstFragmentToCurrentPage(
+  doc: Document,
+  page: PageRefs,
+  row: HljldDisplayRow,
+  showFixedFields: boolean,
+): void {
+  const segments = buildNarrativeSegments(row);
+  if (!segments.length) { return; }
+
+  const first = segments[0];
+  const cutIndex = findMaxFittingSegmentTextIndex(
+    page,
+    row,
+    first.field,
+    first.text,
+    true,
+  );
+
+  if (cutIndex <= 0) { return; }
+
+  const currentText = first.text.slice(0, cutIndex);
+  const fragmentRow = createDisplayRowTr(
+    doc,
+    createSegmentRowFragment(row, first.field, currentText, showFixedFields, false),
+  );
+
+  if (tryAppendNodes(page, [fragmentRow])) {
+    return;
+  }
+  removeNodes([fragmentRow]);
+}
+
+/**
+ * 将行的剩余叙述放到新页（已经是新页的当前页）。
+ */
+function splitRowRemainingToNewPage(
   doc: Document,
   root: HTMLElement,
   vm: HljldViewModel,
   remarkLines: string[],
   pages: PageRefs[],
   row: HljldDisplayRow,
-  useCurrentPage: boolean,
 ): void {
   const segments = buildNarrativeSegments(row);
-
-  console.info('[HLJLD][print-split-across]', {
-    rowKey: row.key,
-    useCurrentPage,
-    segments: segments.map(s => ({ field: s.field, length: s.text.length })),
-  });
-
-  if (!segments.length) {
-    throw new Error(
-      `${row.key} 超过单页高度，但该行没有可分页的叙述字段。`,
-    );
-  }
+  if (!segments.length) { return; }
 
   let segmentIndex = 0;
   let fragmentSerial = 0;
-  let isFirstFragment = true;
 
+  // 跳过第一个片段的已截取部分
+  const firstSegment = segments[0];
+  const firstCutIndex = findMaxFittingSegmentTextIndex(
+    pages[pages.length - 1],
+    row,
+    firstSegment.field,
+    firstSegment.text,
+    true,
+  );
+  let firstRemaining = firstSegment.text.slice(firstCutIndex);
+
+  // 处理第一个片段的剩余
+  if (firstRemaining.length > 0) {
+    let currentPage = pages[pages.length - 1];
+    const cutIndex = findMaxFittingSegmentTextIndex(
+      currentPage,
+      row,
+      firstSegment.field,
+      firstRemaining,
+      false,
+    );
+
+    if (cutIndex > 0) {
+      const text = firstRemaining.slice(0, cutIndex);
+      firstRemaining = firstRemaining.slice(cutIndex);
+      const isLast = segmentIndex === segments.length - 1 && firstRemaining.length === 0;
+      const fragmentRow = createDisplayRowTr(
+        doc,
+        createSegmentRowFragment(row, firstSegment.field, text, false, isLast),
+      );
+      if (tryAppendNodes(currentPage, [fragmentRow])) {
+        fragmentSerial += 1;
+      }
+    }
+  }
+
+  segmentIndex = 1;
+
+  // 处理后续片段
   while (segmentIndex < segments.length) {
     const segment = segments[segmentIndex];
     let remaining = segment.text;
@@ -952,43 +1094,6 @@ function splitDisplayRowAcrossPages(
     while (remaining.length > 0) {
       let currentPage = pages[pages.length - 1];
 
-      // 首段且允许使用当前页：尝试在当前页放入
-      if (isFirstFragment && useCurrentPage && pageHasData(currentPage)) {
-        const cutIndex = findMaxFittingSegmentTextIndex(
-          currentPage,
-          row,
-          segment.field,
-          remaining,
-          true,
-        );
-
-        if (cutIndex > 0) {
-          const currentText = remaining.slice(0, cutIndex);
-          remaining = remaining.slice(cutIndex);
-
-          const isLastOverallFragment =
-            segmentIndex === segments.length - 1 && remaining.length === 0;
-
-          const fragmentRow = createDisplayRowTr(
-            doc,
-            createSegmentRowFragment(row, segment.field, currentText, true, isLastOverallFragment),
-          );
-
-          if (tryAppendNodes(currentPage, [fragmentRow])) {
-            fragmentSerial += 1;
-            isFirstFragment = false;
-            // 当前页放了首段后，finalize 当前页，后续内容到新页
-            finalizePage(currentPage);
-            const nextPage = createPage(doc, vm, remarkLines);
-            root.appendChild(nextPage.pageEl);
-            pages.push(nextPage);
-            continue;
-          }
-          removeNodes([fragmentRow]);
-        }
-      }
-
-      // 标准流程：确保当前页有空间
       if (pageHasData(currentPage)) {
         finalizePage(currentPage);
         const nextPage = createPage(doc, vm, remarkLines);
@@ -997,28 +1102,21 @@ function splitDisplayRowAcrossPages(
         currentPage = nextPage;
       }
 
-      const firstFrag = fragmentSerial === 0;
       const cutIndex = findMaxFittingSegmentTextIndex(
         currentPage,
         row,
         segment.field,
         remaining,
-        firstFrag,
+        fragmentSerial === 0,
       );
 
       if (cutIndex <= 0) {
-        console.error('[HLJLD][print-split-failed]', {
-          rowKey: row.key,
-          field: segment.field,
-          remainingLength: remaining.length,
-          pageIndex: pages.length,
-        });
         throw new Error(
           `无法为 ${row.key} 的字段 ${segment.field} 生成可打印片段。`,
         );
       }
 
-      const currentText = remaining.slice(0, cutIndex);
+      const text = remaining.slice(0, cutIndex);
       remaining = remaining.slice(cutIndex);
 
       const isLastOverallFragment =
@@ -1026,13 +1124,7 @@ function splitDisplayRowAcrossPages(
 
       const fragmentRow = createDisplayRowTr(
         doc,
-        createSegmentRowFragment(
-          row,
-          segment.field,
-          currentText,
-          fragmentSerial === 0,
-          isLastOverallFragment,
-        ),
+        createSegmentRowFragment(row, segment.field, text, false, isLastOverallFragment),
       );
 
       if (!tryAppendNodes(currentPage, [fragmentRow])) {
@@ -1043,10 +1135,50 @@ function splitDisplayRowAcrossPages(
       }
 
       fragmentSerial += 1;
-      isFirstFragment = false;
     }
 
     segmentIndex += 1;
+  }
+}
+
+/**
+ * 逐行处理，支持拆分。
+ */
+function appendRowsWithSplitting(
+  doc: Document,
+  root: HTMLElement,
+  vm: HljldViewModel,
+  remarkLines: string[],
+  pages: PageRefs[],
+  rows: HljldDisplayRow[],
+): void {
+  for (const row of rows) {
+    let currentPage = pages[pages.length - 1];
+    const singleRowNode = createDisplayRowTr(doc, row);
+
+    if (tryAppendNodes(currentPage, [singleRowNode])) {
+      continue;
+    }
+
+    removeNodes([singleRowNode]);
+
+    if (pageHasData(currentPage)) {
+      finalizePage(currentPage);
+
+      const nextPage = createPage(doc, vm, remarkLines);
+      root.appendChild(nextPage.pageEl);
+      pages.push(nextPage);
+      currentPage = pages[pages.length - 1];
+
+      const retriedNode = createDisplayRowTr(doc, row);
+      if (tryAppendNodes(currentPage, [retriedNode])) {
+        continue;
+      }
+
+      removeNodes([retriedNode]);
+    }
+
+    splitOversizedDisplayRow(doc, root, vm, remarkLines, pages, row);
   }
 }
 
@@ -1221,39 +1353,11 @@ function createPage(
   };
 }
 
-const MAX_FILLER_HEIGHT_PX = 120;
-
 function finalizePage(page: PageRefs): void {
   removeExistingFillerRow(page);
-
-  const tfootRect = page.tfootEl.getBoundingClientRect();
-  const pageNoRect = page.pageNoEl.getBoundingClientRect();
-  const safetyGap = 4;
-  const remaining = Math.floor(pageNoRect.top - tfootRect.bottom - safetyGap);
-
-  if (remaining <= 2) {
-    return;
-  }
-
-  // 限制 filler 最大高度，避免大面积空白
-  const fillerHeight = Math.min(remaining, MAX_FILLER_HEIGHT_PX);
-
-  const doc = page.pageEl.ownerDocument;
-  const fillerTr = doc.createElement('tr');
-  fillerTr.className = 'print-filler-row';
-  fillerTr.setAttribute('aria-hidden', 'true');
-
-  const fillerTd = doc.createElement('td');
-  fillerTd.colSpan = 17;
-  fillerTd.style.height = `${fillerHeight}px`;
-  fillerTr.appendChild(fillerTd);
-
-  page.tbodyEl.appendChild(fillerTr);
-
-  // 添加占位行后再次检测，若溢出则移除
-  if (isOverflowing(page)) {
-    fillerTr.remove();
-  }
+  // 不再创建 filler。
+  // 备注由 tfoot 自然跟随最后一条内容。
+  // 物理空白位于备注下方，不显示为大块带边框表格区域。
 }
 
 function removeExistingFillerRow(page: PageRefs): void {
