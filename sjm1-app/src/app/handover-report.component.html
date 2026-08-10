@@ -38,6 +38,8 @@
   }
 
   @if (vm && snapshot) {
+    <!-- 屏幕可见内容：打印时整体隐藏 -->
+    <div class="handover-screen-content">
     <main class="paper">
       <section class="report-page">
 
@@ -142,7 +144,7 @@
               <tr [class.critical-row]="row.status === '病危'">
                 <td>{{ row.bedNo }}</td>
                 <td>{{ row.name }}</td>
-                <td class="status-cell">{{ statusText(row.status) }}</td>
+                <td class="status-cell patient-status-cell">{{ statusText(row.status) }}</td>
                 <td>{{ row.mrn }}</td>
                 <td>{{ row.diagnosis }}</td>
                 @for (shift of ['day', 'evening', 'night']; track shift) {
@@ -325,9 +327,10 @@
         </table>
       </section>
     </main>
+    </div><!-- /.handover-screen-content -->
 
-    <!-- 打印专用容器：显式分页渲染 -->
-    <main class="print-only handover-print-container" #printContainer></main>
+    <!-- 打印专用容器：显式分页渲染，屏幕隐藏，打印时显示 -->
+    <main class="handover-print-container" #printContainer></main>
   }
 
   <!-- 危重患者选择弹窗 -->

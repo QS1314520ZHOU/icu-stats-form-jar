@@ -3,7 +3,7 @@
  *
  * A4 横向：纸张 297mm × 210mm，7mm 四边边距 → 有效 283mm × 196mm。
  */
-import { HandoverPatientRow, ShiftKey } from './handover-report.models';
+import { HandoverPatientRow, MetricRow, ShiftKey } from './handover-report.models';
 
 // ==================== 常量 ====================
 
@@ -173,7 +173,7 @@ export function measurePatientTableRows(
     tr.innerHTML = `
       <td style="border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;vertical-align:top;">${escapeHtml(row.bedNo)}</td>
       <td style="border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;vertical-align:top;">${escapeHtml(row.name)}</td>
-      <td style="border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;vertical-align:top;">${escapeHtml(statusText)}</td>
+      <td class="patient-status-cell" style="border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;vertical-align:top;color:#e60012;font-weight:600;">${escapeHtml(statusText)}</td>
       <td style="border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;vertical-align:top;">${escapeHtml(row.mrn)}</td>
       <td style="border:1px solid #2b2b2b;padding:1mm 2mm;text-align:left;vertical-align:top;white-space:pre-wrap;word-break:break-word;">${escapeHtml(row.diagnosis)}</td>
       ${(['day', 'evening', 'night'] as ShiftKey[]).map(shift => {
@@ -304,11 +304,12 @@ export function paginatePatientTable(
  */
 export function generatePrintPagesHtml(
   pages: HandoverPrintPage[],
-  vm: { statistics: Record<ShiftKey, { total: number; discharged?: number; transferredOut?: number; death?: number; transferredIn?: number; admission?: number; operation?: number; critical: number; specialCare?: number }>; },
-  snapshot: { departmentName?: string; departmentId?: string; draft: { headNurseSignature?: string; shiftSignatures: Partial<Record<ShiftKey, string>>; remarks?: Partial<Record<ShiftKey, string>> } },
+  vm: { statistics: Record<ShiftKey, { total: number; discharged?: number; transferredOut?: number; death?: number; transferredIn?: number; admission?: number; operation?: number; critical: number; specialCare?: number }>; metrics: MetricRow[] },
+  snapshot: { departmentName?: string; departmentId?: string; draft: { headNurseSignature?: string; shiftSignatures: Partial<Record<ShiftKey, string>>; remarks?: Partial<Record<ShiftKey, string>>; manualMetrics?: Record<string, Partial<Record<ShiftKey, string>>> } },
   dateInput: string,
   signatureNameFn: (shift: ShiftKey) => string,
-  metricsHtml: string,
+  metricShifts: ShiftKey[],
+  metricShiftLabelFn: (shift: ShiftKey) => string,
 ): string {
   const htmlParts: string[] = [];
 
@@ -353,7 +354,7 @@ export function generatePrintPagesHtml(
       html += `<tr class="${criticalClass}">`;
       html += `<td>${escapeHtml(row.bedNo)}</td>`;
       html += `<td>${escapeHtml(row.name)}</td>`;
-      html += `<td>${escapeHtml(statusText)}</td>`;
+      html += `<td class="patient-status-cell">${escapeHtml(statusText)}</td>`;
       html += `<td>${escapeHtml(row.mrn)}</td>`;
       html += `<td style="white-space:pre-wrap;word-break:break-word;">${escapeHtml(row.diagnosis)}</td>`;
       for (const shift of ['day', 'evening', 'night'] as ShiftKey[]) {
@@ -380,8 +381,8 @@ export function generatePrintPagesHtml(
     htmlParts.push(html);
   }
 
-  // 安全报告分页（始终独立一页）
-  htmlParts.push(metricsHtml);
+  // 安全报告分页（始终独立一页，从数据生成，避免 DOM 重复）
+  htmlParts.push(generateSafetyReportHtml(vm.metrics, snapshot, metricShifts, metricShiftLabelFn, signatureNameFn));
 
   return htmlParts.join('');
 }
@@ -416,6 +417,70 @@ function generateReportHeaderHtml(
   return html;
 }
 
+/**
+ * 从数据生成安全报告打印 HTML（无 rowspan，支持分页）。
+ */
+function generateSafetyReportHtml(
+  metrics: MetricRow[],
+  snapshot: { draft: { shiftSignatures: Partial<Record<ShiftKey, string>>; manualMetrics?: Record<string, Partial<Record<ShiftKey, string>>> } },
+  metricShifts: ShiftKey[],
+  metricShiftLabelFn: (shift: ShiftKey) => string,
+  signatureNameFn: (shift: ShiftKey) => string,
+): string {
+  let html = '<div class="safety-report-section">';
+  html += '<h2>重症医学科病区交班报告</h2>';
+  html += '<table class="safety-report-table print-safety-table">';
+
+  // colgroup
+  html += '<colgroup><col class="category-column" /><col class="metric-name-column" />';
+  for (let i = 0; i < metricShifts.length; i++) {
+    html += '<col />';
+  }
+  html += '</colgroup>';
+
+  // thead
+  html += '<thead><tr>';
+  html += '<th class="category-column">分类</th>';
+  html += '<th class="metric-name-column">项目</th>';
+  for (const shift of metricShifts) {
+    html += `<th>${escapeHtml(metricShiftLabelFn(shift))}</th>`;
+  }
+  html += '</tr></thead>';
+
+  // tbody
+  html += '<tbody>';
+  for (const metric of metrics) {
+    html += '<tr>';
+    if (!metric.category) {
+      // 独立指标：合并前两列
+      html += `<th colspan="2" class="standalone-metric-cell">${escapeHtml(metric.label)}</th>`;
+    } else {
+      // 分类指标：显示分类和项目名（无 rowspan，每行独立）
+      const categoryText = metric.showCategory ? escapeHtml(metric.category) : '';
+      html += `<td class="print-category-cell">${categoryText}</td>`;
+      html += `<th class="metric-label-cell">${escapeHtml(metric.label)}</th>`;
+    }
+    for (const shift of metricShifts) {
+      const value = metric.values[shift] || '—';
+      const emphasisClass = metric.emphasize && value && value !== '—' ? ' metric-emphasis' : '';
+      html += `<td><span class="metric-auto-value${emphasisClass}">${escapeHtml(value)}</span></td>`;
+    }
+    html += '</tr>';
+  }
+
+  // 签名行
+  html += '<tr class="signature-row">';
+  html += '<th colspan="2" scope="row">护士签名</th>';
+  for (const shift of metricShifts) {
+    html += `<td>${escapeHtml(signatureNameFn(shift))}</td>`;
+  }
+  html += '</tr>';
+
+  html += '</tbody></table>';
+  html += '</div>';
+  return html;
+}
+
 // ==================== 打印流程辅助 ====================
 
 /**
@@ -440,14 +505,6 @@ export function waitForStableRender(): Promise<void> {
       });
     });
   });
-}
-
-/**
- * 获取安全报告表格的纯 HTML（用于打印）。
- */
-export function getMetricsTableHtml(metricsEl: HTMLElement | null): string {
-  if (!metricsEl) return '';
-  return metricsEl.outerHTML;
 }
 
 // ==================== 工具 ====================
