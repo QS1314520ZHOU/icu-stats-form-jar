@@ -531,7 +531,7 @@ export function buildSummary(
     totalOutput,
     outputItems,
     drainItems,
-    balance: totalOutput - totalInput,
+    balance: totalInput - totalOutput,
     drugTreatmentTotal,
     drugTreatmentItems,
     gastrointestinalInputTotal,
