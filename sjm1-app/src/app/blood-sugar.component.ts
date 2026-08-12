@@ -1,16 +1,8 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { combineLatest, Subject } from 'rxjs';
-import { distinctUntilChanged, map, takeUntil } from 'rxjs/operators';
-
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
-
-interface BloodSugarContext {
-  patientId: string;
-  username: string;
-  patient: any;
-  account: any;
-}
 
 @Component({
   standalone: false,
@@ -20,13 +12,13 @@ interface BloodSugarContext {
 })
 export class BloodSugarComponent implements OnInit, OnDestroy {
   iframeUrl: SafeResourceUrl | null = null;
-  /** 未经 Angular SafeResourceUrl 包装的完整地址，仅用于控制台诊断 */
-  rawIframeUrl = '';
 
+  private patient: any = null;
+  private account: any = null;
+  private currentPatientId = '';
+  private currentIframeUrl = '';
   private readonly destroy$ = new Subject<void>();
-
-  private readonly targetUrl =
-    'http://10.35.4.101:8484/third-party-bootstrap/layout.html';
+  private readonly targetUrl = 'http://10.35.4.101:8484/third-party-bootstrap/layout.html';
 
   constructor(
     private readonly hostPatient: HostPatientService,
@@ -34,76 +26,66 @@ export class BloodSugarComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    console.log('[bloodSugar] 组件初始化，等待 patient 和 account 握手数据');
+    this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(account => {
+      if (!account) return;
+      const previousUsername = String(this.account?.username ?? '').trim();
+      this.account = account;
+      const currentUsername = String(account?.username ?? '').trim();
+      if (currentUsername !== previousUsername) {
+        this.refreshIframeUrl();
+      }
+    });
 
-    combineLatest([
-      this.hostPatient.patient$,
-      this.hostPatient.account$,
-    ])
-      .pipe(
-        map(([patient, account]): BloodSugarContext => ({
-          patientId: String(patient?.mrn ?? '').trim(),
-          username: String(account?.username ?? '').trim(),
-          patient,
-          account,
-        })),
-        distinctUntilChanged(
-          (previous, current) =>
-            previous.patientId === current.patientId &&
-            previous.username === current.username,
-        ),
-        takeUntil(this.destroy$),
-      )
-      .subscribe((context) => {
-        console.group('[bloodSugar] 收到握手上下文');
-        console.log('[bloodSugar] 原始 patient：', context.patient);
-        console.log('[bloodSugar] 原始 account：', context.account);
-        console.log('[bloodSugar] 原始 patient.mrn：', context.patient?.mrn);
-        console.log('[bloodSugar] 原始 account.username：', context.account?.username);
-        console.log('[bloodSugar] 最终 patientId：', context.patientId);
-        console.log('[bloodSugar] 最终 token：', context.username);
-        console.groupEnd();
-
-        this.updateIframeUrl(context.patientId, context.username);
-      });
+    this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(patient => {
+      if (!patient) return;
+      const previousPatientId = this.currentPatientId;
+      const currentPatientId = this.resolvePatientId(patient);
+      this.patient = patient;
+      this.currentPatientId = currentPatientId;
+      if (currentPatientId && currentPatientId !== previousPatientId) {
+        this.clearCurrentIframe();
+        this.refreshIframeUrl();
+      }
+    });
   }
 
-  private updateIframeUrl(patientId: string, username: string): void {
+  private resolvePatientId(patient: any): string {
+    return String(
+      patient?.id ??
+      patient?._id ??
+      patient?.pid ??
+      patient?.patientId ??
+      patient?.patientID ??
+      ''
+    ).trim();
+  }
+
+  private clearCurrentIframe(): void {
+    this.currentIframeUrl = '';
+    this.iframeUrl = null;
+  }
+
+  private refreshIframeUrl(): void {
+    const patientId = String(this.patient?.mrn ?? '').trim();
+    const username = String(this.account?.username ?? '').trim();
     if (!patientId || !username) {
-      this.rawIframeUrl = '';
-      this.iframeUrl = null;
-      console.error('[bloodSugar] 无法生成加载地址', {
-        patientId,
-        username,
-        missingParameter: !patientId ? 'patient.mrn' : 'account.username',
-      });
+      this.clearCurrentIframe();
       return;
     }
-
-    const queryParameters = {
+    const params = new URLSearchParams({
       platCode: '99',
       patientId,
       token: username,
       menuCode: 'DOC_PC_NURSING.STATION_777',
-    };
-
-    console.table(queryParameters);
-
-    const params = new URLSearchParams(queryParameters);
-    this.rawIframeUrl = `${this.targetUrl}?${params.toString()}`;
-
-    console.log('[bloodSugar] 最终加载地址：', this.rawIframeUrl);
-
-    this.iframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(this.rawIframeUrl);
-  }
-
-  onIframeLoad(): void {
-    console.log('[bloodSugar] iframe load 事件已触发', { url: this.rawIframeUrl });
+    });
+    const nextUrl = `${this.targetUrl}?${params.toString()}`;
+    if (nextUrl === this.currentIframeUrl) return;
+    this.currentIframeUrl = nextUrl;
+    this.iframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(nextUrl);
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    console.log('[bloodSugar] 组件已销毁');
   }
 }
