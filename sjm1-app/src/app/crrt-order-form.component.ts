@@ -370,7 +370,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     this.removeCustomConsumableValue();
     if (!checked) {
       this.customConsumableText = '';
-    } else if (this.customConsumableText.trim()) {
+    } else {
       this.record.machineConsumables.push(this.customConsumablePrefix + this.customConsumableText.trim());
     }
     this.onDiscreteChange();
