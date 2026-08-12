@@ -35,7 +35,7 @@ interface CrrtOrderFormRecord {
 }
 
 const DOCTOR_PROFS = ['director', 'doctor'];
-const NURSE_PROFS = ['nurse', 'matron'];
+const NURSE_PROFS = ['nurse', 'matron', 'nurseleader', 'practicenurse'];
 const ADMIN_PROFS = ['systemadmin', 'admin'];
 
 
@@ -383,9 +383,8 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   onCustomConsumableTextChange(value: string): void {
     this.customConsumableText = value;
     this.removeCustomConsumableValue();
-    const trimmed = value.trim();
-    if (this.customConsumableSelected && trimmed) {
-      this.record.machineConsumables.push(this.customConsumablePrefix + trimmed);
+    if (this.customConsumableSelected) {
+      this.record.machineConsumables.push(this.customConsumablePrefix + value.trim());
     }
     this.onPageChanged();
   }
@@ -584,9 +583,11 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       e: this.http.get<any[]>('/api/v1/icu/accounts?profession=Doctor').pipe(catchError(() => of([]))),
       n: this.http.get<any[]>('/api/v1/icu/accounts?profession=Nurse').pipe(catchError(() => of([]))),
       m: this.http.get<any[]>('/api/v1/icu/accounts?profession=Matron').pipe(catchError(() => of([]))),
+      nl: this.http.get<any[]>('/api/v1/icu/accounts?profession=NurseLeader').pipe(catchError(() => of([]))),
+      pn: this.http.get<any[]>('/api/v1/icu/accounts?profession=PracticeNurse').pipe(catchError(() => of([]))),
     }).pipe(takeUntil(this.destroy$)).subscribe(r => {
       this.doctorAccounts = this.uniqueAcc([...r.d, ...r.e]);
-      this.nurseAccounts = this.uniqueAcc([...r.n, ...r.m]);
+      this.nurseAccounts = this.uniqueAcc([...r.n, ...r.m, ...r.nl, ...r.pn]);
     });
   }
   private uniqueAcc(list: any[]): AccountOption[] {

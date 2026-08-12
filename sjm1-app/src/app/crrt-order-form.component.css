@@ -1709,7 +1709,7 @@ label {
   background: transparent !important;
   color: transparent !important;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none !important;
 }
 
 .datetime-picker:disabled {
