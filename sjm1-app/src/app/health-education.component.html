@@ -187,7 +187,7 @@
     <div class="option-group" *ngFor="let group of modalStandardGroups">
       <div class="option-group-head">
         <h3>{{group.name}}</h3>
-        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="selectAllGroup(group)">全选</button>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="toggleGroupSelection(group)">{{ isGroupAllSelected(group) ? '取消全选' : '全选' }}</button>
       </div>
       <div class="option-grid">
         <label class="check-item" *ngFor="let item of group.items" [class.option-wide]="item.code==='RISKS'||item.code==='DISEASE_CARE'">
@@ -200,7 +200,7 @@
     <div class="option-group">
       <div class="option-group-head">
         <h3>药物宣教</h3>
-        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="selectAllGroup(medicationGroup)">全选</button>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="toggleGroupSelection(medicationGroup)">{{ isGroupAllSelected(medicationGroup) ? '取消全选' : '全选' }}</button>
       </div>
       <div class="option-grid">
         <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'ORAL_MEDICATION')" (change)="toggle('itemCodes','ORAL_MEDICATION',$any($event.target).checked)"><span class="option-text">口服药宣教：作用、用药途径及方法</span></label>
@@ -217,7 +217,7 @@
     <div class="option-group">
       <div class="option-group-head">
         <h3>检查宣教</h3>
-        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="selectAllGroup(examinationGroup)">全选</button>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="toggleGroupSelection(examinationGroup)">{{ isGroupAllSelected(examinationGroup) ? '取消全选' : '全选' }}</button>
       </div>
       <div class="exam-form-section"><div class="exam-form-title">外出检查</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'EXAM_CT')" (change)="toggle('itemCodes','EXAM_CT',$any($event.target).checked)">CT</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'MRI')" (change)="toggle('itemCodes','MRI',$any($event.target).checked)">磁共振</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'GASTROSCOPY')" (change)="toggle('itemCodes','GASTROSCOPY',$any($event.target).checked)">胃镜</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'EXAM_OTHER')" (change)="toggle('itemCodes','EXAM_OTHER',$any($event.target).checked)">其它</label><input *ngIf="has(form.itemCodes,'EXAM_OTHER')" class="inline-other-input" type="text" placeholder="请输入外出检查其它内容" [(ngModel)]="form.externalExamOther"></div></div>
       <div class="exam-form-section"><div class="exam-form-title">转运风险</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'TRANSPORT_RISK')" (change)="toggle('itemCodes','TRANSPORT_RISK',$any($event.target).checked)">患者转运风险</label></div></div>
@@ -227,13 +227,19 @@
     <div class="option-group">
       <div class="option-group-head">
         <h3>其它</h3>
-        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="selectAllGroup(otherGroup)">全选</button>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="toggleGroupSelection(otherGroup)">{{ isGroupAllSelected(otherGroup) ? '取消全选' : '全选' }}</button>
       </div>
       <label class="check-item other-check-item"><input type="checkbox" [checked]="has(form.itemCodes,'OTHER')" (change)="toggle('itemCodes','OTHER',$any($event.target).checked)"><span class="option-text">其它宣教</span></label>
       <label class="conditional-other-input" *ngIf="has(form.itemCodes,'OTHER')">宣教内容<textarea rows="2" [(ngModel)]="form.otherEducation" placeholder="请输入其它宣教内容"></textarea></label>
     </div>
     <!-- 评价 -->
-    <div class="option-group"><h3>评价</h3><label class="inline-check" *ngFor="let o of evaluationOptions"><input type="checkbox" [checked]="has(form.evaluationCodes,o.code)" (change)="toggle('evaluationCodes',o.code,$any($event.target).checked)">{{o.code}}. {{o.label}}</label></div>
+    <div class="option-group">
+      <div class="option-group-head">
+        <h3>评价</h3>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="toggleAllEvaluations()">{{ areAllEvaluationsSelected() ? '取消全选' : '全选' }}</button>
+      </div>
+      <label class="inline-check" *ngFor="let o of evaluationOptions"><input type="checkbox" [checked]="has(form.evaluationCodes,o.code)" (change)="toggle('evaluationCodes',o.code,$any($event.target).checked)">{{o.code}}. {{o.label}}</label>
+    </div>
     <div class="error" *ngIf="errorText">{{errorText}}</div>
   </div>
   <div class="dialog-foot"><button class="dialog-btn cancel-btn" (click)="formOpen=false" [disabled]="saving">取消</button><button class="dialog-btn save-btn" (click)="save()" [disabled]="saving">{{saving?'保存中…':'保存'}}</button></div>

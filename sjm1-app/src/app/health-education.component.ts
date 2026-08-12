@@ -229,12 +229,47 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   evalText(r: HealthEducationRecord|null): string { return (r?.evaluationCodes || []).join('、'); }
   groupRows(g: OptionGroup): number { return g.items.length; }
 
-  /** 全选指定分组的全部项目，保留其他分组已勾选项 */
-  selectAllGroup(group: OptionGroup): void {
+  /** 判断某分组是否已全选 */
+  isGroupAllSelected(group: OptionGroup): boolean {
     const codes = group.items.map(item => item.code);
-    const set = new Set(this.form.itemCodes || []);
-    codes.forEach(code => set.add(code));
-    this.form.itemCodes = [...set];
+    return codes.length > 0 && codes.every(code => (this.form.itemCodes || []).includes(code));
+  }
+
+  /** 切换某分组的全选/取消全选 */
+  toggleGroupSelection(group: OptionGroup): void {
+    const codes = group.items.map(item => item.code);
+    if (this.isGroupAllSelected(group)) {
+      this.form.itemCodes = (this.form.itemCodes || []).filter(code => !codes.includes(code));
+      this.clearConditionalContent(codes);
+    } else {
+      const set = new Set(this.form.itemCodes || []);
+      codes.forEach(code => set.add(code));
+      this.form.itemCodes = [...set];
+    }
+  }
+
+  /** 判断评价区域是否已全选 */
+  areAllEvaluationsSelected(): boolean {
+    const codes = this.evaluationOptions.map(o => o.code);
+    return codes.length > 0 && codes.every(code => (this.form.evaluationCodes || []).includes(code));
+  }
+
+  /** 切换评价区域的全选/取消全选 */
+  toggleAllEvaluations(): void {
+    const codes = this.evaluationOptions.map(o => o.code);
+    if (this.areAllEvaluationsSelected()) {
+      this.form.evaluationCodes = [];
+    } else {
+      this.form.evaluationCodes = [...codes];
+    }
+  }
+
+  /** 清理被移除选项对应的附带内容 */
+  private clearConditionalContent(removedCodes: string[]): void {
+    if (removedCodes.includes('SPECIAL_OTHER')) this.form.specialMedicationOther = '';
+    if (removedCodes.includes('EXAM_OTHER')) this.form.externalExamOther = '';
+    if (removedCodes.includes('WARD_OTHER')) this.form.internalExamOther = '';
+    if (removedCodes.includes('OTHER')) this.form.otherEducation = '';
   }
 
   /* ---- 护士检索选择 ---- */
