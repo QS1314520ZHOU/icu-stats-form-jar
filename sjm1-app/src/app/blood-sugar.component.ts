@@ -17,6 +17,7 @@ export class BloodSugarComponent implements OnInit, OnDestroy {
   private account: any = null;
   private currentPatientId = '';
   private currentIframeUrl = '';
+  private iframeReloadTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly destroy$ = new Subject<void>();
   private readonly targetUrl = 'http://10.35.4.101:8484/third-party-bootstrap/layout.html';
 
@@ -33,7 +34,7 @@ export class BloodSugarComponent implements OnInit, OnDestroy {
       this.account = account;
       const currentUsername = String(account?.username ?? '').trim();
       if (currentUsername !== previousUsername) {
-        this.refreshIframeUrl();
+        this.refreshIframeUrl(true);
       }
     });
 
@@ -44,9 +45,7 @@ export class BloodSugarComponent implements OnInit, OnDestroy {
       this.patient = patient;
       this.currentPatientId = currentPatientId;
       if (currentPatientId && currentPatientId !== previousPatientId) {
-        this.clearCurrentIframe();
-        this.cdr.detectChanges();
-        this.refreshIframeUrl();
+        this.refreshIframeUrl(true);
       }
     });
   }
@@ -63,11 +62,26 @@ export class BloodSugarComponent implements OnInit, OnDestroy {
   }
 
   private clearCurrentIframe(): void {
+    if (this.iframeReloadTimer !== null) {
+      clearTimeout(this.iframeReloadTimer);
+      this.iframeReloadTimer = null;
+    }
     this.currentIframeUrl = '';
     this.iframeUrl = null;
   }
 
-  private refreshIframeUrl(): void {
+  private recreateIframe(nextUrl: string): void {
+    this.iframeUrl = null;
+    this.cdr.detectChanges();
+    this.iframeReloadTimer = setTimeout(() => {
+      this.iframeReloadTimer = null;
+      if (this.currentIframeUrl !== nextUrl) return;
+      this.iframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(nextUrl);
+      this.cdr.detectChanges();
+    }, 0);
+  }
+
+  private refreshIframeUrl(forceReload = false): void {
     const patientId = String(this.patient?.mrn ?? '').trim();
     const username = String(this.account?.username ?? '').trim();
     if (!patientId || !username) {
@@ -81,12 +95,16 @@ export class BloodSugarComponent implements OnInit, OnDestroy {
       menuCode: 'DOC_PC_NURSING.STATION_777',
     });
     const nextUrl = `${this.targetUrl}?${params.toString()}`;
-    if (nextUrl === this.currentIframeUrl) return;
+    if (!forceReload && nextUrl === this.currentIframeUrl) return;
     this.currentIframeUrl = nextUrl;
-    this.iframeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(nextUrl);
+    this.recreateIframe(nextUrl);
   }
 
   ngOnDestroy(): void {
+    if (this.iframeReloadTimer !== null) {
+      clearTimeout(this.iframeReloadTimer);
+      this.iframeReloadTimer = null;
+    }
     this.destroy$.next();
     this.destroy$.complete();
   }
