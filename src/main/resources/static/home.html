@@ -68,7 +68,12 @@ var nursingForms = [
   {name:'输血记录单',path:'/form/transfusionForm',data:['TransfusionRecord']},
   {name:'PICCO 容量监测参数记录表',path:'/form/piccoForm',data:['Bedside','PiccoRecordExtra']},
   {name:'IABP 运行护理记录单',path:'/form/iabpForm',data:['Bedside','IabpRecordExtra']},
-  {name:'住院患者压力性损伤评估及措施记录单（Braden）',path:'/form/bradenForm',data:['Score']}
+  {name:'住院患者压力性损伤评估及措施记录单（Braden）',path:'/form/bradenForm',data:['Score']},
+  {name:'CRRT 护理记录单',path:'/form/crrtForm',data:['Bedside','CrrtRecord']},
+  {name:'CRRT 治疗医嘱单',path:'/form/crrtOrderForm',data:['CrrtOrderForm']},
+  {name:'护理记录单',path:'/form/hljldForm',data:['Bedside']},
+  {name:'交班报告',path:'/form/handoverReport',data:['Bedside','Score']},
+  {name:'血糖记录',path:'/form/bloodSugar',data:[]}
 ];
 
 function renderRows(containerId, list) {
