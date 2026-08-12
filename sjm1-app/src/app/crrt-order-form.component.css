@@ -784,7 +784,42 @@ label {
 }
 
 .machine-options-last {
-  grid-template-columns: 1.6fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr) minmax(0, .8fr) minmax(150px, 1.6fr);
+}
+
+.custom-consumable-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+}
+
+.custom-consumable-option > input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  min-height: 12px;
+  margin: 0;
+}
+
+.custom-consumable-input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 20px !important;
+  min-height: 20px !important;
+  padding: 0 3px !important;
+  border: 0 !important;
+  border-bottom: 1px solid #000 !important;
+  background: transparent !important;
+}
+
+.custom-consumable-print {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .machine-row-cell {
@@ -1619,6 +1654,7 @@ label {
   overflow: hidden;
   text-align: center !important;
   vertical-align: middle !important;
+  cursor: pointer;
 }
 
 .datetime-value {
@@ -1639,6 +1675,7 @@ label {
   line-height: 14px;
   text-align: center;
   white-space: nowrap;
+  pointer-events: none;
 }
 
 .datetime-date,
@@ -1660,7 +1697,7 @@ label {
   box-sizing: border-box;
   position: absolute !important;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
   display: block !important;
   width: 100% !important;
   height: 100% !important;
@@ -1888,6 +1925,15 @@ label {
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+  }
+
+  /* 自定义耗材：打印时隐藏输入框，显示文本 */
+  .custom-consumable-input {
+    display: none !important;
+  }
+
+  .custom-consumable-print {
+    display: inline !important;
   }
 
   /* 操作列隐藏 */

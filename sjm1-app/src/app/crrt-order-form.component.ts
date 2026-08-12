@@ -7,7 +7,7 @@ import { HostPatientService } from './services/host-patient.service';
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 interface CheckboxOption { id: string; label: string; }
-interface AccountOption { accountId: string; accountName: string; profession?: string; }
+interface AccountOption { accountId: string; accountName: string; profession?: string; username?: string; code?: string; }
 interface SignatureValue { accountId: string; accountName: string; signedAt?: string | null; }
 interface OrderTimeOption { id: string; orderTime: string; updatedAt?: string; }
 interface PrescriptionColumn { code: string; dateTime: string; baseSolution: number | null; potassiumChloride: number | null; sodiumChloride: number | null; doctorSignature: SignatureValue | null; executionTime: string; nurseSignature: SignatureValue | null; }
@@ -92,6 +92,17 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     [{ id: 'cartridge-ha330', label: 'HA330' }, { id: 'cartridge-ha330-ii', label: 'HA330-II' }, { id: 'plasma-separator', label: '膜式血浆分离器' }, { id: 'filter-bs330', label: 'BS330' }],
     [{ id: 'secondary-membrane-ec-50w', label: '二级膜 EC-50W' }, { id: 'filter-st150', label: 'ST150' }, { id: 'filter-oxiris', label: 'OXIRIS' }],
   ];
+
+  readonly machineConsumableDefaults: Readonly<Record<string, readonly string[]>> = {
+    'machine-gambro': ['filter-m150'],
+    'machine-nikkiso': ['circuit-nikkiso', 'av600s-nikkiso'],
+    'machine-shanwaishan': ['circuit-twt-cbp-02p', 'av600s-shanwaishan'],
+    'machine-bbraun': ['circuit-bbraun', 'av600s-bbraun'],
+  };
+
+  private readonly customConsumablePrefix = 'custom-consumable:';
+  customConsumableSelected = false;
+  customConsumableText = '';
   readonly replacementCodes = ['B','C','D','E','F','G','H','I'];
   readonly dialysateCodes = ['b','c','d','e','f','g','h','i'];
   readonly anticoagulationOptions = ['无肝素','肝素钠','低分子肝素','低分子肝素钠','4%枸橼酸钠','10%葡萄糖酸钙','甲磺酸萘莫司他'];
@@ -110,7 +121,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       this.pid = newPid;
       this.age = this.calcAge(p.birthday);
       this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis || p.diagnosis);
-      if (newPid && newPid !== oldPid) { this.flushAutoSave(); this.record = this.createEmptyRecord(); this.applyPatientToRecord(this.record); this.loadTimeOptions(); }
+      if (newPid && newPid !== oldPid) { this.flushAutoSave(); this.record = this.createEmptyRecord(); this.customConsumableSelected = false; this.customConsumableText = ''; this.applyPatientToRecord(this.record); this.loadTimeOptions(); }
     });
     this.loadSignatureAccounts();
   }
@@ -134,15 +145,25 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   private currentAccountId(): string { return String(this.account?.id ?? this.account?._id ?? this.account?.accountId ?? '').trim(); }
   genderText(g?: string|number): string { const v = String(g ?? '').trim(); if (['Male','M','男','1'].includes(v)) return '男'; if (['Female','F','女','2'].includes(v)) return '女'; return v; }
 
-  /* 签名排序 */
-  get orderedDoctorAccounts(): AccountOption[] {
-    const cid = this.currentAccountId();
-    return [...this.doctorAccounts].sort((a, b) => { const ac = a.accountId === cid ? -1 : 0; const bc = b.accountId === cid ? -1 : 0; return ac - bc || a.accountName.localeCompare(b.accountName, 'zh-CN'); });
+  /* 签名排序：当前账号排第一，但不默认选中 */
+  private currentAccountKeys(): Set<string> {
+    return new Set(
+      [this.account?.id, this.account?._id, this.account?.accountId, this.account?.username, this.account?.code, this.account?.jobNumber]
+        .map(v => String(v ?? '').trim())
+        .filter(Boolean)
+    );
   }
-  get orderedNurseAccounts(): AccountOption[] {
-    const cid = this.currentAccountId();
-    return [...this.nurseAccounts].sort((a, b) => { const ac = a.accountId === cid ? -1 : 0; const bc = b.accountId === cid ? -1 : 0; return ac - bc || a.accountName.localeCompare(b.accountName, 'zh-CN'); });
+  private isCurrentAccount(option: AccountOption): boolean {
+    const keys = this.currentAccountKeys();
+    return [option.accountId, option.username, option.code].map(v => String(v ?? '').trim()).filter(Boolean).some(v => keys.has(v));
   }
+  private putCurrentAccountFirst(accounts: AccountOption[]): AccountOption[] {
+    const idx = accounts.findIndex(a => this.isCurrentAccount(a));
+    if (idx <= 0) return [...accounts];
+    return [accounts[idx], ...accounts.slice(0, idx), ...accounts.slice(idx + 1)];
+  }
+  get orderedDoctorAccounts(): AccountOption[] { return this.putCurrentAccountFirst(this.doctorAccounts); }
+  get orderedNurseAccounts(): AccountOption[] { return this.putCurrentAccountFirst(this.nurseAccounts); }
 
   /* 加载 */
   loadTimeOptions(selectId?: string): void {
@@ -155,7 +176,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
           this.ngZone.run(() => {
             this.timeOptions = [...(opts ?? [])].sort((a, b) => new Date(b.orderTime).getTime() - new Date(a.orderTime).getTime());
             this.hasRecords = this.timeOptions.length > 0;
-            if (!this.hasRecords) { this.selectedRecordId = ''; this.isDraft = false; this.record = this.createEmptyRecord(); this.applyPatientToRecord(this.record); this.message = '当前患者暂无 CRRT 医嘱单，请点击新增后填写。'; this.loading = false; this.cdr.detectChanges(); return; }
+            if (!this.hasRecords) { this.selectedRecordId = ''; this.isDraft = false; this.record = this.createEmptyRecord(); this.customConsumableSelected = false; this.customConsumableText = ''; this.applyPatientToRecord(this.record); this.message = '当前患者暂无 CRRT 医嘱单，请点击新增后填写。'; this.loading = false; this.cdr.detectChanges(); return; }
             const id = selectId || this.timeOptions[0].id;
             this.selectedRecordId = id;
             this.loading = false;
@@ -178,6 +199,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
           this.ngZone.run(() => {
             if (requestPid !== this.pid) return;
             this.record = this.normalizeRecord(rec);
+            this.hydrateCustomConsumableState();
             this.selectedRecordId = this.record.id || id;
             this.isDraft = false; this.autoSaveState = 'idle'; this.localRevision = 0; this.savedRevision = 0; this.errorMessage = '';
             this.switchingRecord = false; this.loading = false; this.cdr.detectChanges();
@@ -229,6 +251,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
             try {
               const normalized = this.normalizeRecord(saved as CrrtOrderFormRecord);
               this.record = normalized;
+              this.hydrateCustomConsumableState();
               this.selectedRecordId = normalized.id || '';
               this.isDraft = false; this.autoSaveState = 'saved';
               this.upsertTimeOption(normalized);
@@ -271,6 +294,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
             this.saveInFlight = false;
             if (pid !== this.record.pid) { this.cdr.detectChanges(); return; }
             this.record = this.normalizeRecord(saved);
+            this.hydrateCustomConsumableState();
             if (reqRev === this.localRevision) { this.savedRevision = reqRev; this.autoSaveState = 'saved'; }
             else { this.autoSaveState = 'dirty'; this.saveAgainAfterCurrent = true; }
             if (this.saveAgainAfterCurrent) setTimeout(() => this.flushAutoSave(), 100);
@@ -304,6 +328,67 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
 
   /* 数组操作 */
   toggleArrayValue(values: string[], value: string, checked: boolean): void { if (checked) { if (!values.includes(value)) values.push(value); } else { const i = values.indexOf(value); if (i >= 0) values.splice(i, 1); } }
+
+  openDateTimePicker(input: HTMLInputElement | null, event?: Event): void {
+    event?.stopPropagation();
+    if (!input || input.disabled || input.readOnly) return;
+    input.focus({ preventScroll: true });
+    if (typeof input.showPicker === 'function') {
+      try { input.showPicker(); } catch { /* 浏览器不支持或当前状态不允许时自然降级 */ }
+    }
+  }
+
+  onMachineConsumableChange(optionId: string, checked: boolean): void {
+    this.toggleArrayValue(this.record.machineConsumables, optionId, checked);
+    if (checked) {
+      const defaults = this.machineConsumableDefaults[optionId] ?? [];
+      for (const id of defaults) {
+        if (!this.record.machineConsumables.includes(id)) {
+          this.record.machineConsumables.push(id);
+        }
+      }
+    }
+    this.onDiscreteChange();
+  }
+
+  getCustomConsumableText(record: CrrtOrderFormRecord): string {
+    const item = (record.machineConsumables || []).find(v => v.startsWith(this.customConsumablePrefix));
+    return item ? item.slice(this.customConsumablePrefix.length) : '';
+  }
+
+  hasCustomConsumable(record: CrrtOrderFormRecord): boolean {
+    return (record.machineConsumables || []).some(v => v.startsWith(this.customConsumablePrefix));
+  }
+
+  private hydrateCustomConsumableState(): void {
+    this.customConsumableSelected = this.hasCustomConsumable(this.record);
+    this.customConsumableText = this.getCustomConsumableText(this.record);
+  }
+
+  onCustomConsumableToggle(checked: boolean): void {
+    this.customConsumableSelected = checked;
+    this.removeCustomConsumableValue();
+    if (!checked) {
+      this.customConsumableText = '';
+    } else if (this.customConsumableText.trim()) {
+      this.record.machineConsumables.push(this.customConsumablePrefix + this.customConsumableText.trim());
+    }
+    this.onDiscreteChange();
+  }
+
+  private removeCustomConsumableValue(): void {
+    this.record.machineConsumables = (this.record.machineConsumables || []).filter(v => !v.startsWith(this.customConsumablePrefix));
+  }
+
+  onCustomConsumableTextChange(value: string): void {
+    this.customConsumableText = value;
+    this.removeCustomConsumableValue();
+    const trimmed = value.trim();
+    if (this.customConsumableSelected && trimmed) {
+      this.record.machineConsumables.push(this.customConsumablePrefix + trimmed);
+    }
+    this.onPageChanged();
+  }
   isChecked(values: string[], value: string): boolean { return values.includes(value); }
   updateSignature(target: any, key: string, accountId: string, accounts: AccountOption[]): void {
     const acc = accounts.find(a => a.accountId === accountId);
@@ -506,7 +591,16 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   }
   private uniqueAcc(list: any[]): AccountOption[] {
     const m = new Map<string, AccountOption>();
-    for (const a of list ?? []) { const id = String(a?.accountId ?? a?._id ?? a?.id ?? '').trim(); const name = String(a?.accountName ?? a?.trueName ?? a?.name ?? '').trim(); if (id && name) m.set(id, { accountId: id, accountName: name, profession: a?.profession }); }
+    for (const a of list ?? []) {
+      const id = String(a?.accountId ?? a?._id ?? a?.id ?? '').trim();
+      const name = String(a?.accountName ?? a?.trueName ?? a?.name ?? '').trim();
+      if (!id || !name) continue;
+      m.set(id, {
+        accountId: id, accountName: name, profession: a?.profession,
+        username: String(a?.username ?? '').trim(),
+        code: String(a?.code ?? a?.jobNumber ?? '').trim(),
+      });
+    }
     return [...m.values()].sort((a, b) => a.accountName.localeCompare(b.accountName, 'zh-CN'));
   }
 
