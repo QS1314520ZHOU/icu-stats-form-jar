@@ -172,6 +172,18 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 .summary-output-line { width: 100%; align-items: baseline; }
 .summary-output-line .summary-group-label { margin-left: 2px; }
 
+.summary-detail-line {
+  font-family: var(--hljld-table-font);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  color: #000;
+  white-space: normal;
+  word-break: break-word;
+}
+.summary-detail-line strong { font-weight: 600; }
+.summary-detail-line + .summary-detail-line { margin-top: 2px; }
+
 /* =========================================================
    Remark
    ========================================================= */
@@ -331,6 +343,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   .summary-title { font-size: 8pt; font-weight: 600; line-height: 9pt; }
   .summary-period { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
   .summary-line, .summary-total, .summary-group-label, .summary-stat { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+  .summary-detail-line { font-size: 7.5pt; font-weight: 500; line-height: 10pt; }
   .remark-row th, .remark-row td, .remark-line { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
 
   .record-table,

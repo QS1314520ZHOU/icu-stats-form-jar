@@ -186,23 +186,20 @@
       <strong class="summary-title">{{ summary.label }}</strong>
       <span class="summary-period">{{ summary.periodText }}</span>
     </div>
-    <div class="summary-line">
-      <span class="summary-total">总入量：<strong>{{ summary.totalInput | number:'1.0-2' }} ml</strong></span>
-      <span class="summary-stat" *ngFor="let stat of summary.inputItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
+    <div class="summary-detail-line">
+      总入量：<strong>{{ summary.totalInput | number:'1.0-2' }} ml</strong>
+      （药物治疗<strong>{{ summary.drugTreatmentTotal | number:'1.0-2' }} ml</strong>
+      （<ng-container *ngFor="let item of summary.drugTreatmentItems; let last = last">{{ item.label }}<strong>{{ item.amount | number:'1.0-2' }} ml</strong><span *ngIf="!last">、</span></ng-container>）；胃肠摄入<strong>{{ summary.gastrointestinalInputTotal | number:'1.0-2' }} ml</strong>
+      （<ng-container *ngFor="let item of summary.gastrointestinalInputItems; let last = last">{{ item.label }}<strong>{{ item.amount | number:'1.0-2' }} ml</strong><span *ngIf="!last">、</span></ng-container>））
     </div>
-    <div class="summary-line summary-output-line">
-      <span class="summary-total">总出量：<strong>{{ summary.totalOutput | number:'1.0-2' }} ml</strong></span>
-      <ng-container *ngIf="summary.outputItems.length">
-        <span class="summary-group-label">排出物：</span>
-        <span class="summary-stat" *ngFor="let stat of summary.outputItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
-      </ng-container>
-      <ng-container *ngIf="summary.drainItems.length">
-        <span class="summary-group-label">引流液：</span>
-        <span class="summary-stat" *ngFor="let stat of summary.drainItems">{{ stat.label }}：<strong>{{ stat.amount | number:'1.0-2' }} ml</strong></span>
-      </ng-container>
+    <div class="summary-detail-line">
+      总出量：<strong>{{ summary.totalOutput | number:'1.0-2' }} ml</strong>
+      （排出物<strong>{{ summary.excretionTotal | number:'1.0-2' }} ml</strong>
+      （<ng-container *ngFor="let item of summary.outputItems; let last = last">{{ item.label }}<strong>{{ item.amount | number:'1.0-2' }} ml</strong><span *ngIf="!last">、</span></ng-container>）<ng-container *ngIf="summary.drainItems.length">；引流液<strong>{{ summary.drainTotal | number:'1.0-2' }} ml</strong>
+      （<ng-container *ngFor="let item of summary.drainItems; let last = last">{{ item.label }}<strong>{{ item.amount | number:'1.0-2' }} ml</strong><span *ngIf="!last">、</span></ng-container>）</ng-container>）
     </div>
-    <div class="summary-line">
-      <span class="summary-total">平衡量：<strong>{{ summary.balance | number:'1.0-2' }} ml</strong></span>
+    <div class="summary-detail-line">
+      平衡量：<strong>{{ summary.balance | number:'1.0-2' }} ml</strong>
     </div>
   </section>
 </ng-template>

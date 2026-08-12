@@ -278,11 +278,7 @@ body {
 }
 
 .print-summary-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.8mm 2.4mm;
-  align-items: baseline;
-  justify-content: flex-start;
+  display: block;
   line-height: 1.35;
   font-size: 7pt;
 }
@@ -1523,6 +1519,19 @@ function createSummaryTr(
   const td = doc.createElement('td');
   td.colSpan = 17;
 
+  const drugDetailText = summary.drugTreatmentItems
+    .map(item => `${escapeHtml(item.label)}<span class="print-summary-strong">${formatAmount(item.amount)} ml</span>`)
+    .join('、');
+  const gastroDetailText = summary.gastrointestinalInputItems
+    .map(item => `${escapeHtml(item.label)}<span class="print-summary-strong">${formatAmount(item.amount)} ml</span>`)
+    .join('、');
+  const excretionDetailText = summary.outputItems
+    .map(item => `${escapeHtml(item.label)}<span class="print-summary-strong">${formatAmount(item.amount)} ml</span>`)
+    .join('、');
+  const drainDetailText = summary.drainItems.length
+    ? `；引流液<span class="print-summary-strong">${formatAmount(summary.drainTotal)} ml</span>（${summary.drainItems.map(item => `${escapeHtml(item.label)}<span class="print-summary-strong">${formatAmount(item.amount)} ml</span>`).join('、')}）`
+    : '';
+
   td.innerHTML = `
     <section class="print-summary-panel">
       <div class="print-summary-title-row">
@@ -1531,22 +1540,11 @@ function createSummaryTr(
       </div>
 
       <div class="print-summary-line">
-        <span>总入量：<span class="print-summary-strong">${formatAmount(summary.totalInput)} ml</span></span>
-        ${summary.inputItems.map(item => `
-          <span>${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span></span>
-        `).join('')}
+        <span>总入量：<span class="print-summary-strong">${formatAmount(summary.totalInput)} ml</span>（药物治疗<span class="print-summary-strong">${formatAmount(summary.drugTreatmentTotal)} ml</span>（${drugDetailText}）；胃肠摄入<span class="print-summary-strong">${formatAmount(summary.gastrointestinalInputTotal)} ml</span>（${gastroDetailText}））</span>
       </div>
 
       <div class="print-summary-line">
-        <span>总出量：<span class="print-summary-strong">${formatAmount(summary.totalOutput)} ml</span></span>
-        <span>排出物：</span>
-        ${summary.outputItems.map(item => `
-          <span>${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span></span>
-        `).join('')}
-        <span>引流液：</span>
-        ${summary.drainItems.map(item => `
-          <span>${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span></span>
-        `).join('')}
+        <span>总出量：<span class="print-summary-strong">${formatAmount(summary.totalOutput)} ml</span>（排出物<span class="print-summary-strong">${formatAmount(summary.excretionTotal)} ml</span>（${excretionDetailText}）${drainDetailText}）</span>
       </div>
 
       <div class="print-summary-line">

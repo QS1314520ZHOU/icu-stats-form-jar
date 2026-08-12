@@ -502,6 +502,19 @@ export function buildSummary(
 
   const totalOutput = outputTotal + drainTotal;
 
+  // 药物治疗分组：带入药量 + 口服量 + 静脉入量
+  const drugTreatmentKeys = new Set(['brought-medication', 'oral', 'intravenous']);
+  const drugTreatmentItems = inputItems.filter(item => drugTreatmentKeys.has(item.key));
+  const drugTreatmentTotal = drugTreatmentItems.reduce((sum, item) => sum + item.amount, 0);
+
+  // 胃肠摄入分组：鼻饲量 + 胃肠入量 + 输血入量
+  const gastrointestinalKeys = new Set(['tube-feeding', 'gastrointestinal', 'blood-transfusion']);
+  const gastrointestinalInputItems = inputItems.filter(item => gastrointestinalKeys.has(item.key));
+  const gastrointestinalInputTotal = gastrointestinalInputItems.reduce((sum, item) => sum + item.amount, 0);
+
+  // 排出物合计
+  const excretionTotal = outputTotal;
+
   return {
     kind,
     label: summaryLabel,
@@ -519,6 +532,12 @@ export function buildSummary(
     outputItems,
     drainItems,
     balance: totalOutput - totalInput,
+    drugTreatmentTotal,
+    drugTreatmentItems,
+    gastrointestinalInputTotal,
+    gastrointestinalInputItems,
+    excretionTotal,
+    drainTotal,
   };
 }
 
@@ -626,7 +645,6 @@ export function buildRows(
   end: Date,
   accountMap: Map<string, string> = new Map(),
 ): HljldTimeRow[] {
-  const tubeEntries = buildTubeNursingEntries(source, start, end);
   const startMs = start.getTime();
   const endMs = end.getTime();
 
@@ -634,7 +652,6 @@ export function buildRows(
     ...source.bedside.filter(isRenderableBedsideRecord).map(item => ({ timestamp: minuteKey(item.time) })),
     ...source.drugExecutions.filter(isRenderableDrugExecution).map(item => ({ timestamp: minuteKey(item.startTime) })),
     ...source.nurseRecords.filter(item => item.valid !== false && !!item.time && hasText(item.desc)).map(item => ({ timestamp: minuteKey(item.time) })),
-    ...tubeEntries.map(item => ({ timestamp: minuteKey(item.time) })),
   ].filter(item => Number.isFinite(item.timestamp) && item.timestamp * 60000 >= startMs && item.timestamp * 60000 < endMs);
 
   const uniqueKeys = Array.from(new Set(events.map(item => item.timestamp).filter(k => Number.isFinite(k)))).sort((a, b) => a - b);
@@ -671,16 +688,12 @@ export function buildRows(
     const signUserId = resolveYishiSignerId(timeMs, source.bedside);
     const signature = signUserId ? (accountMap.get(signUserId) || '') : '';
 
-    // 普通护理记录 + 管路护理记录拼接
+    // 普通护理记录（管路护理不再合并到此列）
     const normalNursing = source.nurseRecords
       .filter(item => isValidBusinessRecord(item) && minuteKey(item.time) === key && hasText(item.desc))
       .map(item => String(item.desc).trim())
       .filter(Boolean);
-    const tubeNursing = tubeEntries
-      .filter(item => minuteKey(item.time) === key)
-      .map(item => item.text)
-      .filter(Boolean);
-    const combinedNursing = [...normalNursing, ...tubeNursing].filter(Boolean).join('；');
+    const combinedNursing = normalNursing.filter(Boolean).join('；');
 
     return {
       key: String(key),

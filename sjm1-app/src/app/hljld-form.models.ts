@@ -207,6 +207,12 @@ export interface HljldSummary {
   outputItems: HljldSummaryItem[];
   drainItems: HljldSummaryItem[];
   balance: number;
+  drugTreatmentTotal: number;
+  drugTreatmentItems: HljldSummaryItem[];
+  gastrointestinalInputTotal: number;
+  gastrointestinalInputItems: HljldSummaryItem[];
+  excretionTotal: number;
+  drainTotal: number;
 }
 
 export type HljldTimelineItem =
