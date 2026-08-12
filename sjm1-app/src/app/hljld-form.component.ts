@@ -408,7 +408,33 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
     // 每个小结自行根据自己的 periodStart/periodEnd 计算有效范围
     const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary, drainNames);
-    const shiftSummary = buildSummary('shift', '小结', this.patient, source, dayBoundary, nextMorning, drainNames);
+
+    // 7点"小结"直接复制日间小结数据，统计范围与日间小结完全一致（07:00—17:00）
+    const shiftSummary: HljldSummary = {
+      ...daySummary,
+      kind: 'shift',
+      label: '小结',
+      inputItems: daySummary.inputItems.map(item => ({ ...item })),
+      outputItems: daySummary.outputItems.map(item => ({ ...item })),
+      drainItems: daySummary.drainItems.map(item => ({ ...item })),
+      drugTreatmentItems: daySummary.drugTreatmentItems.map(item => ({ ...item })),
+      gastrointestinalInputItems: daySummary.gastrointestinalInputItems.map(item => ({ ...item })),
+    };
+
+    const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+    if (isDev) {
+      const sameAsDaySummary =
+        shiftSummary.periodStart === daySummary.periodStart &&
+        shiftSummary.periodEnd === daySummary.periodEnd &&
+        shiftSummary.periodText === daySummary.periodText &&
+        shiftSummary.totalInput === daySummary.totalInput &&
+        shiftSummary.totalOutput === daySummary.totalOutput &&
+        shiftSummary.balance === daySummary.balance;
+      if (!sameAsDaySummary) {
+        console.error('[HLJLD][shift-summary-mismatch]', { daySummary, shiftSummary });
+      }
+    }
+
     const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning, drainNames);
 
     // 出科总结：出科时间在当前护理日 07:00 到次日07:00之间
