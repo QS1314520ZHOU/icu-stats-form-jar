@@ -1,4 +1,7 @@
-import { ChangeDetectorRef, Component, ElementRef, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
+import { Subject } from 'rxjs';
+import { distinctUntilChanged, filter, map, takeUntil } from 'rxjs/operators';
+import { HostPatientService } from './services/host-patient.service';
 
 export type SupplyCategory = '常规' | '特殊' | '专科' | '失禁';
 
@@ -18,9 +21,11 @@ interface RenderPage {
   templateUrl: './wpgm-form.component.html',
   styleUrls: ['./wpgm-form.component.css'],
 })
-export class WpgmFormComponent implements OnInit {
+export class WpgmFormComponent implements OnInit, OnDestroy {
   readonly categories: SupplyCategory[] = ['常规', '特殊', '专科', '失禁'];
   selectorOpen = false; keyword = ''; pages: RenderPage[] = [];
+  private currentPatientId = '';
+  private readonly destroy$ = new Subject<void>();
 
   items: SupplyItem[] = [
     { id:'turning-pillow', category:'常规', name:'翻身枕', quantity:'1个', specification:'R型或等边三角形', purpose:'翻身', selected:false },
@@ -70,16 +75,24 @@ export class WpgmFormComponent implements OnInit {
   private measuredImagesHeight = 91;
   private repaginateScheduled = false;
 
-  constructor(private host: ElementRef, private cdr: ChangeDetectorRef) {}
+  constructor(private host: ElementRef, private cdr: ChangeDetectorRef, private hostPatient: HostPatientService) {}
 
   ngOnInit(): void {
-    try {
-      const saved = JSON.parse(localStorage.getItem('wpgmForm.selectedIds') || '[]') as string[];
-      const selected = new Set(saved);
-      this.items.forEach(item => item.selected = selected.has(item.id));
-    } catch { /* ignore */ }
-    this.paginate();
-    this.scheduleMeasuredRepagination();
+    this.hostPatient.patient$.pipe(
+      filter(Boolean),
+      map(p => String(p.id || '').trim()),
+      filter(pid => !!pid),
+      distinctUntilChanged(),
+      takeUntil(this.destroy$),
+    ).subscribe(pid => {
+      this.currentPatientId = pid;
+      this.loadSelectionsForPatient(pid);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   get selectedItems(): SupplyItem[] { return this.items.filter(item => item.selected); }
@@ -101,9 +114,31 @@ export class WpgmFormComponent implements OnInit {
   trackById(_: number, item: SupplyItem): string { return item.id; }
 
   private afterChange(): void {
-    localStorage.setItem('wpgmForm.selectedIds', JSON.stringify(this.selectedItems.map(item => item.id)));
+    if (this.currentPatientId) {
+      localStorage.setItem(this.storageKey(this.currentPatientId), JSON.stringify(this.selectedItems.map(item => item.id)));
+    }
     this.paginate();
     this.scheduleMeasuredRepagination();
+  }
+
+  private storageKey(patientId: string): string {
+    return `wpgmForm.selectedIds:${patientId}`;
+  }
+
+  private loadSelectionsForPatient(patientId: string): void {
+    // 清空当前选择
+    this.items.forEach(item => item.selected = false);
+    // 加载该患者的选择
+    try {
+      const saved = JSON.parse(localStorage.getItem(this.storageKey(patientId)) || '[]') as string[];
+      if (Array.isArray(saved)) {
+        const selected = new Set(saved);
+        this.items.forEach(item => item.selected = selected.has(item.id));
+      }
+    } catch { /* ignore */ }
+    this.paginate();
+    this.scheduleMeasuredRepagination();
+    this.cdr.detectChanges();
   }
 
   /* ---- 分页（初始固定估算 + 渲染后真实测量重分页） ---- */
