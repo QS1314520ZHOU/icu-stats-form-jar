@@ -185,7 +185,10 @@
     </div>
     <!-- 标准分组（入院/转入、疾病、术前、术后、出院/转科） -->
     <div class="option-group" *ngFor="let group of modalStandardGroups">
-      <h3>{{group.name}}</h3>
+      <div class="option-group-head">
+        <h3>{{group.name}}</h3>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="selectAllGroup(group)">全选</button>
+      </div>
       <div class="option-grid">
         <label class="check-item" *ngFor="let item of group.items" [class.option-wide]="item.code==='RISKS'||item.code==='DISEASE_CARE'">
           <input type="checkbox" [checked]="has(form.itemCodes,item.code)" (change)="toggle('itemCodes',item.code,$any($event.target).checked)">
@@ -195,7 +198,10 @@
     </div>
     <!-- 药物宣教 -->
     <div class="option-group">
-      <h3>药物宣教</h3>
+      <div class="option-group-head">
+        <h3>药物宣教</h3>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="selectAllGroup(medicationGroup)">全选</button>
+      </div>
       <div class="option-grid">
         <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'ORAL_MEDICATION')" (change)="toggle('itemCodes','ORAL_MEDICATION',$any($event.target).checked)"><span class="option-text">口服药宣教：作用、用药途径及方法</span></label>
         <label class="check-item"><input type="checkbox" [checked]="has(form.itemCodes,'ENTERAL_NUTRITION')" (change)="toggle('itemCodes','ENTERAL_NUTRITION',$any($event.target).checked)"><span class="option-text">肠内营养制剂宣教：使用目的、途径及方法及注意事项等</span></label>
@@ -209,14 +215,20 @@
     </div>
     <!-- 检查宣教 -->
     <div class="option-group">
-      <h3>检查宣教</h3>
+      <div class="option-group-head">
+        <h3>检查宣教</h3>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="selectAllGroup(examinationGroup)">全选</button>
+      </div>
       <div class="exam-form-section"><div class="exam-form-title">外出检查</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'EXAM_CT')" (change)="toggle('itemCodes','EXAM_CT',$any($event.target).checked)">CT</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'MRI')" (change)="toggle('itemCodes','MRI',$any($event.target).checked)">磁共振</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'GASTROSCOPY')" (change)="toggle('itemCodes','GASTROSCOPY',$any($event.target).checked)">胃镜</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'EXAM_OTHER')" (change)="toggle('itemCodes','EXAM_OTHER',$any($event.target).checked)">其它</label><input *ngIf="has(form.itemCodes,'EXAM_OTHER')" class="inline-other-input" type="text" placeholder="请输入外出检查其它内容" [(ngModel)]="form.externalExamOther"></div></div>
       <div class="exam-form-section"><div class="exam-form-title">转运风险</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'TRANSPORT_RISK')" (change)="toggle('itemCodes','TRANSPORT_RISK',$any($event.target).checked)">患者转运风险</label></div></div>
       <div class="exam-form-section"><div class="exam-form-title">科内检查</div><div class="exam-form-options"><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'BRONCHOSCOPY')" (change)="toggle('itemCodes','BRONCHOSCOPY',$any($event.target).checked)">纤维支气管镜灌洗</label><label class="inline-check"><input type="checkbox" [checked]="has(form.itemCodes,'WARD_OTHER')" (change)="toggle('itemCodes','WARD_OTHER',$any($event.target).checked)">其它</label><input *ngIf="has(form.itemCodes,'WARD_OTHER')" class="inline-other-input" type="text" placeholder="请输入科内检查其它内容" [(ngModel)]="form.internalExamOther"></div></div>
     </div>
     <!-- 其它宣教 -->
     <div class="option-group">
-      <h3>其它</h3>
+      <div class="option-group-head">
+        <h3>其它</h3>
+        <button *ngIf="!editing" type="button" class="select-all-btn" (click)="selectAllGroup(otherGroup)">全选</button>
+      </div>
       <label class="check-item other-check-item"><input type="checkbox" [checked]="has(form.itemCodes,'OTHER')" (change)="toggle('itemCodes','OTHER',$any($event.target).checked)"><span class="option-text">其它宣教</span></label>
       <label class="conditional-other-input" *ngIf="has(form.itemCodes,'OTHER')">宣教内容<textarea rows="2" [(ngModel)]="form.otherEducation" placeholder="请输入其它宣教内容"></textarea></label>
     </div>

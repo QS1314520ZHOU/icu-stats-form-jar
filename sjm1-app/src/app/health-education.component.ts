@@ -71,6 +71,9 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   readonly groups = GROUPS; readonly valuables = VALUABLES;
   readonly admissionGroup = GROUPS.find(g=>g.name==='入院/转入宣教')!;
   readonly diseaseGroup = GROUPS.find(g=>g.name==='疾病宣教')!;
+  readonly medicationGroup = GROUPS.find(g=>g.name==='药物宣教')!;
+  readonly examinationGroup = GROUPS.find(g=>g.name==='检查宣教')!;
+  readonly otherGroup = GROUPS.find(g=>g.name==='其它')!;
   readonly remainingGroups = GROUPS.filter(g=>!['入院/转入宣教','疾病宣教','药物宣教','检查宣教','其它'].includes(g.name));
   readonly modalStandardGroups = GROUPS.filter(group =>
     ['入院/转入宣教','疾病宣教','术前宣教','术后宣教','出院/转科宣教'].includes(group.name)
@@ -225,6 +228,14 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   }
   evalText(r: HealthEducationRecord|null): string { return (r?.evaluationCodes || []).join('、'); }
   groupRows(g: OptionGroup): number { return g.items.length; }
+
+  /** 全选指定分组的全部项目，保留其他分组已勾选项 */
+  selectAllGroup(group: OptionGroup): void {
+    const codes = group.items.map(item => item.code);
+    const set = new Set(this.form.itemCodes || []);
+    codes.forEach(code => set.add(code));
+    this.form.itemCodes = [...set];
+  }
 
   /* ---- 护士检索选择 ---- */
   selectNurse(account: AccountOption): void {

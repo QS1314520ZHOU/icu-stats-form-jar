@@ -69,7 +69,10 @@ h1{margin:0 0 4px;text-align:center;font-family:SimHei,sans-serif;font-size:18pt
 input,select,textarea{box-sizing:border-box;width:100%;min-height:34px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:4px;font:inherit;background:#fff}
 input:focus,select:focus,textarea:focus{outline:2px solid #cfe6fb;border-color:#2783de}
 .option-group{margin-top:10px;padding:10px 12px;border:1px solid #d9d9d9;border-radius:4px;background:#fff}
-.option-group h3{margin:0 0 8px;font-family:'Microsoft YaHei',sans-serif;font-size:14px;font-weight:600;color:#333}
+.option-group h3{margin:0;font-family:'Microsoft YaHei',sans-serif;font-size:14px;font-weight:600;color:#333}
+.option-group-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.select-all-btn{padding:2px 12px;border:1px solid #1890ff;border-radius:4px;background:#fff;color:#1890ff;font-size:12px;cursor:pointer;white-space:nowrap}
+.select-all-btn:hover{background:#e6f4ff}
 .option-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px 14px}
 .check-item{display:flex;align-items:flex-start;gap:5px;min-height:26px;margin:0;padding:3px 2px;border:0;border-radius:0;background:transparent;cursor:pointer}
 .check-item:hover{background:#f5f9fd}
