@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
@@ -23,6 +23,7 @@ export class BloodSugarComponent implements OnInit, OnDestroy {
   constructor(
     private readonly hostPatient: HostPatientService,
     private readonly sanitizer: DomSanitizer,
+    private readonly cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -44,6 +45,7 @@ export class BloodSugarComponent implements OnInit, OnDestroy {
       this.currentPatientId = currentPatientId;
       if (currentPatientId && currentPatientId !== previousPatientId) {
         this.clearCurrentIframe();
+        this.cdr.detectChanges();
         this.refreshIframeUrl();
       }
     });
