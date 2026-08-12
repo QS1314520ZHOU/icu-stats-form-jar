@@ -20,7 +20,7 @@ const ECMO_GROUPS: EcmoGroup[] = [
     { label: '血流量（L/min）', code: 'param_ECMO_xueLiuLiang' },
     { label: '转速', code: 'param_ECMO_liXinBengZhuanSu', aliases: ['param_ECMO_IXinBengZhuanSu', 'param_ECMO_lXinBengZhuanSu', 'param_ECMO_iXinBengZhuanSu'] },
     { label: '气流量（L/min）', code: 'param_ECMO_QiLiuLiang' }, { label: 'FiO₂(%)', code: 'param_ECMO_FiO2' },
-    { label: '血温℃', code: 'param_bg_Temp' }, { label: '设置水温℃', code: 'param_ShuiXiangTemp_set' },
+    { label: '血温℃', code: 'param_血温' }, { label: '设置水温℃', code: 'param_ShuiXiangTemp_set' },
     { label: '实际水温℃', code: 'param_ShuiXiangTemp_act' }, { label: 'P泵前（mmHg）', code: 'param_P_Beng_MoQian_MoHou' },
     { label: 'P膜前（mmHg）', code: 'param_P膜前' }, { label: 'P膜后（mmHg）', code: 'param_P膜后' },
   ]},
