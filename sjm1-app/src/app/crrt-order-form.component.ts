@@ -330,12 +330,14 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   toggleArrayValue(values: string[], value: string, checked: boolean): void { if (checked) { if (!values.includes(value)) values.push(value); } else { const i = values.indexOf(value); if (i >= 0) values.splice(i, 1); } }
 
   openDateTimePicker(input: HTMLInputElement | null, event?: Event): void {
-    event?.stopPropagation();
     if (!input || input.disabled || input.readOnly) return;
+    event?.preventDefault();
+    event?.stopPropagation();
     input.focus({ preventScroll: true });
     if (typeof input.showPicker === 'function') {
-      try { input.showPicker(); } catch { /* 浏览器不支持或当前状态不允许时自然降级 */ }
+      try { input.showPicker(); return; } catch { /* 当前浏览器不允许 showPicker 时，继续降级 */ }
     }
+    try { input.click(); } catch { /* 不输出日志 */ }
   }
 
   onMachineConsumableChange(optionId: string, checked: boolean): void {

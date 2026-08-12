@@ -1655,6 +1655,13 @@ label {
   text-align: center !important;
   vertical-align: middle !important;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.datetime-cell-disabled {
+  cursor: default;
 }
 
 .datetime-value {
