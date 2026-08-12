@@ -19,7 +19,7 @@
   <table class="tx">
     <colgroup><col class="c-phase"><col class="c-item"><col class="c-sub"><col class="c-sub2"><col class="c-sub"><col class="c-sub3"><col class="c-sub"><col class="c-sub4"></colgroup>
     <tbody>
-      <tr class="r-pat"><td colspan="8"><div class="pl"><span>科室：{{patient?.dept||''}}</span><span>床号：{{patient?.hisBed||''}}</span><span>姓名：{{patient?.name||''}}</span><span>性别：{{genderText(patient?.gender)}}</span><span>年龄：{{age??''}}</span></div></td></tr>
+      <tr class="r-pat"><td colspan="8"><div class="pl"><span>科室：{{patient?.dept||''}}</span><span>床号：{{patient?.hisBed ? (patient.hisBed.endsWith('床') ? patient.hisBed : patient.hisBed + '床') : ''}}</span><span>姓名：{{patient?.name||''}}</span><span>性别：{{genderText(patient?.gender)}}</span><span>年龄：{{age??''}}</span></div></td></tr>
       <tr class="r-pat"><td colspan="8"><div class="pl"><span>住院号：{{patient?.mrn||''}}</span><span>血型：{{patient?.bloodType||''}} 型</span><span>RH（D）{{patient?.rhType||''}} 性</span><span class="dx">诊断：{{diagnosisDisplay}}</span></div></td></tr>
       <tr class="r-hdr"><th colspan="2">项目</th><th colspan="6">查对内容及观察记录</th></tr>
 

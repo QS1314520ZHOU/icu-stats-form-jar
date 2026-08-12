@@ -111,7 +111,7 @@ export function measurePatientRowHeights(
       : row.status;
 
     tr.innerHTML = `
-      <td>${escapeHtml(row.bedNo)}</td>
+      <td>${escapeHtml(row.bedNo ? (row.bedNo.endsWith('床') ? row.bedNo : row.bedNo + '床') : '')}</td>
       <td>${escapeHtml(row.name)}</td>
       <td class="patient-status-cell">${escapeHtml(statusDisplay)}</td>
       <td>${escapeHtml(row.mrn)}</td>

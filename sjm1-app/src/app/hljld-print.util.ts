@@ -1305,7 +1305,7 @@ function createPage(
   const patientInfoEl = doc.createElement('div');
   patientInfoEl.className = 'patient-info-row';
   patientInfoEl.innerHTML = `
-    <span class="info-item">床号：<strong>${escapeHtml(vm.patient.bedNo || '—')}</strong></span>
+    <span class="info-item">床号：<strong>${escapeHtml(vm.patient.bedNo ? (vm.patient.bedNo.endsWith('床') ? vm.patient.bedNo : vm.patient.bedNo + '床') : '—')}</strong></span>
     <span class="info-item">姓名：<strong>${escapeHtml(vm.patient.name || '—')}</strong></span>
     <span class="info-item">住院号：<strong>${escapeHtml(vm.patient.mrn || '—')}</strong></span>
     <span class="info-item">性别：<strong>${escapeHtml(vm.patient.sex || '—')}</strong></span>

@@ -19,7 +19,7 @@
     <div class="patient-info-row">
       <span class="info-item"><b>科室：</b>{{ hdr.department }}</span>
       <span class="info-item"><b>姓名：</b>{{ hdr.patientName }}</span>
-      <span class="info-item"><b>床号：</b>{{ hdr.bedNo }}</span>
+      <span class="info-item"><b>床号：</b>{{ hdr.bedNo ? (hdr.bedNo.endsWith('床') ? hdr.bedNo : hdr.bedNo + '床') : '' }}</span>
       <span class="info-item"><b>住院号：</b>{{ hdr.hospitalNo }}</span>
       <span class="info-item"><b>年龄：</b>{{ hdr.age }}</span>
       <span class="info-item"><b>性别：</b>{{ hdr.gender }}</span>

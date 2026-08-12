@@ -60,7 +60,7 @@
     <main class="paper">
     <h1>重钢总医院重症医学科护理记录单</h1>
     <div class="patient-strip">
-      <span>床号：<b>{{ form.patient.bedNo || '—' }}</b></span>
+      <span>床号：<b>{{ form.patient.bedNo ? (form.patient.bedNo.endsWith('床') ? form.patient.bedNo : form.patient.bedNo + '床') : '—' }}</b></span>
       <span>姓名：<b>{{ form.patient.name || '—' }}</b></span>
       <span>住院号：<b>{{ form.patient.mrn || '—' }}</b></span>
       <span>性别：<b>{{ form.patient.sex || '—' }}</b></span>

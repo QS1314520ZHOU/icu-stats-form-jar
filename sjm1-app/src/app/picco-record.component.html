@@ -3,7 +3,7 @@
 <section class="print-page" *ngFor="let page of pages" [class.print-hidden]="selectedPrintPage!==null && selectedPrintPage!==page.index">
  <div class="sheet">
   <h1>重钢总医院PICCO容量监测参数记录表</h1>
-  <div class="patient-info"><div class="patient-info-row"><span class="info-item"><b>科室：</b>{{patient?.dept||''}}</span><span class="info-item"><b>姓名：</b>{{patient?.name||''}}</span><span class="info-item"><b>床号：</b>{{patient?.hisBed||''}}</span><span class="info-item"><b>住院号：</b>{{patient?.mrn||''}}</span><span class="info-item"><b>年龄：</b>{{age??''}}</span><span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span></div><div class="patient-info-row diagnosis-row"><span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span></div></div>
+  <div class="patient-info"><div class="patient-info-row"><span class="info-item"><b>科室：</b>{{patient?.dept||''}}</span><span class="info-item"><b>姓名：</b>{{patient?.name||''}}</span><span class="info-item"><b>床号：</b>{{patient?.hisBed ? (patient.hisBed.endsWith('床') ? patient.hisBed : patient.hisBed + '床') : ''}}</span><span class="info-item"><b>住院号：</b>{{patient?.mrn||''}}</span><span class="info-item"><b>年龄：</b>{{age??''}}</span><span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span></div><div class="patient-info-row diagnosis-row"><span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span></div></div>
   <div class="insertion-row">
    <strong>穿刺部位：</strong>
    <label><input type="radio" name="side-{{page.index}}" value="RIGHT" [(ngModel)]="insertionSide" (change)="onExtraChanged()">右侧</label>

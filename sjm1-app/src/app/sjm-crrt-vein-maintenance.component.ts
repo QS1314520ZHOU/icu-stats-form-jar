@@ -104,7 +104,7 @@ interface RenderPage {
 					<div class="info-row">
 						<span class="info-item"><b>病区：</b>{{patient?.dept || ''}}</span>
 						<span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
-						<span class="info-item"><b>床号：</b>{{patient?.hisBed || ''}}</span>
+						<span class="info-item"><b>床号：</b>{{patient?.hisBed ? (patient.hisBed.endsWith('床') ? patient.hisBed : patient.hisBed + '床') : ''}}</span>
 						<span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
 						<span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
 						<span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>

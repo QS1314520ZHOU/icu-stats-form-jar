@@ -140,7 +140,7 @@
           <tbody>
             @for (row of vm.rows; track trackRow($index, row)) {
               <tr [class.critical-row]="row.status === '病危'">
-                <td>{{ row.bedNo }}</td>
+                <td>{{ row.bedNo ? (row.bedNo.endsWith('床') ? row.bedNo : row.bedNo + '床') : '' }}</td>
                 <td>{{ row.name }}</td>
                 <td class="patient-status-cell">{{ statusText(row.status) }}</td>
                 <td>{{ row.mrn }}</td>
@@ -434,7 +434,7 @@
             <tbody>
               @for (fragment of page.fragments; track fragment.fragmentKey) {
                 <tr class="patient-print-fragment">
-                  <td>{{ fragment.bedNo }}</td>
+                  <td>{{ fragment.bedNo ? (fragment.bedNo.endsWith('床') ? fragment.bedNo : fragment.bedNo + '床') : '' }}</td>
                   <td>{{ fragment.name }}</td>
                   <td class="patient-status-cell">{{ fragment.status }}</td>
                   <td>{{ fragment.mrn }}</td>
@@ -486,7 +486,7 @@
                   [checked]="isPendingCriticalSelected(patient)"
                   (change)="togglePendingCritical(patient, $any($event.target).checked)"
                 />
-                <span class="critical-bed">{{ patient.hisBed || patient.bedNo || '' }}</span>
+                <span class="critical-bed">{{ (patient.hisBed || patient.bedNo) ? ((patient.hisBed || patient.bedNo).endsWith('床') ? (patient.hisBed || patient.bedNo) : (patient.hisBed || patient.bedNo) + '床') : '' }}</span>
                 <span class="critical-name">{{ patient.name || '' }}</span>
                 @if (!hasPatientKey(patient)) {
                   <span class="patient-id-error">患者ID缺失</span>
@@ -522,7 +522,7 @@
           <div>
             <h2>插入护理记录</h2>
             @if (recordTarget) {
-              <div class="dialog-subtitle">{{ recordTarget.row.bedNo }} {{ recordTarget.row.name }} · {{ shiftLabel(recordTarget.shift) }}</div>
+              <div class="dialog-subtitle">{{ recordTarget.row.bedNo ? (recordTarget.row.bedNo.endsWith('床') ? recordTarget.row.bedNo : recordTarget.row.bedNo + '床') : '' }} {{ recordTarget.row.name }} · {{ shiftLabel(recordTarget.shift) }}</div>
             }
           </div>
           <button type="button" class="ic" aria-label="关闭" (click)="closeNurseRecordDialog()">×</button>

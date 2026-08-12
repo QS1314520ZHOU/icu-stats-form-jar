@@ -71,7 +71,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
           <div class="patient-info-row">
             <span class="info-item"><b>科室：</b>{{patient?.dept || patient?.deptName || patient?.departmentName || patient?.wardName || ''}}</span>
             <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
-            <span class="info-item"><b>床号：</b>{{patient?.hisBed || patient?.bedNo || ''}}</span>
+            <span class="info-item"><b>床号：</b>{{ (patient?.hisBed || patient?.bedNo) ? ((patient?.hisBed || patient?.bedNo).endsWith('床') ? (patient?.hisBed || patient?.bedNo) : (patient?.hisBed || patient?.bedNo) + '床') : '' }}</span>
             <span class="info-item"><b>住院号：</b>{{patient?.mrn || patient?.hospitalNo || ''}}</span>
             <span class="info-item"><b>年龄：</b>{{age ?? patient?.age ?? ''}}</span>
             <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>

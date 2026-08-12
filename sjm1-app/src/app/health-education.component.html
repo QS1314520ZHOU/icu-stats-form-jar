@@ -17,7 +17,7 @@
 
 <section class="sheet" *ngFor="let page of pages">
   <header><h1>{{hospitalName}}健康教育实施、评价记录表</h1>
-    <div class="patient-info"><div class="patient-info-row"><span class="info-item"><b>科室：</b>{{patient?.dept||''}}</span><span class="info-item"><b>姓名：</b>{{patient?.name||''}}</span><span class="info-item"><b>床号：</b>{{patient?.hisBed||''}}</span><span class="info-item"><b>住院号：</b>{{patient?.mrn||''}}</span><span class="info-item"><b>年龄：</b>{{age??''}}</span><span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span></div><div class="patient-info-row diagnosis-row"><span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span></div></div>
+    <div class="patient-info"><div class="patient-info-row"><span class="info-item"><b>科室：</b>{{patient?.dept||''}}</span><span class="info-item"><b>姓名：</b>{{patient?.name||''}}</span><span class="info-item"><b>床号：</b>{{patient?.hisBed ? (patient.hisBed.endsWith('床') ? patient.hisBed : patient.hisBed + '床') : ''}}</span><span class="info-item"><b>住院号：</b>{{patient?.mrn||''}}</span><span class="info-item"><b>年龄：</b>{{age??''}}</span><span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span></div><div class="patient-info-row diagnosis-row"><span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span></div></div>
   </header>
   <table class="paper-table">
     <colgroup><col class="category-column"><col class="item-column"><col class="detail-column"><col class="record-column" *ngFor="let r of page.records"></colgroup>
