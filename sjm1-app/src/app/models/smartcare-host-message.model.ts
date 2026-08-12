@@ -14,7 +14,7 @@ export interface SmartCareHostMessage {
     };
     [k: string]: any;
   };
-  account?: { id?: string; trueName?: string; [k: string]: any };
+  account?: { id?: string; trueName?: string; username?: string; [k: string]: any };
   token?: string;
 }
 

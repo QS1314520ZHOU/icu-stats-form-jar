@@ -18,6 +18,7 @@ import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { HljldFormComponent } from './hljld-form.component';
 import { HandoverReportComponent } from './handover-report.component';
+import { BloodSugarComponent } from './blood-sugar.component';
 
 export const routes: Routes = [
   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
@@ -39,5 +40,6 @@ export const routes: Routes = [
   { path: 'crrtOrderForm', component: CrrtOrderFormComponent },
   { path: 'hljldForm', component: HljldFormComponent },
   { path: 'handoverReport', component: HandoverReportComponent },
+  { path: 'bloodSugar', component: BloodSugarComponent },
   { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
 ];

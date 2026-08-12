@@ -26,6 +26,7 @@ import { HljldFormComponent } from './hljld-form.component';
 import { HljldFormService } from './hljld-form.service';
 import { HandoverReportComponent } from './handover-report.component';
 import { HandoverReportService } from './handover-report.service';
+import { BloodSugarComponent } from './blood-sugar.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -50,6 +51,7 @@ import { routes } from './app.routes';
     CrrtOrderFormComponent,
     HljldFormComponent,
     HandoverReportComponent,
+    BloodSugarComponent,
   ],
   imports: [
     BrowserModule,
