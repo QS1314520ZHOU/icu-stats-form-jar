@@ -286,12 +286,9 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   }
 
   private assignSessionTimeInstants(sessions: CrrtSession[], allSortedInstants: number[]): void {
-    const sessionInstantSets = new Set<number>();
-
     for (const session of sessions) {
       const sessionInstants = allSortedInstants.filter(t => this.isInSession(t, session));
       session.allTimeInstants = sessionInstants;
-      sessionInstants.forEach(t => sessionInstantSets.add(t));
 
       session.pageTimeInstants = [];
       for (let i = 0; i < Math.max(1, sessionInstants.length); i += 8) {
@@ -299,24 +296,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
       }
       if (session.pageTimeInstants.length === 0) session.pageTimeInstants.push([]);
     }
-
-    const orphanInstants = allSortedInstants.filter(t => !sessionInstantSets.has(t));
-    if (orphanInstants.length > 0) {
-      const orphanSession: CrrtSession = {
-        index: 0,
-        points: [],
-        startInstant: orphanInstants[0],
-        endInstant: orphanInstants[orphanInstants.length - 1],
-        allTimeInstants: orphanInstants,
-        pageTimeInstants: [],
-        status: 'ended'
-      };
-      for (let i = 0; i < orphanInstants.length; i += 8) {
-        orphanSession.pageTimeInstants.push(orphanInstants.slice(i, i + 8));
-      }
-      sessions.push(orphanSession);
-      sessions.sort((a, b) => a.startInstant - b.startInstant);
-    }
+    // 不在任何上机~下机范围内的数据点直接丢弃，不生成 orphan 会话
   }
 
   private applyDefaultSession(): void {
