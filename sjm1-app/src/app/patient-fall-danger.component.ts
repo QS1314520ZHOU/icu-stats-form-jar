@@ -70,7 +70,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
                    (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
             <ul class="auditor-menu" *ngIf="auditorOpen">
               <li class="auditor-opt empty-opt" (mousedown)="clearAuditor()">（空）</li>
-              <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="selectAuditor(a)">{{ a.accountName }}</li>
+              <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="selectAuditoreview-signr(a)">{{ a.accountName }}</li>
               <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
             </ul>
           </span>
@@ -411,7 +411,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
         '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>' +
         '<td></td><td></td><td></td><td></td><td></td></tr></table>';
       const capacity = await measureRowCapacity(fixedHtml, rowHtml, { safetyMargin: 8 });
-      this.maxRowsPerPage = Math.max(5, Math.min(15, capacity));
+      this.maxRowsPerPage = 4;
     } catch(e) { /* keep fallback */ }
     this.paginate();
     this.cdr.detectChanges();

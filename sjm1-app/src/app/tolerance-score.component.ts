@@ -247,7 +247,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-family:'SimSun', '宋体', serif;font-size:9.5pt;line-height:1.3;font-weight:400;color:#000;word-break:break-all;margin-bottom:10mm;}
     .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
 
-    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:40px; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:13px; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print { .no-print { display:none !important; } .sheet-hidden { display:none !important; } }
   `],

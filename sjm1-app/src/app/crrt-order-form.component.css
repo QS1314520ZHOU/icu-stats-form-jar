@@ -220,7 +220,7 @@ label {
 .sheet-pageno {
   position: absolute;
   right: 8mm;
-  bottom: 4mm;
+  bottom: 40px;
   left: 8mm;
   margin: 0;
   color: #000;
@@ -1487,7 +1487,7 @@ label {
 
   .sheet-pageno {
     right: 28px;
-    bottom: 15px;
+    bottom: 40px;
     left: 28px;
     font-size: 13px;
     line-height: 16px;
