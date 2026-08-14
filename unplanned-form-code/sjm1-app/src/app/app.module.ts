@@ -9,6 +9,7 @@ import { Sjm1VeinMaintenanceComponent } from './sjm1-vein-maintenance.component'
 import { SjmCrrtVeinMaintenanceComponent } from './sjm-crrt-vein-maintenance.component';
 import { YdwzlTemperatureComponent } from './ydwzl-temperature.component';
 import { ToleranceScoreComponent } from './tolerance-score.component';
+import { UnplannedExtubationComponent } from './unplanned-extubation.component';
 import { CommitSuicideScoreComponent } from './commit-suicide-score.component';
 import { IadScoreComponent } from './iad-score.component';
 import { BaetheiScoreComponent } from './baethei-score.component';
@@ -27,7 +28,6 @@ import { HljldFormService } from './hljld-form.service';
 import { HandoverReportComponent } from './handover-report.component';
 import { HandoverReportService } from './handover-report.service';
 import { BloodSugarComponent } from './blood-sugar.component';
-import { UnplannedExtubationComponent } from './unplanned-extubation.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -37,6 +37,7 @@ import { routes } from './app.routes';
     SjmCrrtVeinMaintenanceComponent,
     YdwzlTemperatureComponent,
     ToleranceScoreComponent,
+    UnplannedExtubationComponent,
     CommitSuicideScoreComponent,
     IadScoreComponent,
     BaetheiScoreComponent,
@@ -53,7 +54,6 @@ import { routes } from './app.routes';
     HljldFormComponent,
     HandoverReportComponent,
     BloodSugarComponent,
-    UnplannedExtubationComponent,
   ],
   imports: [
     BrowserModule,
