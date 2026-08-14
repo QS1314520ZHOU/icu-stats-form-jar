@@ -343,7 +343,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .iad-footnote .footnote-title { font-weight:700; }
     .iad-footnote .fn { margin:0; padding-left:2em; text-indent:-2em; }
 
-    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:40px; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
 
     /* Hidden print source: off-screen, invisible, no interaction */
     .print-source { position:fixed; left:-100000px; top:0; width:297mm; visibility:hidden; pointer-events:none; }
@@ -379,7 +379,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly maxRowsPerPage = 9;
+  readonly maxRowsPerPage = 6;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -649,7 +649,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .iad-footnote{box-sizing:border-box;width:100%;margin-top:2px;margin-bottom:6mm;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.3;color:#000;text-align:left;}
       .iad-footnote .footnote-title{font-weight:700;}
       .iad-footnote .fn{margin:0;padding-left:2em;text-indent:-2em;}
-      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:6mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:40px;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
