@@ -10,6 +10,9 @@ interface CrrtMetric { label: string; code: string; unit?: string; }
 interface CrrtGroup { name: string; metrics: CrrtMetric[]; }
 interface TimePoint { instant: number; rawTime: string; }
 interface RenderPage { index: number; timeInstants: number[]; }
+interface CrrtStatusPoint { instant: number; treatmentStatus: string; }
+type CrrtSessionStatus = 'ongoing' | 'ended';
+interface CrrtSession { index: number; points: CrrtStatusPoint[]; startInstant: number; endInstant: number; allTimeInstants: number[]; pageTimeInstants: number[][]; status: CrrtSessionStatus; }
 
 const CRRT_GROUPS: CrrtGroup[] = [
   { name: '治疗模式', metrics: [
@@ -81,11 +84,13 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   readonly queryCodes = Array.from(new Set([...this.metricCodes, 'param_Yishi']));
   readonly columnIndexes = [0, 1, 2, 3, 4, 5, 6, 7];
 
-  visibleGroups: CrrtGroup[] = [];
+  sessions: CrrtSession[] = [];
+  selectedSession: CrrtSession | null = null;
+  selectedSessionIndex: number | null = null;
+  visibleGroupsForSession: CrrtGroup[] = [];
   patient: any = null; account: any = null;
   pid = ''; age: number | null = null; diagnosisDisplay = '';
   loading = false; loadError = '';
-  pages: RenderPage[] = [{ index: 1, timeInstants: [] }];
   selectedPrintPage: number | null = null;
 
   constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef) {}
@@ -101,12 +106,12 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
       this.patient = p; this.pid = next;
       this.age = this.calcAge(p.birthday);
       this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
-      if (next !== prev) { this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.visibleGroups = []; this.pages = [{ index: 1, timeInstants: [] }]; this.load(); }
+      if (next !== prev) { this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionIndex = null; this.visibleGroupsForSession = []; this.load(); }
     });
   }
 
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
-  private reset(): void { this.pid = ''; this.patient = null; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.visibleGroups = []; this.pages = [{ index: 1, timeInstants: [] }]; }
+  private reset(): void { this.pid = ''; this.patient = null; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionIndex = null; this.visibleGroupsForSession = []; }
 
   load(): void {
     if (!this.pid) return;
@@ -151,23 +156,15 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
 
     this.yishiRecords.sort((a, b) => a.instant - b.instant);
 
-    // 汇总：哪些参数行有值（per-metric 级别过滤）
-    const metricHasValue = (metric: CrrtMetric): boolean =>
-      [...this.values.entries()].some(([key, value]) => key.startsWith(metric.code + '@@') && value.trim().length > 0);
-    const hasAnyValue = CRRT_GROUPS.some(group => group.metrics.some(metricHasValue));
-    this.visibleGroups = hasAnyValue
-      ? CRRT_GROUPS
-          .map(group => ({ ...group, metrics: group.metrics.filter(metricHasValue) }))
-          .filter(group => group.metrics.length > 0)
-      : CRRT_GROUPS;
-
     const timeInstants = [...timeMap.values()].sort((a, b) => a.instant - b.instant).map(tp => tp.instant);
-    this.pages = [];
-    for (let i = 0; i < Math.max(1, timeInstants.length); i += 8) {
-      this.pages.push({ index: 0, timeInstants: timeInstants.slice(i, i + 8) });
-    }
-    if (!this.pages.length) this.pages.push({ index: 0, timeInstants: [] });
-    this.pages = this.pages.map((p, i) => ({ ...p, index: i + 1 }));
+
+    // 会话拆分
+    const statusPoints = this.normalizeTreatmentStatus(records);
+    this.sessions = this.buildSessions(statusPoints);
+    this.assignSessionTimeInstants(this.sessions, timeInstants);
+    this.applyDefaultSession();
+    this.rebuildSelectedSession();
+
     this.selectedPrintPage = null;
 
     if (editUserIds.size) this.loadAccountNames([...editUserIds]);
@@ -185,6 +182,194 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
       if (s.instant <= instant && s.editUser) return this.accountNameMap.get(s.editUser) || '';
     }
     return '';
+  }
+
+  signatureAtForSession(instant: number | undefined, session: CrrtSession | null): string {
+    if (instant === undefined || !Number.isFinite(instant) || !session) return '';
+    const sessionInstants = new Set(session.allTimeInstants);
+    for (let i = this.yishiRecords.length - 1; i >= 0; i--) {
+      const s = this.yishiRecords[i];
+      if (s.instant <= instant && sessionInstants.has(s.instant) && s.editUser) {
+        return this.accountNameMap.get(s.editUser) || '';
+      }
+    }
+    return '';
+  }
+
+  private normalizeTreatmentStatus(records: BedsideRecord[]): CrrtStatusPoint[] {
+    const statusRecords = records
+      .filter(r => String(r.code ?? '').trim() === 'param_CRRT治疗状态')
+      .map(r => {
+        const instant = databaseTimeValue(String(r.time ?? '').trim());
+        const status = String(r.strVal ?? '').trim();
+        return { instant, status } as { instant: number; status: string };
+      })
+      .filter(r => Number.isFinite(r.instant) && r.status);
+
+    if (statusRecords.length === 0) return [];
+
+    statusRecords.sort((a, b) => a.instant - b.instant);
+
+    const points: CrrtStatusPoint[] = [];
+    let lastStatus: string | null = null;
+    let lastUpInstant: number | null = null;
+
+    for (const rec of statusRecords) {
+      const isUp = rec.status === '上机';
+      const isDown = rec.status === '下机';
+
+      if (rec.status === lastStatus) {
+        if (!isUp) continue;
+        if (isUp && lastUpInstant !== null) continue;
+      }
+
+      if (isUp && lastStatus === '上机' && lastUpInstant !== null) continue;
+
+      points.push({ instant: rec.instant, treatmentStatus: rec.status });
+      lastStatus = rec.status;
+      if (isUp) lastUpInstant = rec.instant;
+      else if (isDown) lastUpInstant = null;
+    }
+
+    return points;
+  }
+
+  private buildSessions(statusPoints: CrrtStatusPoint[]): CrrtSession[] {
+    const sessions: CrrtSession[] = [];
+    let sessionIndex = 1;
+    let currentPoints: CrrtStatusPoint[] = [];
+    let lastStatus: string | null = null;
+
+    for (const point of statusPoints) {
+      if (point.treatmentStatus === '上机') {
+        if (lastStatus === '上机' && currentPoints.length > 0) {
+          currentPoints.push(point);
+        } else {
+          if (currentPoints.length > 0) {
+            sessions.push(this.createSession(sessionIndex++, currentPoints));
+          }
+          currentPoints = [point];
+        }
+      } else if (point.treatmentStatus === '下机') {
+        currentPoints.push(point);
+        sessions.push(this.createSession(sessionIndex++, currentPoints));
+        currentPoints = [];
+      } else {
+        currentPoints.push(point);
+      }
+      lastStatus = point.treatmentStatus;
+    }
+
+    if (currentPoints.length > 0) {
+      sessions.push(this.createSession(sessionIndex++, currentPoints));
+    }
+
+    return sessions;
+  }
+
+  private createSession(index: number, points: CrrtStatusPoint[]): CrrtSession {
+    const startInstant = points[0].instant;
+    const endInstant = points[points.length - 1].instant;
+    const status: CrrtSessionStatus = points[points.length - 1].treatmentStatus === '下机' ? 'ended' : 'ongoing';
+    return { index, points, startInstant, endInstant, allTimeInstants: [], pageTimeInstants: [], status };
+  }
+
+  private isInSession(instant: number, session: CrrtSession): boolean {
+    return instant >= session.startInstant && instant <= session.endInstant;
+  }
+
+  private assignSessionTimeInstants(sessions: CrrtSession[], allSortedInstants: number[]): void {
+    const sessionInstantSets = new Set<number>();
+
+    for (const session of sessions) {
+      const sessionInstants = allSortedInstants.filter(t => this.isInSession(t, session));
+      session.allTimeInstants = sessionInstants;
+      sessionInstants.forEach(t => sessionInstantSets.add(t));
+
+      session.pageTimeInstants = [];
+      for (let i = 0; i < Math.max(1, sessionInstants.length); i += 8) {
+        session.pageTimeInstants.push(sessionInstants.slice(i, i + 8));
+      }
+      if (session.pageTimeInstants.length === 0) session.pageTimeInstants.push([]);
+    }
+
+    const orphanInstants = allSortedInstants.filter(t => !sessionInstantSets.has(t));
+    if (orphanInstants.length > 0) {
+      const orphanSession: CrrtSession = {
+        index: 0,
+        points: [],
+        startInstant: orphanInstants[0],
+        endInstant: orphanInstants[orphanInstants.length - 1],
+        allTimeInstants: orphanInstants,
+        pageTimeInstants: [],
+        status: 'ended'
+      };
+      for (let i = 0; i < orphanInstants.length; i += 8) {
+        orphanSession.pageTimeInstants.push(orphanInstants.slice(i, i + 8));
+      }
+      sessions.push(orphanSession);
+      sessions.sort((a, b) => a.startInstant - b.startInstant);
+    }
+  }
+
+  private applyDefaultSession(): void {
+    if (this.sessions.length > 0) {
+      this.selectedSessionIndex = this.sessions[this.sessions.length - 1].index;
+      this.selectedSession = this.sessions[this.sessions.length - 1];
+    } else {
+      this.selectedSessionIndex = null;
+      this.selectedSession = null;
+    }
+  }
+
+  private rebuildSelectedSession(): void {
+    this.visibleGroupsForSession = this.buildVisibleGroupsForSession(this.selectedSession);
+  }
+
+  private buildVisibleGroupsForSession(session: CrrtSession | null): CrrtGroup[] {
+    if (!session || session.allTimeInstants.length === 0) return CRRT_GROUPS;
+
+    const sessionInstants = new Set(session.allTimeInstants);
+    const metricHasValue = (metric: CrrtMetric): boolean =>
+      [...this.values.entries()].some(([key, value]) => {
+        if (!key.startsWith(metric.code + '@@')) return false;
+        const instant = Number(key.split('@@')[1]);
+        return sessionInstants.has(instant) && value.trim().length > 0;
+      });
+
+    const hasAnyValue = CRRT_GROUPS.some(group => group.metrics.some(metricHasValue));
+    return hasAnyValue
+      ? CRRT_GROUPS.map(group => ({ ...group, metrics: group.metrics.filter(metricHasValue) })).filter(group => group.metrics.length > 0)
+      : CRRT_GROUPS;
+  }
+
+  onSessionChange(): void {
+    const idx = this.selectedSessionIndex;
+    this.selectedSession = idx != null ? this.sessions.find(s => s.index === idx) ?? null : null;
+    this.rebuildSelectedSession();
+  }
+
+  get pages(): RenderPage[] {
+    if (!this.selectedSession) return [{ index: 1, timeInstants: [] }];
+    return this.selectedSession.pageTimeInstants.map((instants, i) => ({ index: i + 1, timeInstants: instants }));
+  }
+
+  formatSessionDateTime(instant: number | undefined): string {
+    if (instant === undefined || !Number.isFinite(instant)) return '';
+    return formatShanghaiDate(instant) + ' ' + formatShanghaiHourMinute(instant);
+  }
+
+  sessionStartText(session: CrrtSession | null): string {
+    return session ? this.formatSessionDateTime(session.startInstant) : '';
+  }
+
+  sessionEndText(session: CrrtSession | null): string {
+    return session ? this.formatSessionDateTime(session.endInstant) : '';
+  }
+
+  sessionStatusText(session: CrrtSession | null): string {
+    if (!session) return '';
+    return session.status === 'ongoing' ? '治疗中' : '已结束';
   }
 
   displayDate(instant: number | undefined): string { return instant !== undefined ? formatShanghaiDate(instant) : ''; }

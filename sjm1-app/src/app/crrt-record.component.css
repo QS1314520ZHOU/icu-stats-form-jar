@@ -115,6 +115,23 @@ h1 {
 }
 
 /* =========================================================
+   Session summary
+   ========================================================= */
+
+.session-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 2px 0 4px;
+  color: #000;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 13pt;
+  font-weight: 400;
+  line-height: 1.2;
+  flex-wrap: wrap;
+}
+
+/* =========================================================
    Patient information
    ========================================================= */
 
@@ -361,6 +378,15 @@ h1 {
     line-height: 21px;
   }
 
+  .session-summary {
+    margin: 2px 0 4px;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 21px;
+    gap: 18px;
+  }
+
   .patient-info-row {
     gap: 18px;
     margin: 2px 0;
@@ -499,6 +525,12 @@ h1 {
   .toolbar,
   .status {
     display: none !important;
+  }
+
+  .session-summary {
+    margin: 1mm 0 2mm !important;
+    font-size: 13pt !important;
+    gap: 12px !important;
   }
 
   .sheet {
