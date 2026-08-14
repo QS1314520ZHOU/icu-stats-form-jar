@@ -13,6 +13,7 @@ import { EcmoRecordComponent } from './ecmo-record.component';
 import { TransfusionRecordComponent } from './transfusion-record.component';
 import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
+import { TemperatureRecordComponent } from './temperature-record.component';
 import { BradenFormComponent } from './braden-form.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
@@ -42,6 +43,7 @@ export const routes: Routes = [
   { path: 'hljldForm', component: HljldFormComponent },
   { path: 'handoverReport', component: HandoverReportComponent },
   { path: 'bloodSugar', component: BloodSugarComponent },
+  { path: 'temperatureRecord', component: TemperatureRecordComponent },
   { path: 'unPlannedCGZYYForm', component: UnplannedExtubationComponent },
   { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
 ];

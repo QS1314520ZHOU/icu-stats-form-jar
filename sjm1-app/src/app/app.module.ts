@@ -19,6 +19,7 @@ import { EcmoRecordComponent } from './ecmo-record.component';
 import { TransfusionRecordComponent } from './transfusion-record.component';
 import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
+import { TemperatureRecordComponent } from './temperature-record.component';
 import { BradenFormComponent } from './braden-form.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
@@ -50,6 +51,7 @@ import { routes } from './app.routes';
     BradenFormComponent,
     CrrtRecordComponent,
     CrrtOrderFormComponent,
+    TemperatureRecordComponent,
     HljldFormComponent,
     HandoverReportComponent,
     BloodSugarComponent,

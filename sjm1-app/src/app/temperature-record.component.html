@@ -1,0 +1,15 @@
+<div class="temperature-record-page">
+  <iframe
+    *ngIf="iframeUrl"
+    class="temperature-record-frame"
+    [src]="iframeUrl"
+    title="体温单调阅"
+  ></iframe>
+
+  <div
+    *ngIf="!iframeUrl"
+    class="temperature-record-empty"
+  >
+    暂无可调阅的体温单
+  </div>
+</div>
