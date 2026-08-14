@@ -156,8 +156,10 @@ interface EvalColumn {
 interface RenderPage {
   index: number;
   cols: EvalColumn[];
-  isSecondPage: boolean; // true=护理措施页，false=评分页
+  isSecondPage: boolean;
 }
+
+type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
 
 /* ============================= 组件 ============================= */
 
@@ -224,144 +226,97 @@ interface RenderPage {
               <td class="sub-item-cell" rowspan="4">实施镇静剂<br>的患者</td>
               <td class="desc-cell">RASS -5~-3</td>
               <td class="score-cell">0</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkRass(c, 0) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkRass(c, 0) }}</td>
             </tr>
             <tr>
               <td class="desc-cell">RASS -2~0</td>
               <td class="score-cell">1</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkRass(c, 1) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkRass(c, 1) }}</td>
             </tr>
             <tr>
               <td class="desc-cell">RASS 1~2</td>
               <td class="score-cell">2</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkRass(c, 2) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkRass(c, 2) }}</td>
             </tr>
             <tr>
               <td class="desc-cell">RASS 3~4</td>
               <td class="score-cell">3</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkRass(c, 3) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkRass(c, 3) }}</td>
             </tr>
             <!-- 神志意识及精神状态 - 未实施镇静 -->
             <tr>
               <td class="sub-item-cell" rowspan="6">未实施镇静或<br>不适宜用 RASS<br>评分患者</td>
               <td class="desc-cell">{{noRassOptions[0].label}}</td>
               <td class="score-cell">{{noRassOptions[0].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkNoRass(c, 0) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkNoRass(c, 0) }}</td>
             </tr>
             <tr>
               <td class="desc-cell">{{noRassOptions[1].label}}</td>
               <td class="score-cell">{{noRassOptions[1].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkNoRass(c, 1) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkNoRass(c, 1) }}</td>
             </tr>
             <tr>
               <td class="desc-cell">{{noRassOptions[2].label}}</td>
               <td class="score-cell">{{noRassOptions[2].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkNoRass(c, 2) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkNoRass(c, 2) }}</td>
             </tr>
             <tr>
               <td class="desc-cell">{{noRassOptions[3].label}}</td>
               <td class="score-cell">{{noRassOptions[3].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkNoRass(c, 3) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkNoRass(c, 3) }}</td>
             </tr>
             <tr>
               <td class="desc-cell">{{noRassOptions[4].label}}</td>
               <td class="score-cell">{{noRassOptions[4].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkNoRass(c, 4) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkNoRass(c, 4) }}</td>
             </tr>
             <tr>
               <td class="desc-cell">{{noRassOptions[5].label}}</td>
               <td class="score-cell">{{noRassOptions[5].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkNoRass(c, 5) }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkNoRass(c, 5) }}</td>
             </tr>
-            <!-- 舒适度 -->
+            <!-- 舒适度：合并具体评估细则和评估内容 -->
+            <ng-container *ngFor="let option of ssdOptions; let index = index">
+              <tr>
+                <td *ngIf="index === 0" [attr.rowspan]="ssdOptions.length" class="item-cell">舒适度</td>
+                <td colspan="2" class="desc-cell merged-detail-cell">{{ option.label }}</td>
+                <td class="score-cell">{{ option.score }}</td>
+                <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'ssd', option.score) }}</td>
+              </tr>
+            </ng-container>
+            <!-- 沟通合作：合并具体评估细则和评估内容 -->
+            <ng-container *ngFor="let option of gthzOptions; let index = index">
+              <tr>
+                <td *ngIf="index === 0" [attr.rowspan]="gthzOptions.length" class="item-cell">沟通合作</td>
+                <td colspan="2" class="desc-cell merged-detail-cell">{{ option.label }}</td>
+                <td class="score-cell">{{ option.score }}</td>
+                <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'gthz', option.score) }}</td>
+              </tr>
+            </ng-container>
+            <!-- 行为合作：合并具体评估细则和评估内容 -->
+            <ng-container *ngFor="let option of xwhzOptions; let index = index">
+              <tr>
+                <td *ngIf="index === 0" [attr.rowspan]="xwhzOptions.length" class="item-cell">行为合作</td>
+                <td colspan="2" class="desc-cell merged-detail-cell">{{ option.label }}</td>
+                <td class="score-cell">{{ option.score }}</td>
+                <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'xwhz', option.score) }}</td>
+              </tr>
+            </ng-container>
+            <!-- 导管数量：合并具体评估细则和评估内容 -->
+            <ng-container *ngFor="let option of dgslOptions; let index = index">
+              <tr>
+                <td *ngIf="index === 0" [attr.rowspan]="dgslOptions.length" class="item-cell">导管数量</td>
+                <td colspan="2" class="desc-cell merged-detail-cell">{{ option.label }}</td>
+                <td class="score-cell">{{ option.score }}</td>
+                <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'dgsl', option.score) }}</td>
+              </tr>
+            </ng-container>
+            <!-- 导管固定：第一页只显示 3 分选项 -->
             <tr>
-              <td class="item-cell" rowspan="4">舒适度</td>
-              <td class="sub-item-cell" rowspan="4"></td>
-              <td class="desc-cell">{{ssdOptions[0].label}}</td>
-              <td class="score-cell">{{ssdOptions[0].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'ssd', ssdOptions[0].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell">{{ssdOptions[1].label}}</td>
-              <td class="score-cell">{{ssdOptions[1].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'ssd', ssdOptions[1].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell">{{ssdOptions[2].label}}</td>
-              <td class="score-cell">{{ssdOptions[2].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'ssd', ssdOptions[2].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell">{{ssdOptions[3].label}}</td>
-              <td class="score-cell">{{ssdOptions[3].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'ssd', ssdOptions[3].score) }}</td>
-            </tr>
-            <!-- 沟通合作 -->
-            <tr>
-              <td class="item-cell" rowspan="3">沟通合作</td>
-              <td class="sub-item-cell" rowspan="3"></td>
-              <td class="desc-cell">{{gthzOptions[0].label}}</td>
-              <td class="score-cell">{{gthzOptions[0].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'gthz', gthzOptions[0].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell">{{gthzOptions[1].label}}</td>
-              <td class="score-cell">{{gthzOptions[1].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'gthz', gthzOptions[1].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell">{{gthzOptions[2].label}}</td>
-              <td class="score-cell">{{gthzOptions[2].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'gthz', gthzOptions[2].score) }}</td>
-            </tr>
-            <!-- 行为合作 -->
-            <tr>
-              <td class="item-cell" rowspan="3">行为合作</td>
-              <td class="sub-item-cell" rowspan="3"></td>
-              <td class="desc-cell">{{xwhzOptions[0].label}}</td>
-              <td class="score-cell">{{xwhzOptions[0].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'xwhz', xwhzOptions[0].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell">{{xwhzOptions[1].label}}</td>
-              <td class="score-cell">{{xwhzOptions[1].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'xwhz', xwhzOptions[1].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell">{{xwhzOptions[2].label}}</td>
-              <td class="score-cell">{{xwhzOptions[2].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'xwhz', xwhzOptions[2].score) }}</td>
-            </tr>
-            <!-- 导管数量 -->
-            <tr>
-              <td class="item-cell" rowspan="2">导管数量</td>
-              <td class="sub-item-cell" rowspan="2"></td>
-              <td class="desc-cell">{{dgslOptions[0].label}}</td>
-              <td class="score-cell">{{dgslOptions[0].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'dgsl', dgslOptions[0].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell">{{dgslOptions[1].label}}</td>
-              <td class="score-cell">{{dgslOptions[1].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'dgsl', dgslOptions[1].score) }}</td>
-            </tr>
-            <!-- 导管固定 - 第一页只显示 3 分行 -->
-            <tr>
-              <td class="item-cell" rowspan="3">导管固定</td>
-              <td class="sub-item-cell" rowspan="3"></td>
-              <td class="desc-cell">{{dggdOptions[0].label}}</td>
-              <td class="score-cell">{{dggdOptions[0].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'dggd', dggdOptions[0].score) }}</td>
-            </tr>
-            <tr>
-              <td class="desc-cell" style="border-bottom:none;height:0;overflow:hidden;">{{dggdOptions[1].label}}</td>
-              <td class="score-cell" style="border-bottom:none;height:0;overflow:hidden;">{{dggdOptions[1].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)" style="border-bottom:none;height:0;overflow:hidden;"></td>
-            </tr>
-            <tr>
-              <td class="desc-cell" style="border-bottom:none;height:0;overflow:hidden;">{{dggdOptions[2].label}}</td>
-              <td class="score-cell" style="border-bottom:none;height:0;overflow:hidden;">{{dggdOptions[2].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)" style="border-bottom:none;height:0;overflow:hidden;"></td>
+              <td class="item-cell">导管固定</td>
+              <td colspan="2" class="desc-cell merged-detail-cell">{{ dggdOptions[0].label }}</td>
+              <td class="score-cell">{{ dggdOptions[0].score }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'dggd', dggdOptions[0].score) }}</td>
             </tr>
           </tbody>
         </table>
@@ -390,60 +345,55 @@ interface RenderPage {
           <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
         </div>
 
-        <table class="record-table">
+        <table class="record-table second-page-table">
           <colgroup>
-            <col class="item-col">
-            <col class="sub-item-col">
-            <col class="desc-col">
-            <col class="score-col">
-            <col class="data-col" *ngFor="let c of pagePaddedCols(page)">
+            <col class="item-col" />
+            <col class="sub-item-col" />
+            <col class="desc-col" />
+            <col class="score-col" />
+            <col *ngFor="let c of pagePaddedCols(page)" class="data-col" />
           </colgroup>
-          <thead>
-            <tr>
-              <th class="item-col">项目</th>
-              <th class="sub-item-col">具体评估细则</th>
-              <th class="desc-col">评估内容</th>
-              <th class="score-col">分值</th>
-              <th class="data-col" *ngFor="let c of pagePaddedCols(page)">
-                <div class="dt-date">{{ c ? fmtDate(c.time) : '' }}</div>
-                <div class="dt-time">{{ c ? fmtTime(c.time) : '' }}</div>
-              </th>
-            </tr>
-          </thead>
+
           <tbody>
-            <!-- 导管固定续项 -->
+            <!-- 导管固定：不显示"续"字 -->
             <tr>
-              <td class="item-cell" rowspan="2">导管固定<br>（续）</td>
-              <td class="sub-item-cell" rowspan="2"></td>
-              <td class="desc-cell">{{dggdOptions[1].label}}</td>
-              <td class="score-cell">{{dggdOptions[1].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'dggd', dggdOptions[1].score) }}</td>
+              <td rowspan="2" class="item-cell">导管固定</td>
+              <td colspan="2" class="desc-cell merged-detail-cell">{{ dggdOptions[1].label }}</td>
+              <td class="score-cell">{{ dggdOptions[1].score }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'dggd', dggdOptions[1].score) }}</td>
             </tr>
             <tr>
-              <td class="desc-cell">{{dggdOptions[2].label}}</td>
-              <td class="score-cell">{{dggdOptions[2].score}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkField(c, 'dggd', dggdOptions[2].score) }}</td>
+              <td colspan="2" class="desc-cell merged-detail-cell">{{ dggdOptions[2].label }}</td>
+              <td class="score-cell">{{ dggdOptions[2].score }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'dggd', dggdOptions[2].score) }}</td>
             </tr>
-            <!-- 总分 -->
+
+            <!-- 评估总分 -->
             <tr>
-              <td class="sum-label" colspan="4">评估总分</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ c && c.total !== null ? c.total : '' }}</td>
+              <td colspan="4" class="sum-label">评估总分</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ c && c.total !== null ? c.total : '' }}</td>
             </tr>
+
             <!-- 危险程度 -->
             <tr>
-              <td class="sum-label" colspan="4">危险程度</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ c ? c.conclusion : '' }}</td>
+              <td colspan="4" class="sum-label">危险程度</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ c ? c.conclusion : '' }}</td>
             </tr>
+
             <!-- 护理措施 -->
-            <tr *ngFor="let m of nurseMeasures; let i = index">
-              <td class="measure-label" [attr.rowspan]="m.rowspan" *ngIf="m.rowspan > 0">{{m.group}}</td>
-              <td class="measure-item" colspan="2">{{m.label}}</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ checkMeasure(c, i) }}</td>
+            <tr *ngFor="let measure of nurseMeasures; let measureIndex = index">
+              <td *ngIf="measureIndex === 0" [attr.rowspan]="nurseMeasures.length" class="measure-main-label">
+                <span class="vertical-text">护理措施</span>
+              </td>
+              <td *ngIf="measure.rowspan > 0" [attr.rowspan]="measure.rowspan" class="measure-label">{{ measure.group }}</td>
+              <td colspan="2" class="measure-item">{{ measure.label }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell measure-check-cell">{{ checkMeasure(c, measureIndex) }}</td>
             </tr>
+
             <!-- 护士签名 -->
             <tr>
-              <td class="sum-label" colspan="4">护士签名</td>
-              <td class="data-col" *ngFor="let c of pagePaddedCols(page)">{{ c ? (c.signName || '') : '' }}</td>
+              <td colspan="4" class="sum-label">护士签名</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell sign-cell">{{ c ? (c.signName || '') : '' }}</td>
             </tr>
           </tbody>
         </table>
@@ -490,8 +440,20 @@ interface RenderPage {
     .desc-cell { text-align:left; padding-left:6px; }
     .score-cell { font-weight:700; }
     .sum-label { text-align:left; padding-left:6px; font-weight:700; }
-    .measure-label { font-weight:700; vertical-align:middle; text-align:center; }
-    .measure-item { text-align:left; padding-left:6px; }
+
+    .merged-detail-cell { text-align:center; padding-left:6px; padding-right:6px; }
+
+    .second-page-table { width:100%; table-layout:fixed; border-collapse:collapse; }
+    .second-page-table th,.second-page-table td { box-sizing:border-box; border:1px solid #000; }
+
+    .measure-main-label { width:80px; padding:0; text-align:center; vertical-align:middle; font-weight:700; }
+    .vertical-text { display:inline-block; writing-mode:vertical-rl; text-orientation:upright; letter-spacing:2px; line-height:1.2; }
+    .measure-label { width:90px; text-align:center; vertical-align:middle; font-weight:400; }
+    .measure-item { padding:3px 6px; text-align:left; vertical-align:middle; line-height:1.25; word-break:break-all; }
+
+    .data-cell { width:80px; min-width:80px; max-width:80px; padding:2px; text-align:center; vertical-align:middle; }
+    .measure-check-cell { font-size:11pt; }
+    .sign-cell { white-space:normal; word-break:break-all; }
 
     .dt-date,.dt-time { display:block; white-space:nowrap; text-align:center; line-height:1.2; }
 
@@ -508,7 +470,6 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   private readonly API_HOSPITAL = '/api/v1/config/hospital';
   private readonly API_ACCOUNT = '/api/v1/icu/accounts/listByIds';
 
-  // 配置数据
   readonly noRassOptions = NO_RASS_OPTIONS;
   readonly ssdOptions = SSD_OPTIONS;
   readonly gthzOptions = GTHZ_OPTIONS;
@@ -516,7 +477,6 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   readonly dgslOptions = DGSL_OPTIONS;
   readonly dggdOptions = DGGD_OPTIONS;
   readonly nurseMeasures = NURSE_MEASURES.map((m, i) => {
-    // 计算分组 rowspan
     const groupStart = NURSE_MEASURES.findIndex(x => x.group === m.group);
     return { ...m, rowspan: i === groupStart ? NURSE_MEASURES.filter(x => x.group === m.group).length : 0 };
   });
@@ -604,105 +564,110 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
 
   private buildColumns(): void {
     const cols: EvalColumn[] = this.records
-      .map(r => {
-        const score = r.unPlannedCGZYYScore || {};
+      .filter(record => !!record.time)
+      .map(record => {
+        const score = record.unPlannedCGZYYScore || {};
         return {
-          time: r.time!,
+          time: record.time!,
           rass: this.num(score.rass),
           noRass: this.num(score.noRass),
-          noRassIndexList: Array.isArray(score.noRassIndexList) ? score.noRassIndexList : [],
+          noRassIndexList: Array.isArray(score.noRassIndexList)
+            ? score.noRassIndexList.map(value => Number(value)).filter(value => Number.isInteger(value))
+            : [],
           ssd: this.num(score.ssd),
           gthz: this.num(score.gthz),
           xwhz: this.num(score.xwhz),
           dgsl: this.num(score.dgsl),
           dggd: this.num(score.dggd),
-          total: this.num(r.total),
-          conclusion: r.conclusion || '',
-          measures: this.parseMeasures(r.nurseMeasureList),
-          signUserId: r.inputUserId,
-          signName: r.inputUser || '',
+          total: this.num(record.total),
+          conclusion: record.conclusion || '',
+          measures: this.parseMeasures(record.nurseMeasureList),
+          signUserId: record.inputUserId,
+          signName: record.inputUser || '',
         };
       })
       .sort((a, b) => this.ts(a.time) - this.ts(b.time));
+
     this.columns = cols;
 
-    // 回填签名
-    const userIds = [...new Set(cols.map(c => c.signUserId).filter(Boolean) as string[])];
-    if (userIds.length) {
-      this.http.get<any[]>(this.API_ACCOUNT, { params: { ids: userIds.join(',') } }).subscribe({
-        next: (accounts) => {
+    const userIds = [
+      ...new Set(cols.map(column => column.signUserId).filter(Boolean) as string[]),
+    ];
+
+    if (!userIds.length) {
+      this.paginate();
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.http
+      .get<any[]>(this.API_ACCOUNT, { params: { ids: userIds.join(',') } })
+      .subscribe({
+        next: accounts => {
           const nameMap = new Map<string, string>();
           if (Array.isArray(accounts)) {
-            for (const a of accounts) {
-              const aid = a?._id || a?.id;
-              if (aid) nameMap.set(String(aid), a?.trueName || '');
+            for (const account of accounts) {
+              const accountId = account?._id || account?.id;
+              if (accountId) {
+                nameMap.set(String(accountId), account?.trueName || account?.accountName || '');
+              }
             }
           }
-          for (const col of this.columns) {
-            if (col.signUserId && nameMap.has(col.signUserId)) {
-              col.signName = nameMap.get(col.signUserId) || col.signName;
+          for (const column of this.columns) {
+            if (column.signUserId && nameMap.has(column.signUserId)) {
+              column.signName = nameMap.get(column.signUserId) || column.signName;
             }
           }
           this.paginate();
           this.cdr.detectChanges();
         },
-        error: () => { this.paginate(); this.cdr.detectChanges(); },
+        error: () => {
+          this.paginate();
+          this.cdr.detectChanges();
+        },
       });
-    } else {
-      this.paginate();
-    }
   }
 
-  /** 解析护理措施：19 条，按数组顺序 */
   private parseMeasures(list?: NurseMeasure[]): boolean[] {
     const result = new Array<boolean>(19).fill(false);
     if (!Array.isArray(list)) return result;
-    for (let i = 0; i < Math.min(list.length, 19); i++) {
-      if (list[i] && list[i].value === true) {
-        result[i] = true;
-      }
+    for (let index = 0; index < Math.min(list.length, result.length); index++) {
+      result[index] = list[index]?.value === true;
     }
     return result;
   }
 
-  /** RASS 评分打√ */
   checkRass(col: EvalColumn | null, score: number): string {
     if (!col) return '';
     return col.rass === score ? '√' : '';
   }
 
-  /** 未实施镇静打√：优先用 noRassIndexList，回退用 noRass 分值 */
   checkNoRass(col: EvalColumn | null, index: number): string {
     if (!col) return '';
-    if (col.noRassIndexList.length > 0) {
-      return col.noRassIndexList.includes(index) ? '√' : '';
+    const indexes = Array.isArray(col.noRassIndexList) ? col.noRassIndexList : [];
+    if (indexes.length > 0) {
+      return indexes.includes(index) ? '√' : '';
     }
-    // 回退：用 noRass 分值匹配，同分值只勾选第一条
-    const targetScore = NO_RASS_OPTIONS[index].score;
-    if (col.noRass === targetScore) {
-      const firstMatchIndex = NO_RASS_OPTIONS.findIndex(o => o.score === targetScore);
-      return index === firstMatchIndex ? '√' : '';
-    }
-    return '';
+    const option = NO_RASS_OPTIONS[index];
+    if (!option || col.noRass !== option.score) return '';
+    const firstMatchIndex = NO_RASS_OPTIONS.findIndex(item => item.score === option.score);
+    return index === firstMatchIndex ? '√' : '';
   }
 
-  /** 通用字段打√ */
-  checkField(col: EvalColumn | null, field: string, score: number): string {
+  checkField(col: EvalColumn | null, field: ScoreField, score: number): string {
     if (!col) return '';
-    return (col as any)[field] === score ? '√' : '';
+    return col[field] === score ? '√' : '';
   }
 
-  /** 护理措施打√ */
   checkMeasure(col: EvalColumn | null, index: number): string {
     if (!col) return '';
-    return col.measures[index] ? '√' : '';
+    return col.measures[index] === true ? '√' : '';
   }
 
   private paginate(): void {
     const per = this.colsPerPage;
     const pages: RenderPage[] = [];
     if (!this.columns.length) {
-      // 无数据时渲染一组两页空表
       pages.push({ index: 1, cols: [], isSecondPage: false });
       pages.push({ index: 2, cols: [], isSecondPage: true });
     } else {
@@ -803,8 +768,14 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
       .item-cell{font-weight:700;vertical-align:middle;} .sub-item-cell{font-weight:700;vertical-align:middle;}
       .desc-cell{text-align:left;padding-left:6px;} .score-cell{font-weight:700;}
       .sum-label{text-align:left;padding-left:6px;font-weight:700;}
-      .measure-label{font-weight:700;vertical-align:middle;text-align:center;}
-      .measure-item{text-align:left;padding-left:6px;}
+      .merged-detail-cell{text-align:center;padding-left:6px;padding-right:6px;}
+      .second-page-table{width:100%;table-layout:fixed;border-collapse:collapse;}
+      .measure-main-label{width:80px;padding:0;text-align:center;vertical-align:middle;font-weight:700;}
+      .vertical-text{display:inline-block;writing-mode:vertical-rl;text-orientation:upright;letter-spacing:2px;line-height:1.2;}
+      .measure-label{width:90px;text-align:center;vertical-align:middle;}
+      .measure-item{padding:3px 6px;text-align:left;vertical-align:middle;line-height:1.25;word-break:break-all;}
+      .data-cell{width:80px;min-width:80px;max-width:80px;padding:2px;text-align:center;vertical-align:middle;}
+      .measure-check-cell{font-size:11pt;}
       .dt-date,.dt-time{display:block;white-space:nowrap;text-align:center;line-height:1.2;}
       .footnote{margin-top:8px;font-size:8pt;line-height:1.3;color:#000;}
       .footnote .fn{padding-left:3em;text-indent:-3em;}
