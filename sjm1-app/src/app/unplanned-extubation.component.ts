@@ -299,6 +299,13 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
                 <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'xwhz', option.score) }}</td>
               </tr>
             </ng-container>
+            <!-- 导管数量：第一页只显示"1根" -->
+            <tr>
+              <td class="item-cell">导管数量</td>
+              <td colspan="2" class="desc-cell merged-detail-cell">{{ dgslOptions[0].label }}</td>
+              <td class="score-cell">{{ dgslOptions[0].score }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'dgsl', dgslOptions[0].score) }}</td>
+            </tr>
           </tbody>
         </table>
 
@@ -336,15 +343,13 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
           </colgroup>
 
           <tbody>
-            <!-- 导管数量：移到第二页 -->
-            <ng-container *ngFor="let option of dgslOptions; let index = index">
-              <tr>
-                <td *ngIf="index === 0" [attr.rowspan]="dgslOptions.length" class="item-cell">导管数量</td>
-                <td colspan="2" class="desc-cell merged-detail-cell">{{ option.label }}</td>
-                <td class="score-cell">{{ option.score }}</td>
-                <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'dgsl', option.score) }}</td>
-              </tr>
-            </ng-container>
+            <!-- 导管数量：第二页只显示"≥2根" -->
+            <tr>
+              <td class="item-cell">导管数量</td>
+              <td colspan="2" class="desc-cell merged-detail-cell">{{ dgslOptions[1].label }}</td>
+              <td class="score-cell">{{ dgslOptions[1].score }}</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkField(c, 'dgsl', dgslOptions[1].score) }}</td>
+            </tr>
             <!-- 导管固定：全部移到第二页 -->
             <ng-container *ngFor="let option of dggdOptions; let index = index">
               <tr>
