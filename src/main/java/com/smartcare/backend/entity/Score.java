@@ -25,6 +25,7 @@ public class Score {
     private SelfCareAbility selfCareAbility;
     private PatientFallDangerFactorV2 patientFallDangerFactorV2;
     private BradenScore bradenScore;
+    private UnPlannedCGZYYScore unPlannedCGZYYScore;
 
     public static class NurseMeasure {
         private String code;
@@ -221,6 +222,33 @@ public class Score {
         public void setFsjaNurseMeasureList(List<?> fsjaNurseMeasureList) { this.fsjaNurseMeasureList = fsjaNurseMeasureList; }
     }
 
+    public static class UnPlannedCGZYYScore {
+        private Integer rass;
+        private Integer noRass;
+        private List<Integer> noRassIndexList;
+        private Integer ssd;
+        private Integer gthz;
+        private Integer xwhz;
+        private Integer dgsl;
+        private Integer dggd;
+        public Integer getRass() { return rass; }
+        public void setRass(Integer rass) { this.rass = rass; }
+        public Integer getNoRass() { return noRass; }
+        public void setNoRass(Integer noRass) { this.noRass = noRass; }
+        public List<Integer> getNoRassIndexList() { return noRassIndexList; }
+        public void setNoRassIndexList(List<Integer> noRassIndexList) { this.noRassIndexList = noRassIndexList; }
+        public Integer getSsd() { return ssd; }
+        public void setSsd(Integer ssd) { this.ssd = ssd; }
+        public Integer getGthz() { return gthz; }
+        public void setGthz(Integer gthz) { this.gthz = gthz; }
+        public Integer getXwhz() { return xwhz; }
+        public void setXwhz(Integer xwhz) { this.xwhz = xwhz; }
+        public Integer getDgsl() { return dgsl; }
+        public void setDgsl(Integer dgsl) { this.dgsl = dgsl; }
+        public Integer getDggd() { return dggd; }
+        public void setDggd(Integer dggd) { this.dggd = dggd; }
+    }
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
     public String getPid() { return pid; }
@@ -257,4 +285,6 @@ public class Score {
     public void setPatientFallDangerFactorV2(PatientFallDangerFactorV2 patientFallDangerFactorV2) { this.patientFallDangerFactorV2 = patientFallDangerFactorV2; }
     public BradenScore getBradenScore() { return bradenScore; }
     public void setBradenScore(BradenScore bradenScore) { this.bradenScore = bradenScore; }
+    public UnPlannedCGZYYScore getUnPlannedCGZYYScore() { return unPlannedCGZYYScore; }
+    public void setUnPlannedCGZYYScore(UnPlannedCGZYYScore unPlannedCGZYYScore) { this.unPlannedCGZYYScore = unPlannedCGZYYScore; }
 }
