@@ -556,7 +556,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
     .sheet-pageno {
       position: absolute;
       right: 7mm;
-      bottom: 40px;
+      bottom: 24px;
       left: 7mm;
       margin: 0;
       color: #000;
