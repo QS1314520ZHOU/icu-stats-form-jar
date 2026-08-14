@@ -194,7 +194,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
     .footnote{margin-top:5px;font-family:'SimSun','宋体',serif;font-size:9.5pt;line-height:1.25;text-align:left;margin-bottom:10mm}
     .footnote .fn-title{font-weight:700;display:inline}
     .footnote .fn{margin:0}
-    .sheet-pageno{position:absolute;left:12mm;right:12mm;bottom:6mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:13pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
+    .sheet-pageno{position:absolute;left:12mm;right:12mm;bottom:40px;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:13pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
     @media screen{.sheet{width:calc(100vw - 32px);max-width:297mm;min-width:980px;zoom:1!important;transform:none!important}}
     @media print{
       @page{size:A4 landscape;margin:0}

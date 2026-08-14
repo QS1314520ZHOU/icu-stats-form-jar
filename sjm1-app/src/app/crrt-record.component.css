@@ -306,7 +306,7 @@ h1 {
 .page-no {
   position: absolute;
   right: 6mm;
-  bottom: 3mm;
+  bottom: 40px;
   left: 6mm;
   margin: 0;
   color: #000;
@@ -454,7 +454,7 @@ h1 {
 
   .page-no {
     right: 21px;
-    bottom: 11px;
+    bottom: 40px;
     left: 21px;
     font-size: 11px;
     line-height: 20px;
@@ -586,7 +586,7 @@ h1 {
 
   .page-no {
     right: 6mm !important;
-    bottom: 3mm !important;
+    bottom: 40px !important;
     left: 6mm !important;
     font-size: 8.5pt !important;
   }
