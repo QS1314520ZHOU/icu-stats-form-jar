@@ -420,7 +420,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
       height: 210mm;
       min-height: 210mm;
       margin: 16px auto;
-      padding: 3mm 7mm 9mm;
+      padding: 6mm 7mm 15mm;
       overflow: hidden;
       background: #fff;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -923,7 +923,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
         min-height: 210mm !important;
         max-height: 210mm !important;
         margin: 0 !important;
-        padding: 3mm 7mm 9mm !important;
+        padding: 6mm 7mm 15mm !important;
         overflow: hidden !important;
         background: #fff;
         box-shadow: none !important;
@@ -1079,11 +1079,26 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
     win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>非计划拔管风险评估及护理措施记录单</title><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
     const doPrint = () => {
-      const sheets = win.document.querySelectorAll<HTMLElement>('.sheet');
-      for (const sheet of Array.from(sheets)) {
-        if (sheet.scrollWidth > sheet.clientWidth + 1) { console.warn('横向溢出: ' + (sheet.scrollWidth - sheet.clientWidth) + 'px'); }
-        if (sheet.scrollHeight > sheet.clientHeight + 1) { console.warn('纵向溢出: ' + (sheet.scrollHeight - sheet.clientHeight) + 'px'); }
-      }
+      const printSheets = win.document.querySelectorAll<HTMLElement>('.sheet');
+      printSheets.forEach((sheet, index) => {
+        const horizontalOverflow = sheet.scrollWidth - sheet.clientWidth;
+        const verticalOverflow = sheet.scrollHeight - sheet.clientHeight;
+        if (horizontalOverflow > 1) {
+          console.warn(`[unplanned-print] 第${index + 1}页横向溢出：${horizontalOverflow}px`);
+        }
+        if (verticalOverflow > 1) {
+          console.warn(`[unplanned-print] 第${index + 1}页纵向溢出：${verticalOverflow}px`);
+        }
+        const titleRect = sheet.querySelector('.title-line')?.getBoundingClientRect();
+        const tableRect = sheet.querySelector('.record-table')?.getBoundingClientRect();
+        const footnoteRect = sheet.querySelector('.footnote')?.getBoundingClientRect();
+        const pageNumberRect = sheet.querySelector('.sheet-pageno')?.getBoundingClientRect();
+        if (footnoteRect && pageNumberRect) {
+          if (footnoteRect.bottom > pageNumberRect.top) {
+            console.warn(`[unplanned-print] 第${index + 1}页备注与页码重叠：${Math.round(footnoteRect.bottom)} > ${Math.round(pageNumberRect.top)}`);
+          }
+        }
+      });
       win.focus(); win.print();
     };
     const ready = () => {
