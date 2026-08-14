@@ -303,7 +303,7 @@ h1 {
    Page number
    ========================================================= */
 
-.page-no {
+/* .page-no {
   position: absolute;
   right: 6mm;
   bottom: 40px;
@@ -313,7 +313,9 @@ h1 {
   font: 8.5pt/1 "SimSun", "宋体", serif;
   text-align: center;
   white-space: nowrap;
-}
+} */
+.page-no { position: absolute; left: 8mm; right: 8mm; bottom: 40px; margin: 0; text-align: center; font-family: "SimSun", "宋体", serif; font-size: 12pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; }
+ 
 
 /* =========================================================
    Integer-pixel screen rendering
@@ -583,7 +585,7 @@ h1 {
   .signature-row td {
     height: 5.5mm !important;
   }
-
+/* .page-no { position: absolute; left: 8mm; right: 8mm; bottom: 40px; margin: 0; text-align: center; font-family: "SimSun", "宋体", serif; font-size: 12pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; } */
   .page-no {
     right: 6mm !important;
     bottom: 40px !important;
