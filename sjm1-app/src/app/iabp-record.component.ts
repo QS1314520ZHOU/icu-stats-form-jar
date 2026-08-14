@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 interface BedsideRecord { pid:string|number; code:string; time:string; strVal?:string; valid:boolean|string|number; editUser?:string; }
 interface IabpMetric { label:string; code:string; }
@@ -59,7 +60,7 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
  readonly queryCodes=Array.from(new Set([...this.metricCodes,'param_Yishi']));
  readonly columnIndexes=[0,1,2,3,4,5,6,7,8,9,10];
  patient:any=null;account:any=null;pid='';age:number|null=null;diagnosisDisplay='';
- loading=false;loadError='';pages:RenderPage[]=[{index:1,times:[]}];selectedPrintPage:number|null=null;
+ loading=false;loadError='';pages:RenderPage[]=[{index:1,times:[]}];selectedPrintPages:number[]=[];printing=false;
  insertionSite:'RIGHT_FEMORAL'|'LEFT_FEMORAL'|'OTHER'|''='';otherArtery='';catheterLengthCm:number|null=null;extraSaveState:SaveState='idle';
  constructor(private http:HttpClient,private hostPatient:HostPatientService,private cdr:ChangeDetectorRef){}
  ngOnInit():void{
@@ -68,7 +69,7 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
   this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;}this.patient=p;this.pid=String(p.id).trim();this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
- private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatureRecords=[];this.pages=[{index:1,times:[]}];}
+ private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatureRecords=[];this.pages=[{index:1,times:[]}];this.selectedPrintPages=[];}
  load():void{
   if(!this.pid)return;this.loading=true;this.loadError='';
   const params=new HttpParams().set('pid',this.pid).set('codes',this.queryCodes.join(','));
@@ -93,6 +94,7 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
   this.pages=[];
   for(let i=0;i<times.length;i+=11)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+11)});
   if(!this.pages.length)this.pages=[{index:1,times:[]}];
+  this.normalizeSelectedPrintPages(this.pages.length);
   if(editUserIds.size)this.loadAccountNames([...editUserIds]);
  }
  metricValue(m:IabpMetric,time?:string):string{return time?this.values.get(`${this.nm(m.code)}@@${this.nm(time)}`)??'':'';}
@@ -120,7 +122,9 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
  onExtraChanged():void{if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
  saveExtraNow():void{this.onExtraChanged();}
  private loadExtra():void{this.insertionSite='';this.otherArtery='';this.catheterLengthCm=null;this.http.get<any>(`${this.EXTRA}/latest`,{params:{pid:this.pid}}).pipe(takeUntil(this.destroy$),catchError(()=>of(null))).subscribe(d=>{if(d?.valid===true){this.insertionSite=d.insertionSite||'';this.otherArtery=d.otherArtery||'';this.catheterLengthCm=d.catheterLengthCm??null;}this.cdr.detectChanges();});}
- print():void{window.print();}
+ isPrintPageSelected(pageNumber:number,totalPages=this.pages.length):boolean{return shouldPrintPage(pageNumber,this.selectedPrintPages,totalPages);}
+ private normalizeSelectedPrintPages(totalPages:number):void{const normalized=normalizePrintPages(this.selectedPrintPages,totalPages);this.selectedPrintPages=(normalized.length===totalPages&&totalPages>0)?[]:normalized;}
+ print():void{this.printing=true;this.cdr.detectChanges();const afterPrint=()=>{this.printing=false;this.cdr.detectChanges();window.removeEventListener('afterprint',afterPrint);};window.addEventListener('afterprint',afterPrint);window.print();}
  private nm(v:unknown):string{return String(v??'').trim();}
  private calcAge(v:any):number|null{if(!v)return null;const d=new Date(v);if(isNaN(d.getTime()))return null;const n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
  private formatDiagnosis(v?:string):string{return v?v.split(/[;；,，]/)[0].trim():'';}

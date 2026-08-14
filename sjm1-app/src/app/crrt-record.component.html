@@ -20,13 +20,11 @@
 
   <!-- 右侧：页码和打印 -->
   <div class="toolbar-right">
-    <label class="page-select">
-      <span>打印页码：</span>
-      <select [(ngModel)]="selectedPrintPage">
-        <option [ngValue]="null">全部</option>
-        <option *ngFor="let page of pages" [ngValue]="page.index">第 {{page.index}} 页</option>
-      </select>
-    </label>
+    <app-print-page-multi-select
+      [totalPages]="pages.length"
+      [(selectedPages)]="selectedPrintPages"
+      [disabled]="loading"
+    ></app-print-page-multi-select>
     <button type="button" class="btn primary" [disabled]="loading" (click)="print()">打印</button>
   </div>
 </div>
@@ -37,7 +35,7 @@
 <div
   *ngFor="let page of pages"
   class="print-page"
-  [class.print-hidden]="selectedPrintPage !== null && selectedPrintPage !== page.index"
+  [class.print-hidden]="printing && !isPrintPageSelected(page.index)"
 >
   <section class="sheet">
     <h1>重钢总医院连续性血液净化治疗护理记录单</h1>

@@ -29,6 +29,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -72,15 +73,11 @@ interface RenderPage {
 		<div class="toolbar no-print">
 			<div class="toolbar-left"></div>
 			<div class="toolbar-right">
-				<label class="page-select">
-					页码选择：
-					<select [(ngModel)]="selectedPage">
-						<option [ngValue]="null">全部</option>
-						<option *ngFor="let p of pages" [ngValue]="p.index">
-							第 {{p.index}} 页
-						</option>
-					</select>
-				</label>
+				<app-print-page-multi-select
+					[totalPages]="pages.length"
+					[(selectedPages)]="selectedPrintPages"
+					[disabled]="loading"
+				></app-print-page-multi-select>
 				<button type="button" class="btn" (click)="onPrint()">打印</button>
 			</div>
 		</div>
@@ -92,8 +89,8 @@ interface RenderPage {
 			<section
 				class="sheet"
 				*ngFor="let page of pages"
-				[class.print-hidden]="selectedPage !== null && selectedPage !== page.index"
-				[class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index"
+				[class.print-hidden]="printing && !isPrintPageSelected(page.index)"
+				[class.sheet-hidden]="printing && !isPrintPageSelected(page.index)"
 			>
 				<!-- 单行标题 -->
 				<header class="sheet-head">
@@ -326,7 +323,8 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 	isInHospital = false;
 	isOutHospital = false;
 
-	selectedPage: number | null = null;
+	selectedPrintPages: number[] = [];
+	printing = false;
 	private readonly rowsPerPage = 12; // 固定每页12条，系统展示与打印一致
 	private pid = '';
 	private destroy$ = new Subject<void>();
@@ -535,9 +533,7 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 			}
 		}
 		this.pages = pages;
-		if (this.selectedPage !== null && this.selectedPage > pages.length) {
-			this.selectedPage = null;
-		}
+		this.normalizeSelectedPrintPages(this.pages.length);
 	}
 
 	private recomputePagination(): void {
@@ -551,18 +547,22 @@ export class Sjm1VeinMaintenanceComponent implements OnInit, AfterViewInit, OnDe
 		return rows;
 	}
 
+		isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+			return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+		}
+		private normalizeSelectedPrintPages(totalPages: number): void {
+			const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+			this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+		}
+
 		/* 打印：独立窗口 + 横向 + 去页眉页脚 */
 		onPrint(): void {
 			const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
 			if (!allSheets.length) return;
-			const selectedPageNumber = this.selectedPage === null || this.selectedPage === undefined ? null : Number(this.selectedPage);
-			if (selectedPageNumber !== null && (!Number.isInteger(selectedPageNumber) || selectedPageNumber < 1 || selectedPageNumber > this.pages.length)) {
-				alert('选择的打印页码无效'); return;
-			}
 			let body = '';
 			allSheets.forEach((s: HTMLElement, idx: number) => {
 				const pageIndex = idx + 1;
-				if (selectedPageNumber !== null && pageIndex !== selectedPageNumber) return;
+				if (!shouldPrintPage(pageIndex, this.selectedPrintPages, this.pages.length)) return;
 				const c = s.cloneNode(true) as HTMLElement;
 				c.classList.remove('sheet-hidden');
 				c.querySelectorAll('input[type=checkbox]').forEach(el => {

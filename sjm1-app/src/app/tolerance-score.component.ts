@@ -22,6 +22,7 @@ import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiDateTime, formatShanghaiTime } from './form-date.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 /* ============================= 配置区（新增评估表时改这里） ============================= */
 
@@ -118,19 +119,18 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
   template: `
     <div class="toolbar no-print">
       <div class="toolbar-right">
-        <span class="page-select">页码选择：
-          <select [(ngModel)]="selectedPage">
-            <option [ngValue]="null">全部</option>
-            <option *ngFor="let p of pages" [ngValue]="p.index">第 {{p.index}} 页</option>
-          </select>
-        </span>
+        <app-print-page-multi-select
+          [totalPages]="pages.length"
+          [(selectedPages)]="selectedPrintPages"
+          [disabled]="loading"
+        ></app-print-page-multi-select>
         <button class="btn" (click)="onPrint()">打印</button>
       </div>
     </div>
 
     <div class="loading" *ngIf="loading">加载中…</div>
 
-    <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index">
+    <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="!isPrintPageSelected(page.index)">
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}肠内营养耐受性评分表</div>
         </div>
@@ -267,7 +267,7 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
   records: ScoreRecord[] = [];
   columns: EvalColumn[] = [];
   pages: RenderPage[] = [];
-  selectedPage: number | null = null;
+  selectedPrintPages: number[] = [];
 
   readonly matrix: MatrixRow[] = SCORE_GROUPS.flatMap(g =>
     SYMPTOMS.map((s, i) => ({
@@ -333,7 +333,7 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
     this.records = [];
     this.columns = [];
     this.pages = [];
-    this.selectedPage = null;
+    this.selectedPrintPages = [];
     this.age = null;
     this.diagnosisDisplay = '';
     this.cdr.detectChanges();
@@ -431,9 +431,7 @@ private paginate(): void {
       }
     }
     this.pages = pages;
-    if (this.selectedPage !== null && this.selectedPage > pages.length) {
-      this.selectedPage = null;
-    }
+    this.normalizeSelectedPrintPages(pages.length);
   }
 
   pagePaddedCols(page: RenderPage): (EvalColumn | null)[] {
@@ -470,17 +468,22 @@ private paginate(): void {
     return index >= 0 ? diagnosis.substring(0, index).trim() : diagnosis.trim();
   }
 
+  isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+  }
+
   onPrint(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) return;
-    const selectedPageNumber = this.selectedPage === null || this.selectedPage === undefined ? null : Number(this.selectedPage);
-    if (selectedPageNumber !== null && (!Number.isInteger(selectedPageNumber) || selectedPageNumber < 1 || selectedPageNumber > this.pages.length)) {
-      alert('选择的打印页码无效'); return;
-    }
+    const sheets = this.pages;
     let body = '';
     allSheets.forEach((s: HTMLElement, idx: number) => {
       const pageIndex = idx + 1;
-      if (selectedPageNumber !== null && pageIndex !== selectedPageNumber) return;
+      if (!shouldPrintPage(pageIndex, this.selectedPrintPages, sheets.length)) return;
       const c = s.cloneNode(true) as HTMLElement;
       c.classList.remove('sheet-hidden');
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());

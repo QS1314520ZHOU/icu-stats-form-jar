@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { forkJoin, of, firstValueFrom, Subject } from 'rxjs';
 import { catchError, finalize, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
 
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -64,7 +65,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   createDialogError = '';
 
   /* 打印 */
-  selectedPrintPage: number | null = null;
+  selectedPrintPages: number[] = [];
   printingAll = false;
   printAllMode = false;
   printRecords: CrrtOrderFormRecord[] = [];
@@ -121,7 +122,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       this.pid = newPid;
       this.age = this.calcAge(p.birthday);
       this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis || p.diagnosis);
-      if (newPid && newPid !== oldPid) { this.flushAutoSave(); this.record = this.createEmptyRecord(); this.customConsumableSelected = false; this.customConsumableText = ''; this.applyPatientToRecord(this.record); this.loadTimeOptions(); }
+      if (newPid && newPid !== oldPid) { this.flushAutoSave(); this.record = this.createEmptyRecord(); this.customConsumableSelected = false; this.customConsumableText = ''; this.selectedPrintPages = []; this.applyPatientToRecord(this.record); this.loadTimeOptions(); }
     });
     this.loadSignatureAccounts();
   }
@@ -487,7 +488,8 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
       await this.waitForRender();
       await this.waitForFonts();
-      const expectedPageCount = this.selectedPrintPage === null ? 2 : 1;
+      const normalized = normalizePrintPages(this.selectedPrintPages, 2);
+      const expectedPageCount = normalized.length === 0 ? 2 : normalized.length;
       this.validatePrintPages(expectedPageCount);
       window.print();
     } catch (error) {
@@ -519,12 +521,15 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
         });
       if (!validRecords.length) { throw new Error('没有可打印的医嘱记录。'); }
       for (const item of validRecords) { this.applyPatientToRecord(item); }
+      const selectedLocalPages = normalizePrintPages(this.selectedPrintPages, 2);
+      const pagesPerRecord = selectedLocalPages.length === 0 ? 2 : selectedLocalPages.length;
       this.printAllMode = true;
       this.printRecords = validRecords.map(item => this.cloneRecord(item));
       this.cdr.detectChanges();
       await this.waitForRender();
       await this.waitForFonts();
-      this.validatePrintPages(validRecords.length * 2);
+      const expectedPageCount = validRecords.length * pagesPerRecord;
+      this.validatePrintPages(expectedPageCount);
       window.print();
     } catch (error) {
       console.error('CRRT print all failed', error);
@@ -581,8 +586,16 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     return Math.max(this.timeOptions.length, fallbackCount) * 2;
   }
 
-  getPrintPageFilter(): number | null {
-    return this.printAllMode ? null : this.selectedPrintPage;
+  getPrintPageFilter(): number[] {
+    return normalizePrintPages(this.selectedPrintPages, 2);
+  }
+
+  isPrintPageSelected(pageNumber: number): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, 2);
+  }
+
+  shouldPrintOrderPage(localPageNumber: number): boolean {
+    return shouldPrintPage(localPageNumber, this.selectedPrintPages, 2);
   }
 
   getPrintRecordPageBase(record: CrrtOrderFormRecord, printIndex: number): number {

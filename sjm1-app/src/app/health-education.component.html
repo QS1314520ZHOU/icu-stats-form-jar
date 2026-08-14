@@ -1,7 +1,11 @@
 <div class="toolbar no-print"><div class="toolbar-right">
   <button class="btn" type="button" (click)="openCreate()" [disabled]="!patient">新增</button>
   <button class="btn" type="button" (click)="openEditList()" [disabled]="!patient">编辑</button>
-  <label class="page-select">页码选择：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.index">第 {{ p.index }} 页</option></select></label>
+  <app-print-page-multi-select
+    [totalPages]="pages.length"
+    [(selectedPages)]="selectedPrintPages"
+    [disabled]="loading"
+  ></app-print-page-multi-select>
   <button class="btn" type="button" (click)="print()" [disabled]="!pages.length">打印</button>
 </div></div>
 <div class="loading" *ngIf="loading">加载中…</div>

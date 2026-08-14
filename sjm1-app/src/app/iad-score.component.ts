@@ -19,6 +19,7 @@ import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 /* ============================= 配置区 ============================= */
 
@@ -98,12 +99,11 @@ interface RenderPage { index: number; rows: IadRow[]; }
   template: `
     <div class="toolbar no-print">
       <div class="toolbar-right">
-        <span class="page-select">页码选择：
-          <select [(ngModel)]="selectedPage">
-            <option [ngValue]="null">全部</option>
-            <option *ngFor="let p of pages" [ngValue]="p.index">第 {{p.index}} 页</option>
-          </select>
-        </span>
+        <app-print-page-multi-select
+          [totalPages]="pages.length"
+          [(selectedPages)]="selectedPrintPages"
+          [disabled]="loading"
+        ></app-print-page-multi-select>
         <button class="btn" (click)="onPrint()">打印</button>
       </div>
     </div>
@@ -111,7 +111,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
     <div class="loading" *ngIf="loading">加载中…</div>
 
     <ng-container *ngFor="let page of pages">
-      <div class="sheet" *ngIf="selectedPage === null || selectedPage === page.index">
+      <div class="sheet" *ngIf="isPrintPageSelected(page.index)">
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}成人失禁相关性皮炎分类及会阴部皮肤评估护理记录单</div>
         </div>
@@ -377,7 +377,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   records: ScoreRecord[] = [];
   rows: IadRow[] = [];
   pages: RenderPage[] = [];
-  selectedPage: number | null = null;
+  selectedPrintPages: number[] = [];
 
   readonly maxRowsPerPage = 6;
   private pid = '';
@@ -428,7 +428,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     this.records = [];
     this.rows = [];
     this.pages = [];
-    this.selectedPage = null;
+    this.selectedPrintPages = [];
     this.diagnosisDisplay = '';
     this.age = null;
     this.cdr.detectChanges();
@@ -525,15 +525,21 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private paginate(): void {
     this.pages = this.buildPages(this.rows, this.maxRowsPerPage);
-    if (this.selectedPage !== null && this.selectedPage > this.pages.length) {
-      this.selectedPage = null;
-    }
+    this.normalizeSelectedPrintPages(this.pages.length);
   }
 
   pagePaddedRows(page: RenderPage): (IadRow | null)[] {
     const result: (IadRow | null)[] = page.rows.slice(0, this.maxRowsPerPage);
     while (result.length < this.maxRowsPerPage) result.push(null);
     return result;
+  }
+
+  isPrintPageSelected(pageNumber: number): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, this.pages.length);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
   }
 
   private fitScale(): void {
@@ -584,34 +590,13 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     ) as HTMLElement[];
     if (!allPrintPages.length) return;
 
-    // Validate and normalize selectedPage
-    const selectedPageNumber =
-      this.selectedPage === null || this.selectedPage === undefined
-        ? null
-        : Number(this.selectedPage);
-    if (
-      selectedPageNumber !== null &&
-      (!Number.isInteger(selectedPageNumber) ||
-        selectedPageNumber < 1 ||
-        selectedPageNumber > this.pages.length)
-    ) {
-      alert('选择的打印页码无效');
-      return;
-    }
-
-    // Filter pages by selectedPage
-    const pagesToPrint: HTMLElement[] =
-      selectedPageNumber === null
-        ? allPrintPages
-        : allPrintPages.filter((page: HTMLElement) => {
-            return Number(page.dataset['pageIndex']) === selectedPageNumber;
-          });
+    // Filter pages by selectedPrintPages
+    const pagesToPrint: HTMLElement[] = allPrintPages.filter((page: HTMLElement) => {
+      const pageNo = Number(page.dataset['pageIndex']);
+      return shouldPrintPage(pageNo, this.selectedPrintPages, this.pages.length);
+    });
     if (!pagesToPrint.length) {
-      alert(
-        selectedPageNumber === null
-          ? '没有可打印的页面'
-          : '没有找到第' + selectedPageNumber + '页'
-      );
+      alert('没有可打印的页面');
       return;
     }
 

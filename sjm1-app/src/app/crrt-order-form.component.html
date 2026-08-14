@@ -5,7 +5,11 @@
   </div>
   <div class="toolbar-right">
     <span class="as"><ng-container [ngSwitch]="autoSaveState"><span *ngSwitchCase="'dirty'">未保存</span><span *ngSwitchCase="'saving'">保存中…</span><span *ngSwitchCase="'saved'" class="ok">已自动保存</span><button *ngSwitchCase="'error'" class="retry" (click)="retryAutoSave()">自动保存失败，重试</button></ng-container></span>
-    <label class="ps">打印：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option [ngValue]="1">第1页</option><option [ngValue]="2">第2页</option></select></label>
+    <app-print-page-multi-select
+      [totalPages]="2"
+      [(selectedPages)]="selectedPrintPages"
+      [disabled]="loading || printingAll || !record?.id"
+    ></app-print-page-multi-select>
     <button class="btn" type="button" (click)="print()">打印</button>
     <button class="btn" type="button" [disabled]="printingAll || loading || timeOptions.length === 0" (click)="printAllOrders()">{{ printingAll ? '准备打印…' : '一键打印全部' }}</button>
   </div>
@@ -30,9 +34,9 @@
   </div>
 </ng-template>
 
-<ng-template #crrtOrderPages let-order let-pageFilter="pageFilter" let-pageBase="pageBase" let-totalPages="totalPages">
+<ng-template #crrtOrderPages let-order let-pageBase="pageBase" let-totalPages="totalPages">
   <!-- ==================== 第一页 ==================== -->
-  <section *ngIf="pageFilter === null || pageFilter === 1" class="sheet crrt-print-page page-one order-page-one">
+  <section *ngIf="shouldPrintOrderPage(1)" class="sheet crrt-print-page page-one order-page-one">
     <h1>重钢总医院连续性血液净化治疗医嘱单</h1>
     <ng-container *ngTemplateOutlet="patientInformation; context: { $implicit: order }"></ng-container>
 
@@ -268,7 +272,7 @@
   </section>
 
   <!-- ==================== 第二页 ==================== -->
-  <section *ngIf="pageFilter === null || pageFilter === 2" class="sheet crrt-print-page page-two order-page-two">
+  <section *ngIf="shouldPrintOrderPage(2)" class="sheet crrt-print-page page-two order-page-two">
     <h1>重钢总医院连续性血液净化治疗医嘱单</h1>
     <ng-container *ngTemplateOutlet="patientInformation; context: { $implicit: order }"></ng-container>
 
@@ -330,13 +334,13 @@
 
 <!-- ==================== 屏幕展示区 ==================== -->
 <div class="document-area screen-document">
-  <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: record, pageFilter: null, pageBase: getRecordPageBase(record), totalPages: getTotalPageCount() }"></ng-container>
+  <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: record, pageBase: getRecordPageBase(record), totalPages: getTotalPageCount() }"></ng-container>
 </div>
 
 <!-- ==================== 打印专用区域 ==================== -->
 <div id="printRoot" class="print-render-root" aria-hidden="true">
   <ng-container *ngFor="let printRecord of printRecords; let printIndex = index; trackBy: trackRecordById">
-    <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: printRecord, pageFilter: getPrintPageFilter(), pageBase: getPrintRecordPageBase(printRecord, printIndex), totalPages: getPrintTotalPageCount() }"></ng-container>
+    <ng-container *ngTemplateOutlet="crrtOrderPages; context: { $implicit: printRecord, pageBase: getPrintRecordPageBase(printRecord, printIndex), totalPages: getPrintTotalPageCount() }"></ng-container>
   </ng-container>
 </div>
 

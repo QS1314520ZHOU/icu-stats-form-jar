@@ -1,0 +1,45 @@
+<div
+  class="print-page-selector"
+  [class.disabled]="disabled"
+>
+  <span class="selector-label">{{ label }}</span>
+
+  <button
+    type="button"
+    class="selector-trigger"
+    [disabled]="disabled || totalPages <= 0"
+    [attr.aria-expanded]="open"
+    aria-haspopup="menu"
+    (click)="open = !open"
+  >
+    <span class="selector-text">{{ selectionText }}</span>
+    <span class="selector-arrow">▾</span>
+  </button>
+
+  <div
+    *ngIf="open"
+    class="selector-panel"
+    role="menu"
+  >
+    <label class="selector-option">
+      <input
+        type="checkbox"
+        [checked]="allSelected"
+        (change)="toggleAll()"
+      />
+      <span>全部</span>
+    </label>
+
+    <label
+      *ngFor="let pageNumber of pageNumbers"
+      class="selector-option"
+    >
+      <input
+        type="checkbox"
+        [checked]="allSelected || normalizedSelectedPages.includes(pageNumber)"
+        (change)="togglePage(pageNumber, $any($event.target).checked)"
+      />
+      <span>第{{ pageNumber }}页</span>
+    </label>
+  </div>
+</div>

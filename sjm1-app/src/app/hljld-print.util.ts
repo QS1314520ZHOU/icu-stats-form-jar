@@ -100,12 +100,13 @@ body {
 }
 
 .sheet {
+  position: relative;
   box-sizing: border-box;
   width: 297mm;
   height: 210mm;
-  padding: 4mm 7mm 3mm;
+  padding: 4mm 7mm 58px;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   overflow: hidden;
   background: #fff;
 }
@@ -332,13 +333,18 @@ body {
 }
 
 .sheet-pageno {
+  position: absolute;
+  right: 7mm;
+  bottom: 40px;
+  left: 7mm;
+  margin: 0;
+  padding: 0;
   text-align: center;
   font-family: "SimSun", "宋体", serif;
   font-size: 8pt;
   line-height: 10pt;
   color: #000;
-  padding-top: 1.2mm;
-  min-height: 10pt;
+  white-space: nowrap;
 }
 `;
 

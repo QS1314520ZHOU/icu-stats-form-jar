@@ -9,6 +9,7 @@ import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap 
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { measureRowCapacity } from './form-measure.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 const SCORE_TYPE = 'patientFallDangerLJRMYY';
 const FORM_CODE = 'patientFallDangerForm';
@@ -75,19 +76,18 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
             </ul>
           </span>
         </span>
-        <span class="page-select">页码：
-          <select [(ngModel)]="selectedPage">
-            <option [ngValue]="null">全部</option>
-            <option *ngFor="let p of pages" [ngValue]="p.index">第 {{p.index}} 页</option>
-          </select>
-        </span>
+        <app-print-page-multi-select
+          [totalPages]="pages.length"
+          [(selectedPages)]="selectedPrintPages"
+          [disabled]="loading"
+        ></app-print-page-multi-select>
         <button class="btn" (click)="onPrint()">打印</button>
       </div>
     </div>
 
     <div class="loading" *ngIf="loading">加载中…</div>
 
-    <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index">
+    <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="!isPrintPageSelected(page.index)">
         <div class="sheet-head"><div class="title-line">{{hospitalName}}跌倒/坠床风险评估及预防措施护理记录单</div></div>
 
         <div class="patient-info-row">
@@ -282,7 +282,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
 
   rows: FallRow[] = [];
   pages: RenderPage[] = [];
-  selectedPage: number | null = null;
+  selectedPrintPages: number[] = [];
 
   // 工具栏可选并保存
   auditorName = ''; auditorId = ''; auditorQuery = ''; auditorOpen = false;
@@ -331,7 +331,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); this.ro?.disconnect(); }
 
   private resetForm(): void {
-    this.rows = []; this.pages = []; this.selectedPage = null;
+    this.rows = []; this.pages = []; this.selectedPrintPages = [];
     this.diagnosisDisplay = ''; this.age = null;
     this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false;
     this.pageSaveTimers.forEach(timer => clearTimeout(timer));
@@ -435,7 +435,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     if (!this.rows.length) pages.push({ index: 1, rows: [] });
     else for (let i = 0; i < this.rows.length; i += per) pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) });
     this.pages = pages;
-    if (this.selectedPage !== null && this.selectedPage > pages.length) this.selectedPage = null;
+    this.normalizeSelectedPrintPages(pages.length);
     this.syncPageExtras();
   }
 
@@ -610,17 +610,22 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   private num(v: any): number | null { if (v === null || v === undefined || v === '') return null; const n = Number(v); return isNaN(n) ? null : n; }
   private ts(v?: string): number { return databaseTimeValue(v) || 0; }
 
+  isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+  }
+
   onPrint(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) return;
-    const selectedPageNumber = this.selectedPage === null || this.selectedPage === undefined ? null : Number(this.selectedPage);
-    if (selectedPageNumber !== null && (!Number.isInteger(selectedPageNumber) || selectedPageNumber < 1 || selectedPageNumber > this.pages.length)) {
-      alert('选择的打印页码无效'); return;
-    }
+    const sheets = this.pages;
     let body = '';
     allSheets.forEach((s: HTMLElement, idx: number) => {
       const pageIndex = idx + 1;
-      if (selectedPageNumber !== null && pageIndex !== selectedPageNumber) return;
+      if (!shouldPrintPage(pageIndex, this.selectedPrintPages, sheets.length)) return;
       const c = s.cloneNode(true) as HTMLElement;
       c.classList.remove('sheet-hidden');
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());

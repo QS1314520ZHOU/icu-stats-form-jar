@@ -4,6 +4,7 @@ import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiHourMinute } from './form-date.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; editUser?: string; }
 interface CrrtMetric { label: string; code: string; unit?: string; }
@@ -98,7 +99,8 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   patient: any = null; account: any = null;
   pid = ''; age: number | null = null; diagnosisDisplay = '';
   loading = false; loadError = '';
-  selectedPrintPage: number | null = null;
+  selectedPrintPages: number[] = [];
+  printing = false;
 
   constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef) {}
 
@@ -113,12 +115,12 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
       this.patient = p; this.pid = next;
       this.age = this.calcAge(p.birthday);
       this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
-      if (next !== prev) { this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionId = null; this.visibleGroupsForSession = []; this.load(); }
+      if (next !== prev) { this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionId = null; this.visibleGroupsForSession = []; this.selectedPrintPages = []; this.load(); }
     });
   }
 
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
-  private reset(): void { this.pid = ''; this.patient = null; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionId = null; this.visibleGroupsForSession = []; }
+  private reset(): void { this.pid = ''; this.patient = null; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionId = null; this.visibleGroupsForSession = []; this.selectedPrintPages = []; }
 
   load(): void {
     if (!this.pid) return;
@@ -172,7 +174,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
     this.applyDefaultSession();
     this.rebuildSelectedSession();
 
-    this.selectedPrintPage = null;
+    this.selectedPrintPages = [];
 
     if (editUserIds.size) this.loadAccountNames([...editUserIds]);
   }
@@ -311,6 +313,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
 
   private rebuildSelectedSession(): void {
     this.visibleGroupsForSession = this.buildVisibleGroupsForSession(this.selectedSession);
+    this.normalizeSelectedPrintPages(this.pages.length);
   }
 
   private buildVisibleGroupsForSession(session: CrrtSession | null): CrrtGroup[] {
@@ -375,5 +378,18 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   private norm(v: unknown): string { return String(v ?? '').trim(); }
   private calcAge(b?: string): number | null { if (!b) return null; const d = new Date(b); if (Number.isNaN(d.getTime())) return null; const n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n.getMonth() < d.getMonth() || (n.getMonth() === d.getMonth() && n.getDate() < d.getDate())) a--; return a >= 0 ? a : null; }
   private formatDiagnosis(d?: string): string { if (!d) return ''; let idx = -1; for (const sep of [';', '；', ',', '，']) { const cur = d.indexOf(sep); if (cur >= 0 && (idx < 0 || cur < idx)) idx = cur; } return idx >= 0 ? d.substring(0, idx).trim() : d.trim(); }
-  print(): void { window.print(); }
+  isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+  }
+  print(): void {
+    this.printing = true;
+    this.cdr.detectChanges();
+    const afterPrint = () => { this.printing = false; this.cdr.detectChanges(); window.removeEventListener('afterprint', afterPrint); };
+    window.addEventListener('afterprint', afterPrint);
+    window.print();
+  }
 }

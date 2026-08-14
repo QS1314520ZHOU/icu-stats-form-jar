@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; editUser?: string; }
 interface PiccoMetric { label: string; normal: string; code: string; }
@@ -43,7 +44,7 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  readonly metricCodes=PICCO_METRICS.map(x=>x.code);
  readonly queryCodes=Array.from(new Set([...this.metricCodes,'param_Yishi']));
  patient:any=null; account:any=null; pid=''; age:number|null=null; diagnosisDisplay='';
- loading=false; loadError=''; pages:RenderPage[]=[{index:1,timePoints:[]}]; selectedPrintPage:number|null=null;
+ loading=false; loadError=''; pages:RenderPage[]=[{index:1,timePoints:[]}]; selectedPrintPages:number[]=[]; printing=false;
  insertionSide:''|'RIGHT'|'LEFT'=''; arteryName=''; catheterLengthCm:number|null=null; extraSaveState:SaveState='idle';
  constructor(private http:HttpClient,private hostPatient:HostPatientService,private cdr:ChangeDetectorRef){}
  ngOnInit():void{
@@ -52,7 +53,7 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;} const next=String(p.id).trim();this.patient=p;this.pid=next;this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
- private reset():void{this.pid='';this.patient=null;this.values.clear();this.yishiRecords=[];this.accountNameMap.clear();this.pages=[{index:1,timePoints:[]}];}
+ private reset():void{this.pid='';this.patient=null;this.values.clear();this.yishiRecords=[];this.accountNameMap.clear();this.pages=[{index:1,timePoints:[]}];this.selectedPrintPages=[];}
  load():void{
   if(!this.pid)return;this.loading=true;this.loadError='';
   const params=new HttpParams().set('pid',this.pid).set('codes',this.queryCodes.join(','));
@@ -84,6 +85,7 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   this.pages=[];
   for(let i=0;i<timePoints.length;i+=8)this.pages.push({index:this.pages.length+1,timePoints:timePoints.slice(i,i+8)});
   if(!this.pages.length)this.pages=[{index:1,timePoints:[]}];
+  this.normalizeSelectedPrintPages(this.pages.length);
   if(editUserIds.size)this.loadAccountNames([...editUserIds]);
  }
  metricValue(m:PiccoMetric,tp:TimePoint|undefined):string{return tp?this.values.get(`${m.code}@@${tp.instant}`)??'':'';}
@@ -109,7 +111,9 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
    next:rows=>{(Array.isArray(rows)?rows:[]).forEach(r=>{const id=String(r?.accountId??r?._id??r?.id??'').trim();const name=String(r?.accountName??r?.trueName??r?.name??'').trim();if(id&&name)this.accountNameMap.set(id,name);});this.cdr.detectChanges();},
    error:()=>{}});
  }
- print():void{window.print();}
+ isPrintPageSelected(pageNumber:number,totalPages=this.pages.length):boolean{return shouldPrintPage(pageNumber,this.selectedPrintPages,totalPages);}
+ private normalizeSelectedPrintPages(totalPages:number):void{const normalized=normalizePrintPages(this.selectedPrintPages,totalPages);this.selectedPrintPages=(normalized.length===totalPages&&totalPages>0)?[]:normalized;}
+ print():void{this.printing=true;this.cdr.detectChanges();const afterPrint=()=>{this.printing=false;this.cdr.detectChanges();window.removeEventListener('afterprint',afterPrint);};window.addEventListener('afterprint',afterPrint);window.print();}
  private calcAge(b:any):number|null{if(!b)return null;const d=new Date(b);if(isNaN(d.getTime()))return null;const n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
  private formatDiagnosis(d?:string):string{if(!d)return'';return d.split(/[;；,，]/)[0].trim();}
 }

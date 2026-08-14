@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@an
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
 
 interface OptionItem { code: string; label: string; detail?: string; }
 interface OptionGroup { name: string; items: OptionItem[]; }
@@ -84,7 +85,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   patient: any = null; hospitalName = '重钢总医院'; age: number|null = null;
   loading = false; saving = false; deletingId = ''; loadError = '';
   records: HealthEducationRecord[] = []; pages: RenderPage[] = [];
-  selectedPrintPage: number | null = null;
+  selectedPrintPages: number[] = [];
   editListOpen = false; formOpen = false; editing = false; errorText = '';
   accounts: AccountOption[] = []; account: any = null;
   form: HealthEducationRecord = this.emptyForm('');
@@ -311,14 +312,24 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     window.setTimeout(() => { this.nurseDropdownOpen = false; }, 150);
   }
 
+  isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+  }
   print(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) { alert('没有可打印的表单'); return; }
-    const sp = this.selectedPrintPage;
-    if (sp !== null && (!Number.isInteger(sp) || sp < 1 || sp > this.pages.length)) { alert('选择的打印页码无效'); return; }
+    const totalPages = allSheets.length;
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    const expectedCount = normalized.length === 0 ? totalPages : normalized.length;
+    if (expectedCount <= 0) { alert('请至少选择一个打印页码'); return; }
     let body = '';
     allSheets.forEach((s: HTMLElement, idx: number) => {
-      if (sp !== null && idx + 1 !== sp) return;
+      const pageNumber = idx + 1;
+      if (!shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages)) return;
       const c = s.cloneNode(true) as HTMLElement;
       c.querySelectorAll('.no-print').forEach(el => el.remove());
       body += '<section class="print-page">' + c.outerHTML + '</section>';
@@ -346,7 +357,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       .handover-cell .handover-content{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(160px,1fr) minmax(210px,1.2fr) auto;align-items:center;gap:8px 12px}
       .contact-cell{padding:3px 5px!important;text-align:center;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2;color:#000}
       .time-date,.time-clock{display:block;text-align:center;white-space:nowrap;line-height:1.1}
-      .sheet-pageno{position:absolute;left:8mm;right:8mm;bottom:5mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
+      .sheet-pageno{position:absolute;left:8mm;right:8mm;bottom:40px;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
       .no-print,.shared-screen-editor,.shared-actions{display:none!important}
       .other-summary-cell .no-print{display:none!important}
       .merged-item-cell{width:136px;padding:2px 4px!important;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2}
@@ -388,7 +399,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     const out: RenderPage[]=[]; const source=this.records.length?this.records:[null as any];
     for(let i=0;i<source.length;i+=5){const rows=(source.slice(i,i+5) as (HealthEducationRecord|null)[]); while(rows.length<5)rows.push(null); out.push({index:out.length+1,records:rows});}
     this.pages=out;
-    if(this.selectedPrintPage!==null && this.selectedPrintPage>this.pages.length) this.selectedPrintPage=null;
+    this.normalizeSelectedPrintPages(this.pages.length);
   }
   private emptyForm(pid: string): HealthEducationRecord { return {pid,assessmentTime:'',itemCodes:[],educationTarget:'',evaluationCodes:[],nurseName:'',valuableCodes:[],receiverConfirmed:false,dischargeEducation:false,transferEducation:false}; }
   private loadAccounts(): void {

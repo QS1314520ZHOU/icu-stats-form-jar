@@ -8,6 +8,7 @@ import { of, Subject } from 'rxjs';
 import { catchError, filter, finalize, map, retry, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { formatShanghaiDate, formatShanghaiTime } from './form-date.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 const SCORE_TYPE = 'bradenScore';
 const FORM_CODE = 'bradenForm';
@@ -57,7 +58,11 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
   template: `
     <div class="toolbar no-print">
       <div class="toolbar-right">
-        <label class="page-select">页码：<select [(ngModel)]="selectedPage"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.index">第 {{p.index}} 页</option></select></label>
+        <app-print-page-multi-select
+          [totalPages]="pages.length"
+          [(selectedPages)]="selectedPrintPages"
+          [disabled]="loading"
+        ></app-print-page-multi-select>
         <button class="btn" type="button" (click)="print()">打印</button>
       </div>
     </div>
@@ -65,7 +70,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
     <div *ngIf="loading" class="loading no-print">加载中…</div>
 
     <ng-container *ngFor="let page of pages">
-      <section class="sheet" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index" [class.last-sheet]="page.index === pages.length">
+      <section class="sheet" [class.sheet-hidden]="!isPrintPageSelected(page.index)" [class.last-sheet]="page.index === pages.length">
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}住院患者压力性损伤评估及措施记录单</div>
           <div class="patient-info-row">
@@ -234,7 +239,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
 
   rows: BradenRow[] = [];
   pages: RenderPage[] = [];
-  selectedPage: number | null = null;
+  selectedPrintPages: number[] = [];
 
   readonly resultOptions = ['出院', '死亡'];
   private pageExtraMap = new Map<number, PageExtraData>();
@@ -324,7 +329,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private resetPatientData(): void {
-    this.rows = []; this.pages = []; this.selectedPage = null;
+    this.rows = []; this.pages = []; this.selectedPrintPages = [];
     this.pageSaveTimers.forEach(timer => clearTimeout(timer));
     this.pageSaveTimers.clear();
     this.pageExtraMap.clear();
@@ -559,7 +564,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     if (!this.rows.length) { pages.push({ index: 1, rows: [] }); }
     else { for (let i = 0; i < this.rows.length; i += per) { pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) }); } }
     this.pages = pages;
-    if (this.selectedPage !== null && this.selectedPage > pages.length) this.selectedPage = null;
+    this.normalizeSelectedPrintPages(pages.length);
     this.syncPageExtras();
   }
 
@@ -582,6 +587,14 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   fmtDate(time: string): string { return formatShanghaiDate(time); }
   fmtTime(time: string): string { return formatShanghaiTime(time); }
   genderText(g: any): string { const s = String(g ?? '').trim(); if (s === '1' || s === '男' || /^m$/i.test(s) || /^male$/i.test(s)) return '男性'; if (s === '2' || s === '女' || /^f$/i.test(s) || /^female$/i.test(s)) return '女性'; return s; }
+  isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+  }
+
   print(): void { window.print(); }
 
   private loadHospitalName(): void {

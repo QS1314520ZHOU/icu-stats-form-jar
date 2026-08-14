@@ -13,6 +13,7 @@ import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap 
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { measureRowCapacity } from './form-measure.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 /* ============================= 配置区 ============================= */
 
@@ -85,12 +86,11 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
             </ul>
           </span>
         </span>
-        <span class="page-select">页码选择：
-          <select [(ngModel)]="selectedPage">
-            <option [ngValue]="null">全部</option>
-            <option *ngFor="let p of pages" [ngValue]="p.index">第 {{p.index}} 页</option>
-          </select>
-        </span>
+        <app-print-page-multi-select
+          [totalPages]="pages.length"
+          [(selectedPages)]="selectedPrintPages"
+          [disabled]="loading"
+        ></app-print-page-multi-select>
         <button class="btn" (click)="onPrint()">打印</button>
       </div>
     </div>
@@ -98,7 +98,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     <div class="loading" *ngIf="loading">加载中…</div>
 
       <div class="sheet"
-           *ngFor="let page of pages" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index">
+           *ngFor="let page of pages" [class.sheet-hidden]="!isPrintPageSelected(page.index)">
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}住院患者日常生活能力评估单</div>
         </div>
@@ -249,7 +249,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   records: ScoreRecord[] = [];
   rows: BarthelRow[] = [];
   pages: RenderPage[] = [];
-  selectedPage: number | null = null;
+  selectedPrintPages: number[] = [];
 
   auditorName = '';
   auditorId = '';
@@ -312,7 +312,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     this.records = [];
     this.rows = [];
     this.pages = [];
-    this.selectedPage = null;
+    this.selectedPrintPages = [];
     this.diagnosisDisplay = '';
     this.age = null;
     this.auditorName = '';
@@ -431,7 +431,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     if (curRows.length) pages.push({ index: pages.length + 1, rows: curRows });
     if (!pages.length) pages.push({ index: 1, rows: [] });
     this.pages = pages.map((p, i) => ({ ...p, index: i + 1 }));
-    if (this.selectedPage !== null && this.selectedPage > this.pages.length) this.selectedPage = null;
+    this.normalizeSelectedPrintPages(this.pages.length);
   }
 
   private async measureFixedHeight(): Promise<number> {
@@ -643,20 +643,24 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     return index >= 0 ? diagnosis.substring(0, index).trim() : diagnosis.trim();
   }
 
+  isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+  }
+
   onPrint(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) return;
 
-    const selectedPageNumber = this.selectedPage === null || this.selectedPage === undefined ? null : Number(this.selectedPage);
-    if (selectedPageNumber !== null && (!Number.isInteger(selectedPageNumber) || selectedPageNumber < 1 || selectedPageNumber > this.pages.length)) {
-      alert('选择的打印页码无效'); return;
-    }
-
+    const sheets = this.pages;
     let body = '';
     allSheets.forEach((s: HTMLElement, idx: number) => {
       // idx 0 = page 1, idx 1 = page 2, etc.
       const pageIndex = idx + 1;
-      if (selectedPageNumber !== null && pageIndex !== selectedPageNumber) return;
+      if (!shouldPrintPage(pageIndex, this.selectedPrintPages, sheets.length)) return;
       const c = s.cloneNode(true) as HTMLElement;
       c.classList.remove('sheet-hidden');
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());

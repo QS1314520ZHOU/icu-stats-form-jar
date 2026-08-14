@@ -19,6 +19,7 @@ import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiHourMinute } from './form-date.util';
+import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -68,20 +69,18 @@ const MARK_OTHER = '⑥';
   template: `
     <div class="toolbar no-print">
       <div class="toolbar-right">
-        <span class="page-select">
-          页码选择：
-          <select [(ngModel)]="selectedPage">
-            <option [value]="null">全部</option>
-            <option *ngFor="let p of pages" [value]="p.index">第 {{p.index}} 页</option>
-          </select>
-        </span>
+        <app-print-page-multi-select
+          [totalPages]="pages.length"
+          [(selectedPages)]="selectedPrintPages"
+          [disabled]="loading"
+        ></app-print-page-multi-select>
         <button class="btn" (click)="onPrint()">打印</button>
       </div>
     </div>
 
     <div class="loading" *ngIf="loading">加载中…</div>
 
-    <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="selectedPage !== null && selectedPage !== page.index">
+    <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="!isPrintPageSelected(page.index)">
         <!-- 标题 -->
         <div class="sheet-head">
           <div class="title-line">{{hospitalName}}患者亚低温治疗体温记录单</div>
@@ -241,7 +240,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   warmOther = '';
   monitorModes = { anal: false, bladder: false, blood: false, axillary: false };
 
-  selectedPage: number | null = null;
+  selectedPrintPages: number[] = [];
   readonly rowsPerPage = 10;
   deptName = '';
   private pid = '';
@@ -296,7 +295,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     this.coolOther = '';
     this.warmOther = '';
     this.monitorModes = { anal: false, bladder: false, blood: false, axillary: false };
-    this.selectedPage = null;
+    this.selectedPrintPages = [];
     this.cdr.detectChanges();
   }
 
@@ -495,9 +494,7 @@ private paginate(): void {
       }
     }
     this.pages = pages;
-    if (this.selectedPage !== null && this.selectedPage > pages.length) {
-      this.selectedPage = null;
-    }
+    this.normalizeSelectedPrintPages(pages.length);
   }
 
   /** 返回恰好 rowsPerPage 项的数组 */
@@ -507,17 +504,22 @@ private paginate(): void {
     return result;
   }
 
+  isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+  }
+
   onPrint(): void {
     const allSheets = Array.from(this.host.nativeElement.querySelectorAll('.sheet')) as HTMLElement[];
     if (!allSheets.length) return;
-    const selectedPageNumber = this.selectedPage === null || this.selectedPage === undefined ? null : Number(this.selectedPage);
-    if (selectedPageNumber !== null && (!Number.isInteger(selectedPageNumber) || selectedPageNumber < 1 || selectedPageNumber > this.pages.length)) {
-      alert('选择的打印页码无效'); return;
-    }
+    const sheets = this.pages;
     let body = '';
     allSheets.forEach((s: HTMLElement, idx: number) => {
       const pageIndex = idx + 1;
-      if (selectedPageNumber !== null && pageIndex !== selectedPageNumber) return;
+      if (!shouldPrintPage(pageIndex, this.selectedPrintPages, sheets.length)) return;
       const c = s.cloneNode(true) as HTMLElement;
       c.classList.remove('sheet-hidden');
       c.querySelectorAll('input[type=checkbox]').forEach(el => {

@@ -1,6 +1,10 @@
 <div class="toolbar no-print">
   <div class="toolbar-right">
-    <label class="page-select">打印页码：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option *ngFor="let page of pages" [ngValue]="page.index">第 {{ page.index }} 页</option></select></label>
+    <app-print-page-multi-select
+      [totalPages]="pages.length"
+      [(selectedPages)]="selectedPrintPages"
+      [disabled]="loading"
+    ></app-print-page-multi-select>
     <button class="btn primary" type="button" (click)="print()">打印</button>
   </div>
 </div>

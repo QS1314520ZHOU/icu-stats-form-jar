@@ -29,6 +29,7 @@ import { HandoverReportComponent } from './handover-report.component';
 import { HandoverReportService } from './handover-report.service';
 import { BloodSugarComponent } from './blood-sugar.component';
 import { UnplannedExtubationComponent } from './unplanned-extubation.component';
+import { PrintPageMultiSelectComponent } from './print-page-multi-select.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -56,6 +57,7 @@ import { routes } from './app.routes';
     HandoverReportComponent,
     BloodSugarComponent,
     UnplannedExtubationComponent,
+    PrintPageMultiSelectComponent,
   ],
   imports: [
     BrowserModule,

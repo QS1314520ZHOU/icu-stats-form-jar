@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@an
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
+import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
 
 interface BedsideRecord {
   id?: string; pid: string | number; code: string; time: string;
@@ -75,7 +76,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   loading = false; loadError = '';
   records: BedsideRecord[] = [];
   pages: RenderPage[] = [{ index: 1, timeInstants: [], showConsumables: true }];
-  selectedPrintPage: number | null = null;
+  selectedPrintPages: number[] = [];
 
   consumablesText = '';
   consumablesSaveState: ConsumablesSaveState = 'idle';
@@ -190,7 +191,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     if (!this.pages.length) this.pages.push({ index: 0, timeInstants: [], showConsumables: false });
     if (this.pages.length) this.pages[this.pages.length - 1].showConsumables = true;
     this.pages = this.pages.map((p, i) => { p.index = i + 1; return p; });
-    this.selectedPrintPage = null;
+    this.normalizeSelectedPrintPages(this.pages.length);
     if (editUserIds.size) this.loadAccountNames([...editUserIds]);
   }
 
@@ -249,10 +250,14 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   print(): void {
     const sheets = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.sheet'));
     if (!sheets.length) { alert('没有可打印的表单'); return; }
-    if (this.selectedPrintPage !== null && (this.selectedPrintPage < 1 || this.selectedPrintPage > this.pages.length)) { alert('选择的打印页码无效'); return; }
+    const totalPages = sheets.length;
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    const expectedCount = normalized.length === 0 ? totalPages : normalized.length;
+    if (expectedCount <= 0) { alert('请至少选择一个打印页码'); return; }
     let body = '';
     sheets.forEach((sheet, i) => {
-      if (this.selectedPrintPage !== null && i + 1 !== this.selectedPrintPage) return;
+      const pageNumber = i + 1;
+      if (!shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages)) return;
       const c = sheet.cloneNode(true) as HTMLElement;
       const pv = c.querySelector<HTMLElement>('.consumables-print-value');
       if (pv) pv.textContent = this.consumablesText || '';
@@ -270,6 +275,13 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   }
 
   /* ---- 内部 ---- */
-  private buildPages(): void { this.pages = [{ index: 1, timeInstants: [], showConsumables: true }]; }
+  isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
+    return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
+  }
+  private normalizeSelectedPrintPages(totalPages: number): void {
+    const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
+    this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
+  }
+  private buildPages(): void { this.pages = [{ index: 1, timeInstants: [], showConsumables: true }]; this.normalizeSelectedPrintPages(this.pages.length); }
   private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (Number.isNaN(b.getTime())) return null; const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a >= 0 ? a : null; }
 }

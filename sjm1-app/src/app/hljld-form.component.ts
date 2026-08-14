@@ -413,7 +413,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const shiftSummary: HljldSummary = {
       ...daySummary,
       kind: 'shift',
-      label: '小结',
+      label: '日间小结',
       inputItems: daySummary.inputItems.map(item => ({ ...item })),
       outputItems: daySummary.outputItems.map(item => ({ ...item })),
       drainItems: daySummary.drainItems.map(item => ({ ...item })),
