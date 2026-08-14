@@ -568,7 +568,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
       margin: 0;
       color: #000;
       font-family: 'SimSun', '宋体', serif;
-      font-size: 10pt;
+      font-size: 12pt;
       font-weight: 400;
       line-height: 1;
       text-align: center;
@@ -1062,7 +1062,8 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
         left: 0;
         margin: 0;
         color: #000;
-        font-size: 10pt;
+        font-family: 'SimSun', '宋体', serif;
+        font-size: 12pt;
         font-weight: 400;
         line-height: 1;
         text-align: center;

@@ -384,7 +384,7 @@ interface IadPrintLayout {
     .iad-footnote .footnote-title { font-weight:700; }
     .iad-footnote .fn { margin:0; padding-left:2em; text-indent:-2em; }
 
-    .sheet-pageno { position:absolute; left:0; right:0; bottom:35px; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
+    .sheet-pageno { position:absolute; left:0; right:0; bottom:35px; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:12pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
 
     /* Hidden print source: off-screen, invisible, no interaction, fixed 297mm for measurement */
     .print-source {

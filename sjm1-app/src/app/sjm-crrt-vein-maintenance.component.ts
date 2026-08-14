@@ -279,7 +279,7 @@ interface RenderPage {
 			line-height: 1.3;
 			font-family: 'SimSun', '宋体', serif;
 		}
-		.sheet-pageno { position: absolute; right: 0; bottom: 35px; left: 0; margin: 0; text-align: center; font-family: 'SimSun', '宋体', serif; font-size: 13pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; }
+		.sheet-pageno { position: absolute; right: 0; bottom: 35px; left: 0; margin: 0; text-align: center; font-family: 'SimSun', '宋体', serif; font-size: 12pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; }
 
 		.sheet-hidden { display: none; }
 

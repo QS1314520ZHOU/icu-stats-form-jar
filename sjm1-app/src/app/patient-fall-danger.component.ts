@@ -247,7 +247,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
     .footnote { margin-top:6px; font-family:'SimSun','宋体',serif; font-size:9.5pt; line-height:1.3; text-align:left; margin-bottom:10mm; }
     .footnote .fn-title { font-weight:700; } .footnote .fn { margin:1px 0; }
     .review-sign { margin-top:6px; text-align:right; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; padding-right:6px; }
-    .sheet-pageno { position:absolute; right:0; bottom:35px; left:0; width:auto; margin:0; padding:0; box-sizing:border-box; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; pointer-events:none; z-index:20; }
+    .sheet-pageno { position:absolute; right:0; bottom:35px; left:0; width:auto; margin:0; padding:0; box-sizing:border-box; text-align:center; font-family:'SimSun','宋体',serif; font-size:12pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; pointer-events:none; z-index:20; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }

@@ -227,7 +227,7 @@ label {
   left: 0;
   margin: 0;
   color: #000;
-  font: 10pt/1 "SimSun", "宋体", serif;
+  font: 12pt/1 "SimSun", "宋体", serif;
   text-align: center;
   white-space: nowrap;
 }
@@ -1496,8 +1496,10 @@ label {
     right: 0;
     bottom: 35px;
     left: 0;
-    font-size: 13px;
-    line-height: 16px;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 12pt;
+    font-weight: 400;
+    line-height: 1;
   }
 
 }

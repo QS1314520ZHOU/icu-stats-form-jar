@@ -247,7 +247,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
     .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-family:'SimSun', '宋体', serif;font-size:9.5pt;line-height:1.3;font-weight:400;color:#000;word-break:break-all;margin-bottom:10mm;}
     .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
 
-    .sheet-pageno { position:absolute; right:0; bottom:35px; left:0; width:auto; margin:0; padding:0; box-sizing:border-box; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; pointer-events:none; z-index:20; }
+    .sheet-pageno { position:absolute; right:0; bottom:35px; left:0; width:auto; margin:0; padding:0; box-sizing:border-box; text-align:center; font-family:'SimSun', '宋体', serif; font-size:12pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; pointer-events:none; z-index:20; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print { .no-print { display:none !important; } .sheet-hidden { display:none !important; } }
   `],
@@ -513,7 +513,7 @@ private paginate(): void {
       .dt-date,.dt-time{display:block;white-space:nowrap;text-align:center;line-height:1.2;}
       .record-table td.footnote-cell{text-align:left;vertical-align:top;padding:6px 8px;font-size:8pt;line-height:1.3;margin-bottom:10mm;font-weight:400;color:#000;word-break:break-all;}
       .footnote-cell .fn{padding-left:3em;text-indent:-3em;}
-      .sheet-pageno{position:absolute;right:0;bottom:35px;left:0;width:auto;margin:0;padding:0;box-sizing:border-box;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;pointer-events:none;z-index:20;}
+      .sheet-pageno{position:absolute;right:0;bottom:35px;left:0;width:auto;margin:0;padding:0;box-sizing:border-box;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;pointer-events:none;z-index:20;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }

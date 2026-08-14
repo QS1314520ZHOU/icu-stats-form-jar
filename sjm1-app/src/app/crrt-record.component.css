@@ -648,7 +648,9 @@ h1 {
     right: 0 !important;
     bottom: 35px !important;
     left: 0 !important;
+    font-family: "SimSun", "宋体", serif !important;
     font-size: 12pt !important;
+    font-weight: 400 !important;
   }
 
   .crrt-table {

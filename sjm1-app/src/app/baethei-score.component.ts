@@ -217,7 +217,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .footnote .fn { padding-left:2em; text-indent:-2em; margin:1px 0; }
 
     .review-sign { margin-top:6px; text-align:right; font-family:'SimSun', '宋体', serif; font-size:13pt; padding-right:6px; }
-    .sheet-pageno { position:absolute; right:0; bottom:35px; left:0; width:auto; margin:0; padding:0; box-sizing:border-box; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; pointer-events:none; z-index:20; }
+    .sheet-pageno { position:absolute; right:0; bottom:35px; left:0; width:auto; margin:0; padding:0; box-sizing:border-box; text-align:center; font-family:'SimSun', '宋体', serif; font-size:12pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; pointer-events:none; z-index:20; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -689,7 +689,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .footnote{margin-top:6px;margin-bottom:10mm;font-size:8pt;line-height:1.3;text-align:left;}
       .footnote .fn{padding-left:2em;text-indent:-2em;margin:1px 0;}
       .review-sign{margin-top:6px;text-align:right;font-size:13pt;padding-right:6px;}
-      .sheet-pageno{position:absolute;right:0;bottom:35px;left:0;width:auto;margin:0;padding:0;box-sizing:border-box;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;pointer-events:none;z-index:20;}
+      .sheet-pageno{position:absolute;right:0;bottom:35px;left:0;width:auto;margin:0;padding:0;box-sizing:border-box;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;pointer-events:none;z-index:20;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }

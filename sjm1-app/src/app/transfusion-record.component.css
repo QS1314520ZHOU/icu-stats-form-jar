@@ -66,7 +66,7 @@ h1{margin:0 0 2.5mm;text-align:center;font:700 18pt SimHei,"黑体",sans-serif;l
 .remark{margin:3mm 0 0;text-align:left;font-size:9pt}
 
 /* page number */
-.pno{position:absolute;left:0;right:0;bottom:35px;text-align:center;font-size:10pt}
+.pno{position:absolute;left:0;right:0;bottom:35px;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
 
 /* overlay dialog */
 .overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.45)}

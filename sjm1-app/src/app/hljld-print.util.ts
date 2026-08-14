@@ -343,8 +343,8 @@ body {
   padding: 0;
   text-align: center;
   font-family: "SimSun", "宋体", serif;
-  font-size: 8pt;
-  line-height: 10pt;
+  font-size: 12pt;
+  line-height: 1;
   color: #000;
   white-space: nowrap;
   pointer-events: none;
