@@ -1,14 +1,45 @@
-<div class="toolbar no-print"><div class="toolbar-right">
-  <label class="ps">治疗场次：<select [ngModel]="selectedSessionIndex" (ngModelChange)="selectedSessionIndex = $event; onSessionChange()"><option *ngFor="let s of sessions" [ngValue]="s.index">第 {{s.index}} 场 ({{sessionStartText(s)}})</option></select></label>
-  <label class="ps">打印页码：<select [(ngModel)]="selectedPrintPage"><option [ngValue]="null">全部</option><option *ngFor="let p of pages" [ngValue]="p.index">第 {{p.index}} 页</option></select></label>
-  <button class="btn primary" (click)="print()">打印</button>
-</div></div>
+<div class="toolbar no-print">
+  <!-- 左侧：治疗场次 -->
+  <div class="toolbar-left">
+    <label class="session-select">
+      <span>治疗场次：</span>
+      <select
+        [(ngModel)]="selectedSessionId"
+        (ngModelChange)="onSessionChange($event)"
+        [disabled]="loading || sessions.length === 0"
+      >
+        <option
+          *ngFor="let session of sessionOptions"
+          [ngValue]="session.id"
+        >
+          {{ session.label }}
+        </option>
+      </select>
+    </label>
+  </div>
+
+  <!-- 右侧：页码和打印 -->
+  <div class="toolbar-right">
+    <label class="page-select">
+      <span>打印页码：</span>
+      <select [(ngModel)]="selectedPrintPage">
+        <option [ngValue]="null">全部</option>
+        <option *ngFor="let page of pages" [ngValue]="page.index">第 {{page.index}} 页</option>
+      </select>
+    </label>
+    <button type="button" class="btn primary" [disabled]="loading" (click)="print()">打印</button>
+  </div>
+</div>
 
 <div *ngIf="loading" class="status no-print">加载中…</div>
 <div *ngIf="loadError" class="status error no-print">{{loadError}}</div>
 
-<ng-container *ngFor="let page of pages">
-  <section class="sheet" *ngIf="selectedPrintPage === null || selectedPrintPage === page.index">
+<div
+  *ngFor="let page of pages"
+  class="print-page"
+  [class.print-hidden]="selectedPrintPage !== null && selectedPrintPage !== page.index"
+>
+  <section class="sheet">
     <h1>重钢总医院连续性血液净化治疗护理记录单</h1>
 
     <div class="session-summary" *ngIf="selectedSession">
@@ -52,6 +83,6 @@
       </tbody>
     </table>
 
-    <div class="page-no">第 {{page.index}} 页　共 {{pages.length}} 页</div>
+    <div class="sheet-pageno">第 {{page.index}} 页　共 {{pages.length}} 页</div>
   </section>
-</ng-container>
+</div>

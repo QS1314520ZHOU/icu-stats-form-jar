@@ -86,8 +86,15 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
 
   sessions: CrrtSession[] = [];
   selectedSession: CrrtSession | null = null;
-  selectedSessionIndex: number | null = null;
+  selectedSessionId: number | null = null;
   visibleGroupsForSession: CrrtGroup[] = [];
+
+  get sessionOptions(): Array<{ id: number; label: string }> {
+    return this.sessions.map(s => ({
+      id: s.index,
+      label: `第 ${s.index} 场 (${this.sessionStartText(s)})${s.status === 'ongoing' ? ' — 治疗中' : ''}`,
+    }));
+  }
   patient: any = null; account: any = null;
   pid = ''; age: number | null = null; diagnosisDisplay = '';
   loading = false; loadError = '';
@@ -106,12 +113,12 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
       this.patient = p; this.pid = next;
       this.age = this.calcAge(p.birthday);
       this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
-      if (next !== prev) { this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionIndex = null; this.visibleGroupsForSession = []; this.load(); }
+      if (next !== prev) { this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionId = null; this.visibleGroupsForSession = []; this.load(); }
     });
   }
 
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
-  private reset(): void { this.pid = ''; this.patient = null; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionIndex = null; this.visibleGroupsForSession = []; }
+  private reset(): void { this.pid = ''; this.patient = null; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionId = null; this.visibleGroupsForSession = []; }
 
   load(): void {
     if (!this.pid) return;
@@ -314,10 +321,10 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
 
   private applyDefaultSession(): void {
     if (this.sessions.length > 0) {
-      this.selectedSessionIndex = this.sessions[this.sessions.length - 1].index;
+      this.selectedSessionId = this.sessions[this.sessions.length - 1].index;
       this.selectedSession = this.sessions[this.sessions.length - 1];
     } else {
-      this.selectedSessionIndex = null;
+      this.selectedSessionId = null;
       this.selectedSession = null;
     }
   }
@@ -343,9 +350,8 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
       : CRRT_GROUPS;
   }
 
-  onSessionChange(): void {
-    const idx = this.selectedSessionIndex;
-    this.selectedSession = idx != null ? this.sessions.find(s => s.index === idx) ?? null : null;
+  onSessionChange(sessionId: number | null): void {
+    this.selectedSession = sessionId != null ? this.sessions.find(s => s.index === sessionId) ?? null : null;
     this.rebuildSelectedSession();
   }
 

@@ -30,50 +30,89 @@ label {
    ========================================================= */
 
 .toolbar {
+  box-sizing: border-box;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 50;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  min-height: 50px;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 54px;
   padding: 0 16px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #e6e8eb;
   background: #fff;
+}
+
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.toolbar-left {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+
+.toolbar-right {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.session-select,
+.page-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #000;
+  font: 14px "SimSun", "宋体", serif;
+  white-space: nowrap;
+}
+
+.session-select select {
+  box-sizing: border-box;
+  width: 320px;
+  min-height: 32px;
+  padding: 4px 28px 4px 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #000;
+  font: inherit;
+}
+
+.page-select select {
+  box-sizing: border-box;
+  min-width: 88px;
+  min-height: 32px;
+  padding: 4px 28px 4px 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #000;
+  font: inherit;
 }
 
 .btn {
   min-height: 34px;
   padding: 5px 16px;
-  border: 1px solid #1877d3;
   border-radius: 4px;
-  background: #1877d3;
-  color: #fff;
-  font: 14px/1.2 "SimSun", "宋体", serif;
+  font: 14px "SimSun", "宋体", serif;
   cursor: pointer;
 }
 
-.btn:disabled {
-  opacity: 0.55;
+.btn.primary {
+  border: 1px solid #1890ff;
+  background: #1890ff;
+  color: #fff;
+}
+
+.btn:disabled,
+.session-select select:disabled,
+.page-select select:disabled {
   cursor: not-allowed;
-}
-
-.ps {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: 14px/1.2 "SimSun", "宋体", serif;
-  white-space: nowrap;
-}
-
-.ps select {
-  box-sizing: border-box;
-  min-height: 32px;
-  padding: 4px 8px;
-  border: 1px solid #ccc;
-  background: #fff;
-  font: inherit;
+  opacity: 0.55;
 }
 
 .status {
@@ -86,6 +125,20 @@ label {
 }
 
 /* =========================================================
+   Print page wrapper
+   ========================================================= */
+
+.print-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 16px auto;
+}
+
+.print-hidden {
+  display: none !important;
+}
+
+/* =========================================================
    A4 page
    ========================================================= */
 
@@ -94,7 +147,7 @@ label {
   position: relative;
   width: 210mm;
   height: 297mm;
-  margin: 16px auto;
+  margin: 0 auto;
   padding: 5mm 6mm 9mm;
   overflow: hidden;
   background: #fff;
@@ -317,22 +370,23 @@ h1 {
 }
 
 /* =========================================================
-   Page number
+   Page number (ECMO-consistent)
    ========================================================= */
 
-/* .page-no {
+.sheet-pageno {
   position: absolute;
-  right: 6mm;
+  right: 8mm;
   bottom: 40px;
-  left: 6mm;
+  left: 8mm;
   margin: 0;
   color: #000;
-  font: 8.5pt/1 "SimSun", "宋体", serif;
+  font-family: "SimSun", "宋体", serif;
+  font-size: 12pt;
+  font-weight: 400;
+  line-height: 1;
   text-align: center;
   white-space: nowrap;
-} */
-.page-no { position: absolute; left: 8mm; right: 8mm; bottom: 40px; margin: 0; text-align: center; font-family: "SimSun", "宋体", serif; font-size: 12pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; }
- 
+}
 
 /* =========================================================
    Integer-pixel screen rendering
@@ -479,14 +533,6 @@ h1 {
     font-size: 10px;
     line-height: 12px;
   }
-
-  .page-no {
-    right: 21px;
-    bottom: 40px;
-    left: 21px;
-    font-size: 11px;
-    line-height: 20px;
-  }
 }
 
 /* =========================================================
@@ -498,7 +544,33 @@ h1 {
     overflow: auto;
   }
 
-  .sheet {
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    width: 100%;
+  }
+
+  .toolbar-left {
+    justify-content: flex-start;
+  }
+
+  .toolbar-right {
+    justify-content: flex-end;
+  }
+
+  .session-select select {
+    width: 280px;
+    max-width: calc(100vw - 130px);
+  }
+
+  .print-page {
     margin: 12px;
   }
 }
@@ -527,6 +599,25 @@ h1 {
     display: none !important;
   }
 
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-page {
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
+    margin: 0;
+    overflow: hidden;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
   .session-summary {
     margin: 1mm 0 2mm !important;
     font-size: 13pt !important;
@@ -550,13 +641,14 @@ h1 {
     transform: none !important;
     zoom: 1 !important;
     filter: none !important;
-    break-after: page !important;
-    page-break-after: always !important;
   }
 
-  .sheet:last-of-type {
-    break-after: auto !important;
-    page-break-after: auto !important;
+  .sheet-pageno {
+    display: block !important;
+    right: 8mm !important;
+    bottom: 40px !important;
+    left: 8mm !important;
+    font-size: 12pt !important;
   }
 
   .crrt-table {
@@ -616,13 +708,6 @@ h1 {
   .signature-row th,
   .signature-row td {
     height: 5.5mm !important;
-  }
-/* .page-no { position: absolute; left: 8mm; right: 8mm; bottom: 40px; margin: 0; text-align: center; font-family: "SimSun", "宋体", serif; font-size: 12pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; } */
-  .page-no {
-    right: 6mm !important;
-    bottom: 40px !important;
-    left: 6mm !important;
-    font-size: 8.5pt !important;
   }
 }
 
