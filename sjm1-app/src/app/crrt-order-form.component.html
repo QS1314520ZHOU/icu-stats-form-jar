@@ -1,6 +1,6 @@
 <header class="toolbar no-print">
   <div class="toolbar-left">
-    <label class="ps">医嘱时间：<select [ngModel]="selectedRecordId" (ngModelChange)="onTimeChange($event)" [disabled]="loading || switchingRecord || creating || printingAll"><option value="">{{ timeOptions.length ? '请选择' : '暂无' }}</option><option *ngFor="let o of timeOptions" [value]="o.id">{{ displayTime(o.orderTime) }}</option></select></label>
+    <label class="ps">医嘱时间：<select [ngModel]="selectedRecordId" (ngModelChange)="onTimeChange($event)" [disabled]="loading || switchingRecord || creating || printingAll"><option value="">{{ timeOptions.length ? '请选择' : '暂无' }}</option><option *ngFor="let o of timeOptions" [value]="o.id">{{ orderTimeOptionLabel(o) }}</option></select></label>
     <button type="button" class="btn primary" [disabled]="loading || switchingRecord || creating || printingAll || !pid" (click)="openCreateDialog()">新增</button>
   </div>
   <div class="toolbar-right">

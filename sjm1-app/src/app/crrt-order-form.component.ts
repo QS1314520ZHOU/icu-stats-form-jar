@@ -9,7 +9,7 @@ type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 interface CheckboxOption { id: string; label: string; }
 interface AccountOption { accountId: string; accountName: string; profession?: string; username?: string; code?: string; }
 interface SignatureValue { accountId: string; accountName: string; signedAt?: string | null; }
-interface OrderTimeOption { id: string; orderTime: string; updatedAt?: string; }
+interface OrderTimeOption { id: string; orderTime: string; updatedAt?: string; sessionIndex?: number; }
 interface PrescriptionColumn { code: string; dateTime: string; baseSolution: number | null; potassiumChloride: number | null; sodiumChloride: number | null; doctorSignature: SignatureValue | null; executionTime: string; nurseSignature: SignatureValue | null; }
 interface OrderItem { dateTime: string; content: string; doctorSignature: SignatureValue | null; executionTime: string; nurseSignature: SignatureValue | null; }
 interface AnticoagulationValue {
@@ -165,6 +165,51 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   get orderedDoctorAccounts(): AccountOption[] { return this.putCurrentAccountFirst(this.doctorAccounts); }
   get orderedNurseAccounts(): AccountOption[] { return this.putCurrentAccountFirst(this.nurseAccounts); }
 
+  /* 场次编号计算 */
+  private orderTimeValue(value: string | null | undefined): number {
+    if (!value) return Number.POSITIVE_INFINITY;
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+  }
+
+  private assignSessionIndexes(options: OrderTimeOption[]): OrderTimeOption[] {
+    const ascendingOptions = [...options].sort((a, b) => {
+      const aTime = this.orderTimeValue(a.orderTime);
+      const bTime = this.orderTimeValue(b.orderTime);
+      const timeDifference = aTime - bTime;
+      if (timeDifference !== 0) return timeDifference;
+      return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+    });
+    const sessionIndexMap = new Map<string, number>();
+    ascendingOptions.forEach((option, index) => {
+      sessionIndexMap.set(String(option.id), index + 1);
+    });
+    return options.map(option => ({
+      ...option,
+      sessionIndex: sessionIndexMap.get(String(option.id)) ?? 0,
+    }));
+  }
+
+  orderTimeOptionLabel(option: OrderTimeOption): string {
+    const sessionIndex = Number(option?.sessionIndex) || 0;
+    const timeText = this.displayTime(option?.orderTime);
+    if (!sessionIndex && !timeText) return '';
+    if (!sessionIndex) return timeText;
+    if (!timeText) return `第 ${sessionIndex} 场`;
+    return `第 ${sessionIndex} 场（${timeText}）`;
+  }
+
+  sessionIndexOfRecordId(recordId: string | null | undefined): number | null {
+    const normalizedId = String(recordId ?? '').trim();
+    if (!normalizedId) return null;
+    const option = this.timeOptions.find(item => String(item.id) === normalizedId);
+    return option?.sessionIndex ?? null;
+  }
+
+  get currentSessionIndex(): number | null {
+    return this.sessionIndexOfRecordId(this.record?.id || this.selectedRecordId);
+  }
+
   /* 加载 */
   loadTimeOptions(selectId?: string): void {
     if (!this.pid) return;
@@ -174,7 +219,13 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       .subscribe({
         next: opts => {
           this.ngZone.run(() => {
-            this.timeOptions = [...(opts ?? [])].sort((a, b) => new Date(b.orderTime).getTime() - new Date(a.orderTime).getTime());
+            const descendingOptions = [...(opts ?? [])].sort((a, b) => {
+              const aTime = this.orderTimeValue(a.orderTime);
+              const bTime = this.orderTimeValue(b.orderTime);
+              if (aTime !== bTime) return bTime - aTime;
+              return String(b.id ?? '').localeCompare(String(a.id ?? ''));
+            });
+            this.timeOptions = this.assignSessionIndexes(descendingOptions);
             this.hasRecords = this.timeOptions.length > 0;
             if (!this.hasRecords) { this.selectedRecordId = ''; this.isDraft = false; this.record = this.createEmptyRecord(); this.customConsumableSelected = false; this.customConsumableText = ''; this.applyPatientToRecord(this.record); this.message = '当前患者暂无 CRRT 医嘱单，请点击新增后填写。'; this.loading = false; this.cdr.detectChanges(); return; }
             const id = selectId || this.timeOptions[0].id;
@@ -271,7 +322,13 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     if (!record.id) return;
     const opt: OrderTimeOption = { id: record.id, orderTime: record.orderTime, updatedAt: record.updatedAt };
     const others = this.timeOptions.filter(o => o.id !== opt.id);
-    this.timeOptions = [opt, ...others].sort((a, b) => new Date(b.orderTime).getTime() - new Date(a.orderTime).getTime());
+    const descendingOptions = [opt, ...others].sort((a, b) => {
+      const aTime = this.orderTimeValue(a.orderTime);
+      const bTime = this.orderTimeValue(b.orderTime);
+      if (aTime !== bTime) return bTime - aTime;
+      return String(b.id ?? '').localeCompare(String(a.id ?? ''));
+    });
+    this.timeOptions = this.assignSessionIndexes(descendingOptions);
     this.hasRecords = true;
   }
 
