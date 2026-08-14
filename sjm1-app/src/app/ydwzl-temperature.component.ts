@@ -212,7 +212,7 @@ const MARK_OTHER = '⑥';
 
     .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
 
-    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:40px; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
+    .sheet-pageno { position:absolute; right:0; bottom:35px; left:0; width:auto; margin:0; padding:0; box-sizing:border-box; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; pointer-events:none; z-index:20; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print { .no-print { display:none !important; } .print-hidden { display:none !important; } .sheet-hidden { display:none !important; } }
   `],
@@ -559,7 +559,7 @@ private paginate(): void {
       .monitor-option{display:inline-flex;align-items:center;margin-right:26px;white-space:nowrap;}
       .remark-cell{box-sizing:border-box;width:100%;text-align:left !important;vertical-align:top;padding:5px 8px !important;font-size:8pt;line-height:1.3;margin-bottom:10mm;white-space:normal;word-break:break-word;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
-      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:40px;margin:0;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+      .sheet-pageno{position:absolute;right:0;bottom:35px;left:0;width:auto;margin:0;padding:0;box-sizing:border-box;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;pointer-events:none;z-index:20;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }

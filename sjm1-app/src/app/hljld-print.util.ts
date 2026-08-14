@@ -333,10 +333,12 @@ body {
 }
 
 .sheet-pageno {
+  box-sizing: border-box;
   position: absolute;
-  right: 7mm;
-  bottom: 40px;
-  left: 7mm;
+  right: 0;
+  bottom: 35px;
+  left: 0;
+  width: auto;
   margin: 0;
   padding: 0;
   text-align: center;
@@ -345,6 +347,8 @@ body {
   line-height: 10pt;
   color: #000;
   white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
 }
 `;
 

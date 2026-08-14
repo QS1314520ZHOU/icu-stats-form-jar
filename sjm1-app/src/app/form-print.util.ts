@@ -14,7 +14,7 @@ body{color:#000;font-family:'SimSun','宋体',serif;}
 .info-row{display:flex;flex-wrap:wrap;gap:6px 24px;padding:3px 0;}
 .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;}
 .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.2;}
-.sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+.sheet-pageno{box-sizing:border-box;position:absolute;right:0;bottom:35px;left:0;width:auto;margin:0;padding:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;pointer-events:none;z-index:20;}
 `;
 
 /** 创建打印窗口并写入内容 */

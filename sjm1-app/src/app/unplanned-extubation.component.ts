@@ -562,9 +562,9 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
 
     .sheet-pageno {
       position: absolute;
-      right: 7mm;
-      bottom: 40px;
-      left: 7mm;
+      right: 0;
+      bottom: 35px;
+      left: 0;
       margin: 0;
       color: #000;
       font-family: 'SimSun', '宋体', serif;
@@ -1057,9 +1057,9 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
 
       .sheet-pageno {
         position: absolute;
-        right: 7mm;
-        bottom: 40px;
-        left: 7mm;
+        right: 0;
+        bottom: 35px;
+        left: 0;
         margin: 0;
         color: #000;
         font-size: 10pt;

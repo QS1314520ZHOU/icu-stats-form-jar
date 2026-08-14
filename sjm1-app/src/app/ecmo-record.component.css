@@ -52,7 +52,7 @@ h1 { margin: 0 0 2mm; text-align: center; font-family: SimHei, "黑体", sans-se
 .autosave-status .error { color: #e56458; }
 .print-only { display: none; }
 
-.sheet-pageno { position: absolute; left: 8mm; right: 8mm; bottom: 40px; margin: 0; text-align: center; font-family: "SimSun", "宋体", serif; font-size: 12pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; }
+.sheet-pageno { position: absolute; right: 0; bottom: 35px; left: 0; margin: 0; text-align: center; font-family: "SimSun", "宋体", serif; font-size: 12pt; font-weight: 400; line-height: 1; color: #000; white-space: nowrap; }
 
 @media (max-width: 900px) { .print-page, .sheet { width: 210mm; } .print-page { margin: 12px; } }
 

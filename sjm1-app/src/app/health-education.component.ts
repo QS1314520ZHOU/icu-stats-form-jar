@@ -357,7 +357,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       .handover-cell .handover-content{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(160px,1fr) minmax(210px,1.2fr) auto;align-items:center;gap:8px 12px}
       .contact-cell{padding:3px 5px!important;text-align:center;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2;color:#000}
       .time-date,.time-clock{display:block;text-align:center;white-space:nowrap;line-height:1.1}
-      .sheet-pageno{position:absolute;left:8mm;right:8mm;bottom:40px;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
+      .sheet-pageno{position:absolute;right:0;bottom:35px;left:0;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap}
       .no-print,.shared-screen-editor,.shared-actions{display:none!important}
       .other-summary-cell .no-print{display:none!important}
       .merged-item-cell{width:136px;padding:2px 4px!important;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:400;line-height:1.2}

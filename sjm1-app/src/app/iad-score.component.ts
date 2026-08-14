@@ -384,7 +384,7 @@ interface IadPrintLayout {
     .iad-footnote .footnote-title { font-weight:700; }
     .iad-footnote .fn { margin:0; padding-left:2em; text-indent:-2em; }
 
-    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:40px; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
+    .sheet-pageno { position:absolute; left:0; right:0; bottom:35px; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
 
     /* Hidden print source: off-screen, invisible, no interaction, fixed 297mm for measurement */
     .print-source {
@@ -763,9 +763,8 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     for (const printPage of printPages) {
       const sheet = printPage.querySelector('.sheet') as HTMLElement | null;
       const content = printPage.querySelector('.iad-page-content') as HTMLElement | null;
-      const pageNumber = printPage.querySelector('.sheet-pageno') as HTMLElement | null;
 
-      if (!sheet || !content || !pageNumber) {
+      if (!sheet || !content) {
         return null;
       }
 
@@ -776,20 +775,17 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
 
       const sheetRect = sheet.getBoundingClientRect();
       const contentRect = content.getBoundingClientRect();
-      const pageNumberRect = pageNumber.getBoundingClientRect();
 
       const contentWidth = Math.max(
         sheet.scrollWidth,
         content.scrollWidth,
         contentRect.right - sheetRect.left,
-        pageNumberRect.right - sheetRect.left,
       );
 
       const contentHeight = Math.max(
         sheet.scrollHeight,
         content.scrollHeight,
         contentRect.bottom - sheetRect.top,
-        pageNumberRect.bottom - sheetRect.top,
       );
 
       maximumContentWidth = Math.max(maximumContentWidth, contentWidth);
@@ -876,6 +872,13 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
         sheet.style.zoom = '1';
         sheet.style.transformOrigin = 'left top';
         sheet.style.overflow = 'visible';
+
+        // 将页码从缩放容器移到物理页面层，避免跟随正文缩放
+        const pageNo = sheet.querySelector('.sheet-pageno') as HTMLElement | null;
+        if (pageNo) {
+          sheet.removeChild(pageNo);
+          clone.appendChild(pageNo);
+        }
       }
 
       clone.querySelectorAll('.no-print,.toolbar').forEach(element => element.remove());
@@ -912,7 +915,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .iad-footnote{box-sizing:border-box;width:100%;margin-top:2px;margin-bottom:6mm;padding:0 2px;font-family:'SimSun','宋体',serif;font-size:8pt;font-weight:400;line-height:1.3;color:#000;text-align:left;}
       .iad-footnote .footnote-title{font-weight:700;}
       .iad-footnote .fn{margin:0;padding-left:2em;text-indent:-2em;}
-      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:40px;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+      .sheet-pageno{position:absolute;left:0;right:0;bottom:35px;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;transform:none !important;}
     `;
 
     const win = window.open('', '_blank', 'width=1400,height=900');
@@ -1006,9 +1009,8 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     printPages.forEach((printPage, index) => {
       const sheet = printPage.querySelector('.sheet') as HTMLElement | null;
       const content = printPage.querySelector('.iad-page-content') as HTMLElement | null;
-      const pageNumber = printPage.querySelector('.sheet-pageno') as HTMLElement | null;
 
-      if (!sheet || !content || !pageNumber) {
+      if (!sheet || !content) {
         console.error(`IAD第${index + 1}页缺少打印节点`);
         valid = false;
         return;
@@ -1016,16 +1018,15 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
 
       const pageRect = printPage.getBoundingClientRect();
       const contentRect = content.getBoundingClientRect();
-      const pageNumberRect = pageNumber.getBoundingClientRect();
 
       const safeRight = pageRect.right - safeMargin;
       const safeBottom = pageRect.bottom - safeMargin;
       const tolerance = 1;
 
-      const horizontalOverflow = Math.max(contentRect.right, pageNumberRect.right) - safeRight;
-      const verticalOverflow = Math.max(contentRect.bottom, pageNumberRect.bottom) - safeBottom;
-      const leftOverflow = pageRect.left + safeMargin - Math.min(contentRect.left, pageNumberRect.left);
-      const topOverflow = pageRect.top + safeMargin - Math.min(contentRect.top, pageNumberRect.top);
+      const horizontalOverflow = contentRect.right - safeRight;
+      const verticalOverflow = contentRect.bottom - safeBottom;
+      const leftOverflow = pageRect.left + safeMargin - contentRect.left;
+      const topOverflow = pageRect.top + safeMargin - contentRect.top;
 
       console.info(
         '[IAD PRINT VALIDATE]',

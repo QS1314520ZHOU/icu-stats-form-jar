@@ -222,9 +222,9 @@ label {
 
 .sheet-pageno {
   position: absolute;
-  right: 8mm;
-  bottom: 40px;
-  left: 8mm;
+  right: 0;
+  bottom: 35px;
+  left: 0;
   margin: 0;
   color: #000;
   font: 10pt/1 "SimSun", "宋体", serif;
@@ -1493,9 +1493,9 @@ label {
   }
 
   .sheet-pageno {
-    right: 28px;
-    bottom: 40px;
-    left: 28px;
+    right: 0;
+    bottom: 35px;
+    left: 0;
     font-size: 13px;
     line-height: 16px;
   }
