@@ -65,7 +65,7 @@ const DGSL_OPTIONS = [
 /** 导管固定评分 */
 const DGGD_OPTIONS = [
   { label: '使用胶布或贴膜固定或系带固定', score: 3 },
-  { label: '使用胶布+贴膜固定或系带固定+胶布/贴膜固定', score: 2 },
+  { label: '使用胶布+贴膜固定或系带+胶布/贴膜固定', score: 2 },
   { label: '缝线固定或固定器固定或水囊(气囊)固定', score: 1 },
 ];
 
