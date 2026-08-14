@@ -1186,6 +1186,10 @@ label {
   display: none;
 }
 
+.print-checkbox {
+  display: none;
+}
+
 @media screen {
   /*
    * A4 at 96 CSS dpi:
@@ -1786,6 +1790,14 @@ label {
   -webkit-text-fill-color: #000;
 }
 
+.dose-inline-row.first-dose-row {
+  justify-content: flex-start;
+}
+
+.dose-inline-row.first-dose-row .dose-label {
+  text-align: left;
+}
+
 /* =========================================================
    /form/crrtOrderForm 打印样式
    打印通过独立窗口实现，使用物理单位（mm）。
@@ -1962,6 +1974,41 @@ label {
    */
   .screen-only {
     display: none !important;
+  }
+
+  /* 机型耗材：隐藏原生 checkbox，显示黑白方框 */
+  .machine-options .checkbox-option > input[type="checkbox"],
+  .custom-consumable-option > input[type="checkbox"] {
+    display: none !important;
+  }
+
+  .machine-options .print-checkbox,
+  .custom-consumable-option .print-checkbox {
+    box-sizing: border-box;
+    display: inline-flex !important;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 3.2mm;
+    height: 3.2mm;
+    margin: 0 1mm 0 0;
+    border: 0.25mm solid #000;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: "SimSun", "宋体", serif;
+    font-size: 3mm;
+    font-weight: 700;
+    line-height: 1;
+    vertical-align: middle;
+  }
+
+  .machine-options .print-checkmark,
+  .custom-consumable-option .print-checkmark {
+    display: block;
+    width: 100%;
+    color: #000 !important;
+    line-height: 1;
+    text-align: center;
   }
 
   span.print-only {

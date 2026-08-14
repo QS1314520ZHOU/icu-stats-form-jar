@@ -75,43 +75,43 @@
           <th rowspan="6" class="label-cell">机型耗材</th>
           <td colspan="3" class="machine-row-cell">
             <div class="machine-options machine-options-2">
-              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[0]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" />{{ option.label }}</label>
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[0]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" /><span class="print-checkbox" [class.checked]="isChecked(order.machineConsumables, option.id)" aria-hidden="true"><span class="print-checkmark">{{ isChecked(order.machineConsumables, option.id) ? '√' : '' }}</span></span>{{ option.label }}</label>
             </div>
           </td>
         </tr>
         <tr class="machine-row">
           <td colspan="3" class="machine-row-cell">
             <div class="machine-options machine-options-3">
-              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[1]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" />{{ option.label }}</label>
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[1]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" /><span class="print-checkbox" [class.checked]="isChecked(order.machineConsumables, option.id)" aria-hidden="true"><span class="print-checkmark">{{ isChecked(order.machineConsumables, option.id) ? '√' : '' }}</span></span>{{ option.label }}</label>
             </div>
           </td>
         </tr>
         <tr class="machine-row">
           <td colspan="3" class="machine-row-cell">
             <div class="machine-options machine-options-3">
-              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[2]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" />{{ option.label }}</label>
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[2]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" /><span class="print-checkbox" [class.checked]="isChecked(order.machineConsumables, option.id)" aria-hidden="true"><span class="print-checkmark">{{ isChecked(order.machineConsumables, option.id) ? '√' : '' }}</span></span>{{ option.label }}</label>
             </div>
           </td>
         </tr>
         <tr class="machine-row">
           <td colspan="3" class="machine-row-cell">
             <div class="machine-options machine-options-3">
-              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[3]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" />{{ option.label }}</label>
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[3]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" /><span class="print-checkbox" [class.checked]="isChecked(order.machineConsumables, option.id)" aria-hidden="true"><span class="print-checkmark">{{ isChecked(order.machineConsumables, option.id) ? '√' : '' }}</span></span>{{ option.label }}</label>
             </div>
           </td>
         </tr>
         <tr class="machine-row">
           <td colspan="3" class="machine-row-cell">
             <div class="machine-options machine-options-4">
-              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[4]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" />{{ option.label }}</label>
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[4]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" /><span class="print-checkbox" [class.checked]="isChecked(order.machineConsumables, option.id)" aria-hidden="true"><span class="print-checkmark">{{ isChecked(order.machineConsumables, option.id) ? '√' : '' }}</span></span>{{ option.label }}</label>
             </div>
           </td>
         </tr>
         <tr class="machine-row">
           <td colspan="3" class="machine-row-cell">
             <div class="machine-options machine-options-last">
-              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[5]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" />{{ option.label }}</label>
-              <div class="custom-consumable-option"><input type="checkbox" class="screen-only" [checked]="customConsumableSelected" [disabled]="!isFormActive()" (change)="onCustomConsumableToggle($any($event.target).checked)" aria-label="选择自定义耗材" /><input type="text" class="custom-consumable-input screen-only" placeholder="请输入" [disabled]="!isFormActive() || !customConsumableSelected" [ngModel]="customConsumableText" (ngModelChange)="onCustomConsumableTextChange($event)" aria-label="自定义耗材名称" /><input type="checkbox" class="print-only" [checked]="hasCustomConsumable(order)" disabled /><span class="print-only custom-consumable-print">{{ getCustomConsumableText(order) }}</span></div>
+              <label class="checkbox-option" *ngFor="let option of machineConsumableRows[5]"><input type="checkbox" [checked]="isChecked(order.machineConsumables, option.id)" [disabled]="!canEditDoctorField()" (change)="onMachineConsumableChange(option.id, $any($event.target).checked)" /><span class="print-checkbox" [class.checked]="isChecked(order.machineConsumables, option.id)" aria-hidden="true"><span class="print-checkmark">{{ isChecked(order.machineConsumables, option.id) ? '√' : '' }}</span></span>{{ option.label }}</label>
+              <div class="custom-consumable-option"><input type="checkbox" class="screen-only" [checked]="customConsumableSelected" [disabled]="!isFormActive()" (change)="onCustomConsumableToggle($any($event.target).checked)" aria-label="选择自定义耗材" /><input type="text" class="custom-consumable-input screen-only" placeholder="请输入" [disabled]="!isFormActive() || !customConsumableSelected" [ngModel]="customConsumableText" (ngModelChange)="onCustomConsumableTextChange($event)" aria-label="自定义耗材名称" /><span class="print-checkbox" [class.checked]="customConsumableSelected" aria-hidden="true"><span class="print-checkmark">{{ customConsumableSelected ? '√' : '' }}</span></span><span class="print-only custom-consumable-print">{{ getCustomConsumableText(order) }}</span></div>
             </div>
           </td>
         </tr>
@@ -134,7 +134,7 @@
         <!-- 第2行：肝素钠/低分子肝素 rowspan=2 | 首量 | 10%葡萄糖酸钙 | 维持量 -->
         <tr class="anticoag-row">
           <td class="anticoag-option-cell" rowspan="2"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'肝素钠',$any($event.target).checked);onDiscreteChange()" />肝素钠</label><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素',$any($event.target).checked);onDiscreteChange()" />低分子肝素</label></td>
-          <td class="anticoag-dose-cell"><label class="dose-inline-row"><span class="dose-label">首量(ml)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.heparinGroupFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
+          <td class="anticoag-dose-cell"><label class="dose-inline-row first-dose-row"><span class="dose-label">首量(ml)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.heparinGroupFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
           <td class="anticoag-option-cell"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'10%葡萄糖酸钙')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'10%葡萄糖酸钙',$any($event.target).checked);onDiscreteChange()" />10%葡萄糖酸钙</label></td>
           <td class="anticoag-dose-cell"><label class="dose-inline-row"><span class="dose-label">维持量(ml/h)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.calciumMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
         </tr>
@@ -142,12 +142,12 @@
         <tr class="anticoag-row">
           <td class="anticoag-dose-cell"><label class="dose-inline-row"><span class="dose-label">维持量(ml/h)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.heparinGroupMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
           <td class="anticoag-option-cell" rowspan="2"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'甲磺酸萘莫司他')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'甲磺酸萘莫司他',$any($event.target).checked);onDiscreteChange()" />甲磺酸萘莫司他</label></td>
-          <td class="anticoag-dose-cell"><label class="dose-inline-row"><span class="dose-label">首量(ml)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
+          <td class="anticoag-dose-cell"><label class="dose-inline-row first-dose-row"><span class="dose-label">首量(ml)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.nafamostatFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
         </tr>
         <!-- 第4行：低分子肝素钠 rowspan=2 | 首量 | 维持量 -->
         <tr class="anticoag-row">
           <td class="anticoag-option-cell" rowspan="2"><label class="checkbox-option"><input type="checkbox" [checked]="isChecked(order.anticoagulation.types,'低分子肝素钠')" [disabled]="!canEditDoctorField()" (change)="toggleArrayValue(order.anticoagulation.types,'低分子肝素钠',$any($event.target).checked);onDiscreteChange()" />低分子肝素钠</label></td>
-          <td class="anticoag-dose-cell"><label class="dose-inline-row"><span class="dose-label">首量(ml)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.lowMolecularSodiumFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
+          <td class="anticoag-dose-cell"><label class="dose-inline-row first-dose-row"><span class="dose-label">首量(ml)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.lowMolecularSodiumFirstDose" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
           <td class="anticoag-dose-cell"><label class="dose-inline-row"><span class="dose-label">维持量(ml/h)</span><input class="dose-input" type="number" [(ngModel)]="order.anticoagulation.nafamostatMaintenance" [disabled]="!canEditDoctorField()" (ngModelChange)="onPageChanged()" /></label></td>
         </tr>
         <!-- 第5行：维持量 | 空白 colspan=2 -->
