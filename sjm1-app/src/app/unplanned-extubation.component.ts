@@ -2,7 +2,7 @@
  * 非计划拔管风险评估及护理措施记录单 —— Angular 组件
  * 访问路径：/form/unPlannedCGZYYForm
  *
- * A4 横向；每组最多 4 条评估记录，生成 2 张物理页（评分页+护理措施页）
+ * A4 横向；每组最多 5 条评估记录，生成 2 张物理页（评分页+护理措施页）
  * 参照 ToleranceScoreComponent 的数据加载、患者切换、账号签名回填、分页、缩放和打印逻辑
  */
 
@@ -414,7 +414,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
       height: 210mm;
       min-height: 210mm;
       margin: 16px auto;
-      padding: 4mm 7mm 9mm;
+      padding: 3mm 7mm 9mm;
       overflow: hidden;
       background: #fff;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -423,28 +423,28 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
     }
 
     .sheet-head {
-      padding-bottom: 3px;
+      padding-bottom: 1px;
       text-align: center;
     }
 
     .title-line {
       font-family: 'SimHei', '黑体', sans-serif;
-      font-size: 20pt;
+      font-size: 19pt;
       font-weight: 700;
-      line-height: 1.18;
+      line-height: 1.1;
     }
 
     .patient-info-row {
       display: flex;
       align-items: center;
       width: 100%;
-      gap: 12px;
-      margin: 1px 0 3px;
+      gap: 10px;
+      margin: 0 0 2px;
       color: #000;
       font-family: 'SimSun', '宋体', serif;
-      font-size: 10.5pt;
+      font-size: 10pt;
       font-weight: 400;
-      line-height: 1.15;
+      line-height: 1.05;
       white-space: nowrap;
     }
 
@@ -470,15 +470,15 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
       table-layout: fixed;
       color: #000;
       font-family: 'SimSun', '宋体', serif;
-      font-size: 10pt;
-      line-height: 1.2;
+      font-size: 9.5pt;
+      line-height: 1.12;
     }
 
     .record-table th,
     .record-table td {
       box-sizing: border-box;
-      height: 29px;
-      padding: 4px 4px;
+      height: 26px;
+      padding: 2px 3px;
       border: 1px solid #000;
       text-align: center;
       vertical-align: middle;
@@ -500,24 +500,25 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
     /* 第一页评分表 */
     .assessment-table th,
     .assessment-table td {
-      height: 29px;
-      padding-top: 4px;
-      padding-bottom: 4px;
+      height: 26px;
+      padding-top: 2px;
+      padding-bottom: 2px;
+      line-height: 1.1;
     }
 
     /* 第二页内容更多，需要进一步压缩 */
     .second-page-table th,
     .second-page-table td {
-      height: 25px;
-      padding: 2px 4px;
-      line-height: 1.1;
+      height: 21px;
+      padding: 1px 2px;
+      line-height: 1.02;
     }
 
-    .item-col { width: 90px; }
-    .sub-item-col { width: 105px; }
-    .desc-col { width: 210px; }
-    .score-col { width: 48px; }
-    .data-col { width: 105px; min-width: 105px; max-width: 105px; }
+    .item-col { width: 82px; }
+    .sub-item-col { width: 96px; }
+    .desc-col { width: 250px; }
+    .score-col { width: 42px; }
+    .data-col { width: 90px; min-width: 90px; max-width: 90px; }
 
     .item-cell { font-weight: 700; vertical-align: middle; }
     .sub-item-cell { font-weight: 700; vertical-align: middle; }
@@ -526,27 +527,27 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
     .sum-label { padding-left: 4px; text-align: center; font-weight: 700; }
     .merged-detail-cell { padding-right: 3px; padding-left: 3px; text-align: center; overflow-wrap: break-word; word-break: normal; }
 
-    .measure-main-label { width: 90px; padding: 0; text-align: center; vertical-align: middle; font-weight: 700; }
+    .measure-main-label { width: 82px; padding: 0; text-align: center; vertical-align: middle; font-weight: 700; font-size: 8.5pt; line-height: 1; }
     .vertical-text { display: inline-block; writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 1px; line-height: 1.1; }
-    .measure-label { width: 105px; padding: 1px; text-align: center; vertical-align: middle; font-size: 9pt; font-weight: 400; line-height: 1.1; }
-    .measure-item { padding: 1px 3px; text-align: left; vertical-align: middle; font-size: 9pt; line-height: 1.1; overflow-wrap: break-word; word-break: normal; }
+    .measure-label { width: 96px; padding: 0 1px; text-align: center; vertical-align: middle; font-size: 8pt; font-weight: 400; line-height: 1; }
+    .measure-item { padding: 1px 2px; text-align: left; vertical-align: middle; font-size: 8pt; line-height: 1.02; overflow-wrap: break-word; word-break: normal; }
 
-    .data-cell { width: 105px; min-width: 105px; max-width: 105px; padding: 1px; text-align: center; vertical-align: middle; font-size: 11pt; }
-    .measure-check-cell { font-size: 12pt; font-weight: 700; line-height: 1; }
-    .sign-cell { font-size: 9pt; white-space: normal; word-break: break-all; }
+    .data-cell { width: 90px; min-width: 90px; max-width: 90px; padding: 1px; text-align: center; vertical-align: middle; font-size: 10.5pt; }
+    .measure-check-cell { font-size: 10.5pt; font-weight: 700; line-height: 1; }
+    .sign-cell { font-size: 8.5pt; white-space: normal; word-break: break-all; line-height: 1; }
 
-    .dt-date, .dt-time { display: block; text-align: center; white-space: nowrap; line-height: 1.25; font-size: 9.5pt; }
+    .dt-date, .dt-time { display: block; width: 100%; padding: 0; overflow: visible; text-align: center; white-space: nowrap; font-size: 9pt; line-height: 1.1; }
 
     .footnote {
       box-sizing: border-box;
       width: 100%;
-      margin-top: 3px;
+      margin-top: 1px;
       padding: 0;
       color: #000;
       font-family: 'SimSun', '宋体', serif;
-      font-size: 7.5pt;
+      font-size: 6.8pt;
       font-weight: 400;
-      line-height: 1.1;
+      line-height: 1.02;
       text-align: left;
       white-space: normal;
       word-break: normal;
@@ -556,7 +557,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
     .sheet-pageno {
       position: absolute;
       right: 7mm;
-      bottom: 24px;
+      bottom: 40px;
       left: 7mm;
       margin: 0;
       color: #000;
@@ -608,7 +609,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly colsPerPage = 4;
+  readonly colsPerPage = 5;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -913,7 +914,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
         min-height: 210mm !important;
         max-height: 210mm !important;
         margin: 0 !important;
-        padding: 4mm 7mm 9mm !important;
+        padding: 3mm 7mm 9mm !important;
         overflow: hidden !important;
         background: #fff;
         box-shadow: none !important;
@@ -925,27 +926,27 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
       }
 
       .sheet-head {
-        padding-bottom: 3px;
+        padding-bottom: 1px;
         text-align: center;
       }
 
       .title-line {
         font-family: 'SimHei', '黑体', sans-serif;
-        font-size: 20pt;
+        font-size: 19pt;
         font-weight: 700;
-        line-height: 1.18;
+        line-height: 1.1;
       }
 
       .patient-info-row {
         display: flex;
         align-items: center;
         width: 100%;
-        gap: 12px;
-        margin: 1px 0 3px;
+        gap: 10px;
+        margin: 0 0 2px;
         color: #000;
-        font-size: 10.5pt;
+        font-size: 10pt;
         font-weight: 400;
-        line-height: 1.15;
+        line-height: 1.05;
         white-space: nowrap;
       }
 
@@ -967,14 +968,14 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
         table-layout: fixed;
         color: #000;
         font-size: 9.5pt;
-        line-height: 1.15;
+        line-height: 1.12;
       }
 
       .record-table th,
       .record-table td {
         box-sizing: border-box;
-        height: 27px;
-        padding: 3px 3px;
+        height: 26px;
+        padding: 2px 3px;
         border: 1px solid #000;
         color: #000;
         text-align: center;
@@ -994,21 +995,22 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
 
       .assessment-table th,
       .assessment-table td {
-        height: 27px;
+        height: 26px;
+        line-height: 1.1;
       }
 
       .second-page-table th,
       .second-page-table td {
-        height: 23px;
-        padding: 2px 3px;
-        line-height: 1.08;
+        height: 21px;
+        padding: 1px 2px;
+        line-height: 1.02;
       }
 
-      .item-col { width: 90px; }
-      .sub-item-col { width: 105px; }
-      .desc-col { width: 210px; }
-      .score-col { width: 48px; }
-      .data-col { width: 105px; min-width: 105px; max-width: 105px; }
+      .item-col { width: 82px; }
+      .sub-item-col { width: 96px; }
+      .desc-col { width: 250px; }
+      .score-col { width: 42px; }
+      .data-col { width: 90px; min-width: 90px; max-width: 90px; }
 
       .item-cell { font-weight: 700; vertical-align: middle; }
       .sub-item-cell { font-weight: 700; vertical-align: middle; }
@@ -1017,27 +1019,27 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
       .sum-label { padding-left: 3px; text-align: center; font-weight: 700; }
       .merged-detail-cell { padding-right: 3px; padding-left: 3px; text-align: center; overflow-wrap: break-word; word-break: normal; }
 
-      .measure-main-label { width: 90px; padding: 0; text-align: center; vertical-align: middle; font-weight: 700; }
+      .measure-main-label { width: 82px; padding: 0; text-align: center; vertical-align: middle; font-weight: 700; font-size: 8.5pt; line-height: 1; }
       .vertical-text { display: inline-block; writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 1px; line-height: 1; }
-      .measure-label { width: 105px; padding: 1px; text-align: center; vertical-align: middle; font-size: 8.5pt; line-height: 1; }
-      .measure-item { padding: 1px 3px; text-align: left; vertical-align: middle; font-size: 8.5pt; line-height: 1.05; overflow-wrap: break-word; word-break: normal; }
+      .measure-label { width: 96px; padding: 0 1px; text-align: center; vertical-align: middle; font-size: 8pt; line-height: 1; }
+      .measure-item { padding: 1px 2px; text-align: left; vertical-align: middle; font-size: 8pt; line-height: 1.02; overflow-wrap: break-word; word-break: normal; }
 
-      .data-cell { width: 105px; min-width: 105px; max-width: 105px; padding: 1px; text-align: center; vertical-align: middle; font-size: 11pt; }
-      .measure-check-cell { font-size: 12pt; font-weight: 700; line-height: 1; }
-      .sign-cell { font-size: 9pt; white-space: normal; word-break: break-all; }
+      .data-cell { width: 90px; min-width: 90px; max-width: 90px; padding: 1px; text-align: center; vertical-align: middle; font-size: 10.5pt; }
+      .measure-check-cell { font-size: 10.5pt; font-weight: 700; line-height: 1; }
+      .sign-cell { font-size: 8.5pt; white-space: normal; word-break: break-all; line-height: 1; }
 
       .dt-date,
-      .dt-time { display: block; text-align: center; white-space: nowrap; line-height: 1.25; font-size: 9.5pt; }
+      .dt-time { display: block; width: 100%; padding: 0; overflow: visible; text-align: center; white-space: nowrap; font-size: 9pt; line-height: 1.1; }
 
       .footnote {
         box-sizing: border-box;
         width: 100%;
-        margin-top: 2px;
+        margin-top: 1px;
         padding: 0;
         color: #000;
-        font-size: 7pt;
+        font-size: 6.8pt;
         font-weight: 400;
-        line-height: 1.08;
+        line-height: 1.02;
         text-align: left;
         white-space: normal;
         word-break: normal;
@@ -1046,9 +1048,9 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
 
       .sheet-pageno {
         position: absolute;
-        right: 6mm;
+        right: 7mm;
         bottom: 40px;
-        left: 6mm;
+        left: 7mm;
         margin: 0;
         color: #000;
         font-size: 10pt;
