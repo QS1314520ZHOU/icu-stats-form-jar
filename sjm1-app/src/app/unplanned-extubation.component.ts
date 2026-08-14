@@ -2,7 +2,7 @@
  * 非计划拔管风险评估及护理措施记录单 —— Angular 组件
  * 访问路径：/form/unPlannedCGZYYForm
  *
- * A4 横向；每组最多 5 条评估记录，生成 2 张物理页（评分页+护理措施页）
+ * A4 横向；每组最多 4 条评估记录，生成 2 张物理页（评分页+护理措施页）
  * 参照 ToleranceScoreComponent 的数据加载、患者切换、账号签名回填、分页、缩放和打印逻辑
  */
 
@@ -608,7 +608,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly colsPerPage = 5;
+  readonly colsPerPage = 4;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
