@@ -154,7 +154,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
           备注：总分 0-100 分。①100 分：无依赖；1 次/月评估。②61-99 分：轻度依赖，日常生活少部分需要帮助；1 次/半月评估。③41-60 分：中度依赖，日常生活大部分需要帮助；1 次/周评估。④≤40 分：重度依赖，日常生活全部需要照顾；2 次/周评估，病情/因子改变随时评估。
         </div>
 
-        <div class="review-sign">审核护士签名：{{auditorName || '__________'}}</div>
+        <div class="review-sign" *ngIf='pages.length==page.index'>审核护士签名：{{auditorName || '__________'}}</div>
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
       </div>
   `,

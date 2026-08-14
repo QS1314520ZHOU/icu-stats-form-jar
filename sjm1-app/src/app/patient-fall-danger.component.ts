@@ -190,7 +190,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
           <div class="fn" *ngFor="let t of MEASURE_LEGEND">{{ t }}</div>
         </div>
 
-        <div class="review-sign">审核护士签名：{{ auditorName || '__________' }}</div>
+        <div class="review-sign" *ngIf='pages.length==page.index'>审核护士签名：{{ auditorName || '__________' }}</div>
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
       </div>
   `,
