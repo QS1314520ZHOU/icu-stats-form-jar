@@ -99,11 +99,8 @@ const NURSE_MEASURES = [
 ];
 
 /** 备注文本 */
-const FOOTNOTE = '备注：\n' +
-  '1. 评分范围 0-20 分，≥10 分为高危，5-9 分为中危，<5 分为低危。\n' +
-  '2. 高危患者每班评估 1 次，中危患者每天评估 1 次，低危患者每周评估 1 次。\n' +
-  '3. 病情变化时随时评估。\n' +
-  '4. 护理措施：根据评估结果选择相应措施，在对应栏内打"√"。';
+const FOOTNOTE =
+  '备注：评估总分：≥9分高危，6-8分中危，≤5分低危；首次评估后：＜9分者每周评估1次；≥9分者每天评估1次，每班交接，直至导管拔出；当评估内容发生变化随时评估更新。RASS：Richmond躁动-镇静量表；NRS：疼痛数字评定量表；CPOT：重症监护疼痛观察工具。*如果按照低风险为1分，并根据等级分值逐渐累加，结合组合权重的分值，将组合权重×50后可初步得出相应的分值，考虑到部分情况无拔管风险，故将组合权重×50-1，得到无风险的分值为0分，低风险为1分，如此累加。';
 
 /* ============================= 数据模型 ============================= */
 
@@ -199,7 +196,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
           <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
         </div>
 
-        <table class="record-table">
+        <table class="record-table assessment-table">
           <colgroup>
             <col class="item-col">
             <col class="sub-item-col">
@@ -322,7 +319,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
         </table>
 
         <div class="footnote">
-          <div class="fn" *ngFor="let line of footnoteLines">{{line}}</div>
+          {{ footnote }}
         </div>
 
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
@@ -399,7 +396,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
         </table>
 
         <div class="footnote">
-          <div class="fn" *ngFor="let line of footnoteLines">{{line}}</div>
+          {{ footnote }}
         </div>
 
         <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
@@ -415,54 +412,177 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
     .loading { padding:16px; font-family:'SimSun', '宋体', serif; }
     .sheet-hidden { display:none; }
 
-    .sheet { box-sizing:border-box; width:297mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
-    .sheet-head { text-align:center; padding-bottom:6px; }
-    .title-line { font-family:'SimHei', '黑体', sans-serif; font-weight:700; font-size:24pt; line-height:1.35; }
+    .sheet {
+      box-sizing: border-box;
+      position: relative;
+      width: 297mm;
+      height: 210mm;
+      min-height: 210mm;
+      margin: 16px auto;
+      padding: 4mm 7mm 9mm;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      color: #000;
+      font-family: 'SimSun', '宋体', serif;
+    }
 
-    .patient-info-row { display:flex; align-items:center; width:100%; gap:18px; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; white-space:nowrap; margin:2px 0; color:#000; }
-    .info-item { flex:0 0 auto; white-space:nowrap; }
-    .info-item b { font-weight:700; }
-    .diagnosis-item { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    .sheet-head {
+      padding-bottom: 3px;
+      text-align: center;
+    }
 
-    .record-table { width:100%; border-collapse:collapse; font-family:'SimSun', '宋体', serif; font-size:9pt; table-layout:fixed; }
-    .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:4px 3px; word-break:break-all; height:28px; }
-    .record-table th { background:transparent; font-weight:700; color:#000; }
-    .record-table td { font-weight:400; color:#000; }
+    .title-line {
+      font-family: 'SimHei', '黑体', sans-serif;
+      font-size: 20pt;
+      font-weight: 700;
+      line-height: 1.18;
+    }
 
-    .item-col { width:80px; }
-    .sub-item-col { width:90px; }
-    .desc-col { width:180px; }
-    .score-col { width:40px; }
-    .data-col { width:80px; min-width:80px; max-width:80px; }
+    .patient-info-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: 12px;
+      margin: 1px 0 3px;
+      color: #000;
+      font-family: 'SimSun', '宋体', serif;
+      font-size: 10.5pt;
+      font-weight: 400;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
 
-    .item-cell { font-weight:700; vertical-align:middle; }
-    .sub-item-cell { font-weight:700; vertical-align:middle; }
-    .desc-cell { text-align:left; padding-left:6px; }
-    .score-cell { font-weight:700; }
-    .sum-label { text-align:left; padding-left:6px; font-weight:700; }
+    .info-item {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
 
-    .merged-detail-cell { text-align:center; padding-left:6px; padding-right:6px; }
+    .info-item b {
+      font-weight: 700;
+    }
 
-    .second-page-table { width:100%; table-layout:fixed; border-collapse:collapse; }
-    .second-page-table th,.second-page-table td { box-sizing:border-box; border:1px solid #000; }
+    .diagnosis-item {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
-    .measure-main-label { width:80px; padding:0; text-align:center; vertical-align:middle; font-weight:700; }
-    .vertical-text { display:inline-block; writing-mode:vertical-rl; text-orientation:upright; letter-spacing:2px; line-height:1.2; }
-    .measure-label { width:90px; text-align:center; vertical-align:middle; font-weight:400; }
-    .measure-item { padding:3px 6px; text-align:left; vertical-align:middle; line-height:1.25; word-break:break-all; }
+    .record-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      color: #000;
+      font-family: 'SimSun', '宋体', serif;
+      font-size: 7.8pt;
+      line-height: 1.08;
+    }
 
-    .data-cell { width:80px; min-width:80px; max-width:80px; padding:2px; text-align:center; vertical-align:middle; }
-    .measure-check-cell { font-size:11pt; }
-    .sign-cell { white-space:normal; word-break:break-all; }
+    .record-table th,
+    .record-table td {
+      box-sizing: border-box;
+      height: 21px;
+      padding: 1px 2px;
+      border: 1px solid #000;
+      text-align: center;
+      vertical-align: middle;
+      word-break: break-all;
+      overflow-wrap: anywhere;
+    }
 
-    .dt-date,.dt-time { display:block; white-space:nowrap; text-align:center; line-height:1.2; }
+    .record-table th {
+      background: transparent;
+      color: #000;
+      font-weight: 700;
+    }
 
-    .footnote { margin-top:8px; font-family:'SimSun', '宋体', serif; font-size:8pt; line-height:1.3; color:#000; }
-    .footnote .fn { padding-left:3em; text-indent:-3em; }
+    .record-table td {
+      color: #000;
+      font-weight: 400;
+    }
 
-    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
-    @media screen { .sheet { zoom:var(--sheet-scale,1); } }
-    @media print { .no-print { display:none !important; } .sheet-hidden { display:none !important; } }
+    /* 第一页评分表 */
+    .assessment-table th,
+    .assessment-table td {
+      height: 21px;
+      padding-top: 1px;
+      padding-bottom: 1px;
+    }
+
+    /* 第二页内容更多，需要进一步压缩 */
+    .second-page-table th,
+    .second-page-table td {
+      height: 19px;
+      padding: 1px 2px;
+      line-height: 1.05;
+    }
+
+    .item-col { width: 80px; }
+    .sub-item-col { width: 90px; }
+    .desc-col { width: 180px; }
+    .score-col { width: 40px; }
+    .data-col { width: 80px; min-width: 80px; max-width: 80px; }
+
+    .item-cell { font-weight: 700; vertical-align: middle; }
+    .sub-item-cell { font-weight: 700; vertical-align: middle; }
+    .desc-cell { padding-right: 3px; padding-left: 3px; text-align: left; }
+    .score-cell { font-weight: 700; }
+    .sum-label { padding-left: 4px; text-align: center; font-weight: 700; }
+    .merged-detail-cell { padding-right: 3px; padding-left: 3px; text-align: center; }
+
+    .measure-main-label { width: 80px; padding: 0; text-align: center; vertical-align: middle; font-weight: 700; }
+    .vertical-text { display: inline-block; writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 1px; line-height: 1.05; }
+    .measure-label { width: 90px; padding: 1px; text-align: center; vertical-align: middle; font-size: 7.5pt; font-weight: 400; line-height: 1.05; }
+    .measure-item { padding: 1px 3px; text-align: left; vertical-align: middle; font-size: 7.2pt; line-height: 1.05; word-break: break-all; overflow-wrap: anywhere; }
+
+    .data-cell { width: 80px; min-width: 80px; max-width: 80px; padding: 1px; text-align: center; vertical-align: middle; }
+    .measure-check-cell { font-size: 9.5pt; line-height: 1; }
+    .sign-cell { font-size: 7.5pt; white-space: normal; word-break: break-all; }
+
+    .dt-date, .dt-time { display: block; text-align: center; white-space: nowrap; line-height: 1.05; }
+
+    .footnote {
+      box-sizing: border-box;
+      width: 100%;
+      margin-top: 3px;
+      padding: 0;
+      color: #000;
+      font-family: 'SimSun', '宋体', serif;
+      font-size: 6.8pt;
+      font-weight: 400;
+      line-height: 1.08;
+      text-align: left;
+      white-space: normal;
+      word-break: normal;
+      overflow-wrap: break-word;
+    }
+
+    .sheet-pageno {
+      position: absolute;
+      right: 7mm;
+      bottom: 2.5mm;
+      left: 7mm;
+      margin: 0;
+      color: #000;
+      font-family: 'SimSun', '宋体', serif;
+      font-size: 10pt;
+      font-weight: 400;
+      line-height: 1;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    @media screen {
+      .sheet { zoom: var(--sheet-scale, 1); }
+    }
+
+    @media print {
+      :host { height: auto; overflow: visible; background: #fff; }
+      .no-print { display: none !important; }
+      .sheet-hidden { display: none !important; }
+      .sheet { margin: 0; box-shadow: none; transform: none !important; zoom: 1 !important; }
+    }
   `],
 })
 export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -480,7 +600,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
     const groupStart = NURSE_MEASURES.findIndex(x => x.group === m.group);
     return { ...m, rowspan: i === groupStart ? NURSE_MEASURES.filter(x => x.group === m.group).length : 0 };
   });
-  readonly footnoteLines = FOOTNOTE.split('\n');
+  readonly footnote = FOOTNOTE;
 
   loading = true;
   patient: any = null;
@@ -746,57 +866,229 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
       c.classList.remove('sheet-hidden');
       c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
       c.style.zoom = '1'; c.style.transform = 'none';
-      body += '<div class="print-page" data-page-index="' + pageIndex + '">' + c.outerHTML + '</div>';
+      body += `
+        <div class="print-page">
+          ${c.outerHTML}
+        </div>
+      `;
     });
     const css = `
-      @page { size: A4 landscape; margin:0; }
-      html,body{margin:0;padding:0;}
-      body{color:#000;font-family:'SimSun','宋体',serif;}
-      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;overflow:hidden;page-break-after:always;background:#fff;}
-      .print-page:last-of-type{page-break-after:auto;}
-      .sheet{box-sizing:border-box;position:relative;width:297mm;max-width:297mm;height:210mm;max-height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none!important;zoom:1!important;filter:none!important;text-shadow:none!important;}
-      .sheet-head{text-align:center;padding-bottom:6px;}
-      .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
-      .patient-info-row{display:flex;align-items:center;width:100%;gap:18px;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
-      .info-item{flex:0 0 auto;white-space:nowrap;}
-      .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
-      .record-table{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed;}
-      .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:4px 3px;height:28px;word-break:break-all;}
-      .record-table th{background:transparent;font-weight:700;color:#000;}
-      .record-table td{font-weight:400;color:#000;}
-      .item-col{width:80px;} .sub-item-col{width:90px;} .desc-col{width:180px;} .score-col{width:40px;} .data-col{width:80px;min-width:80px;max-width:80px;}
-      .item-cell{font-weight:700;vertical-align:middle;} .sub-item-cell{font-weight:700;vertical-align:middle;}
-      .desc-cell{text-align:left;padding-left:6px;} .score-cell{font-weight:700;}
-      .sum-label{text-align:left;padding-left:6px;font-weight:700;}
-      .merged-detail-cell{text-align:center;padding-left:6px;padding-right:6px;}
-      .second-page-table{width:100%;table-layout:fixed;border-collapse:collapse;}
-      .measure-main-label{width:80px;padding:0;text-align:center;vertical-align:middle;font-weight:700;}
-      .vertical-text{display:inline-block;writing-mode:vertical-rl;text-orientation:upright;letter-spacing:2px;line-height:1.2;}
-      .measure-label{width:90px;text-align:center;vertical-align:middle;}
-      .measure-item{padding:3px 6px;text-align:left;vertical-align:middle;line-height:1.25;word-break:break-all;}
-      .data-cell{width:80px;min-width:80px;max-width:80px;padding:2px;text-align:center;vertical-align:middle;}
-      .measure-check-cell{font-size:11pt;}
-      .dt-date,.dt-time{display:block;white-space:nowrap;text-align:center;line-height:1.2;}
-      .footnote{margin-top:8px;font-size:8pt;line-height:1.3;color:#000;}
-      .footnote .fn{padding-left:3em;text-indent:-3em;}
-      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+      @page {
+        size: A4 landscape;
+        margin: 0;
+      }
+
+      html,
+      body {
+        width: 297mm;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+      }
+
+      body {
+        color: #000;
+        font-family: 'SimSun', '宋体', serif;
+      }
+
+      .print-page {
+        box-sizing: border-box;
+        position: relative;
+        width: 297mm;
+        height: 210mm;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        break-after: page;
+        page-break-after: always;
+        background: #fff;
+      }
+
+      .print-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+
+      .sheet {
+        box-sizing: border-box;
+        position: relative;
+        width: 297mm !important;
+        max-width: 297mm !important;
+        height: 210mm !important;
+        min-height: 210mm !important;
+        max-height: 210mm !important;
+        margin: 0 !important;
+        padding: 3mm 6mm 8mm !important;
+        overflow: hidden !important;
+        background: #fff;
+        box-shadow: none !important;
+        color: #000;
+        transform: none !important;
+        zoom: 1 !important;
+        filter: none !important;
+        text-shadow: none !important;
+      }
+
+      .sheet-head {
+        padding-bottom: 3px;
+        text-align: center;
+      }
+
+      .title-line {
+        font-family: 'SimHei', '黑体', sans-serif;
+        font-size: 18pt;
+        font-weight: 700;
+        line-height: 1.15;
+      }
+
+      .patient-info-row {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        gap: 10px;
+        margin: 1px 0 3px;
+        color: #000;
+        font-size: 9.5pt;
+        font-weight: 400;
+        line-height: 1.1;
+        white-space: nowrap;
+      }
+
+      .info-item {
+        flex: 0 0 auto;
+        white-space: nowrap;
+      }
+
+      .diagnosis-item {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .record-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        color: #000;
+        font-size: 7.3pt;
+        line-height: 1.04;
+      }
+
+      .record-table th,
+      .record-table td {
+        box-sizing: border-box;
+        height: 20px;
+        padding: 1px 2px;
+        border: 1px solid #000;
+        color: #000;
+        text-align: center;
+        vertical-align: middle;
+        word-break: break-all;
+        overflow-wrap: anywhere;
+      }
+
+      .record-table th {
+        background: transparent;
+        font-weight: 700;
+      }
+
+      .record-table td {
+        font-weight: 400;
+      }
+
+      .assessment-table th,
+      .assessment-table td {
+        height: 20px;
+      }
+
+      .second-page-table th,
+      .second-page-table td {
+        height: 18px;
+        padding: 1px 2px;
+        line-height: 1.02;
+      }
+
+      .item-col { width: 80px; }
+      .sub-item-col { width: 90px; }
+      .desc-col { width: 180px; }
+      .score-col { width: 40px; }
+      .data-col { width: 80px; min-width: 80px; max-width: 80px; }
+
+      .item-cell { font-weight: 700; vertical-align: middle; }
+      .sub-item-cell { font-weight: 700; vertical-align: middle; }
+      .desc-cell { padding-right: 3px; padding-left: 3px; text-align: left; }
+      .score-cell { font-weight: 700; }
+      .sum-label { padding-left: 3px; text-align: center; font-weight: 700; }
+      .merged-detail-cell { padding-right: 3px; padding-left: 3px; text-align: center; }
+
+      .measure-main-label { width: 80px; padding: 0; text-align: center; vertical-align: middle; font-weight: 700; }
+      .vertical-text { display: inline-block; writing-mode: vertical-rl; text-orientation: upright; letter-spacing: 1px; line-height: 1; }
+      .measure-label { width: 90px; padding: 1px; text-align: center; vertical-align: middle; font-size: 7pt; line-height: 1; }
+      .measure-item { padding: 1px 3px; text-align: left; vertical-align: middle; font-size: 6.8pt; line-height: 1.02; word-break: break-all; overflow-wrap: anywhere; }
+
+      .data-cell { width: 80px; min-width: 80px; max-width: 80px; padding: 1px; text-align: center; vertical-align: middle; }
+      .measure-check-cell { font-size: 9pt; line-height: 1; }
+      .sign-cell { font-size: 7pt; white-space: normal; word-break: break-all; }
+
+      .dt-date,
+      .dt-time { display: block; text-align: center; white-space: nowrap; line-height: 1.02; }
+
+      .footnote {
+        box-sizing: border-box;
+        width: 100%;
+        margin-top: 2px;
+        padding: 0;
+        color: #000;
+        font-size: 6.2pt;
+        font-weight: 400;
+        line-height: 1.04;
+        text-align: left;
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: break-word;
+      }
+
+      .sheet-pageno {
+        position: absolute;
+        right: 6mm;
+        bottom: 2mm;
+        left: 6mm;
+        margin: 0;
+        color: #000;
+        font-size: 9pt;
+        font-weight: 400;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      .no-print,
+      .sheet-hidden {
+        display: none !important;
+      }
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
-    win.document.write(`<html><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`);
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>非计划拔管风险评估及护理措施记录单</title><style>${css}</style></head><body>${body}</body></html>`);
     win.document.close();
     const doPrint = () => {
       const sheets = win.document.querySelectorAll<HTMLElement>('.sheet');
       for (const sheet of Array.from(sheets)) {
-        const pn = sheet.querySelector<HTMLElement>('.sheet-pageno');
-        if (!pn) { console.error('页码缺失'); }
         if (sheet.scrollWidth > sheet.clientWidth + 1) { console.warn('横向溢出: ' + (sheet.scrollWidth - sheet.clientWidth) + 'px'); }
         if (sheet.scrollHeight > sheet.clientHeight + 1) { console.warn('纵向溢出: ' + (sheet.scrollHeight - sheet.clientHeight) + 'px'); }
       }
       win.focus(); win.print();
     };
-    const ready = () => { const doc = win.document as any; if (doc.fonts?.ready) { doc.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); }); } else { requestAnimationFrame(() => requestAnimationFrame(doPrint)); } };
-    win.addEventListener('afterprint', () => { try { win.close(); } catch(e) {} });
+    const ready = () => {
+      const docWithFonts = win.document as Document & { fonts?: { ready: Promise<unknown> } };
+      if (docWithFonts.fonts?.ready) {
+        docWithFonts.fonts.ready.then(() => { requestAnimationFrame(() => requestAnimationFrame(doPrint)); });
+      } else {
+        requestAnimationFrame(() => requestAnimationFrame(doPrint));
+      }
+    };
+    win.addEventListener('afterprint', () => { try { win.close(); } catch (e) {} });
     if ((win.document as any).readyState === 'complete') { ready(); } else { win.addEventListener('load', ready); }
   }
 
