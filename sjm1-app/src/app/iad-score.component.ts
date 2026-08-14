@@ -4,6 +4,13 @@
  *
  * A4 横向；行=每条 Score 记录（scoreType=incontinenceScore）
  * 取数/签名/缩放/打印与自杀风险表、肠内营养表保持一致
+ *
+ * 打印策略：自动缩放 + 动态分页
+ * - 屏幕预览使用397mm大画布
+ * - 打印时使用A4横向297×210mm
+ * - 预留5mm实体打印机安全边距
+ * - 优先每页6条，缩放<82%时自动降为5/4/3条
+ * - 所有打印页使用统一缩放比例
  */
 
 import { HttpClient } from '@angular/common/http';
@@ -20,6 +27,16 @@ import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap 
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+
+/* ============================= 打印布局常量 ============================= */
+
+const IAD_DEFAULT_ROWS_PER_PAGE = 6;
+const IAD_MIN_ROWS_PER_PAGE = 3;
+const IAD_ROWS_PER_PAGE_CANDIDATES = [6, 5, 4, 3] as const;
+
+const IAD_MIN_PRINT_SCALE = 0.82;
+const IAD_PRINT_SAFETY_FACTOR = 0.985;
+const IAD_PRINT_SAFE_MARGIN_MM = 5;
 
 /* ============================= 配置区 ============================= */
 
@@ -93,125 +110,46 @@ interface IadRow {
 
 interface RenderPage { index: number; rows: IadRow[]; }
 
+interface IadPrintLayout {
+  rowsPerPage: number;
+  scale: number;
+  totalPages: number;
+  contentWidth: number;
+  contentHeight: number;
+  availableWidth: number;
+  availableHeight: number;
+}
+
 @Component({
   standalone: false,
   selector: 'app-iad-score',
   template: `
     <div class="toolbar no-print">
       <div class="toolbar-right">
+        <span *ngIf="preparedPrintLayout" class="print-fit-status">
+          每页{{ preparedPrintLayout.rowsPerPage }}条，缩放{{ preparedPrintLayout.scale * 100 | number:'1.0-0' }}%
+        </span>
         <app-print-page-multi-select
           [totalPages]="pages.length"
           [(selectedPages)]="selectedPrintPages"
-          [disabled]="loading"
+          [disabled]="loading || preparingPrint"
         ></app-print-page-multi-select>
-        <button class="btn" (click)="onPrint()">打印</button>
+        <button class="btn" (click)="onPrint()" [disabled]="loading || preparingPrint">
+          {{ preparingPrint ? '正在适配…' : '打印' }}
+        </button>
       </div>
     </div>
 
     <div class="loading" *ngIf="loading">加载中…</div>
+    <div class="print-error" *ngIf="printError">{{ printError }}</div>
 
     <ng-container *ngFor="let page of pages">
       <div class="sheet" *ngIf="isPrintPageSelected(page.index)">
-        <div class="sheet-head">
-          <div class="title-line">{{hospitalName}}成人失禁相关性皮炎分类及会阴部皮肤评估护理记录单</div>
-        </div>
-
-        <div class="patient-info-row">
-          <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
-          <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
-          <span class="info-item"><b>床号：</b>{{patient?.hisBed ? (patient.hisBed.endsWith('床') ? patient.hisBed : patient.hisBed + '床') : ''}}</span>
-          <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
-          <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
-          <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-          <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
-        </div>
-
-        <table class="record-table">
-          <thead>
-            <tr>
-              <th class="date-col" rowspan="5">日期时间</th>
-              <th colspan="3">IAD分类</th>
-              <th colspan="5">会阴部皮肤状况评估量表（PAT）</th>
-              <th class="total-col" rowspan="5">总分</th>
-              <th class="measure-col" rowspan="5">护理措施</th>
-              <th class="sign-col" rowspan="5">签名</th>
-            </tr>
-            <tr>
-              <th class="iad-sub">0级</th>
-              <th class="iad-sub">1级</th>
-              <th class="iad-sub">2级</th>
-              <th class="pt-score-col">分值</th>
-              <th>刺激物强度</th>
-              <th>刺激物持续时间</th>
-              <th>会阴部皮肤情况</th>
-              <th>相关影响因素</th>
-            </tr>
-            <tr class="legend-row">
-              <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[0].desc }}</td>
-              <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[1].desc }}</td>
-              <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[2].desc }}</td>
-              <td class="pt-score-col">{{ PAT_ROWS[0].score }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[0].irritant }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[0].time }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[0].perineum }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[0].influence }}</td>
-            </tr>
-            <tr class="legend-row">
-              <td class="pt-score-col">{{ PAT_ROWS[1].score }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[1].irritant }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[1].time }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[1].perineum }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[1].influence }}</td>
-            </tr>
-            <tr class="legend-row">
-              <td class="pt-score-col">{{ PAT_ROWS[2].score }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[2].irritant }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[2].time }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[2].perineum }}</td>
-              <td class="legend-desc">{{ PAT_ROWS[2].influence }}</td>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="data-row" *ngFor="let r of pagePaddedRows(page)">
-              <td class="date-cell">
-                <span class="dt-date">{{ r ? fmtDate(r.time) : '' }}</span>
-                <span class="dt-time">{{ r ? fmtTime(r.time) : '' }}</span>
-              </td>
-              <td>{{ r ? iadCheck(r, 1) : '' }}</td>
-              <td>{{ r ? iadCheck(r, 2) : '' }}</td>
-              <td>{{ r ? iadCheck(r, 3) : '' }}</td>
-              <td class="pt-score-col"></td>
-              <td>{{ r && r.irritantType !== null ? r.irritantType : '' }}</td>
-              <td>{{ r && r.stimulationTime !== null ? r.stimulationTime : '' }}</td>
-              <td>{{ r && r.perineum !== null ? r.perineum : '' }}</td>
-              <td>{{ r && r.influenceFactor !== null ? r.influenceFactor : '' }}</td>
-              <td class="total-col">{{ r && r.total !== null ? r.total : '' }}</td>
-              <td class="measure-col">{{ r ? r.measures.join('、') : '' }}</td>
-              <td class="sign-col">{{ r ? (r.signName || '') : '' }}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="iad-footnote">
-          <div class="footnote-title">备注：</div>
-          <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者，每日评估1次，对于1级、2级患者，每日评估2次。</div>
-          <div class="fn">2、PAT量表采用 Likert 3 点计分法，各部分评分最佳至最差为 1~3 分；总分 4~12 分，4~6 分为低风险，7~12 分为高风险。</div>
-          <div class="fn">3、PAT量表中相关影响因素有：低蛋白、使用抗生素、管饲饮食、艰难梭状芽孢杆菌、其他。</div>
-          <div class="fn">4、护理措施：</div>
-          <div class="fn" *ngFor="let m of MEASURE_LEGEND">{{ m }}</div>
-        </div>
-
-        <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
-      </div>
-    </ng-container>
-
-    <!-- Hidden print source: 10 rows per page, off-screen, NOT visible -->
-    <div class="print-source" aria-hidden="true">
-      <section class="print-page" *ngFor="let page of pages" [attr.data-page-index]="page.index">
-        <div class="sheet">
+        <div class="iad-page-content">
           <div class="sheet-head">
             <div class="title-line">{{hospitalName}}成人失禁相关性皮炎分类及会阴部皮肤评估护理记录单</div>
           </div>
+
           <div class="patient-info-row">
             <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
             <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
@@ -221,6 +159,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
             <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
             <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
           </div>
+
           <table class="record-table">
             <thead>
               <tr>
@@ -286,6 +225,7 @@ interface RenderPage { index: number; rows: IadRow[]; }
               </tr>
             </tbody>
           </table>
+
           <div class="iad-footnote">
             <div class="footnote-title">备注：</div>
             <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者，每日评估1次，对于1级、2级患者，每日评估2次。</div>
@@ -293,6 +233,103 @@ interface RenderPage { index: number; rows: IadRow[]; }
             <div class="fn">3、PAT量表中相关影响因素有：低蛋白、使用抗生素、管饲饮食、艰难梭状芽孢杆菌、其他。</div>
             <div class="fn">4、护理措施：</div>
             <div class="fn" *ngFor="let m of MEASURE_LEGEND">{{ m }}</div>
+          </div>
+        </div>
+
+        <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
+      </div>
+    </ng-container>
+
+    <!-- Hidden print source: off-screen, NOT visible, fixed 297mm for measurement -->
+    <div class="print-source" aria-hidden="true">
+      <section class="print-page" *ngFor="let page of pages" [attr.data-page-index]="page.index">
+        <div class="sheet">
+          <div class="iad-page-content">
+            <div class="sheet-head">
+              <div class="title-line">{{hospitalName}}成人失禁相关性皮炎分类及会阴部皮肤评估护理记录单</div>
+            </div>
+            <div class="patient-info-row">
+              <span class="info-item"><b>科室：</b>{{patient?.dept || ''}}</span>
+              <span class="info-item"><b>姓名：</b>{{patient?.name || ''}}</span>
+              <span class="info-item"><b>床号：</b>{{patient?.hisBed ? (patient.hisBed.endsWith('床') ? patient.hisBed : patient.hisBed + '床') : ''}}</span>
+              <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
+              <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
+              <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
+              <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+            </div>
+            <table class="record-table">
+              <thead>
+                <tr>
+                  <th class="date-col" rowspan="5">日期时间</th>
+                  <th colspan="3">IAD分类</th>
+                  <th colspan="5">会阴部皮肤状况评估量表（PAT）</th>
+                  <th class="total-col" rowspan="5">总分</th>
+                  <th class="measure-col" rowspan="5">护理措施</th>
+                  <th class="sign-col" rowspan="5">签名</th>
+                </tr>
+                <tr>
+                  <th class="iad-sub">0级</th>
+                  <th class="iad-sub">1级</th>
+                  <th class="iad-sub">2级</th>
+                  <th class="pt-score-col">分值</th>
+                  <th>刺激物强度</th>
+                  <th>刺激物持续时间</th>
+                  <th>会阴部皮肤情况</th>
+                  <th>相关影响因素</th>
+                </tr>
+                <tr class="legend-row">
+                  <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[0].desc }}</td>
+                  <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[1].desc }}</td>
+                  <td class="legend-desc" rowspan="3">{{ IAD_LEVELS[2].desc }}</td>
+                  <td class="pt-score-col">{{ PAT_ROWS[0].score }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[0].irritant }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[0].time }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[0].perineum }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[0].influence }}</td>
+                </tr>
+                <tr class="legend-row">
+                  <td class="pt-score-col">{{ PAT_ROWS[1].score }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[1].irritant }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[1].time }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[1].perineum }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[1].influence }}</td>
+                </tr>
+                <tr class="legend-row">
+                  <td class="pt-score-col">{{ PAT_ROWS[2].score }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[2].irritant }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[2].time }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[2].perineum }}</td>
+                  <td class="legend-desc">{{ PAT_ROWS[2].influence }}</td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="data-row" *ngFor="let r of pagePaddedRows(page)">
+                  <td class="date-cell">
+                    <span class="dt-date">{{ r ? fmtDate(r.time) : '' }}</span>
+                    <span class="dt-time">{{ r ? fmtTime(r.time) : '' }}</span>
+                  </td>
+                  <td>{{ r ? iadCheck(r, 1) : '' }}</td>
+                  <td>{{ r ? iadCheck(r, 2) : '' }}</td>
+                  <td>{{ r ? iadCheck(r, 3) : '' }}</td>
+                  <td class="pt-score-col"></td>
+                  <td>{{ r && r.irritantType !== null ? r.irritantType : '' }}</td>
+                  <td>{{ r && r.stimulationTime !== null ? r.stimulationTime : '' }}</td>
+                  <td>{{ r && r.perineum !== null ? r.perineum : '' }}</td>
+                  <td>{{ r && r.influenceFactor !== null ? r.influenceFactor : '' }}</td>
+                  <td class="total-col">{{ r && r.total !== null ? r.total : '' }}</td>
+                  <td class="measure-col">{{ r ? r.measures.join('、') : '' }}</td>
+                  <td class="sign-col">{{ r ? (r.signName || '') : '' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="iad-footnote">
+              <div class="footnote-title">备注：</div>
+              <div class="fn">1、IAD分类：对应栏内打"√"；IAD 0级患者，每日评估1次，对于1级、2级患者，每日评估2次。</div>
+              <div class="fn">2、PAT量表采用 Likert 3 点计分法，各部分评分最佳至最差为 1~3 分；总分 4~12 分，4~6 分为低风险，7~12 分为高风险。</div>
+              <div class="fn">3、PAT量表中相关影响因素有：低蛋白、使用抗生素、管饲饮食、艰难梭状芽孢杆菌、其他。</div>
+              <div class="fn">4、护理措施：</div>
+              <div class="fn" *ngFor="let m of MEASURE_LEGEND">{{ m }}</div>
+            </div>
           </div>
           <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
         </div>
@@ -305,9 +342,13 @@ interface RenderPage { index: number; rows: IadRow[]; }
     .toolbar-right { display:flex; align-items:center; gap:12px; }
     .page-select select { padding:4px 8px; }
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
+    .btn:disabled { opacity:0.6; cursor:not-allowed; }
     .loading { padding:16px; font-family:'SimSun','宋体',serif; }
+    .print-error { padding:8px 16px; color:#f5222d; font-size:14px; background:#fff2f0; border-bottom:1px solid #ffccc7; }
+    .print-fit-status { color:#666; font:12px/1.2 "Microsoft YaHei","微软雅黑",sans-serif; white-space:nowrap; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:10mm 12mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
+    .iad-page-content { box-sizing:border-box; width:100%; }
     .sheet-head { text-align:center; padding-bottom:2px; }
     .title-line { font-family:'SimHei','黑体',sans-serif; font-weight:700; font-size:24pt; line-height:1.35; }
 
@@ -345,13 +386,57 @@ interface RenderPage { index: number; rows: IadRow[]; }
 
     .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:40px; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
 
-    /* Hidden print source: off-screen, invisible, no interaction */
-    .print-source { position:fixed; left:-100000px; top:0; width:297mm; visibility:hidden; pointer-events:none; }
+    /* Hidden print source: off-screen, invisible, no interaction, fixed 297mm for measurement */
+    .print-source {
+      position:fixed;
+      top:0;
+      left:-100000px;
+      width:297mm;
+      height:auto;
+      visibility:hidden;
+      pointer-events:none;
+      overflow:visible;
+    }
+
+    .print-source .print-page {
+      box-sizing:border-box;
+      position:relative;
+      width:297mm !important;
+      height:210mm !important;
+      min-width:297mm !important;
+      max-width:297mm !important;
+      min-height:210mm !important;
+      max-height:210mm !important;
+      margin:0 !important;
+      padding:0 !important;
+      overflow:visible !important;
+    }
+
+    .print-source .sheet {
+      box-sizing:border-box;
+      position:absolute;
+      top:5mm;
+      left:5mm;
+      width:297mm !important;
+      height:210mm !important;
+      min-width:297mm !important;
+      max-width:297mm !important;
+      min-height:210mm !important;
+      max-height:none !important;
+      margin:0 !important;
+      padding:4mm 10mm 12mm !important;
+      overflow:visible !important;
+      zoom:1 !important;
+      transform:none !important;
+      transform-origin:left top !important;
+      box-shadow:none !important;
+    }
 
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
       .no-print { display:none !important; }
+      .print-error { display:none !important; }
       .sheet { width:297mm; height:210mm; overflow:hidden; margin:0; box-shadow:none; zoom:1; page-break-after:always; }
       .sheet:last-of-type { page-break-after:auto; }
     }
@@ -379,7 +464,15 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   pages: RenderPage[] = [];
   selectedPrintPages: number[] = [];
 
-  readonly maxRowsPerPage = 6;
+  private activeRowsPerPage = IAD_DEFAULT_ROWS_PER_PAGE;
+  preparedPrintLayout: IadPrintLayout | null = null;
+  preparingPrint = false;
+  printError = '';
+
+  get maxRowsPerPage(): number {
+    return this.activeRowsPerPage;
+  }
+
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -431,6 +524,9 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedPrintPages = [];
     this.diagnosisDisplay = '';
     this.age = null;
+    this.activeRowsPerPage = IAD_DEFAULT_ROWS_PER_PAGE;
+    this.preparedPrintLayout = null;
+    this.printError = '';
     this.cdr.detectChanges();
   }
 
@@ -523,14 +619,36 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     return result;
   }
 
+  /** 指定每页条数分页 */
+  private paginateWithRowsPerPage(rowsPerPage: number): void {
+    const normalizedRowsPerPage = Math.max(
+      IAD_MIN_ROWS_PER_PAGE,
+      Math.floor(rowsPerPage),
+    );
+
+    this.activeRowsPerPage = normalizedRowsPerPage;
+
+    this.pages = this.buildPages(this.rows, normalizedRowsPerPage);
+
+    if (
+      this.selectedPrintPages.length > 0
+    ) {
+      const maxPage = this.pages.length;
+      this.selectedPrintPages = this.selectedPrintPages.filter(p => p >= 1 && p <= maxPage);
+      if (this.selectedPrintPages.length === maxPage) {
+        this.selectedPrintPages = [];
+      }
+    }
+  }
+
   private paginate(): void {
-    this.pages = this.buildPages(this.rows, this.maxRowsPerPage);
-    this.normalizeSelectedPrintPages(this.pages.length);
+    this.paginateWithRowsPerPage(IAD_DEFAULT_ROWS_PER_PAGE);
   }
 
   pagePaddedRows(page: RenderPage): (IadRow | null)[] {
-    const result: (IadRow | null)[] = page.rows.slice(0, this.maxRowsPerPage);
-    while (result.length < this.maxRowsPerPage) result.push(null);
+    const rowsPerPage = this.activeRowsPerPage;
+    const result: (IadRow | null)[] = page.rows.slice(0, rowsPerPage);
+    while (result.length < rowsPerPage) result.push(null);
     return result;
   }
 
@@ -584,38 +702,198 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     return index >= 0 ? diagnosis.substring(0, index).trim() : diagnosis.trim();
   }
 
-  onPrint(): void {
-    const allPrintPages = Array.from(
-      this.host.nativeElement.querySelectorAll('.print-source .print-page')
-    ) as HTMLElement[];
-    if (!allPrintPages.length) return;
+  /* ============================= 打印辅助方法 ============================= */
 
-    // Filter pages by selectedPrintPages
-    const pagesToPrint: HTMLElement[] = allPrintPages.filter((page: HTMLElement) => {
-      const pageNo = Number(page.dataset['pageIndex']);
-      return shouldPrintPage(pageNo, this.selectedPrintPages, this.pages.length);
+  private waitForRender(): Promise<void> {
+    return new Promise(resolve => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve();
+        });
+      });
     });
-    if (!pagesToPrint.length) {
-      alert('没有可打印的页面');
-      return;
+  }
+
+  private async waitForCurrentFonts(): Promise<void> {
+    const documentWithFonts = document as Document & {
+      fonts?: FontFaceSet;
+    };
+
+    if (documentWithFonts.fonts?.ready) {
+      await documentWithFonts.fonts.ready;
     }
 
+    await this.waitForRender();
+  }
+
+  private mmToPixels(doc: Document, millimetres: number): number {
+    const probe = doc.createElement('div');
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    probe.style.width = `${millimetres}mm`;
+    probe.style.height = '1px';
+    doc.body.appendChild(probe);
+    const pixels = probe.getBoundingClientRect().width;
+    probe.remove();
+    return pixels;
+  }
+
+  private measureCurrentPrintLayout(rowsPerPage: number): IadPrintLayout | null {
+    const printPages = Array.from(
+      this.host.nativeElement.querySelectorAll(
+        '.print-source .print-page',
+      ),
+    ) as HTMLElement[];
+
+    if (!printPages.length) {
+      return null;
+    }
+
+    const pageWidth = this.mmToPixels(document, 297);
+    const pageHeight = this.mmToPixels(document, 210);
+    const safeMargin = this.mmToPixels(document, IAD_PRINT_SAFE_MARGIN_MM);
+    const availableWidth = pageWidth - safeMargin * 2;
+    const availableHeight = pageHeight - safeMargin * 2;
+
+    let maximumContentWidth = 0;
+    let maximumContentHeight = 0;
+    let minimumRequiredScale = 1;
+
+    for (const printPage of printPages) {
+      const sheet = printPage.querySelector('.sheet') as HTMLElement | null;
+      const content = printPage.querySelector('.iad-page-content') as HTMLElement | null;
+      const pageNumber = printPage.querySelector('.sheet-pageno') as HTMLElement | null;
+
+      if (!sheet || !content || !pageNumber) {
+        return null;
+      }
+
+      sheet.style.zoom = '1';
+      sheet.style.transform = 'none';
+      sheet.style.transformOrigin = 'left top';
+      sheet.style.overflow = 'visible';
+
+      const sheetRect = sheet.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      const pageNumberRect = pageNumber.getBoundingClientRect();
+
+      const contentWidth = Math.max(
+        sheet.scrollWidth,
+        content.scrollWidth,
+        contentRect.right - sheetRect.left,
+        pageNumberRect.right - sheetRect.left,
+      );
+
+      const contentHeight = Math.max(
+        sheet.scrollHeight,
+        content.scrollHeight,
+        contentRect.bottom - sheetRect.top,
+        pageNumberRect.bottom - sheetRect.top,
+      );
+
+      maximumContentWidth = Math.max(maximumContentWidth, contentWidth);
+      maximumContentHeight = Math.max(maximumContentHeight, contentHeight);
+
+      const widthScale = availableWidth / contentWidth;
+      const heightScale = availableHeight / contentHeight;
+
+      const pageScale = Math.min(1, widthScale, heightScale) * IAD_PRINT_SAFETY_FACTOR;
+
+      minimumRequiredScale = Math.min(minimumRequiredScale, pageScale);
+    }
+
+    const normalizedScale = Math.min(1, Math.max(0, minimumRequiredScale));
+
+    return {
+      rowsPerPage,
+      scale: normalizedScale,
+      totalPages: printPages.length,
+      contentWidth: maximumContentWidth,
+      contentHeight: maximumContentHeight,
+      availableWidth,
+      availableHeight,
+    };
+  }
+
+  private async prepareBestPrintLayout(): Promise<IadPrintLayout> {
+    let lastLayout: IadPrintLayout | null = null;
+
+    for (const rowsPerPage of IAD_ROWS_PER_PAGE_CANDIDATES) {
+      this.paginateWithRowsPerPage(rowsPerPage);
+      this.cdr.detectChanges();
+      await this.waitForCurrentFonts();
+
+      const layout = this.measureCurrentPrintLayout(rowsPerPage);
+      if (!layout) {
+        continue;
+      }
+
+      lastLayout = layout;
+
+      console.info(
+        '[IAD PRINT FIT]',
+        {
+          rowsPerPage: layout.rowsPerPage,
+          totalPages: layout.totalPages,
+          scale: Number(layout.scale.toFixed(4)),
+          contentWidth: layout.contentWidth,
+          contentHeight: layout.contentHeight,
+          availableWidth: layout.availableWidth,
+          availableHeight: layout.availableHeight,
+        },
+      );
+
+      if (layout.scale >= IAD_MIN_PRINT_SCALE) {
+        this.preparedPrintLayout = layout;
+        return layout;
+      }
+    }
+
+    if (lastLayout) {
+      throw new Error(
+        `IAD内容过多：每页${lastLayout.rowsPerPage}条时` +
+        `仍需缩放到${Math.round(lastLayout.scale * 100)}%，` +
+        `低于允许的最小可读比例` +
+        `${Math.round(IAD_MIN_PRINT_SCALE * 100)}%。`,
+      );
+    }
+
+    throw new Error('无法测量IAD打印页面，请刷新后重试。');
+  }
+
+  private buildPrintBody(pagesToPrint: HTMLElement[], layout: IadPrintLayout): string {
     let body = '';
-    pagesToPrint.forEach((pg: HTMLElement) => {
-      const c = pg.cloneNode(true) as HTMLElement;
-      c.style.visibility = 'visible';
-      c.removeAttribute('aria-hidden');
-      c.querySelectorAll('.no-print,.toolbar').forEach(el => el.remove());
-      body += c.outerHTML;
+
+    pagesToPrint.forEach((page: HTMLElement) => {
+      const clone = page.cloneNode(true) as HTMLElement;
+      clone.style.visibility = 'visible';
+      clone.removeAttribute('aria-hidden');
+
+      const sheet = clone.querySelector('.sheet') as HTMLElement | null;
+      if (sheet) {
+        sheet.style.setProperty('--iad-print-scale', String(layout.scale));
+        sheet.style.zoom = '1';
+        sheet.style.transformOrigin = 'left top';
+        sheet.style.overflow = 'visible';
+      }
+
+      clone.querySelectorAll('.no-print,.toolbar').forEach(element => element.remove());
+      body += clone.outerHTML;
     });
 
+    return body;
+  }
+
+  private openIadPrintWindow(body: string): Window | null {
     const css = `
       @page { size: A4 landscape; margin:0; }
-      html,body{margin:0;padding:0;background:#fff;}
+      html,body{width:297mm;margin:0;padding:0;background:#fff;}
       body{color:#000;font-family:'SimSun','宋体',serif;}
-      .print-page{box-sizing:border-box;width:297mm;height:210mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff;}
+      .print-page{box-sizing:border-box;position:relative;width:297mm;height:210mm;margin:0;padding:0;overflow:hidden;break-after:page;page-break-after:always;background:#fff;}
       .print-page:last-child{break-after:auto;page-break-after:auto;}
-      .sheet{box-sizing:border-box;position:relative;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:hidden;box-shadow:none;background:#fff;color:#000;transform:none !important;zoom:1 !important;filter:none !important;text-shadow:none !important;}
+      .sheet{box-sizing:border-box;position:absolute;top:5mm;left:5mm;width:297mm;height:210mm;margin:0;padding:4mm 10mm 12mm;overflow:visible;background:#fff;color:#000;box-shadow:none;zoom:1 !important;transform:scale(var(--iad-print-scale,1));transform-origin:left top;filter:none !important;text-shadow:none !important;}
+      .iad-page-content{box-sizing:border-box;width:100%;}
       .sheet-head{text-align:center;padding-bottom:2px;}
       .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:22pt;line-height:1.35;}
       .patient-info-row{display:flex;align-items:center;width:100%;gap:12px;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;white-space:nowrap;margin:2px 0;color:#000;}
@@ -636,58 +914,244 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .iad-footnote .fn{margin:0;padding-left:2em;text-indent:-2em;}
       .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:40px;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
+
     const win = window.open('', '_blank', 'width=1400,height=900');
-    if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
-    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><style>' + css + '</style></head><body>' + body + '</body></html>');
+    if (!win) {
+      return null;
+    }
+
+    win.document.write(
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' +
+      css +
+      '</style></head><body>' +
+      body +
+      '</body></html>',
+    );
     win.document.close();
 
-    const doPrint = () => {
-      const printPages = win.document.querySelectorAll<HTMLElement>('.print-page');
-      for (const printPage of Array.from(printPages)) {
-        const sheet = printPage.querySelector<HTMLElement>('.sheet');
-        const footnote = printPage.querySelector<HTMLElement>('.iad-footnote');
-        const pageNumber = printPage.querySelector<HTMLElement>('.sheet-pageno');
-        if (!sheet || !pageNumber) {
-          console.error('IAD print page missing sheet or page number');
-          continue;
+    return win;
+  }
+
+  private waitForPrintWindow(win: Window): Promise<void> {
+    return new Promise(resolve => {
+      const run = async () => {
+        const doc = win.document as Document & {
+          fonts?: FontFaceSet;
+        };
+
+        if (doc.fonts?.ready) {
+          await doc.fonts.ready;
         }
-        const sheetRect = sheet.getBoundingClientRect();
-        const pnRect = pageNumber.getBoundingClientRect();
-        if (pnRect.top < sheetRect.top || pnRect.bottom > sheetRect.bottom) {
-          console.error('IAD page number outside A4 page', { pnRect, sheetRect });
-        }
-        if (footnote) {
-          const fnRect = footnote.getBoundingClientRect();
-          if (fnRect.bottom > pnRect.top) {
-            console.error('IAD footnote overlaps page number', { fnBottom: fnRect.bottom, pnTop: pnRect.top });
-          }
-        }
-        const overflow = sheet.scrollHeight - sheet.clientHeight;
-        console.log('IAD print page:', { scrollHeight: sheet.scrollHeight, clientHeight: sheet.clientHeight, overflow });
-        if (overflow > 1) {
-          console.error('IAD print overflow: ' + overflow + 'px');
-        }
+
+        win.requestAnimationFrame(() => {
+          win.requestAnimationFrame(() => {
+            resolve();
+          });
+        });
+      };
+
+      if (win.document.readyState === 'complete') {
+        void run();
+      } else {
+        win.addEventListener(
+          'load',
+          () => {
+            void run();
+          },
+          { once: true },
+        );
       }
+    });
+  }
+
+  private waitForWindowRender(win: Window): Promise<void> {
+    return new Promise(resolve => {
+      win.requestAnimationFrame(() => {
+        win.requestAnimationFrame(() => {
+          resolve();
+        });
+      });
+    });
+  }
+
+  private applyPrintScale(win: Window, scale: number): void {
+    const normalizedScale = Math.min(1, Math.max(IAD_MIN_PRINT_SCALE, scale));
+
+    const sheets = Array.from(
+      win.document.querySelectorAll('.sheet'),
+    ) as HTMLElement[];
+
+    for (const sheet of sheets) {
+      sheet.style.setProperty('--iad-print-scale', String(normalizedScale));
+      sheet.style.zoom = '1';
+      sheet.style.transform = `scale(${normalizedScale})`;
+      sheet.style.transformOrigin = 'left top';
+      sheet.style.overflow = 'visible';
+      sheet.dataset['printScale'] = normalizedScale.toFixed(4);
+    }
+  }
+
+  private validateFittedPrintPages(win: Window, layout: IadPrintLayout): boolean {
+    const printPages = Array.from(
+      win.document.querySelectorAll('.print-page'),
+    ) as HTMLElement[];
+
+    if (!printPages.length) {
+      return false;
+    }
+
+    const safeMargin = this.mmToPixels(win.document, IAD_PRINT_SAFE_MARGIN_MM);
+    let valid = true;
+
+    printPages.forEach((printPage, index) => {
+      const sheet = printPage.querySelector('.sheet') as HTMLElement | null;
+      const content = printPage.querySelector('.iad-page-content') as HTMLElement | null;
+      const pageNumber = printPage.querySelector('.sheet-pageno') as HTMLElement | null;
+
+      if (!sheet || !content || !pageNumber) {
+        console.error(`IAD第${index + 1}页缺少打印节点`);
+        valid = false;
+        return;
+      }
+
+      const pageRect = printPage.getBoundingClientRect();
+      const contentRect = content.getBoundingClientRect();
+      const pageNumberRect = pageNumber.getBoundingClientRect();
+
+      const safeRight = pageRect.right - safeMargin;
+      const safeBottom = pageRect.bottom - safeMargin;
+      const tolerance = 1;
+
+      const horizontalOverflow = Math.max(contentRect.right, pageNumberRect.right) - safeRight;
+      const verticalOverflow = Math.max(contentRect.bottom, pageNumberRect.bottom) - safeBottom;
+      const leftOverflow = pageRect.left + safeMargin - Math.min(contentRect.left, pageNumberRect.left);
+      const topOverflow = pageRect.top + safeMargin - Math.min(contentRect.top, pageNumberRect.top);
+
+      console.info(
+        '[IAD PRINT VALIDATE]',
+        {
+          page: index + 1,
+          rowsPerPage: layout.rowsPerPage,
+          scale: Number(layout.scale.toFixed(4)),
+          horizontalOverflow,
+          verticalOverflow,
+          leftOverflow,
+          topOverflow,
+        },
+      );
+
+      if (
+        horizontalOverflow > tolerance ||
+        verticalOverflow > tolerance ||
+        leftOverflow > tolerance ||
+        topOverflow > tolerance
+      ) {
+        valid = false;
+        console.error(
+          `IAD第${index + 1}页自动适配后仍溢出`,
+          {
+            horizontalOverflow,
+            verticalOverflow,
+            leftOverflow,
+            topOverflow,
+          },
+        );
+      }
+    });
+
+    return valid;
+  }
+
+  /* ============================= 打印主流程 ============================= */
+
+  async onPrint(): Promise<void> {
+    if (this.preparingPrint) {
+      return;
+    }
+
+    this.preparingPrint = true;
+    this.printError = '';
+    this.preparedPrintLayout = null;
+
+    try {
+      const originalSelectedPage = this.selectedPrintPages.length > 0
+        ? Math.max(...this.selectedPrintPages)
+        : null;
+
+      const layout = await this.prepareBestPrintLayout();
+
+      // 动态分页后，原选中页可能已经超出新页数
+      if (
+        originalSelectedPage !== null &&
+        originalSelectedPage > this.pages.length
+      ) {
+        this.selectedPrintPages = [];
+      }
+
+      this.cdr.detectChanges();
+      await this.waitForCurrentFonts();
+
+      const allPrintPages = Array.from(
+        this.host.nativeElement.querySelectorAll(
+          '.print-source .print-page',
+        ),
+      ) as HTMLElement[];
+
+      if (!allPrintPages.length) {
+        throw new Error('没有可打印的IAD页面。');
+      }
+
+      const hasSelection = this.selectedPrintPages.length > 0;
+
+      const pagesToPrint = hasSelection
+        ? allPrintPages.filter(page => {
+            const pageNo = Number(page.dataset['pageIndex']);
+            return shouldPrintPage(pageNo, this.selectedPrintPages, this.pages.length);
+          })
+        : allPrintPages;
+
+      if (!pagesToPrint.length) {
+        throw new Error(
+          hasSelection
+            ? '没有找到选择的打印页面。'
+            : '没有可打印的页面。',
+        );
+      }
+
+      const body = this.buildPrintBody(pagesToPrint, layout);
+
+      const win = this.openIadPrintWindow(body);
+      if (!win) {
+        throw new Error('打印窗口被拦截，请允许浏览器弹出窗口。');
+      }
+
+      await this.waitForPrintWindow(win);
+
+      this.applyPrintScale(win, layout.scale);
+
+      await this.waitForWindowRender(win);
+
+      const valid = this.validateFittedPrintPages(win, layout);
+      if (!valid) {
+        try { win.close(); } catch { /* ignore */ }
+        throw new Error('IAD页面自动适配后仍存在溢出，已停止打印。');
+      }
+
+      win.addEventListener('afterprint', () => {
+        try { win.close(); } catch { /* ignore */ }
+      });
+
       win.focus();
       win.print();
-    };
-
-    const ready = () => {
-      const doc = win.document as any;
-      if (doc.fonts?.ready) {
-        doc.fonts.ready.then(() => {
-          requestAnimationFrame(() => requestAnimationFrame(doPrint));
-        });
-      } else if (doc.readyState === 'complete') {
-        requestAnimationFrame(() => requestAnimationFrame(doPrint));
-      }
-    };
-
-    win.addEventListener('afterprint', () => { try { win.close(); } catch(e) { /* ignore */ } });
-    if ((win.document as any).readyState === 'complete') {
-      ready();
-    } else {
-      win.addEventListener('load', ready);
+    } catch (error) {
+      console.error('IAD打印准备失败', error);
+      this.printError = error instanceof Error
+        ? error.message
+        : '打印准备失败，请重试。';
+      alert(this.printError);
+    } finally {
+      this.preparingPrint = false;
+      this.cdr.detectChanges();
     }
   }
 
