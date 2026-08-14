@@ -200,7 +200,7 @@ interface RenderPage {
     .record-table th { background:transparent; font-weight:700; }
     .record-table td { height:30px; }
 
-    .date-col { width:82px; }
+    .date-col { width:71px; }
     .item-col { width:auto; height:118px; vertical-align:middle; padding:2px 0; }
     /* 风险项表头竖排，节省横向宽度 */
     .v-text { writing-mode:vertical-rl; text-orientation:upright; letter-spacing:1px; line-height:1.15; display:inline-block; max-height:112px; overflow:hidden; }
@@ -213,7 +213,7 @@ interface RenderPage {
     .sign-col { width:60px; }
 
     .footnote { margin-top:6px; margin-bottom:10mm; font-family:'SimSun','宋体',serif; font-size:9.5pt; line-height:1.3; }
-    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:40px; margin:0; text-align:center; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
 
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
@@ -247,7 +247,7 @@ export class CommitSuicideScoreComponent
   pages: RenderPage[] = [];
   selectedPage: number | null = null;
 
-  readonly rowsPerPage = 15;
+  readonly rowsPerPage = 12;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -499,14 +499,14 @@ private paginate(): void {
       .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;word-break:break-all;}
       .record-table td{height:30px;}
-      .date-col{width:82px;} .item-col{width:auto;height:118px;}
+      .date-col{width:71px;} .item-col{width:auto;height:118px;}
       .v-text{writing-mode:vertical-rl;text-orientation:upright;letter-spacing:1px;line-height:1.15;display:inline-block;max-height:112px;overflow:hidden;}
       .score-cell{height:18px;font-weight:700;color:#000;} .record-table tr.data-row td{font-weight:400;}
       .check-cell{font-weight:700;}
       .total-col{width:34px;} .risk-col{width:56px;}
       .measure-col{width:96px;text-align:left;padding-left:4px;} .sign-col{width:60px;}
       .footnote{margin-top:6px;margin-bottom:10mm;font-family:'SimSun','宋体',serif;font-size:8pt;line-height:1.3;}
-      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:40px;margin:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) {

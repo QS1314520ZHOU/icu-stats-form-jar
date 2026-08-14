@@ -217,7 +217,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     .footnote .fn { padding-left:2em; text-indent:-2em; margin:1px 0; }
 
     .review-sign { margin-top:6px; text-align:right; font-family:'SimSun', '宋体', serif; font-size:13pt; padding-right:6px; }
-    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:6mm; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
+    .sheet-pageno { position:absolute; left:12mm; right:12mm; bottom:40px; margin:0; text-align:center; font-family:'SimSun', '宋体', serif; font-size:13pt; font-weight:400; line-height:1; color:#000; white-space:nowrap; }
     @media screen { .sheet { zoom:var(--sheet-scale,1); } }
     @media print {
       :host { height:auto; overflow:visible; }
@@ -678,14 +678,14 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       .record-table{width:100%;border-collapse:collapse;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:2px 1px;height:28px;word-break:break-all;vertical-align:middle;}
       .record-table th{background:transparent;font-weight:700;} .record-table th,.record-table td{color:#000;} .legend-row th,.legend-row td{font-weight:700;color:#000;} .record-table tr.data-row td{font-weight:400;}
-      .date-col{width:56px;} .item-label-col{width:58px;} .total-col{width:38px;} .grade-col{width:56px;} .other-col{width:88px;} .sign-col{width:50px;}
+      .date-col{width:72px;} .item-label-col{width:58px;} .total-col{width:38px;} .grade-col{width:56px;} .other-col{width:88px;} .sign-col{width:50px;}
       .legend-row th,.legend-row td{font-weight:700;color:#000;} .legend-level{font-weight:700;} .legend-blank{background:#f7f7f7;} .legend-total{background:#f7f7f7;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;}
       .other-cell{text-align:left;padding-left:5px;}
       .footnote{margin-top:6px;margin-bottom:10mm;font-size:8pt;line-height:1.3;text-align:left;}
       .footnote .fn{padding-left:2em;text-indent:-2em;margin:1px 0;}
       .review-sign{margin-top:6px;text-align:right;font-size:13pt;padding-right:6px;}
-      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:4mm;margin:0;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
+      .sheet-pageno{position:absolute;left:10mm;right:10mm;bottom:40px;margin:0;text-align:center;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;}
     `;
     const win = window.open('', '_blank', 'width=1400,height=900');
     if (!win) { alert('打印窗口被拦截，请允许弹出窗口'); return; }
