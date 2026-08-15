@@ -21,6 +21,7 @@ import { HljldFormComponent } from './hljld-form.component';
 import { HandoverReportComponent } from './handover-report.component';
 import { BloodSugarComponent } from './blood-sugar.component';
 import { UnplannedExtubationComponent } from './unplanned-extubation.component';
+import { PrintCenterComponent } from './print-center.component';
 
 export const routes: Routes = [
   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
@@ -45,5 +46,6 @@ export const routes: Routes = [
   { path: 'bloodSugar', component: BloodSugarComponent },
   { path: 'temperatureRecord', component: TemperatureRecordComponent },
   { path: 'unPlannedCGZYYForm', component: UnplannedExtubationComponent },
+  { path: 'printCenter', component: PrintCenterComponent },
   { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
 ];

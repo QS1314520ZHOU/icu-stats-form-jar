@@ -26,6 +26,8 @@ import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { HljldFormComponent } from './hljld-form.component';
 import { HljldFormService } from './hljld-form.service';
 import { HandoverReportComponent } from './handover-report.component';
+import { PrintCenterComponent } from './print-center.component';
+import { PrintCenterService } from './print-center.service';
 import { HandoverReportService } from './handover-report.service';
 import { BloodSugarComponent } from './blood-sugar.component';
 import { UnplannedExtubationComponent } from './unplanned-extubation.component';
@@ -55,6 +57,7 @@ import { routes } from './app.routes';
     TemperatureRecordComponent,
     HljldFormComponent,
     HandoverReportComponent,
+    PrintCenterComponent,
     BloodSugarComponent,
     UnplannedExtubationComponent,
     PrintPageMultiSelectComponent,
@@ -65,7 +68,7 @@ import { routes } from './app.routes';
     FormsModule,
     RouterModule.forRoot(routes),
   ],
-  providers: [HljldFormService, HandoverReportService],
+  providers: [HljldFormService, HandoverReportService, PrintCenterService],
   bootstrap: [App],
 })
 export class AppModule {}

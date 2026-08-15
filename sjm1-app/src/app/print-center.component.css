@@ -1,0 +1,87 @@
+:host { display:block; height:100vh; overflow:auto; background:#f0f2f5;
+        font-family:'SimSun','宋体',serif; color:#000; }
+
+.pc-root { position:relative; padding-bottom:24px; }
+
+/* 头部 */
+.pc-header { position:sticky; top:0; z-index:40; display:flex; align-items:center;
+             justify-content:space-between; gap:16px; padding:10px 16px;
+             background:#fff; border-bottom:1px solid #e6e6e6; }
+.pc-patient { display:flex; align-items:center; gap:14px; min-width:0;
+              font-size:14px; white-space:nowrap; }
+.pc-name { font-size:16px; }
+.pc-diag { overflow:hidden; text-overflow:ellipsis; color:#555; }
+.pc-waiting { color:#999; }
+.pc-actions { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
+
+.btn-primary { padding:6px 18px; border:1px solid #1890ff; background:#1890ff;
+               color:#fff; border-radius:4px; cursor:pointer; font:inherit; }
+.btn-ghost { padding:6px 14px; border:1px solid #d9d9d9; background:#fff;
+             color:#000; border-radius:4px; cursor:pointer; font:inherit; }
+.btn-link { border:none; background:none; color:#1890ff; cursor:pointer; font:inherit; padding:0 6px; }
+.btn-primary:disabled, .btn-ghost:disabled, .btn-link:disabled { opacity:.5; cursor:not-allowed; }
+
+/* 工具条 */
+.pc-toolbar { display:flex; align-items:center; gap:16px; padding:10px 16px;
+              background:#fafafa; border-bottom:1px solid #eee; font-size:13px; }
+.pc-switch { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+.pc-summary { color:#666; }
+.pc-scanning { color:#1890ff; }
+.pc-error { color:#d4380d; }
+
+/* 分组 */
+.pc-group { margin:12px 16px; background:#fff; border:1px solid #e6e6e6; border-radius:4px; }
+.pc-group-head { display:flex; align-items:center; justify-content:space-between;
+                 margin:0; padding:8px 14px; background:#f7f9fb;
+                 border-bottom:1px solid #eee; font-size:14px; font-weight:700; }
+.pc-group-check { display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+.pc-group-count { font-weight:400; color:#888; }
+
+.pc-list { list-style:none; margin:0; padding:0; }
+.pc-item { display:grid;
+           grid-template-columns: 28px minmax(220px,1fr) 120px 150px 70px 50px 170px auto 80px;
+           align-items:center; gap:10px; padding:9px 14px;
+           border-bottom:1px solid #f2f2f2; font-size:13px; }
+.pc-item:last-child { border-bottom:none; }
+.pc-item--disabled { color:#aaa; background:#fcfcfc; }
+.pc-item--failed { background:#fff7f6; }
+
+.pc-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pc-badge { display:inline-flex; align-items:center; gap:5px; color:#999; }
+.pc-badge--ok { color:#237804; }
+.pc-dot { width:7px; height:7px; border-radius:50%; background:#ccc; display:inline-block; }
+.pc-badge--ok .pc-dot { background:#52c41a; }
+.pc-latest, .pc-pages, .pc-orientation { color:#777; white-space:nowrap; }
+.pc-rowerror { color:#d4380d; }
+.pc-open { color:#1890ff; text-decoration:none; white-space:nowrap; }
+.pc-open:hover { text-decoration:underline; }
+
+.pc-hint { margin:6px 16px; font-size:13px; color:#8c6d1f; }
+.pc-hint--ok { color:#237804; }
+.pc-footnote { margin:14px 16px 0; padding-top:10px; border-top:1px dashed #ddd;
+               font-size:12px; color:#888; line-height:1.6; }
+.pc-footnote span { margin-right:10px; }
+
+/* 进度遮罩 */
+.pc-mask { position:fixed; inset:0; z-index:200; display:flex; align-items:center;
+           justify-content:center; background:rgba(0,0,0,.35); }
+.pc-dialog { width:520px; max-height:70vh; overflow:auto; padding:18px 20px;
+             background:#fff; border-radius:6px; box-shadow:0 8px 28px rgba(0,0,0,.2); }
+.pc-dialog-title { font-size:15px; font-weight:700; margin-bottom:12px; }
+.pc-progress { list-style:none; margin:0 0 12px; padding:0; font-size:13px; }
+.pc-progress li { display:flex; align-items:center; gap:8px; padding:5px 0; }
+.pc-progress-name { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pc-progress-state { flex:0 0 auto; color:#888; }
+.pc-progress-icon { width:14px; height:14px; border-radius:50%; background:#e0e0e0; flex:0 0 auto; }
+.st-rendering .pc-progress-icon { background:#1890ff; }
+.st-ready .pc-progress-icon { background:#52c41a; }
+.st-failed .pc-progress-icon { background:#d4380d; }
+.st-failed .pc-progress-state { color:#d4380d; }
+.pc-dialog-tip { font-size:12px; color:#8c6d1f; line-height:1.6; }
+.pc-dialog-actions { margin-top:14px; text-align:right; }
+
+/* 离屏渲染舞台：必须有真实尺寸，不能 display:none */
+.pc-stage { position:fixed; left:-20000px; top:0; width:1400px; height:1000px;
+            overflow:hidden; opacity:0; pointer-events:none; z-index:-1; }
+
+@media print { :host { display:none !important; } }

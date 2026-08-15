@@ -1,0 +1,123 @@
+<div class="pc-root" [class.pc-busy]="busy">
+
+  <header class="pc-header">
+    <div class="pc-patient" *ngIf="patient; else noPatient">
+      <b class="pc-name">{{ patient?.name }}</b>
+      <span *ngIf="bedText">{{ bedText }}</span>
+      <span>住院号 {{ patient?.mrn || '' }}</span>
+      <span>{{ genderText(patient?.gender) }}</span>
+      <span *ngIf="age !== null">{{ age }}岁</span>
+      <span class="pc-diag">{{ diagnosisDisplay }}</span>
+    </div>
+    <ng-template #noPatient>
+      <div class="pc-patient pc-waiting">等待宿主传入患者信息…</div>
+    </ng-template>
+
+    <div class="pc-actions">
+      <button type="button" class="btn-ghost" (click)="refresh()" [disabled]="!pid || busy">重新检测</button>
+      <button type="button" class="btn-ghost" (click)="prepare()" [disabled]="!canPrint">预检页数</button>
+      <button type="button" class="btn-primary" (click)="startPrint()" [disabled]="!canPrint">
+        一键打印（{{ selectedCount }}份 / 约{{ estimatedPages }}页）
+      </button>
+    </div>
+  </header>
+
+  <div class="pc-toolbar">
+    <button type="button" class="btn-link" (click)="selectAllWithData()" [disabled]="busy">全选有数据</button>
+    <button type="button" class="btn-link" (click)="clearSelection()" [disabled]="busy">清空</button>
+    <label class="pc-switch">
+      <input type="checkbox" [(ngModel)]="showEmpty" [disabled]="busy" /> 显示无数据表单
+    </label>
+    <span class="pc-summary" *ngIf="!scanning && pid">
+      已检测 {{ rows.length }} 张表单，其中 {{ dataCount }} 张有数据
+    </span>
+    <span class="pc-summary pc-scanning" *ngIf="scanning">正在检测患者表单数据…</span>
+    <span class="pc-error" *ngIf="scanError">{{ scanError }}</span>
+  </div>
+
+  <section class="pc-group" *ngFor="let group of groups">
+    <h3 class="pc-group-head">
+      <label class="pc-group-check">
+        <input type="checkbox"
+               [checked]="isGroupAllSelected(group)"
+               [indeterminate]="isGroupIndeterminate(group)"
+               [disabled]="busy || groupDataCount(group) === 0"
+               (change)="toggleGroup(group, $any($event.target).checked)" />
+        <span>{{ group.name }}</span>
+      </label>
+      <span class="pc-group-count">{{ groupSelectedCount(group) }}/{{ groupDataCount(group) }}</span>
+    </h3>
+
+    <ul class="pc-list">
+      <li class="pc-item"
+          *ngFor="let row of group.rows; trackBy: trackRow"
+          [class.pc-item--disabled]="!row.hasData"
+          [class.pc-item--failed]="row.state === 'failed'">
+        <label class="pc-check">
+          <input type="checkbox" [(ngModel)]="row.selected" [disabled]="!row.hasData || busy" />
+        </label>
+
+        <span class="pc-title">{{ row.def.title }}</span>
+
+        <span class="pc-badge" [class.pc-badge--ok]="row.hasData">
+          <i class="pc-dot"></i>{{ statusText(row) }}
+        </span>
+
+        <span class="pc-latest">{{ latestText(row) }}</span>
+        <span class="pc-pages">{{ pageText(row) }}</span>
+        <span class="pc-orientation">{{ row.def.orientation === 'landscape' ? '横向' : '纵向' }}</span>
+
+        <span class="pc-pageselect">
+          <app-print-page-multi-select
+            *ngIf="row.selected && row.renderedPages > 0"
+            [totalPages]="row.renderedPages"
+            [(selectedPages)]="row.selectedPages"
+            [disabled]="busy"
+            label="页码：">
+          </app-print-page-multi-select>
+        </span>
+
+        <span class="pc-rowerror" *ngIf="row.errorText">{{ row.errorText }}</span>
+
+        <a class="pc-open" [href]="formUrl(row.def.route)" target="_blank" rel="noopener">单独打开</a>
+      </li>
+    </ul>
+  </section>
+
+  <p class="pc-hint" *ngIf="orientationHint">{{ orientationHint }}</p>
+  <p class="pc-hint pc-hint--ok" *ngIf="finishedSummary">{{ finishedSummary }}</p>
+
+  <footer class="pc-footnote">
+    <span *ngFor="let item of viewOnlyForms">{{ item.title }}（{{ item.reason }}）</span>
+    为仅调阅页面，不纳入一键打印；如需纸质件请在第三方系统内打印。
+  </footer>
+
+  <!-- 打印进度遮罩 -->
+  <div class="pc-mask" *ngIf="preparing || printing">
+    <div class="pc-dialog">
+      <div class="pc-dialog-title">{{ printing ? '正在发送到打印机' : '正在准备打印' }}</div>
+      <ul class="pc-progress">
+        <li *ngFor="let row of selectedRows" [ngClass]="'st-' + row.state">
+          <span class="pc-progress-icon"></span>
+          <span class="pc-progress-name">{{ row.def.title }}</span>
+          <span class="pc-progress-state">
+            {{ row.state === 'ready' ? ('已渲染 ' + row.renderedPages + ' 页')
+             : row.state === 'rendering' ? '渲染中…'
+             : row.state === 'failed' ? (row.errorText || '失败') : '等待中' }}
+          </span>
+        </li>
+      </ul>
+      <div class="pc-dialog-tip">
+        请勿关闭本页面；稍后将弹出打印对话框。{{ orientationHint }}
+      </div>
+      <div class="pc-dialog-actions">
+        <button type="button" class="btn-ghost" (click)="cancel()" [disabled]="printing">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 离屏渲染舞台：必须有真实布局，不能用 display:none -->
+  <div class="pc-stage" aria-hidden="true">
+    <ng-container #stageHost></ng-container>
+  </div>
+</div>
