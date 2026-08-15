@@ -1,5 +1,5 @@
 import {
-  ChangeDetectorRef, Component, OnDestroy, OnInit, ViewChild, ViewContainerRef,
+  ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, ViewContainerRef,
 } from '@angular/core';
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, map, takeUntil } from 'rxjs/operators';
@@ -19,6 +19,8 @@ export class PrintCenterComponent implements OnInit, OnDestroy {
   /** 离屏渲染舞台 */
   @ViewChild('stageHost', { read: ViewContainerRef, static: true })
   stageHost!: ViewContainerRef;
+  @ViewChild('stageWrap', { static: true })
+  stageWrap!: ElementRef<HTMLElement>;
 
   readonly viewOnlyForms = VIEW_ONLY_FORMS;
 
@@ -205,21 +207,45 @@ export class PrintCenterComponent implements OnInit, OnDestroy {
   }
 
   async startPrint(): Promise<void> {
+    if (!this.canPrint) { return; }
+
+    // 1. 同步预创建打印窗口（用户点击同步调用栈内，不会被拦截）
+    const preWin = window.open('', '_blank', 'width=1400,height=900');
+    if (!preWin) {
+      this.finishedSummary = '打印窗口被拦截，请允许弹出窗口后重试。';
+      this.cdr.detectChanges();
+      return;
+    }
+    // 窗口先显示加载提示
+    preWin.document.write('<!doctype html><html><head><meta charset="utf-8"></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;font-size:18px;color:#888">正在准备打印，请稍候……</body></html>');
+    preWin.document.close();
+
+    // 2. 设置离屏舞台引用，用于提取 scoped 样式
+    if (this.stageWrap) {
+      this.service.setStageElement(this.stageWrap.nativeElement);
+    }
+
+    // 3. 异步渲染并采集
     const ok = await this.prepare();
-    if (!ok || this.cancelled) { return; }
+    if (!ok || this.cancelled) {
+      try { preWin.close(); } catch { /* ignore */ }
+      return;
+    }
 
     const ready = this.selectedRows.filter(r => r.state === 'ready');
     const failed = this.selectedRows.filter(r => r.state === 'failed');
     if (!ready.length) {
+      try { preWin.close(); } catch { /* ignore */ }
       this.finishedSummary = '没有可打印的内容，请检查所选表单。';
       this.cdr.detectChanges();
       return;
     }
 
+    // 4. 传入预创建窗口，分组打印
     this.printing = true;
     this.cdr.detectChanges();
     try {
-      await this.service.printRows(ready);
+      await this.service.printRows(ready, preWin);
       this.finishedSummary = failed.length
         ? `已发送 ${ready.length} 份；${failed.length} 份渲染失败，可单独打开该表单打印。`
         : `已发送 ${ready.length} 份到打印机。`;
@@ -227,6 +253,8 @@ export class PrintCenterComponent implements OnInit, OnDestroy {
       this.finishedSummary = error instanceof Error ? error.message : '打印失败';
     } finally {
       this.printing = false;
+      // 清空不再使用的 sheets HTML，释放内存
+      this.service.clearSheetCache(this.rows);
       this.cdr.detectChanges();
     }
   }

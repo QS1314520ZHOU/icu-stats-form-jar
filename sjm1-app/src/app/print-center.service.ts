@@ -9,10 +9,12 @@ import {
 
 const READY_TIMEOUT_MS = 12000;
 const READY_POLL_MS = 120;
+const PRINT_GUARD_TIMEOUT_MS = 2 * 60 * 1000;
 
 @Injectable()
 export class PrintCenterService {
   private readonly API_AVAILABILITY = '/api/v1/icu/print-center/availability';
+  private stageEl: HTMLElement | null = null;
 
   constructor(private readonly http: HttpClient) {}
 
@@ -125,6 +127,9 @@ export class PrintCenterService {
 
   /* ============================ 离屏渲染与采集 ============================ */
 
+  /** 设置离屏渲染舞台的 DOM 引用，用于提取 scoped 样式 */
+  setStageElement(el: HTMLElement): void { this.stageEl = el; }
+
   /**
    * 串行渲染并采集 sheet。单张失败不抛出，写入 row.state='failed'。
    * 必须在有真实布局的离屏容器中调用（不能是 display:none）。
@@ -160,6 +165,8 @@ export class PrintCenterService {
         try { ref?.destroy(); } catch { /* ignore */ }
         vcr.clear();
       }
+      // 让出事件循环，使进度文字能够真实刷新
+      await this.delay(0);
       onProgress(row);
     }
   }
@@ -223,50 +230,80 @@ export class PrintCenterService {
 
   /* ============================ 打印 ============================ */
 
-  /** 按纸张方向分组，串行调起打印对话框 */
-  async printRows(rows: PrintRow[]): Promise<void> {
+  /**
+   * 按纸张方向分组，串行调起打印对话框。
+   * @param preOpenedWin 预创建的打印窗口（同步 window.open 的产物）；首组使用它，后续组各自 window.open。
+   */
+  async printRows(rows: PrintRow[], preOpenedWin?: Window | null): Promise<void> {
     const orders: PrintOrientation[] = ['landscape', 'portrait'];
-    for (const orientation of orders) {
-      const group = rows.filter(row => row.def.orientation === orientation && row.state === 'ready');
-      const bodies = group.flatMap(row =>
-        row.sheets
-          .filter((_, index) => shouldPrintPage(index + 1, row.selectedPages, row.sheets.length))
-          .map(html => `<div class="print-page">${html}</div>`),
-      );
-      if (!bodies.length) { continue; }
-      await this.openAndPrint(orientation, bodies.join(''));
+    let win: Window | null = preOpenedWin ?? null;
+    try {
+      for (const orientation of orders) {
+        const group = rows.filter(row => row.def.orientation === orientation && row.state === 'ready');
+        const bodies = group.flatMap(row =>
+          row.sheets
+            .filter((_, index) => shouldPrintPage(index + 1, row.selectedPages, row.sheets.length))
+            .map(html => `<div class="print-page">${html}</div>`),
+        );
+        if (!bodies.length) { continue; }
+        win = await this.openAndPrint(orientation, bodies, win);
+        // 如果首组用了预创建窗口，后续组需要新窗口
+        win = null;
+      }
+    } finally {
+      // 确保不留空白窗口
+      try { if (win && !win.closed) { win.close(); } } catch { /* ignore */ }
     }
   }
 
-  private openAndPrint(orientation: PrintOrientation, body: string): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const win = window.open('', '_blank', 'width=1400,height=900');
-      if (!win) { reject(new Error('打印窗口被拦截，请允许弹出窗口')); return; }
+  /**
+   * 将打印内容写入窗口并调起 print()。
+   * 如果传入 win 则复用（预创建窗口），否则新建。
+   * 返回实际使用的窗口引用（可能已被关闭）。
+   */
+  private openAndPrint(orientation: PrintOrientation, bodies: string[], existingWin?: Window | null): Promise<Window | null> {
+    return new Promise<Window | null>((resolve) => {
+      const win = existingWin && !existingWin.closed ? existingWin : window.open('', '_blank', 'width=1400,height=900');
+      if (!win) { resolve(null); return; }
 
-      const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">`
-        + `<title>批量打印</title>${this.collectStyleLinks()}<style>${this.collectStyles()}</style>`
-        + `<style>${this.overrideCss(orientation)}</style></head><body>${body}</body></html>`;
-      win.document.write(html);
+      // 收集离屏容器中渲染时产生的 scoped 样式
+      const scopedStyles = this.collectScopedStyles();
+      const overrideCss = this.overrideCss(orientation);
+      const body = bodies.join('');
+
+      // 分批写入，避免一次性 document.write 超大字符串阻塞主线程
+      win.document.open();
+      win.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>批量打印</title>`);
+      win.document.write(`<style>${overrideCss}</style>`);
+      if (scopedStyles) { win.document.write(`<style>${scopedStyles}</style>`); }
+      win.document.write(`</head><body>${body}</body></html>`);
       win.document.close();
 
       let settled = false;
-      const done = () => { if (settled) { return; } settled = true; try { win.close(); } catch { /* ignore */ } resolve(); };
-      win.addEventListener('afterprint', done, { once: true });
-      // 兜底：部分浏览器不触发 afterprint
-      const guard = setInterval(() => { if (win.closed) { clearInterval(guard); done(); } }, 500);
-      setTimeout(() => { clearInterval(guard); done(); }, 10 * 60 * 1000);
+      const cleanup = () => { if (settled) { return; } settled = true; resolve(win); };
+      const forceDone = () => { try { win!.close(); } catch { /* ignore */ } cleanup(); };
+
+      win.addEventListener('afterprint', forceDone, { once: true });
+      // 兜底：部分浏览器不触发 afterprint，或用户手动关闭窗口
+      const guard = setInterval(() => {
+        try { if (win!.closed) { clearInterval(guard); cleanup(); } } catch { clearInterval(guard); cleanup(); }
+      }, 500);
+      setTimeout(() => { clearInterval(guard); forceDone(); }, PRINT_GUARD_TIMEOUT_MS);
 
       const run = () => {
-        const doc = win.document as any;
+        const doc = win!.document as any;
         (doc.fonts?.ready ?? Promise.resolve()).then(() => {
           requestAnimationFrame(() => requestAnimationFrame(() => {
-            win.document.querySelectorAll<HTMLElement>('.sheet').forEach((sheet, i) => {
+            // 打印前尺寸校验
+            const overflows: string[] = [];
+            win!.document.querySelectorAll<HTMLElement>('.sheet').forEach((sheet, i) => {
               if (sheet.scrollHeight > sheet.clientHeight + 1) {
-                console.warn(`[PrintCenter] 第${i + 1}页纵向溢出 ${sheet.scrollHeight - sheet.clientHeight}px`);
+                overflows.push(`第${i + 1}页纵向溢出 ${sheet.scrollHeight - sheet.clientHeight}px`);
               }
             });
-            win.focus();
-            win.print();
+            if (overflows.length) { console.warn('[PrintCenter]', overflows.join('；')); }
+            win!.focus();
+            win!.print();
           }));
         });
       };
@@ -275,32 +312,55 @@ export class PrintCenterService {
     });
   }
 
+  /**
+   * 从离屏渲染容器中提取 scoped <style> 标签内容。
+   * Angular 为组件注入的 <style> 带有 _ngcontent-* 属性，与 clone 的 DOM 搭配使用。
+   * 只提取一次，避免重复收集。
+   */
+  private collectScopedStyles(): string {
+    if (!this.stageEl) { return ''; }
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    // 全局基础样式：字体、重置
+    parts.push(`html,body{margin:0;padding:0;background:#fff;font-family:'SimSun','宋体',serif;color:#000}`);
+    // 从离屏容器中提取 Angular scoped 样式
+    const styleEls = this.stageEl.querySelectorAll<HTMLStyleElement>('style[ng-transition],style[_ngcontent-ng-server-style],style');
+    styleEls.forEach(el => {
+      const text = el.textContent ?? '';
+      if (text && !seen.has(text)) {
+        seen.add(text);
+        parts.push(text);
+      }
+    });
+    return parts.join('\n');
+  }
+
+  /**
+   * 打印覆盖样式。
+   * 使用 min-height 而非固定 height，允许内容超过单页的表单（如健康教育）自然撑高。
+   * 不使用 overflow:hidden，避免裁剪真实内容。
+   */
   private overrideCss(orientation: PrintOrientation): string {
     const width = orientation === 'landscape' ? '297mm' : '210mm';
-    const height = orientation === 'landscape' ? '210mm' : '297mm';
+    const minHeight = orientation === 'landscape' ? '210mm' : '297mm';
     return `
       @page { size: A4 ${orientation}; margin: 0; }
       html, body { margin:0; padding:0; background:#fff; }
       .no-print, .toolbar { display:none !important; }
-      .print-page { box-sizing:border-box; width:${width}; height:${height}; margin:0; overflow:hidden;
+      .print-page { box-sizing:border-box; width:${width}; min-height:${minHeight}; margin:0;
                     break-after:page; page-break-after:always; background:#fff; }
       .print-page:last-child { break-after:auto; page-break-after:auto; }
-      .print-page > .sheet { box-sizing:border-box; width:${width} !important; height:${height} !important;
-                    max-width:${width} !important; max-height:${height} !important;
+      .print-page > .sheet { box-sizing:border-box; width:${width} !important; min-height:${minHeight} !important;
+                    max-width:${width} !important;
                     margin:0 !important; box-shadow:none !important;
                     transform:none !important; zoom:1 !important; filter:none !important; }
       .sheet-hidden, .print-hidden { display:block !important; }
     `;
   }
 
-  private collectStyles(): string {
-    return Array.from(document.querySelectorAll('style')).map(node => node.textContent ?? '').join('\n');
-  }
-
-  private collectStyleLinks(): string {
-    return Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))
-      .map(link => `<link rel="stylesheet" href="${link.href}">`)
-      .join('');
+  /** 清空不再使用的 sheets HTML，释放内存 */
+  clearSheetCache(rows: PrintRow[]): void {
+    rows.forEach(row => { row.sheets = []; row.renderedPages = 0; });
   }
 
   private delay(ms: number): Promise<void> {
