@@ -693,14 +693,13 @@ export function buildSummary(
     dischargeClipped: stay.dischargeClipped,
   });
 
-  // 兼容字段：保持原 6 项 bedside 口径，totalInput 不变
+  // 6 项 bedside 口径，后续会用 children 修正后的值更新
   const inputItems: HljldSummaryItem[] = INPUT_SUMMARY_DEFINITIONS.map(def => ({
     key: def.key,
     label: def.label,
     amount: round2(sumBedsideByCodes(records, def.codes)),
     unit: 'ml' as const,
   }));
-  const totalInput = round2(inputItems.reduce((sum, item) => sum + item.amount, 0));
 
   const routeTotals = sumDrugAmountsByRoute(source, actualStart, actualEnd, stay.startExclusive);
   const routeAmount = (route: string) => round2(routeTotals.get(route) ?? 0);
@@ -783,6 +782,13 @@ export function buildSummary(
     },
   ];
   const gastrointestinalInputTotal = round2(tubeFeedingAdj + gastroTotal);
+
+  // 同步更新 inputItems 中被 children 修正的项，保证 totalInput = 药物治疗 + 胃肠摄入
+  for (const item of inputItems) {
+    if (item.key === 'intravenous') { item.amount = intravenousTotal; }
+    if (item.key === 'tube-feeding') { item.amount = tubeFeedingAdj; }
+  }
+  const totalInput = round2(inputItems.reduce((sum, item) => sum + item.amount, 0));
 
   // 尿量、净超滤量单独统计，不再计入排出物
   const sumByCode = (code: string) => round2(
