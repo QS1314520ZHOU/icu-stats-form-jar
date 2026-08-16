@@ -78,6 +78,8 @@
           <col class="col-enteral-name" />
           <col class="col-enteral-amount" />
           <col class="col-enteral-route" />
+          <col class="col-urine" />
+          <col class="col-ultrafiltration" />
           <col class="col-output-name" />
           <col class="col-output-amount" />
           <col class="col-drain-name" />
@@ -94,6 +96,8 @@
             <th class="time-col" rowspan="2">日期时间</th>
             <th colspan="3">药物治疗</th>
             <th colspan="3">胃肠摄入</th>
+            <th rowspan="2">尿量(ml)</th>
+            <th rowspan="2">净超滤量(ml)</th>
             <th colspan="2">排出物</th>
             <th colspan="2">引流液</th>
             <th rowspan="2">检查</th>
@@ -112,7 +116,6 @@
         </thead>
         <tbody>
           <ng-container *ngFor="let item of form.timeline; trackBy: trackTimelineItem">
-            <!-- 时间组：循环组内行 -->
             <ng-container *ngIf="item.kind === 'time-group'">
               <tr *ngFor="let row of item.group.rows; trackBy: trackRow" [class.continuation-row]="!row.firstLine" [attr.data-print-group]="row.groupKey" data-print-kind="time-group">
                 <td class="time-cell">{{ row.timeText }}</td>
@@ -122,6 +125,8 @@
                 <td>{{ row.enteral?.name || '' }}</td>
                 <td class="number">{{ row.enteral?.amount || '' }}</td>
                 <td>{{ row.enteral?.route || '' }}</td>
+                <td class="number">{{ row.urine }}</td>
+                <td class="number">{{ row.ultrafiltration }}</td>
                 <td>{{ row.output?.name || '' }}</td>
                 <td class="number">{{ row.output?.amount || '' }}</td>
                 <td>{{ row.drain?.name || '' }}</td>
@@ -135,41 +140,36 @@
               </tr>
             </ng-container>
 
-            <!-- 日间小结 -->
             <tr *ngIf="item.kind === 'day-summary' && item.summary" class="summary-row day-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
-              <td colspan="17" class="summary-row-cell">
+              <td colspan="19" class="summary-row-cell">
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
 
-            <!-- 夜间小结 -->
             <tr *ngIf="item.kind === 'shift-summary' && item.summary" class="summary-row shift-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
-              <td colspan="17" class="summary-row-cell">
+              <td colspan="19" class="summary-row-cell">
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
 
-            <!-- 24小时总结 -->
             <tr *ngIf="item.kind === 'full-day-summary' && item.summary" class="summary-row full-day-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
-              <td colspan="17" class="summary-row-cell">
+              <td colspan="19" class="summary-row-cell">
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
 
-            <!-- 出科总结 -->
             <tr *ngIf="item.kind === 'discharge-summary' && item.summary" class="summary-row discharge-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
-              <td colspan="17" class="summary-row-cell">
+              <td colspan="19" class="summary-row-cell">
                 <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
               </td>
             </tr>
           </ng-container>
 
-          <tr *ngIf="!form.timeline.length && !loading"><td colspan="17" class="empty-cell">该护理日暂无记录</td></tr>
+          <tr *ngIf="!form.timeline.length && !loading"><td colspan="19" class="empty-cell">该护理日暂无记录</td></tr>
 
-          <!-- 默认备注 -->
           <tr class="remark-row">
             <th>备注</th>
-            <td colspan="16">
+            <td colspan="18">
               <div class="remark-line" *ngFor="let line of defaultRemarkLines; trackBy: trackText">{{ line }}</div>
             </td>
           </tr>
@@ -186,14 +186,8 @@
       <strong class="summary-title">{{ summary.label }}</strong>
       <span class="summary-period">{{ summary.periodText }}</span>
     </div>
-    <div class="summary-detail-line">
-      总入量：<strong>{{ summary.totalInput | number:'1.0-2' }} ml</strong>；药物治疗：<strong>{{ summary.drugTreatmentTotal | number:'1.0-2' }} ml</strong>（<ng-container *ngFor="let item of summary.drugTreatmentItems; let last = last">{{ item.label }}：<strong>{{ item.amount | number:'1.0-2' }} ml</strong><span *ngIf="!last">、</span></ng-container>）；胃肠摄入：<strong>{{ summary.gastrointestinalInputTotal | number:'1.0-2' }} ml</strong>（<ng-container *ngFor="let item of summary.gastrointestinalInputItems; let last = last">{{ item.label }}：<strong>{{ item.amount | number:'1.0-2' }} ml</strong><span *ngIf="!last">、</span></ng-container>）
-    </div>
-    <div class="summary-detail-line">
-      总出量：<strong>{{ summary.totalOutput | number:'1.0-2' }} ml</strong>；排出物：<strong>{{ summary.excretionTotal | number:'1.0-2' }} ml</strong>（<ng-container *ngFor="let item of summary.outputItems; let last = last">{{ item.label }}：<strong>{{ item.amount | number:'1.0-2' }} ml</strong><span *ngIf="!last">、</span></ng-container>）<ng-container *ngIf="summary.drainItems.length">；引流液：<strong>{{ summary.drainTotal | number:'1.0-2' }} ml</strong>（<ng-container *ngFor="let item of summary.drainItems; let last = last">{{ item.label }}：<strong>{{ item.amount | number:'1.0-2' }} ml</strong><span *ngIf="!last">、</span></ng-container>）</ng-container>
-    </div>
-    <div class="summary-detail-line">
-      平衡量：<strong>{{ summary.balance | number:'1.0-2' }} ml</strong>
+    <div class="summary-detail-line" *ngFor="let line of summary.detailLines; trackBy: trackText">
+      <ng-container *ngFor="let token of line; trackBy: trackText"><strong *ngIf="token.strong; else plainToken">{{ token.text }}</strong><ng-template #plainToken>{{ token.text }}</ng-template></ng-container>
     </div>
   </section>
 </ng-template>

@@ -422,6 +422,8 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       drainItems: daySummary.drainItems.map(item => ({ ...item })),
       drugTreatmentItems: daySummary.drugTreatmentItems.map(item => ({ ...item })),
       gastrointestinalInputItems: daySummary.gastrointestinalInputItems.map(item => ({ ...item })),
+      // 文本行与日间小结完全一致，直接复用
+      detailLines: daySummary.detailLines,
     };
 
     const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
@@ -482,11 +484,17 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   }
 
   private async collectSignatures(source: HljldSourceData): Promise<Map<string, string>> {
-    const userIds = source.bedside
+    const yishiIds = source.bedside
       .filter(item => item.valid !== false && item.code === 'param_Yishi' && !!item.time && !!item.editUser)
-      .map(item => String(item.editUser).trim())
-      .filter(Boolean);
+      .map(item => String(item.editUser).trim());
 
+    // 护理记录签名：仅在记录未自带 username/trueName 时需要用 ID 反查
+    const nurseIds = source.nurseRecords
+      .filter(item => item.valid !== false)
+      .filter(item => !String(item.username ?? '').trim() && !String(item.trueName ?? '').trim())
+      .map(item => String(item.userId ?? item.editUser ?? '').trim());
+
+    const userIds = [...yishiIds, ...nurseIds].filter(Boolean);
     if (!userIds.length) { return new Map(); }
     return firstValueFrom(this.service.queryAccounts(userIds));
   }

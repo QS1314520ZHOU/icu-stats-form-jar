@@ -70,7 +70,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; box-sizing: border-box; scrollbar-gutter: stable; }
 
 .record-table {
-  width: 100%; min-width: 1180px;
+  width: 100%; min-width: 1320px;
   border-collapse: collapse; border-spacing: 0; table-layout: fixed;
   font-family: var(--hljld-table-font);
   font-size: var(--hljld-table-font-size);
@@ -81,13 +81,15 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   color: #000; text-shadow: none; -webkit-text-stroke: 0;
 }
 
-/* Column widths (17 columns, total = 100%) */
-.col-time { width: 8%; }
-.col-med-name, .col-enteral-name { width: 6%; }
-.col-med-amount, .col-enteral-amount { width: 4%; }
+/* Column widths (19 columns, total = 100%) */
+.col-time { width: 7%; }
+.col-med-name, .col-enteral-name { width: 5.5%; }
+.col-med-amount, .col-enteral-amount { width: 3.5%; }
 .col-med-route, .col-enteral-route { width: 4%; }
-.col-output-name, .col-drain-name { width: 6%; }
-.col-output-amount, .col-drain-amount { width: 4%; }
+.col-urine { width: 4%; }
+.col-ultrafiltration { width: 4%; }
+.col-output-name, .col-drain-name { width: 5.5%; }
+.col-output-amount, .col-drain-amount { width: 3.5%; }
 .col-check, .col-treatment, .col-basic-care, .col-health { width: 5%; }
 .col-nursing { width: 18%; }
 .col-sign { width: 6%; }

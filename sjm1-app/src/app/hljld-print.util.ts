@@ -178,17 +178,19 @@ body {
   line-height: 1.25;
 }
 
-.print-record-table col.col-time { width: 8%; }
+.print-record-table col.col-time { width: 7%; }
 .print-record-table col.col-med-name,
-.print-record-table col.col-enteral-name { width: 6%; }
+.print-record-table col.col-enteral-name { width: 5.5%; }
 .print-record-table col.col-med-amount,
-.print-record-table col.col-enteral-amount { width: 4%; }
+.print-record-table col.col-enteral-amount { width: 3.5%; }
 .print-record-table col.col-med-route,
 .print-record-table col.col-enteral-route { width: 4%; }
+.print-record-table col.col-urine { width: 4%; }
+.print-record-table col.col-ultrafiltration { width: 4%; }
 .print-record-table col.col-output-name,
-.print-record-table col.col-drain-name { width: 6%; }
+.print-record-table col.col-drain-name { width: 5.5%; }
 .print-record-table col.col-output-amount,
-.print-record-table col.col-drain-amount { width: 4%; }
+.print-record-table col.col-drain-amount { width: 3.5%; }
 .print-record-table col.col-check,
 .print-record-table col.col-treatment,
 .print-record-table col.col-basic-care,
@@ -394,7 +396,7 @@ export async function printHljldRecord({
       root.appendChild(emptyPage.pageEl);
       const emptyRow = printWindow.document.createElement('tr');
       const emptyTd = printWindow.document.createElement('td');
-      emptyTd.colSpan = 17;
+      emptyTd.colSpan = 19;
       emptyTd.textContent = '该护理日暂无记录';
       emptyTd.style.cssText = 'text-align:center;padding:20px;color:#999;font-size:12pt;';
       emptyRow.appendChild(emptyTd);
@@ -1465,7 +1467,7 @@ function createRemarkRow(
   tr.appendChild(th);
 
   const td = doc.createElement('td');
-  td.colSpan = 16;
+  td.colSpan = 18;
 
   const wrapper = doc.createElement('div');
   wrapper.className = 'print-remark-lines';
@@ -1538,20 +1540,20 @@ function createSummaryTr(
   ].join('|');
 
   const td = doc.createElement('td');
-  td.colSpan = 17;
+  td.colSpan = 19;
 
-  const drugDetailText = summary.drugTreatmentItems
-    .map(item => `${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span>`)
-    .join('、');
-  const gastroDetailText = summary.gastrointestinalInputItems
-    .map(item => `${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span>`)
-    .join('、');
-  const excretionDetailText = summary.outputItems
-    .map(item => `${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span>`)
-    .join('、');
-  const drainDetailText = summary.drainItems.length
-    ? `；引流液：<span class="print-summary-strong">${formatAmount(summary.drainTotal)} ml</span>（${summary.drainItems.map(item => `${escapeHtml(item.label)}：<span class="print-summary-strong">${formatAmount(item.amount)} ml</span>`).join('、')}）`
-    : '';
+  let detailLinesHtml = '';
+  for (const line of summary.detailLines) {
+    detailLinesHtml += '<div class="print-summary-line"><span>';
+    for (const token of line) {
+      if (token.strong) {
+        detailLinesHtml += '<span class="print-summary-strong">' + escapeHtml(token.text) + '</span>';
+      } else {
+        detailLinesHtml += escapeHtml(token.text);
+      }
+    }
+    detailLinesHtml += '</span></div>';
+  }
 
   td.innerHTML = `
     <section class="print-summary-panel">
@@ -1559,18 +1561,7 @@ function createSummaryTr(
         <strong class="print-summary-title">${escapeHtml(summary.label)}</strong>
         <span class="print-summary-period">${escapeHtml(summary.periodText || '')}</span>
       </div>
-
-      <div class="print-summary-line">
-        <span>总入量：<span class="print-summary-strong">${formatAmount(summary.totalInput)} ml</span>；药物治疗：<span class="print-summary-strong">${formatAmount(summary.drugTreatmentTotal)} ml</span>（${drugDetailText}）；胃肠摄入：<span class="print-summary-strong">${formatAmount(summary.gastrointestinalInputTotal)} ml</span>（${gastroDetailText}）</span>
-      </div>
-
-      <div class="print-summary-line">
-        <span>总出量：<span class="print-summary-strong">${formatAmount(summary.totalOutput)} ml</span>；排出物：<span class="print-summary-strong">${formatAmount(summary.excretionTotal)} ml</span>（${excretionDetailText}）${drainDetailText}</span>
-      </div>
-
-      <div class="print-summary-line">
-        <span>平衡量：<span class="print-summary-strong">${formatAmount(summary.balance)} ml</span></span>
-      </div>
+      ${detailLinesHtml}
     </section>
   `;
 

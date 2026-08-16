@@ -146,6 +146,10 @@ export interface HljldTimeRow {
   timeText: string;
   medications: NameAmountRoute[];
   enteral: NameAmountRoute[];
+  /** 尿量：独立列，只有量 */
+  urines: string[];
+  /** 净超滤量：独立列，只有量 */
+  ultrafiltrations: string[];
   outputs: NameAmount[];
   drains: NameAmount[];
   examination: string[];
@@ -167,6 +171,10 @@ export interface HljldDisplayRow {
   timeText: string;
   medication?: NameAmountRoute;
   enteral?: NameAmountRoute;
+  /** 尿量列（合并列，仅量） */
+  urine: string;
+  /** 净超滤量列（合并列，仅量） */
+  ultrafiltration: string;
   output?: NameAmount;
   drain?: NameAmount;
   examination: string;
@@ -190,6 +198,14 @@ export interface HljldSummaryItem {
   label: string;
   amount: number;
   unit: 'ml';
+  /** 途径级明细，例如静脉入量下的 iv / ivgtt / iv泵 */
+  children?: HljldSummaryItem[];
+}
+
+/** 小结文本片段，strong 表示需要加粗的数值 */
+export interface SummaryTextToken {
+  text: string;
+  strong?: boolean;
 }
 
 export interface HljldSummary {
@@ -206,6 +222,7 @@ export interface HljldSummary {
   totalInput: number;
   inputItems: HljldSummaryItem[];
   totalOutput: number;
+  /** 排出物明细，不再包含尿量与净超滤量 */
   outputItems: HljldSummaryItem[];
   drainItems: HljldSummaryItem[];
   balance: number;
@@ -213,8 +230,15 @@ export interface HljldSummary {
   drugTreatmentItems: HljldSummaryItem[];
   gastrointestinalInputTotal: number;
   gastrointestinalInputItems: HljldSummaryItem[];
+  /** 排出物合计，不含尿量与净超滤量 */
   excretionTotal: number;
   drainTotal: number;
+  /** 尿量合计，单独展示 */
+  urineTotal: number;
+  /** 净超滤量合计，单独展示 */
+  ultrafiltrationTotal: number;
+  /** 预生成的小结文本行，页面与打印共用 */
+  detailLines: SummaryTextToken[][];
 }
 
 export type HljldTimelineItem =
