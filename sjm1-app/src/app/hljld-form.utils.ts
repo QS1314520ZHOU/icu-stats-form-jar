@@ -713,10 +713,10 @@ export function buildSummary(
   const gastroBase = round2(sumBedsideByCodes(records, [CODE_GASTROINTESTINAL]));
 
   // 静脉入量 = 静脉小时汇总 + 输血入量，输血作为其首个明细项
-  const intravenousTotal = round2(intravenousBase + transfusionTotal);
+  const intravenousBase2 = round2(intravenousBase + transfusionTotal);
   const intravenousChildren = buildRouteBreakdown(
     'intravenous',
-    intravenousTotal,
+    intravenousBase2,
     [
       { label: '输血入量', amount: transfusionTotal },
       { label: 'iv', amount: routeAmount('iv') },
@@ -727,6 +727,8 @@ export function buildSummary(
     ],
     '其他静脉',
   );
+  // 以 children 之和为准，避免 bedside 与 drug 执行口径不一致导致父项 ≠ 子项之和
+  const intravenousTotal = round2(intravenousChildren.reduce((s, c) => s + c.amount, 0));
 
   // 药物治疗 = 带入药量 + 静脉入量（口服量已并入胃肠入量）
   const drugTreatmentItems: HljldSummaryItem[] = [
@@ -749,21 +751,26 @@ export function buildSummary(
     '鼻饲',
     true,
   );
+  // children 之和为空则保持 bedside 原值
+  const tubeFeedingAdj = tubeFeedingChildren.length
+    ? round2(tubeFeedingChildren.reduce((s, c) => s + c.amount, 0))
+    : tubeFeedingTotal;
 
   // 胃肠入量 = 胃肠小时汇总 + 口服量，po 为其明细
-  const gastroTotal = round2(gastroBase + oralTotal);
+  const gastroBase2 = round2(gastroBase + oralTotal);
   const gastroChildren = buildRouteBreakdown(
     'gastrointestinal',
-    gastroTotal,
+    gastroBase2,
     [{ label: 'po', amount: round2(oralTotal + routeAmount('po')) }],
     '其他胃肠',
   );
+  const gastroTotal = round2(gastroChildren.reduce((s, c) => s + c.amount, 0));
 
   const gastrointestinalInputItems: HljldSummaryItem[] = [
     {
       key: 'tube-feeding',
       label: '鼻饲量',
-      amount: tubeFeedingTotal,
+      amount: tubeFeedingAdj,
       unit: 'ml' as const,
       children: tubeFeedingChildren,
     },
@@ -775,7 +782,7 @@ export function buildSummary(
       children: gastroChildren,
     },
   ];
-  const gastrointestinalInputTotal = round2(tubeFeedingTotal + gastroTotal);
+  const gastrointestinalInputTotal = round2(tubeFeedingAdj + gastroTotal);
 
   // 尿量、净超滤量单独统计，不再计入排出物
   const sumByCode = (code: string) => round2(
