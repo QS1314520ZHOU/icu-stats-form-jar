@@ -583,6 +583,31 @@ function pushItems(tokens: SummaryTextToken[], items: HljldSummaryItem[]): void 
   });
 }
 
+/**
+ * 输出「标签：xx ml（明细…）」分段。
+ *
+ * 总量无条件输出，保证各小结项目结构固定，为 0 时也保留分段；
+ * 括号仅在有明细时输出，避免出现「引流液：0 ml（）」这种空括号。
+ */
+function pushGroup(
+  tokens: SummaryTextToken[],
+  label: string,
+  total: number,
+  items: HljldSummaryItem[],
+): void {
+  pushAmount(tokens, label, total);
+  if (items.length) {
+    tokens.push({ text: '（' });
+    pushItems(tokens, items);
+    tokens.push({ text: '）' });
+  }
+}
+
+/**
+ * 入量行：
+ * 总入量：xx ml；药物治疗：xx ml（带入药量、静脉入量（输血入量、iv、ivgtt…））；
+ * 胃肠摄入：xx ml（鼻饲量（鼻饲、鼻饲泵入）、胃肠入量（po））
+ */
 function buildInputLine(summary: {
   totalInput: number;
   drugTreatmentTotal: number;
@@ -594,24 +619,18 @@ function buildInputLine(summary: {
   pushAmount(tokens, '总入量', summary.totalInput);
 
   tokens.push({ text: '；' });
-  pushAmount(tokens, '药物治疗', summary.drugTreatmentTotal);
-  if (summary.drugTreatmentItems.length) {
-    tokens.push({ text: '（' });
-    pushItems(tokens, summary.drugTreatmentItems);
-    tokens.push({ text: '）' });
-  }
+  pushGroup(tokens, '药物治疗', summary.drugTreatmentTotal, summary.drugTreatmentItems);
 
   tokens.push({ text: '；' });
-  pushAmount(tokens, '胃肠摄入', summary.gastrointestinalInputTotal);
-  if (summary.gastrointestinalInputItems.length) {
-    tokens.push({ text: '（' });
-    pushItems(tokens, summary.gastrointestinalInputItems);
-    tokens.push({ text: '）' });
-  }
+  pushGroup(tokens, '胃肠摄入', summary.gastrointestinalInputTotal, summary.gastrointestinalInputItems);
 
   return tokens;
 }
 
+/**
+ * 出量行，固定五个分段，数值为 0 时同样展示：
+ * 总出量：xx ml；尿量：xx ml；净超滤量：xx ml；排出物：xx ml（…）；引流液：xx ml（…）
+ */
 function buildOutputLine(summary: {
   totalOutput: number;
   urineTotal: number;
@@ -631,20 +650,10 @@ function buildOutputLine(summary: {
   pushAmount(tokens, '净超滤量', summary.ultrafiltrationTotal);
 
   tokens.push({ text: '；' });
-  pushAmount(tokens, '排出物', summary.excretionTotal);
-  if (summary.outputItems.length) {
-    tokens.push({ text: '（' });
-    pushItems(tokens, summary.outputItems);
-    tokens.push({ text: '）' });
-  }
+  pushGroup(tokens, '排出物', summary.excretionTotal, summary.outputItems);
 
-  if (summary.drainItems.length) {
-    tokens.push({ text: '；' });
-    pushAmount(tokens, '引流液', summary.drainTotal);
-    tokens.push({ text: '（' });
-    pushItems(tokens, summary.drainItems);
-    tokens.push({ text: '）' });
-  }
+  tokens.push({ text: '；' });
+  pushGroup(tokens, '引流液', summary.drainTotal, summary.drainItems);
 
   return tokens;
 }
