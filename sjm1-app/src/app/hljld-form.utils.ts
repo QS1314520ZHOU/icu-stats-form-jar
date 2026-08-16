@@ -396,14 +396,13 @@ function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral:
   const rawName = drugList.map(item => {
     const name = String(item.name ?? '').trim();
     if (!name) { return ''; }
-    const hasLiquid = parseAmount(item.liquidAmount) !== 0;
     const unit = String(item.unit ?? '').trim();
-    if (unit && unit !== 'ml') {
+    if (unit) {
       const rawDose = item.dose;
       const dose = rawDose != null && rawDose !== ''
         ? (typeof rawDose === 'number' ? parseFloat(rawDose.toFixed(1)) : String(rawDose).trim())
         : '';
-      if (dose || unit) { return `${name}(${dose}${unit})`; }
+      return `${name}(${dose}${unit})`;
     }
     return name;
   }).filter(Boolean).join('、');
