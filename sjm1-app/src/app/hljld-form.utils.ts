@@ -97,12 +97,14 @@ export const DEFAULT_REMARK_LINES = [
 
 /* ---- 护理日时间范围 ---- */
 
+/** 护理日左端点：当日 07:00，本身不计入（区间左开） */
 export function startOfNursingDay(selectedDate: Date): Date {
   const d = new Date(selectedDate);
   d.setHours(7, 0, 0, 0);
   return d;
 }
 
+/** 护理日右端点：次日 07:00，本身计入（区间右闭） */
 export function endOfNursingDay(selectedDate: Date): Date {
   const d = startOfNursingDay(selectedDate);
   d.setDate(d.getDate() + 1);
@@ -128,10 +130,6 @@ export function parsePatientDateTime(value?: string): number {
 
 /* ---- 有效住院区间 ---- */
 
-/**
- * 计算患者在当前护理日内的有效区间和各种状态标志。
- * 所有时间使用左闭右开 [start, end) 判断。
- */
 export function resolveActiveStayRange(
   patient: PatientContext,
   nursingDayStart: Date,
@@ -143,10 +141,13 @@ export function resolveActiveStayRange(
   const admissionTime = Number.isFinite(admissionTs) ? new Date(admissionTs) : null;
   const dischargeTime = Number.isFinite(dischargeTs) ? new Date(dischargeTs) : null;
 
+  const dayStartMinute = minuteInstant(nursingDayStart);
+  const dayEndMinute = minuteInstant(nursingDayEnd);
+
   // effectiveStart = max(nursingDayStart, admissionTime)
   let effectiveStart = new Date(nursingDayStart);
   let admissionClipped = false;
-  if (admissionTime && admissionTime.getTime() > nursingDayStart.getTime()) {
+  if (admissionTime && minuteInstant(admissionTime) > dayStartMinute) {
     effectiveStart = admissionTime;
     admissionClipped = true;
   }
@@ -154,20 +155,21 @@ export function resolveActiveStayRange(
   // effectiveEnd = min(nursingDayEnd, dischargeTime)
   let effectiveEnd = new Date(nursingDayEnd);
   let dischargeClipped = false;
-  if (dischargeTime && dischargeTime.getTime() < nursingDayEnd.getTime()) {
+  if (dischargeTime && minuteInstant(dischargeTime) < dayEndMinute) {
     effectiveEnd = dischargeTime;
     dischargeClipped = true;
   }
 
-  // 判断整个护理日是否在入科之前
-  const beforeAdmission = !!admissionTime && nursingDayEnd.getTime() <= admissionTime.getTime();
+  // 右闭：入科时间正好等于次日 07:00 时仍属于本护理日最后一分钟
+  const beforeAdmission = !!admissionTime && minuteInstant(admissionTime) > dayEndMinute;
+  // 左开：出科时间正好等于当日 07:00 时本护理日已无有效区间
+  const afterDischarge = !!dischargeTime && minuteInstant(dischargeTime) <= dayStartMinute;
 
-  // 判断整个护理日是否在出科之后
-  const afterDischarge = !!dischargeTime && nursingDayStart.getTime() >= dischargeTime.getTime();
-
-  // 有效区间长度 > 0
+  const startExclusive = !admissionClipped;
+  const startMinute = minuteInstant(effectiveStart);
+  const endMinute = minuteInstant(effectiveEnd);
   const hasValidRange = !beforeAdmission && !afterDischarge
-    && effectiveEnd.getTime() > effectiveStart.getTime();
+    && (startExclusive ? endMinute > startMinute : endMinute >= startMinute);
 
   return {
     nursingDayStart,
@@ -179,6 +181,7 @@ export function resolveActiveStayRange(
     beforeAdmission,
     afterDischarge,
     hasValidRange,
+    startExclusive,
   };
 }
 
@@ -305,9 +308,20 @@ export function enteralDisplayName(rawName: string): string {
 
 function isRenderableBedsideRecord(record: BedsideRecord): boolean {
   if (!record || !record.time || !record.code) { return false; }
+  if (!isValidBusinessRecord(record)) { return false; }
   if (record.code === 'param_Yishi') { return false; }
   if (!DISPLAY_BEDSIDE_CODES.has(record.code) && !isDrainCode(record.code)) { return false; }
   return hasText(record.strVal) || hasText(record.remark);
+}
+
+/** 药物/胃肠单元格：名称或量任一有值才展示，只有途径视为空数据 */
+function hasNameOrAmount(item?: NameAmountRoute | NameAmount | null): boolean {
+  return !!item && (hasText(item.name) || hasText(item.amount));
+}
+
+/** 排出物/引流液单元格：必须有量，只有名称无量视为空数据 */
+function hasAmountValue(item?: NameAmount | null): boolean {
+  return !!item && hasText(item.amount);
 }
 
 /**
@@ -389,11 +403,38 @@ function drainName(code: string): string {
 }
 
 /**
- * 统一左闭右开区间判断：timestamp >= start && timestamp < end。
+ * 将任意时间归一到所属分钟的起始毫秒，与 minuteKey 同粒度。
+ * 统计与展示都按分钟对齐，避免 07:00:30 这类秒级数据在两个护理日重复出现。
  */
-function inRange(time: string, start: Date, end: Date): boolean {
-  const value = databaseTimeValue(time);
-  return Number.isFinite(value) && value >= start.getTime() && value < end.getTime();
+export function minuteInstant(value: string | Date | number): number {
+  const ts = typeof value === 'number'
+    ? value
+    : value instanceof Date
+      ? value.getTime()
+      : databaseTimeValue(value);
+  return Number.isFinite(ts) ? Math.floor(ts / 60000) * 60000 : NaN;
+}
+
+/**
+ * 护理日统计区间判断，默认左开右闭 (start, end]。
+ *
+ * 07:00 归属上一护理日的最后一分钟，07:01 起属于当前护理日，
+ * 次日 07:00 为当前护理日的最后一分钟，即 07:01—次日07:00。
+ *
+ * startExclusive = false 用于入科截断场景：入科当分钟必须计入，区间为 [start, end]。
+ */
+export function inNursingRange(
+  value: string | Date | number,
+  start: Date | number,
+  end: Date | number,
+  startExclusive = true,
+): boolean {
+  const ts = minuteInstant(value);
+  if (!Number.isFinite(ts)) { return false; }
+  const startMs = minuteInstant(start);
+  const endMs = minuteInstant(end);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) { return false; }
+  return (startExclusive ? ts > startMs : ts >= startMs) && ts <= endMs;
 }
 
 function sumBedsideByCodes(records: BedsideRecord[], codes: readonly string[]): number {
@@ -410,22 +451,18 @@ export function collectDrainNames(
   bedside: BedsideRecord[],
   effectiveStart: Date,
   effectiveEnd: Date,
+  startExclusive = true,
 ): string[] {
-  const startMs = effectiveStart.getTime();
-  const endMs = effectiveEnd.getTime();
-  const seen = new Map<string, number>(); // name → first occurrence timestamp
+  const seen = new Map<string, number>();
 
   for (const item of bedside) {
-    if (item.valid === false || !isDrainCode(item.code) || !hasText(item.strVal)) { continue; }
-    const ts = databaseTimeValue(item.time);
-    if (!Number.isFinite(ts) || ts < startMs || ts >= endMs) { continue; }
+    if (!isValidBusinessRecord(item) || !isDrainCode(item.code) || !hasText(item.strVal)) { continue; }
+    if (!inNursingRange(item.time, effectiveStart, effectiveEnd, startExclusive)) { continue; }
+    const ts = minuteInstant(item.time);
     const name = drainName(item.code);
-    if (!seen.has(name)) {
-      seen.set(name, ts);
-    }
+    if (!seen.has(name)) { seen.set(name, ts); }
   }
 
-  // 按首次出现时间排序，相同名称合并
   return Array.from(seen.entries())
     .sort((a, b) => a[1] - b[1])
     .map(([name]) => name);
@@ -453,12 +490,10 @@ export function buildSummary(
   const plannedStartTs = periodStart.getTime();
   const plannedEndTs = periodEnd.getTime();
 
-  // 左闭右开：timestamp >= start && timestamp < end
-  const records = source.bedside.filter(item => {
-    if (item.valid === false) { return false; }
-    const ts = databaseTimeValue(item.time);
-    return Number.isFinite(ts) && ts >= startTs && ts < endTs;
-  });
+  // 左开右闭 (actualStart, actualEnd]；入科截断时左闭
+  const records = source.bedside.filter(item =>
+    isValidBusinessRecord(item)
+    && inNursingRange(item.time, actualStart, actualEnd, stay.startExclusive));
 
   // 动态标题
   const summaryLabel = buildSummaryLabel({
@@ -600,11 +635,13 @@ export function buildTubeNursingText(execution: TubeExecution, record: TubeRecor
   return `${tubeName}：${parts.join('，')}`;
 }
 
-/** 从 tubeExe 构建管路护理条目 */
-export function buildTubeNursingEntries(source: HljldSourceData, start: Date, end: Date): TubeNursingEntry[] {
+export function buildTubeNursingEntries(
+  source: HljldSourceData,
+  start: Date,
+  end: Date,
+  startExclusive = true,
+): TubeNursingEntry[] {
   const entries: TubeNursingEntry[] = [];
-  const startMs = start.getTime();
-  const endMs = end.getTime();
 
   for (const exe of source.tubeExecutions) {
     if (!isValidBusinessRecord(exe)) { continue; }
@@ -617,15 +654,14 @@ export function buildTubeNursingEntries(source: HljldSourceData, start: Date, en
 
     for (const record of (exe.tubeRecordList ?? [])) {
       if (!isValidBusinessRecord(record)) { continue; }
-      const ts = databaseTimeValue(record.time);
-      // 左闭右开
-      if (!Number.isFinite(ts) || ts < startMs || ts >= endMs) { continue; }
+      if (!inNursingRange(String(record.time ?? ''), start, end, startExclusive)) { continue; }
 
       const text = buildTubeNursingText(exe, record, view);
       if (!text) { continue; }
 
+      const ts = minuteInstant(String(record.time ?? ''));
       entries.push({
-        key: `tube-${exe._id}-${record._id}-${Math.floor(ts)}`,
+        key: `tube-${exe._id}-${record._id}-${ts}`,
         timestamp: ts,
         time: String(record.time ?? ''),
         text,
@@ -644,22 +680,34 @@ export function buildRows(
   start: Date,
   end: Date,
   accountMap: Map<string, string> = new Map(),
+  startExclusive = true,
 ): HljldTimeRow[] {
-  const startMs = start.getTime();
-  const endMs = end.getTime();
+  const inPeriod = (value?: string): boolean =>
+    !!value && inNursingRange(value, start, end, startExclusive);
 
-  const events: Array<{ timestamp: number }> = [
-    ...source.bedside.filter(isRenderableBedsideRecord).map(item => ({ timestamp: minuteKey(item.time) })),
-    ...source.drugExecutions.filter(isRenderableDrugExecution).map(item => ({ timestamp: minuteKey(item.startTime) })),
-    ...source.nurseRecords.filter(item => item.valid !== false && !!item.time && hasText(item.desc)).map(item => ({ timestamp: minuteKey(item.time) })),
-  ].filter(item => Number.isFinite(item.timestamp) && item.timestamp * 60000 >= startMs && item.timestamp * 60000 < endMs);
+  // 预过滤：无效记录 / 区间外记录 / 空内容记录一律不参与
+  const bedsideInPeriod = source.bedside
+    .filter(item => isRenderableBedsideRecord(item) && inPeriod(item.time));
+  const drugsInPeriod = source.drugExecutions
+    .filter(item => isRenderableDrugExecution(item) && inPeriod(item.startTime));
+  const nurseInPeriod = source.nurseRecords
+    .filter(item => isValidBusinessRecord(item) && hasText(item.desc) && inPeriod(item.time));
 
-  const uniqueKeys = Array.from(new Set(events.map(item => item.timestamp).filter(k => Number.isFinite(k)))).sort((a, b) => a - b);
+  const uniqueKeys = Array.from(new Set([
+    ...bedsideInPeriod.map(item => minuteKey(item.time)),
+    ...drugsInPeriod.map(item => minuteKey(item.startTime)),
+    ...nurseInPeriod.map(item => minuteKey(item.time)),
+  ]))
+    .filter(key => Number.isFinite(key))
+    .sort((a, b) => a - b);
 
-  return uniqueKeys.map(key => {
+  const rows: HljldTimeRow[] = [];
+
+  for (const key of uniqueKeys) {
     const timeMs = key * 60000;
-    const bedside = source.bedside.filter(item => minuteKey(item.time) === key);
-    const drugExecutions = source.drugExecutions.filter(item => item.status !== 'invalid' && minuteKey(item.startTime) === key);
+    const bedside = bedsideInPeriod.filter(item => minuteKey(item.time) === key);
+    const drugExecutions = drugsInPeriod.filter(item => minuteKey(item.startTime) === key);
+
     const medications: NameAmountRoute[] = [];
     const enteral: NameAmountRoute[] = [];
 
@@ -668,34 +716,68 @@ export function buildRows(
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
       const cell = drugToCell(execution, method, isEnteral);
-      if (!cell.name && !cell.amount) { return; }
+      if (!hasNameOrAmount(cell)) { return; }
       if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
     });
 
-    bedside.filter(item => item.code === 'param_带入药量').forEach(item => medications.push(bedsideInputCell(item)));
-    bedside.filter(item => item.code === 'param_kouFu' || item.code === 'param_biSi').forEach(item => enteral.push(bedsideInputCell(item)));
+    bedside
+      .filter(item => item.code === 'param_带入药量')
+      .map(bedsideInputCell)
+      .filter(hasNameOrAmount)
+      .forEach(cell => medications.push(cell));
 
+    bedside
+      .filter(item => item.code === 'param_kouFu' || item.code === 'param_biSi')
+      .map(bedsideInputCell)
+      .filter(hasNameOrAmount)
+      .forEach(cell => enteral.push(cell));
+
+    // 排出物 / 引流液：量为空字符串的记录直接丢弃
     const outputs: NameAmount[] = bedside
       .filter(item => Boolean(OUTPUT_CODE_NAMES[item.code]))
-      .map(item => ({ name: OUTPUT_CODE_NAMES[item.code], amount: displayAmount(item.strVal), numericAmount: parseAmount(item.strVal) }));
+      .map(item => ({
+        name: OUTPUT_CODE_NAMES[item.code],
+        amount: displayAmount(item.strVal),
+        numericAmount: parseAmount(item.strVal),
+      }))
+      .filter(hasAmountValue);
+
     const drains: NameAmount[] = bedside
       .filter(item => isDrainCode(item.code))
-      .map(item => ({ name: drainName(item.code), amount: displayAmount(item.strVal), numericAmount: parseAmount(item.strVal) }));
+      .map(item => ({
+        name: drainName(item.code),
+        amount: displayAmount(item.strVal),
+        numericAmount: parseAmount(item.strVal),
+      }))
+      .filter(hasAmountValue);
 
-    const values = (code: string) => bedside.filter(item => item.code === code).map(item => displayAmount(item.strVal)).filter(Boolean);
+    const values = (code: string) => bedside
+      .filter(item => item.code === code)
+      .map(item => displayAmount(item.strVal))
+      .filter(hasText);
 
-    // 签名：只使用 param_Yishi 的 editUser
+    const examination = values('param_外出检查');
+    const treatment = values('param_物理治疗');
+    const basicCare = values('param_基础护理1');
+    const healthEducation = values('param_健康教育');
+
+    const normalNursing = nurseInPeriod
+      .filter(item => minuteKey(item.time) === key)
+      .map(item => String(item.desc).trim())
+      .filter(Boolean);
+    const combinedNursing = normalNursing.join('；');
+    const nursingRecords = combinedNursing ? [combinedNursing] : [];
+
+    // 该时间点没有任何有效内容（例如只有签名或只有空字符串）时不生成行
+    const hasContent = medications.length || enteral.length || outputs.length || drains.length
+      || examination.length || treatment.length || basicCare.length
+      || healthEducation.length || nursingRecords.length;
+    if (!hasContent) { continue; }
+
     const signUserId = resolveYishiSignerId(timeMs, source.bedside);
     const signature = signUserId ? (accountMap.get(signUserId) || '') : '';
 
-    // 普通护理记录（管路护理不再合并到此列）
-    const normalNursing = source.nurseRecords
-      .filter(item => isValidBusinessRecord(item) && minuteKey(item.time) === key && hasText(item.desc))
-      .map(item => String(item.desc).trim())
-      .filter(Boolean);
-    const combinedNursing = normalNursing.filter(Boolean).join('；');
-
-    return {
+    rows.push({
       key: String(key),
       time: new Date(timeMs),
       timeText: formatTime(timeMs),
@@ -703,33 +785,42 @@ export function buildRows(
       enteral,
       outputs,
       drains,
-      examination: values('param_外出检查'),
-      treatment: values('param_物理治疗'),
-      basicCare: values('param_基础护理1'),
-      healthEducation: values('param_健康教育'),
-      nursingRecords: combinedNursing ? [combinedNursing] : [],
+      examination,
+      treatment,
+      basicCare,
+      healthEducation,
+      nursingRecords,
       signature,
-    };
-  });
+    });
+  }
+
+  return rows;
 }
 
 /* ---- 时间组展开 ---- */
 
 export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[] {
   const sortedRows = [...sourceRows].sort((a, b) => a.time.getTime() - b.time.getTime());
+  const groups: HljldTimeGroup[] = [];
 
-  return sortedRows.map(row => {
-    const medications = row.medications.filter(item => !!item && (hasText(item.name) || hasText(item.amount) || hasText(item.route)));
-    const enteral = row.enteral.filter(item => !!item && (hasText(item.name) || hasText(item.amount) || hasText(item.route)));
-    const outputs = row.outputs.filter(item => !!item && (hasText(item.name) || hasText(item.amount)));
-    const drains = row.drains.filter(item => !!item && (hasText(item.name) || hasText(item.amount)));
+  for (const row of sortedRows) {
+    const medications = row.medications.filter(hasNameOrAmount);
+    const enteral = row.enteral.filter(hasNameOrAmount);
+    const outputs = row.outputs.filter(hasAmountValue);
+    const drains = row.drains.filter(hasAmountValue);
     const examination = row.examination.filter(hasText);
     const treatment = row.treatment.filter(hasText);
     const basicCare = row.basicCare.filter(hasText);
     const healthEducation = row.healthEducation.filter(hasText);
     const nursingRecords = row.nursingRecords.filter(hasText);
 
-    const lineCount = Math.max(1, medications.length, enteral.length, outputs.length, drains.length, examination.length, treatment.length, basicCare.length, healthEducation.length, nursingRecords.length);
+    // 注意：不再使用 Math.max(1, ...)，全空的时间点整组丢弃
+    const lineCount = Math.max(
+      medications.length, enteral.length, outputs.length, drains.length,
+      examination.length, treatment.length, basicCare.length,
+      healthEducation.length, nursingRecords.length,
+    );
+    if (lineCount <= 0) { continue; }
 
     const timestamp = row.time.getTime();
     const groupKey = row.key;
@@ -737,12 +828,14 @@ export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[]
 
     for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
       const firstLine = lineIndex === 0;
+      const lastLine = lineIndex === lineCount - 1;
       displayRows.push({
         key: `${groupKey}::${lineIndex}`,
         groupKey,
         timestamp,
         lineIndex,
         firstLine,
+        lastLine,
         timeText: firstLine ? row.timeText : '',
         medication: medications[lineIndex],
         enteral: enteral[lineIndex],
@@ -753,12 +846,15 @@ export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[]
         basicCare: basicCare[lineIndex] ?? '',
         healthEducation: healthEducation[lineIndex] ?? '',
         nursingRecord: nursingRecords[lineIndex] ?? '',
-        signature: firstLine ? row.signature : '',
+        // 时间仍在首行，签名改为只在该时间点的最后一行展示
+        signature: lastLine ? row.signature : '',
       });
     }
 
-    return { key: groupKey, timestamp, rows: displayRows };
-  });
+    groups.push({ key: groupKey, timestamp, rows: displayRows });
+  }
+
+  return groups;
 }
 
 /* ---- 时间轴构建 ---- */
@@ -812,13 +908,13 @@ export function buildTimeline(
 
   for (const group of sortedGroups) {
     // 只展示当前时间之前已经发生的数据
-    if (group.timestamp > nowMs) { continue; }
+    if (group.timestamp > minuteInstant(nowMs)) { continue; }
 
-    // 明细不能越过有效结束时间
-    if (effectiveEndMs !== undefined && group.timestamp >= effectiveEndMs) { continue; }
+    // 右闭：等于有效结束时刻的那一分钟仍要展示
+    if (effectiveEndMs !== undefined && group.timestamp > minuteInstant(effectiveEndMs)) { continue; }
 
-    // 明细不能越过次日07:00
-    if (group.timestamp >= nextMorningBoundaryMs) { continue; }
+    // 右闭：次日 07:00 属于本护理日最后一分钟
+    if (group.timestamp > minuteInstant(nextMorningBoundaryMs)) { continue; }
 
     // 已到17:00边界，当前组晚于17:00时，先插入日间小结
     // 但出科在17:00之前或等于17:00时不插入 daySummary

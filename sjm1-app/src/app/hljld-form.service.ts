@@ -68,10 +68,12 @@ export class HljldFormService {
       );
     };
 
+    // 护理日为 (start, end]，后端多数按左闭右开取数：
+    // 上界放宽 1 秒保证 end 整点数据被取回，精确过滤由 inNursingRange 完成
     const rangeParams = new HttpParams()
       .set('pid', pid)
       .set('startTime', start.toISOString())
-      .set('endTime', end.toISOString());
+      .set('endTime', new Date(end.getTime() + 1000).toISOString());
 
     return forkJoin({
       bedside: safeGet<BedsideRecord>('bedside', this.bedsideApi, new HttpParams().set('pid', pid)),

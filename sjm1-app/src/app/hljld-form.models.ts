@@ -162,6 +162,8 @@ export interface HljldDisplayRow {
   timestamp: number;
   lineIndex: number;
   firstLine: boolean;
+  /** 是否为该时间点的最后一行，签名只在此行展示 */
+  lastLine: boolean;
   timeText: string;
   medication?: NameAmountRoute;
   enteral?: NameAmountRoute;
@@ -240,6 +242,8 @@ export interface ActiveStayRange {
   beforeAdmission: boolean;
   afterDischarge: boolean;
   hasValidRange: boolean;
+  /** true = 区间为 (start, end]；入科截断时为 false，即 [入科时刻, end] */
+  startExclusive: boolean;
 }
 
 export interface HljldViewModel {

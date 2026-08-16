@@ -824,6 +824,7 @@ function createSegmentRowFragment(
     ...row,
     key: `${row.key}__${field}__segment__${Math.random().toString(36).slice(2)}`,
     firstLine: firstOverallFragment ? row.firstLine : false,
+    lastLine: lastOverallFragment ? row.lastLine : false,
 
     timeText: firstOverallFragment ? row.timeText : '',
     medication: firstOverallFragment ? row.medication : undefined,
@@ -837,6 +838,7 @@ function createSegmentRowFragment(
     healthEducation: '',
     nursingRecord: '',
 
+    // 签名跟随行的末尾片段，非末行本身 signature 已为空
     signature: lastOverallFragment ? row.signature : '',
   };
 

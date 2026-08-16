@@ -4,7 +4,7 @@ import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } fro
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService } from './hljld-form.service';
 import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext } from './hljld-form.models';
-import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
+import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljldRecord } from './hljld-print.util';
 
@@ -325,7 +325,10 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   private nursingDateForTimestamp(timestamp: number): Date {
     const value = new Date(timestamp);
     const nursingDate = new Date(value.getFullYear(), value.getMonth(), value.getDate());
-    if (value.getHours() < 7) {
+    const dayStart = new Date(nursingDate);
+    dayStart.setHours(7, 0, 0, 0);
+    // 护理日为 (当日07:00, 次日07:00]，07:00 整点及之前归上一护理日
+    if (minuteInstant(timestamp) <= dayStart.getTime()) {
       nursingDate.setDate(nursingDate.getDate() - 1);
     }
     return nursingDate;
@@ -398,12 +401,12 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const nursingDayStay = resolveActiveStayRange(this.patient, rangeStart, rangeEnd);
 
     const rows = nursingDayStay.hasValidRange
-      ? buildRows(source, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd, accountMap)
+      ? buildRows(source, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd, accountMap, nursingDayStay.startExclusive)
       : [];
     const timeGroups = buildDisplayGroups(rows);
 
     const drainNames = nursingDayStay.hasValidRange
-      ? collectDrainNames(source.bedside, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd)
+      ? collectDrainNames(source.bedside, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd, nursingDayStay.startExclusive)
       : [];
 
     // 每个小结自行根据自己的 periodStart/periodEnd 计算有效范围
@@ -437,10 +440,14 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
     const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning, drainNames);
 
-    // 出科总结：出科时间在当前护理日 07:00 到次日07:00之间
+    // 出科总结：出科时间落在 (当日07:00, 次日07:00] 之内
     let dischargeSummary: HljldSummary | undefined;
     const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
-    if (Number.isFinite(dischargeTs) && dischargeTs > rangeStart.getTime() && dischargeTs < nextMorning.getTime()) {
+    if (
+      Number.isFinite(dischargeTs)
+      && minuteInstant(dischargeTs) > minuteInstant(rangeStart)
+      && minuteInstant(dischargeTs) <= minuteInstant(nextMorning)
+    ) {
       dischargeSummary = buildSummary('discharge', '出科总结', this.patient, source, rangeStart, new Date(dischargeTs), drainNames);
     }
 
