@@ -398,7 +398,10 @@ function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral:
     if (!name) { return ''; }
     const hasLiquid = parseAmount(item.liquidAmount) !== 0;
     if (!hasLiquid) {
-      const dose = String(item.dose ?? '').trim();
+      const rawDose = item.dose;
+      const dose = rawDose != null && rawDose !== ''
+        ? (typeof rawDose === 'number' ? parseFloat(rawDose.toFixed(1)) : String(rawDose).trim())
+        : '';
       const unit = String(item.unit ?? '').trim();
       if (dose || unit) { return `${name}(${dose}${unit})`; }
     }
