@@ -100,7 +100,7 @@ export function isDrainCode(code?: string): boolean {
 }
 
 export const DEFAULT_REMARK_LINES = [
-  '检查：A：CT    B：核磁共振    C：胃镜    D：肠镜    E：超声检查    F：床旁胸片',
+  '检查：A：CT    B：核磁共振    C：胃镜    D：肠镜    E：超声检查    F：床旁胸片    G：心电图',
   '治疗：A：机械辅助排痰    B：气压治疗    C：雾化吸入    D：支气管镜灌洗    E：TDP照射    F：针灸治疗    G：运动治疗    H：肺复张',
   '基础护理：A：口腔护理    B：动/静脉置管护理    C：擦浴    D：会阴擦洗    E：肛周护理    F：更换引流袋    G：膀胱冲洗    H：压疮护理    I：床上洗头',
   '健康教育：A：入院指导    B：疾病知识    C：药物指导    D：饮食指导    E：肢体活动指导    F：检查指导    G：安全指导    H：心理指导    I：术前指导    J：术后指导    K：转科/出院指导    L：用氧注意事项    M：通气配合指导    N：康复指导    O：VTE预防指导',
@@ -397,12 +397,12 @@ function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral:
     const name = String(item.name ?? '').trim();
     if (!name) { return ''; }
     const hasLiquid = parseAmount(item.liquidAmount) !== 0;
-    if (!hasLiquid) {
+    const unit = String(item.unit ?? '').trim();
+    if (unit && unit !== 'ml') {
       const rawDose = item.dose;
       const dose = rawDose != null && rawDose !== ''
         ? (typeof rawDose === 'number' ? parseFloat(rawDose.toFixed(1)) : String(rawDose).trim())
         : '';
-      const unit = String(item.unit ?? '').trim();
       if (dose || unit) { return `${name}(${dose}${unit})`; }
     }
     return name;
