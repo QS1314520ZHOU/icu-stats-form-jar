@@ -14,6 +14,8 @@ export interface PatientContext {
 export interface DrugItem {
   name: string;
   liquidAmount?: number | string;
+  dose?: number | string;
+  unit?: string;
 }
 
 export interface DrugActionItem {

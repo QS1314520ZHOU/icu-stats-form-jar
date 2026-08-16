@@ -385,14 +385,25 @@ export function resolveNurseSignature(
 
 function isRenderableDrugExecution(item: DrugExecution): boolean {
   if (!item || item.status === 'invalid' || !item.startTime) { return false; }
-  return (item.drugList ?? []).some(drug => hasText(drug.name) || parseAmount(drug.liquidAmount) !== 0);
+  return (item.drugList ?? []).some(drug =>
+    hasText(drug.name) || parseAmount(drug.liquidAmount) !== 0 || hasText(drug.dose) || hasText(drug.unit));
 }
 
 /* ---- 数据转换 ---- */
 
 function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral: boolean): NameAmountRoute {
   const drugList = execution.drugList ?? [];
-  const rawName = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
+  const rawName = drugList.map(item => {
+    const name = String(item.name ?? '').trim();
+    if (!name) { return ''; }
+    const hasLiquid = parseAmount(item.liquidAmount) !== 0;
+    if (!hasLiquid) {
+      const dose = String(item.dose ?? '').trim();
+      const unit = String(item.unit ?? '').trim();
+      if (dose || unit) { return `${name}(${dose}${unit})`; }
+    }
+    return name;
+  }).filter(Boolean).join('、');
   const numericAmount = drugList.reduce((sum, item) => sum + parseAmount(item.liquidAmount), 0);
   return {
     name: enteral ? enteralDisplayName(rawName) : rawName,
