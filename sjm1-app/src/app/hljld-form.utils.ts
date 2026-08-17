@@ -1180,11 +1180,18 @@ export function buildRows(
 
     drugExecutions.forEach(execution => {
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
-      if (!method) { return; }
+      if (!method) {
+        console.warn('[HLJLD][buildRows] findDrugMethod 未匹配', { key, methodCode: execution.methodCode, drugNames: (execution.drugList ?? []).map(d => d.name) });
+        return;
+      }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
       const cell = drugToCell(execution, method, isEnteral);
-      if (!hasNameOrAmount(cell)) { return; }
+      if (!hasNameOrAmount(cell)) {
+        console.warn('[HLJLD][buildRows] hasNameOrAmount=false', { key, methodCode: execution.methodCode, name: cell.name, amount: cell.amount, numericAmount: cell.numericAmount });
+        return;
+      }
       if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
+      console.info('[HLJLD][buildRows] 药物已录入', { key, methodCode: execution.methodCode, isEnteral, name: cell.name, amount: cell.amount, route: cell.route });
     });
 
     bedside
