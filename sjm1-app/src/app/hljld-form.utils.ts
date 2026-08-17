@@ -487,13 +487,8 @@ const MS_PER_HOUR = 3_600_000;
 /** 变更速度的动作，speed 为变更后的绝对值 */
 const SPEED_ACTIONS = new Set(['start', 'recovery', 'add', 'minus']);
 
-/**
- * 输血给药方法的 configDrugMethod.code 白名单。
- * 【待确认】填入真实 code 后名称正则不再生效，判定更稳。
- */
-const TRANSFUSION_METHOD_CODES = new Set<string>([]);
-
-const TRANSFUSION_NAME_PATTERN = /输血|血制品|红细胞|血浆|血小板|冷沉淀|全血/;
+/** 参与出入量统计的入量通道，其余（含空值）一律不计 */
+const COUNTED_IN_CHANNELS = new Set(['胃肠', '静脉', '输血']);
 
 /**
  * 肠内营养泵入判定。归入「鼻饲量」而非「胃肠入量」。
@@ -653,20 +648,17 @@ export function calcContinuousDrugAmount(
 
 type DrugChannel = 'vein' | 'transfusion' | 'gastro' | 'enteral' | 'other';
 
-/** 配置优先（code / group / inChannel），名称正则兜底 */
+/** 配置优先（inChannel / group），名称正则兜底 */
 function methodChannel(method: DrugMethodConfig): DrugChannel {
-  const code = String(method.code ?? '').trim();
   const group = String(method.group ?? '').trim();
   const channel = String(method.inChannel ?? '').trim();
   const name = String(method.name ?? '');
 
-  if (TRANSFUSION_METHOD_CODES.has(code)) { return 'transfusion'; }
-  if (group === '输血' || channel === '输血' || TRANSFUSION_NAME_PATTERN.test(name)) {
-    return 'transfusion';
-  }
+  if (group === '输血' || channel === '输血') { return 'transfusion'; }
   if (ENTERAL_NUTRITION_PATTERN.test(name)) { return 'enteral'; }
   if (group === '胃肠' || channel === '胃肠' || channel === '消化道') { return 'gastro'; }
   if (channel === '静脉') { return 'vein'; }
+  // 已被 COUNTED_IN_CHANNELS 拦截，理论不可达
   return 'other';
 }
 
@@ -698,9 +690,9 @@ function sumDrugAmountsByChannel(
     const method = findDrugMethod(execution.methodCode, source.drugMethods);
     if (!method) { continue; }
 
-    // inChannel 非空且非三种入量通道的药物不计入量
+    // inChannel 必须严格等于三种入量通道之一，空值/其他值一律跳过
     const inCh = String(method.inChannel ?? '').trim();
-    if (inCh && inCh !== '胃肠' && inCh !== '静脉' && inCh !== '输血') { continue; }
+    if (!COUNTED_IN_CHANNELS.has(inCh)) { continue; }
 
     let amount = 0;
     if (method.isOnce === false) {
@@ -718,7 +710,12 @@ function sumDrugAmountsByChannel(
       case 'transfusion': totals.transfusion += amount; break;
       case 'enteral':     totals.enteral += amount; break;
       case 'gastro':      totals.gastro.set(route, (totals.gastro.get(route) ?? 0) + amount); break;
-      default:            totals.vein.set(route, (totals.vein.get(route) ?? 0) + amount); break;
+      case 'vein':        totals.vein.set(route, (totals.vein.get(route) ?? 0) + amount); break;
+      default:
+        if (typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname)) {
+          console.warn('[HLJLD][unexpected-channel]', { methodCode: execution.methodCode, inCh });
+        }
+        break;
     }
   }
 
@@ -767,22 +764,26 @@ function pushItems(tokens: SummaryTextToken[], items: HljldSummaryItem[]): void 
 /**
  * 输出「标签：xx ml（明细…）」分段。
  *
- * 总量无条件输出，保证各小结项目结构固定，为 0 时也保留分段；
- * 括号仅在有明细时输出，避免出现「引流液：0 ml（）」这种空括号。
+ * 无数据（总量为 0 且无非零明细）时整段不输出，不再默认展示 0 ml。
+ * 括号仅在有非零明细时输出。
+ * @returns 是否实际输出，供调用方决定分隔符
  */
 function pushGroup(
   tokens: SummaryTextToken[],
   label: string,
   total: number,
   items: HljldSummaryItem[],
-): void {
+): boolean {
   const nonZeroItems = items.filter(item => round1(item.amount) !== 0);
+  if (round1(total) === 0 && !nonZeroItems.length) { return false; }
+
   pushAmount(tokens, label, total);
   if (nonZeroItems.length) {
     tokens.push({ text: '（' });
     pushItems(tokens, nonZeroItems);
     tokens.push({ text: '）' });
   }
+  return true;
 }
 
 /**
@@ -800,17 +801,21 @@ function buildInputLine(summary: {
   const tokens: SummaryTextToken[] = [];
   pushAmount(tokens, '总入量', summary.totalInput);
 
-  tokens.push({ text: '；' });
-  pushGroup(tokens, '药物治疗', summary.drugTreatmentTotal, summary.drugTreatmentItems);
-
-  tokens.push({ text: '；' });
-  pushGroup(tokens, '胃肠摄入', summary.gastrointestinalInputTotal, summary.gastrointestinalInputItems);
+  const sep = () => { if (tokens.length) { tokens.push({ text: '；' }); } };
+  const seg: SummaryTextToken[] = [];
+  if (pushGroup(seg, '药物治疗', summary.drugTreatmentTotal, summary.drugTreatmentItems)) {
+    sep(); tokens.push(...seg);
+  }
+  seg.length = 0;
+  if (pushGroup(seg, '胃肠摄入', summary.gastrointestinalInputTotal, summary.gastrointestinalInputItems)) {
+    sep(); tokens.push(...seg);
+  }
 
   return tokens;
 }
 
 /**
- * 出量行，固定五个分段，数值为 0 时同样展示：
+ * 出量行：总出量无条件保留，其余分段无数据时整段不输出。
  * 总出量：xx ml；尿量：xx ml；净超滤量：xx ml；排出物：xx ml（…）；引流液：xx ml（…）
  */
 function buildOutputLine(summary: {
@@ -825,17 +830,22 @@ function buildOutputLine(summary: {
   const tokens: SummaryTextToken[] = [];
   pushAmount(tokens, '总出量', summary.totalOutput);
 
-  tokens.push({ text: '；' });
-  pushAmount(tokens, '尿量', summary.urineTotal);
+  const sep = () => { if (tokens.length) { tokens.push({ text: '；' }); } };
 
-  tokens.push({ text: '；' });
-  pushAmount(tokens, '净超滤量', summary.ultrafiltrationTotal);
-
-  tokens.push({ text: '；' });
-  pushGroup(tokens, '排出物', summary.excretionTotal, summary.outputItems);
-
-  tokens.push({ text: '；' });
-  pushGroup(tokens, '引流液', summary.drainTotal, summary.drainItems);
+  if (round1(summary.urineTotal) !== 0) {
+    sep(); pushAmount(tokens, '尿量', summary.urineTotal);
+  }
+  if (round1(summary.ultrafiltrationTotal) !== 0) {
+    sep(); pushAmount(tokens, '净超滤量', summary.ultrafiltrationTotal);
+  }
+  const seg: SummaryTextToken[] = [];
+  if (pushGroup(seg, '排出物', summary.excretionTotal, summary.outputItems)) {
+    sep(); tokens.push(...seg);
+  }
+  seg.length = 0;
+  if (pushGroup(seg, '引流液', summary.drainTotal, summary.drainItems)) {
+    sep(); tokens.push(...seg);
+  }
 
   return tokens;
 }

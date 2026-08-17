@@ -301,6 +301,7 @@ body {
 
 .print-summary-strong {
   font-weight: 700;
+  margin: 0 0.6mm;
 }
 
 .print-filler-row td {
