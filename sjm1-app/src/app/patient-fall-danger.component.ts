@@ -157,7 +157,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
               <ng-container *ngFor="let m of MORSE">
                 <td *ngFor="let o of m.opts">{{ r ? morseCheck(r, m.field, o.score) : '' }}</td>
               </ng-container>
-              <td>{{ r && r.total !== null ? r.total : '' }}</td>
+              <td>{{ r && showTotal(r) ? r.total : '' }}</td>
               <td>{{ r ? r.risk : '' }}</td>
               <td class="measure-cell">{{ r ? r.measures : '' }}</td>
               <td>{{ r ? (r.signName || '') : '' }}</td>
@@ -383,6 +383,11 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   clinicalUsed(r: FallRow): boolean { return this.CLINICAL.some(c => r.factor[c.key] === true); }
   /** 适用方法 - Morse：Morse 量表下有任一项填了数据才打√ */
   morseUsed(r: FallRow): boolean { return this.MORSE.some(m => this.num(r.factor[m.field]) !== null); }
+
+  /** 是否展示总分。总分是 Morse 评分量表的产物；临床判定法为定性判定、不产生分值，故不展示。 */
+  showTotal(r: FallRow): boolean {
+    return this.morseUsed(r) && r.total !== null;
+  }
 
   private parseMeasures(list: any[]): string {
     const seen = new Set<string>(); const out: string[] = [];
