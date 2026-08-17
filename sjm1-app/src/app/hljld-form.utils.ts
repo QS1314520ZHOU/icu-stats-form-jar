@@ -801,7 +801,7 @@ function buildInputLine(summary: {
   const tokens: SummaryTextToken[] = [];
   pushAmount(tokens, '总入量', summary.totalInput);
 
-  const sep = () => { if (tokens.length) { tokens.push({ text: '；' }); } };
+  const sep = () => { if (tokens.length) { tokens.push({ text: '；', sep: true }); } };
   const seg: SummaryTextToken[] = [];
   if (pushGroup(seg, '药物治疗', summary.drugTreatmentTotal, summary.drugTreatmentItems)) {
     sep(); tokens.push(...seg);
@@ -830,7 +830,7 @@ function buildOutputLine(summary: {
   const tokens: SummaryTextToken[] = [];
   pushAmount(tokens, '总出量', summary.totalOutput);
 
-  const sep = () => { if (tokens.length) { tokens.push({ text: '；' }); } };
+  const sep = () => { if (tokens.length) { tokens.push({ text: '；', sep: true }); } };
 
   if (round1(summary.urineTotal) !== 0) {
     sep(); pushAmount(tokens, '尿量', summary.urineTotal);

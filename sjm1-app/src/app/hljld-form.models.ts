@@ -225,6 +225,7 @@ export interface HljldSummaryItem {
 export interface SummaryTextToken {
   text: string;
   strong?: boolean;
+  sep?: boolean;
 }
 
 export interface HljldSummary {

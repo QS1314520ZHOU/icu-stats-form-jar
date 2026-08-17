@@ -187,7 +187,7 @@
       <span class="summary-period">{{ summary.periodText }}</span>
     </div>
     <div class="summary-detail-line" *ngFor="let line of summary.detailLines; trackBy: trackText">
-      <ng-container *ngFor="let token of line; trackBy: trackText"><strong *ngIf="token.strong; else plainToken">{{ token.text }}</strong><ng-template #plainToken>{{ token.text }}</ng-template></ng-container>
+      <ng-container *ngFor="let token of line; trackBy: trackText"><strong *ngIf="token.strong; else plainToken">{{ token.text }}</strong><ng-template #plainToken><span [class.summary-sep]="token.sep">{{ token.text }}</span></ng-template></ng-container>
     </div>
   </section>
 </ng-template>

@@ -304,6 +304,10 @@ body {
   margin: 0 0.6mm;
 }
 
+.print-summary-sep {
+  margin-right: 1.5mm;
+}
+
 .print-filler-row td {
   padding: 0 !important;
   line-height: 0;
@@ -1549,6 +1553,8 @@ function createSummaryTr(
     for (const token of line) {
       if (token.strong) {
         detailLinesHtml += '<span class="print-summary-strong">' + escapeHtml(token.text) + '</span>';
+      } else if (token.sep) {
+        detailLinesHtml += '<span class="print-summary-sep">' + escapeHtml(token.text) + '</span>';
       } else {
         detailLinesHtml += escapeHtml(token.text);
       }
