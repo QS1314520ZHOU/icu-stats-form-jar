@@ -305,7 +305,7 @@ body {
 }
 
 .print-summary-sep {
-  margin-right: 1.5mm;
+  margin-right: 3mm;
 }
 
 .print-filler-row td {

@@ -191,7 +191,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 }
 .summary-detail-line strong { font-weight: 600; margin: 0 3px; }
 .summary-detail-line + .summary-detail-line { margin-top: 6px; }
-.summary-detail-line .summary-sep { margin-right: 6px; }
+.summary-detail-line .summary-sep { margin-right: 12px; }
 
 /* =========================================================
    Remark
