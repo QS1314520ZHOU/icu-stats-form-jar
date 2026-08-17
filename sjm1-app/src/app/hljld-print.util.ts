@@ -296,7 +296,7 @@ body {
 }
 
 .print-summary-line + .print-summary-line {
-  margin-top: 0.4mm;
+  margin-top: 1.2mm;
 }
 
 .print-summary-strong {

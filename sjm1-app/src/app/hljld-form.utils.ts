@@ -698,6 +698,10 @@ function sumDrugAmountsByChannel(
     const method = findDrugMethod(execution.methodCode, source.drugMethods);
     if (!method) { continue; }
 
+    // inChannel 非空且非三种入量通道的药物不计入量
+    const inCh = String(method.inChannel ?? '').trim();
+    if (inCh && inCh !== '胃肠' && inCh !== '静脉' && inCh !== '输血') { continue; }
+
     let amount = 0;
     if (method.isOnce === false) {
       const result = calcContinuousDrugAmount(execution, start, end, startExclusive);
@@ -772,10 +776,11 @@ function pushGroup(
   total: number,
   items: HljldSummaryItem[],
 ): void {
+  const nonZeroItems = items.filter(item => round1(item.amount) !== 0);
   pushAmount(tokens, label, total);
-  if (items.length) {
+  if (nonZeroItems.length) {
     tokens.push({ text: '（' });
-    pushItems(tokens, items);
+    pushItems(tokens, nonZeroItems);
     tokens.push({ text: '）' });
   }
 }

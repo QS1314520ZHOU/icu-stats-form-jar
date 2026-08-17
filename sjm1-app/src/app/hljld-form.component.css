@@ -190,7 +190,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   overflow-wrap: anywhere;
 }
 .summary-detail-line strong { font-weight: 600; }
-.summary-detail-line + .summary-detail-line { margin-top: 2px; }
+.summary-detail-line + .summary-detail-line { margin-top: 6px; }
 
 /* =========================================================
    Remark
