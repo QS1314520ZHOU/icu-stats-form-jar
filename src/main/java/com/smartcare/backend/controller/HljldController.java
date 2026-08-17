@@ -34,11 +34,17 @@ public class HljldController {
             @RequestParam String pid,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date startTime,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date endTime) {
-        Query query = new Query();
-        query.addCriteria(
-                Criteria.where("pid").is(pid)
-                        .and("startTime").gte(startTime).lte(endTime)
-                        .and("status").ne("invalid"));
+        // 区间相交：跨 07:00 仍在执行的持续用药必须取回，否则本护理日会漏算
+        Criteria overlap = new Criteria().andOperator(
+                Criteria.where("startTime").lte(endTime),
+                new Criteria().orOperator(
+                        Criteria.where("endTime").exists(false),
+                        Criteria.where("endTime").is(null),
+                        Criteria.where("endTime").gt(startTime)));
+
+        Query query = new Query(Criteria.where("pid").is(pid)
+                .and("status").ne("invalid")
+                .andOperator(overlap));
         query.with(Sort.by(Sort.Direction.ASC, "startTime"));
         List<Document> docs = mongoTemplate.find(query, Document.class, "drugExe");
         return normalizeDocuments(docs);

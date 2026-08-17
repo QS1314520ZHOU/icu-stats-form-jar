@@ -21,15 +21,28 @@ export interface DrugItem {
 export interface DrugActionItem {
   time?: string;
   accountId?: string;
+  /** start | pause | recovery | add | minus | quickAdd | stop */
   action?: string;
+  /** 变更后的绝对速度（非增量），单位见 speedUnit，默认 ml/h */
+  speed?: number;
+  speedUnit?: string;
+  /** 滴速，当前数据恒为 0，保留字段不参与计算 */
+  dripSpeed?: number;
+  /** action=quickAdd 时的快推量，占用 liquidAmount 额度 */
+  quickAddAmount?: number;
 }
 
 export interface DrugExecution {
   _id?: string;
   pid: string;
   startTime: string;
+  /** 停药时刻，与 drugActionList 中 stop 动作时间一致 */
+  endTime?: string;
   status: string;
   methodCode?: string;
+  /** 顶层液体总量，实际用量的封顶依据 */
+  liquidAmount?: number | string;
+  liquidAmountUnit?: string;
   drugList?: DrugItem[];
   drugActionList?: DrugActionItem[];
   orderUser?: string;
@@ -39,6 +52,10 @@ export interface DrugMethodConfig {
   code: string;
   name: string;
   group?: string;
+  /** false = 持续用药，按速度切分；true = 单次给药，给药时点全额计入 */
+  isOnce?: boolean;
+  /** 入量通道，如「静脉」「胃肠」 */
+  inChannel?: string;
   valid?: boolean;
 }
 

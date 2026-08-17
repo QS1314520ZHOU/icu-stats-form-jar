@@ -2,6 +2,7 @@ import {
   ActiveStayRange,
   BedsideRecord,
   ConfigTubeView,
+  DrugActionItem,
   DrugExecution,
   DrugMethodConfig,
   HljldDisplayRow,
@@ -36,22 +37,10 @@ import { databaseTimeValue, formatShanghaiDateMinute } from './form-date.util';
 const CODE_BROUGHT = 'param_带入药量';
 const CODE_ORAL = 'param_kouFu';
 const CODE_TUBE_FEEDING = 'param_biSi';
-const CODE_INTRAVENOUS = 'param_YaoYeti_in_hour';
-const CODE_GASTROINTESTINAL = 'param_YaoStomach_in_hour';
-const CODE_TRANSFUSION = 'param_YaoShuXue_in_hour';
 
 /** 尿量与净超滤量已独立成列，不再计入排出物 */
 export const URINE_CODE = 'param_niaoLiang';
 export const ULTRAFILTRATION_CODE = 'param_chaoLvLiang';
-
-const INPUT_SUMMARY_DEFINITIONS = [
-  { key: 'brought-medication', label: '带入药量', codes: [CODE_BROUGHT] },
-  { key: 'oral', label: '口服量', codes: [CODE_ORAL] },
-  { key: 'tube-feeding', label: '鼻饲量', codes: [CODE_TUBE_FEEDING] },
-  { key: 'intravenous', label: '静脉入量', codes: [CODE_INTRAVENOUS] },
-  { key: 'gastrointestinal', label: '胃肠入量', codes: [CODE_GASTROINTESTINAL] },
-  { key: 'blood-transfusion', label: '输血入量', codes: [CODE_TRANSFUSION] },
-] as const;
 
 /** 排出物：不含尿量、净超滤量 */
 const EXCRETION_SUMMARY_DEFINITIONS = [
@@ -479,88 +468,276 @@ function sumBedsideByCodes(records: BedsideRecord[], codes: readonly string[]): 
   return records.filter(item => codes.includes(item.code)).reduce((sum, item) => sum + parseAmount(item.strVal), 0);
 }
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 /** 金额格式化，页面与打印统一口径 */
 export function formatSummaryAmount(value: number): string {
   return new Intl.NumberFormat('zh-CN', {
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 1,
     minimumFractionDigits: 0,
   }).format(value);
 }
 
+/* ==== 持续用药实际用量 ==== */
+
+const MS_PER_HOUR = 3_600_000;
+
+/** 变更速度的动作，speed 为变更后的绝对值 */
+const SPEED_ACTIONS = new Set(['start', 'recovery', 'add', 'minus']);
+
 /**
- * 按给药途径聚合区间内的药物执行液体量。
- * routeLabel 的返回值作为 key，例如 iv、ivgtt、iv泵、im、IH、po、鼻饲、鼻饲注入。
+ * 输血给药方法的 configDrugMethod.code 白名单。
+ * 【待确认】填入真实 code 后名称正则不再生效，判定更稳。
  */
-function sumDrugAmountsByRoute(
+const TRANSFUSION_METHOD_CODES = new Set<string>([]);
+
+const TRANSFUSION_NAME_PATTERN = /输血|血制品|红细胞|血浆|血小板|冷沉淀|全血/;
+
+/**
+ * 肠内营养泵入判定。归入「鼻饲量」而非「胃肠入量」。
+ * 若改为归入胃肠入量，删除 methodChannel 中的 enteral 分支即可。
+ */
+const ENTERAL_NUTRITION_PATTERN = /肠内营养/;
+
+type DrugSegment = { start: number; end: number; speed: number };
+type DrugBolus = { time: number; amount: number };
+
+function toMs(value: Date | number | string): number {
+  if (typeof value === 'number') { return value; }
+  if (value instanceof Date) { return value.getTime(); }
+  return databaseTimeValue(value);
+}
+
+/** 速度归一为 ml/h；单位缺失按 ml/h 处理 */
+function normalizeSpeed(action: DrugActionItem): number {
+  const speed = parseAmount(action.speed);
+  if (!Number.isFinite(speed) || speed <= 0) { return 0; }
+  const unit = String(action.speedUnit ?? '').trim().toLowerCase();
+  if (unit === 'ml/min') { return speed * 60; }
+  return speed;
+}
+
+/** 顶层 liquidAmount 优先，缺失时回退 drugList 求和 */
+function resolveLiquidCap(execution: DrugExecution): number {
+  const top = parseAmount(execution.liquidAmount);
+  if (top > 0) { return top; }
+  return (execution.drugList ?? []).reduce((sum, d) => sum + parseAmount(d.liquidAmount), 0);
+}
+
+export interface DrugActualAmount {
+  /** 落在统计区间内的实际入量，全精度不舍入 */
+  inRange: number;
+  /** 全程累计实际入量（已封顶），用于自检 */
+  total: number;
+  /** 无动作数据，已回退为开始时点全额计入 */
+  fallback: boolean;
+}
+
+/**
+ * 按 drugActionList 计算持续用药在 (rangeStart, rangeEnd] 内的实际入量。
+ *
+ * 规则：
+ * 1. speed 为变更后的绝对速度，单位 ml/h；start/recovery/add/minus 均置为该值。
+ * 2. pause 期间速度记 0，recovery 恢复为该条 speed。
+ * 3. quickAdd 为该时刻的瞬时快推，不改变速度，占用 liquidAmount 额度。
+ * 4. 结束时刻取顶层 endTime；未结束时算到 min(当前时刻, rangeEnd)。
+ * 5. 提前 stop 时按积分自然截断，未输完的液体不计。
+ * 6. 累计量封顶到 liquidAmount，触顶即视为在跑满那一刻结束。
+ * 7. 全程保留毫秒精度，不做分钟归一；舍入只在展示层做一次。
+ */
+export function calcContinuousDrugAmount(
+  execution: DrugExecution,
+  rangeStart: Date | number,
+  rangeEnd: Date | number,
+  startExclusive = true,
+): DrugActualAmount {
+  const rangeStartMs = toMs(rangeStart);
+  const rangeEndMs = toMs(rangeEnd);
+  const startMs = toMs(String(execution.startTime ?? ''));
+  if (!Number.isFinite(startMs)) { return { inRange: 0, total: 0, fallback: false }; }
+
+  const cap = resolveLiquidCap(execution);
+  const hasCap = cap > 0;
+
+  const endRaw = execution.endTime ? toMs(String(execution.endTime)) : NaN;
+  // 未结束的记录随时间推进，展示时按截断时刻计算
+  const cutoff = Number.isFinite(endRaw) ? endRaw : Math.min(Date.now(), rangeEndMs);
+  if (cutoff <= startMs) { return { inRange: 0, total: 0, fallback: false }; }
+
+  const actions = (execution.drugActionList ?? [])
+    .map(item => ({ raw: item, ts: toMs(String(item.time ?? '')) }))
+    .filter(item => Number.isFinite(item.ts))
+    .sort((a, b) => a.ts - b.ts);
+
+  // 无动作数据：回退为开始时点全额计入，与旧逻辑一致
+  if (!actions.length) {
+    const hit = inNursingRange(execution.startTime, rangeStart as Date, rangeEnd as Date, startExclusive);
+    return { inRange: hit ? cap : 0, total: cap, fallback: true };
+  }
+
+  const segments: DrugSegment[] = [];
+  const boluses: DrugBolus[] = [];
+  let cursor = startMs;
+  let speed = 0;
+  let stopped = false;
+
+  for (const { raw, ts } of actions) {
+    const at = Math.min(Math.max(ts, cursor), cutoff);
+    if (at > cursor && speed > 0) {
+      segments.push({ start: cursor, end: at, speed });
+    }
+    cursor = at;
+
+    const action = String(raw.action ?? '').trim();
+    if (action === 'quickAdd') {
+      const amount = parseAmount(raw.quickAddAmount);
+      if (amount > 0) { boluses.push({ time: at, amount }); }
+      continue;                                   // 快推不改变速度
+    }
+    if (action === 'pause') { speed = 0; continue; }
+    if (action === 'stop') { speed = 0; stopped = true; break; }
+    if (SPEED_ACTIONS.has(action)) { speed = normalizeSpeed(raw); continue; }
+    // 未知动作：带 speed 视为调速，否则忽略
+    if (raw.speed != null) { speed = normalizeSpeed(raw); }
+  }
+
+  if (!stopped && cursor < cutoff && speed > 0) {
+    segments.push({ start: cursor, end: cutoff, speed });
+  }
+
+  // 按时间顺序积分，边算边封顶；同一时刻快推优先占额
+  type Ev = { at: number; order: number; seg?: DrugSegment; bolus?: DrugBolus };
+  const events: Ev[] = [
+    ...boluses.map(bolus => ({ at: bolus.time, order: 0, bolus })),
+    ...segments.map(seg => ({ at: seg.start, order: 1, seg })),
+  ].sort((a, b) => (a.at - b.at) || (a.order - b.order));
+
+  let used = 0;
+  let inRange = 0;
+  const remaining = () => (hasCap ? Math.max(0, cap - used) : Number.POSITIVE_INFINITY);
+
+  for (const ev of events) {
+    const avail = remaining();
+    if (avail <= 0) { break; }
+
+    if (ev.seg) {
+      const { start, end, speed: rate } = ev.seg;
+      let amount = rate * (end - start) / MS_PER_HOUR;
+      let effEnd = end;
+      if (amount > avail) {
+        amount = avail;
+        effEnd = start + (avail / rate) * MS_PER_HOUR;   // 跑满即视为结束
+      }
+      used += amount;
+      const ovStart = Math.max(start, rangeStartMs);
+      const ovEnd = Math.min(effEnd, rangeEndMs);
+      if (ovEnd > ovStart) { inRange += rate * (ovEnd - ovStart) / MS_PER_HOUR; }
+    } else if (ev.bolus) {
+      const amount = Math.min(ev.bolus.amount, avail);
+      if (amount <= 0) { continue; }
+      used += amount;
+      const t = ev.bolus.time;
+      const hit = startExclusive
+        ? (t > rangeStartMs && t <= rangeEndMs)
+        : (t >= rangeStartMs && t <= rangeEndMs);
+      if (hit) { inRange += amount; }
+    }
+  }
+
+  return { inRange: hasCap ? Math.min(inRange, cap) : inRange, total: used, fallback: false };
+}
+
+/* ==== 通道归类与聚合 ==== */
+
+type DrugChannel = 'vein' | 'transfusion' | 'gastro' | 'enteral' | 'other';
+
+/** 配置优先（code / group / inChannel），名称正则兜底 */
+function methodChannel(method: DrugMethodConfig): DrugChannel {
+  const code = String(method.code ?? '').trim();
+  const group = String(method.group ?? '').trim();
+  const channel = String(method.inChannel ?? '').trim();
+  const name = String(method.name ?? '');
+
+  if (TRANSFUSION_METHOD_CODES.has(code)) { return 'transfusion'; }
+  if (group === '输血' || channel === '输血' || TRANSFUSION_NAME_PATTERN.test(name)) {
+    return 'transfusion';
+  }
+  if (ENTERAL_NUTRITION_PATTERN.test(name)) { return 'enteral'; }
+  if (group === '胃肠' || channel === '胃肠' || channel === '消化道') { return 'gastro'; }
+  if (channel === '静脉') { return 'vein'; }
+  return 'other';
+}
+
+interface DrugChannelTotals {
+  vein: Map<string, number>;
+  gastro: Map<string, number>;
+  transfusion: number;
+  enteral: number;
+  fallbackCount: number;
+}
+
+/**
+ * 区间内药物执行的实际入量，按通道与途径聚合。
+ * isOnce === false 走速度切分；其余按给药时点全额计入。
+ * 全精度累加，舍入统一在展示层。
+ */
+function sumDrugAmountsByChannel(
   source: HljldSourceData,
   start: Date,
   end: Date,
   startExclusive: boolean,
-): Map<string, number> {
-  const totals = new Map<string, number>();
+): DrugChannelTotals {
+  const totals: DrugChannelTotals = {
+    vein: new Map(), gastro: new Map(), transfusion: 0, enteral: 0, fallbackCount: 0,
+  };
 
   for (const execution of source.drugExecutions) {
     if (!isRenderableDrugExecution(execution)) { continue; }
-    if (!inNursingRange(execution.startTime, start, end, startExclusive)) { continue; }
     const method = findDrugMethod(execution.methodCode, source.drugMethods);
     if (!method) { continue; }
 
-    const amount = (execution.drugList ?? [])
-      .reduce((sum, drug) => sum + parseAmount(drug.liquidAmount), 0);
+    let amount = 0;
+    if (method.isOnce === false) {
+      const result = calcContinuousDrugAmount(execution, start, end, startExclusive);
+      amount = result.inRange;
+      if (result.fallback) { totals.fallbackCount++; }
+    } else {
+      if (!inNursingRange(execution.startTime, start, end, startExclusive)) { continue; }
+      amount = resolveLiquidCap(execution);
+    }
     if (!amount) { continue; }
 
     const route = routeLabel(method.name);
-    totals.set(route, round2((totals.get(route) ?? 0) + amount));
-  }
-
-  return totals;
-}
-
-/**
- * 生成父项下的途径明细。
- *
- * 父项金额固定取 bedside 汇总口径，保证总入量不因展示调整而变化；
- * 途径明细来自药物执行，两者存在差额时用 otherLabel 兜底，
- * 确保括号内各项之和恒等于父项金额。
- */
-function buildRouteBreakdown(
-  keyPrefix: string,
-  parentTotal: number,
-  entries: { label: string; amount: number }[],
-  otherLabel: string,
-  otherFirst = false,
-): HljldSummaryItem[] {
-  const known = entries.filter(entry => round2(entry.amount) !== 0);
-  const knownTotal = round2(known.reduce((sum, entry) => sum + entry.amount, 0));
-  const rest = round2(parentTotal - knownTotal);
-
-  const items: HljldSummaryItem[] = known.map(entry => ({
-    key: `${keyPrefix}-${entry.label}`,
-    label: entry.label,
-    amount: round2(entry.amount),
-    unit: 'ml' as const,
-  }));
-
-  if (rest > 0) {
-    const otherItem: HljldSummaryItem = {
-      key: `${keyPrefix}-other`,
-      label: otherLabel,
-      amount: rest,
-      unit: 'ml' as const,
-    };
-    if (otherFirst) { items.unshift(otherItem); } else { items.push(otherItem); }
-  } else if (rest < 0) {
-    const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
-    if (isDev) {
-      console.warn('[HLJLD][summary-route-mismatch]', { keyPrefix, parentTotal, knownTotal });
+    switch (methodChannel(method)) {
+      case 'transfusion': totals.transfusion += amount; break;
+      case 'enteral':     totals.enteral += amount; break;
+      case 'gastro':      totals.gastro.set(route, (totals.gastro.get(route) ?? 0) + amount); break;
+      default:            totals.vein.set(route, (totals.vein.get(route) ?? 0) + amount); break;
     }
   }
 
-  return items;
+  const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+  if (isDev && totals.fallbackCount) {
+    console.warn('[HLJLD][drug-action-missing]', { count: totals.fallbackCount });
+  }
+  return totals;
+}
+
+/** 父项由子项求和，不再有 parent 兜底与负差额分支 */
+function buildItems(
+  keyPrefix: string,
+  entries: { label: string; amount: number }[],
+): HljldSummaryItem[] {
+  return entries
+    .filter(entry => round1(entry.amount) !== 0)
+    .map(entry => ({
+      key: `${keyPrefix}-${entry.label}`,
+      label: entry.label,
+      amount: round1(entry.amount),
+      unit: 'ml' as const,
+    }));
 }
 
 /* ---- 小结文本行生成 ---- */
@@ -715,105 +892,67 @@ export function buildSummary(
     dischargeClipped: stay.dischargeClipped,
   });
 
-  // 6 项 bedside 口径，后续会用 children 修正后的值更新
-  const inputItems: HljldSummaryItem[] = INPUT_SUMMARY_DEFINITIONS.map(def => ({
-    key: def.key,
-    label: def.label,
-    amount: round2(sumBedsideByCodes(records, def.codes)),
-    unit: 'ml' as const,
-  }));
+  const drug = sumDrugAmountsByChannel(source, actualStart, actualEnd, stay.startExclusive);
+  const veinAmount = (route: string) => drug.vein.get(route) ?? 0;
+  const veinRoutes = Array.from(drug.vein.keys());
 
-  const routeTotals = sumDrugAmountsByRoute(source, actualStart, actualEnd, stay.startExclusive);
-  const routeAmount = (route: string) => round2(routeTotals.get(route) ?? 0);
+  // 手工录入项仍取 bedside；静脉/胃肠/输血三个小时汇总已由实算取代
+  const broughtTotal = sumBedsideByCodes(records, [CODE_BROUGHT]);
+  const oralTotal = sumBedsideByCodes(records, [CODE_ORAL]);
+  const tubeFeedingManual = sumBedsideByCodes(records, [CODE_TUBE_FEEDING]);
 
-  const broughtTotal = round2(sumBedsideByCodes(records, [CODE_BROUGHT]));
-  const oralTotal = round2(sumBedsideByCodes(records, [CODE_ORAL]));
-  const tubeFeedingTotal = round2(sumBedsideByCodes(records, [CODE_TUBE_FEEDING]));
-  const transfusionTotal = round2(sumBedsideByCodes(records, [CODE_TRANSFUSION]));
-  const intravenousBase = round2(sumBedsideByCodes(records, [CODE_INTRAVENOUS]));
-  const gastroBase = round2(sumBedsideByCodes(records, [CODE_GASTROINTESTINAL]));
+  // 静脉入量 = 输血 + 各静脉途径实算量
+  const intravenousChildren = buildItems('intravenous', [
+    { label: '输血入量', amount: drug.transfusion },
+    ...veinRoutes.map(route => ({ label: route, amount: veinAmount(route) })),
+  ]);
+  const intravenousTotal = round1(intravenousChildren.reduce((s, c) => s + c.amount, 0));
 
-  // 静脉入量 = 静脉小时汇总 + 输血入量，输血作为其首个明细项
-  const intravenousBase2 = round2(intravenousBase + transfusionTotal);
-  const intravenousChildren = buildRouteBreakdown(
-    'intravenous',
-    intravenousBase2,
-    [
-      { label: '输血入量', amount: transfusionTotal },
-      { label: 'iv', amount: routeAmount('iv') },
-      { label: 'ivgtt', amount: routeAmount('ivgtt') },
-      { label: 'iv泵', amount: routeAmount('iv泵') },
-      { label: 'im', amount: routeAmount('im') },
-      { label: 'IH', amount: routeAmount('IH') },
-    ],
-    '其他静脉',
-  );
-  // 以 children 之和为准，避免 bedside 与 drug 执行口径不一致导致父项 ≠ 子项之和
-  const intravenousTotal = round2(intravenousChildren.reduce((s, c) => s + c.amount, 0));
-
-  // 药物治疗 = 带入药量 + 静脉入量（口服量已并入胃肠入量）
   const drugTreatmentItems: HljldSummaryItem[] = [
-    { key: 'brought-medication', label: '带入药量', amount: broughtTotal, unit: 'ml' as const },
-    {
-      key: 'intravenous',
-      label: '静脉入量',
-      amount: intravenousTotal,
-      unit: 'ml' as const,
-      children: intravenousChildren,
-    },
+    { key: 'brought-medication', label: '带入药量', amount: round1(broughtTotal), unit: 'ml' },
+    { key: 'intravenous', label: '静脉入量', amount: intravenousTotal, unit: 'ml',
+      children: intravenousChildren },
   ];
-  const drugTreatmentTotal = round2(broughtTotal + intravenousTotal);
+  const drugTreatmentTotal = round1(broughtTotal + intravenousTotal);
 
-  // 鼻饲量：泵入部分取自肠内营养执行，差额记为手工鼻饲
-  const tubeFeedingChildren = buildRouteBreakdown(
-    'tube-feeding',
-    tubeFeedingTotal,
-    [{ label: '鼻饲泵入', amount: routeAmount('鼻饲注入') }],
-    '鼻饲',
-    true,
-  );
-  // children 之和为空则保持 bedside 原值
-  const tubeFeedingAdj = tubeFeedingChildren.length
-    ? round2(tubeFeedingChildren.reduce((s, c) => s + c.amount, 0))
-    : tubeFeedingTotal;
+  // 鼻饲量 = 手工鼻饲 + 肠内营养泵入实算量
+  const tubeFeedingChildren = buildItems('tube-feeding', [
+    { label: '鼻饲', amount: tubeFeedingManual },
+    { label: '鼻饲泵入', amount: drug.enteral },
+  ]);
+  const tubeFeedingAdj = round1(tubeFeedingManual + drug.enteral);
 
-  // 胃肠入量 = 胃肠小时汇总 + 口服量，po 为其明细
-  const gastroBase2 = round2(gastroBase + oralTotal);
-  const gastroChildren = buildRouteBreakdown(
-    'gastrointestinal',
-    gastroBase2,
-    [{ label: 'po', amount: round2(oralTotal + routeAmount('po')) }],
-    '其他胃肠',
-  );
-  const gastroTotal = round2(gastroChildren.reduce((s, c) => s + c.amount, 0));
+  // 胃肠入量 = 口服（手工 + po 执行）+ 其他胃肠途径
+  const gastroPo = oralTotal + (drug.gastro.get('po') ?? 0);
+  const gastroOtherRoutes = Array.from(drug.gastro.entries()).filter(([route]) => route !== 'po');
+  const gastroChildren = buildItems('gastrointestinal', [
+    { label: 'po', amount: gastroPo },
+    ...gastroOtherRoutes.map(([route, amount]) => ({ label: route, amount })),
+  ]);
+  const gastroTotal = round1(gastroChildren.reduce((s, c) => s + c.amount, 0));
 
   const gastrointestinalInputItems: HljldSummaryItem[] = [
-    {
-      key: 'tube-feeding',
-      label: '鼻饲量',
-      amount: tubeFeedingAdj,
-      unit: 'ml' as const,
-      children: tubeFeedingChildren,
-    },
-    {
-      key: 'gastrointestinal',
-      label: '胃肠入量',
-      amount: gastroTotal,
-      unit: 'ml' as const,
-      children: gastroChildren,
-    },
+    { key: 'tube-feeding', label: '鼻饲量', amount: tubeFeedingAdj, unit: 'ml',
+      children: tubeFeedingChildren },
+    { key: 'gastrointestinal', label: '胃肠入量', amount: gastroTotal, unit: 'ml',
+      children: gastroChildren },
   ];
-  const gastrointestinalInputTotal = round2(tubeFeedingAdj + gastroTotal);
+  const gastrointestinalInputTotal = round1(tubeFeedingAdj + gastroTotal);
 
-  // 同步更新 inputItems 中被 children 修正的项，保证 totalInput = 药物治疗 + 胃肠摄入
-  for (const item of inputItems) {
-    if (item.key === 'intravenous') { item.amount = intravenousTotal; }
-    if (item.key === 'tube-feeding') { item.amount = tubeFeedingAdj; }
-  }
-  const totalInput = round2(inputItems.reduce((sum, item) => sum + item.amount, 0));
+  // 展平视图，供外部读取；不可再对其求和，否则输血与口服会重复计数
+  const inputItems: HljldSummaryItem[] = [
+    { key: 'brought-medication', label: '带入药量', amount: round1(broughtTotal), unit: 'ml' },
+    { key: 'oral', label: '口服量', amount: round1(gastroPo), unit: 'ml' },
+    { key: 'tube-feeding', label: '鼻饲量', amount: tubeFeedingAdj, unit: 'ml' },
+    { key: 'intravenous', label: '静脉入量', amount: intravenousTotal, unit: 'ml' },
+    { key: 'gastrointestinal', label: '胃肠入量', amount: round1(gastroTotal - gastroPo), unit: 'ml' },
+    { key: 'blood-transfusion', label: '输血入量', amount: round1(drug.transfusion), unit: 'ml' },
+  ];
+
+  const totalInput = round1(drugTreatmentTotal + gastrointestinalInputTotal);
 
   // 尿量、净超滤量单独统计，不再计入排出物
-  const sumByCode = (code: string) => round2(
+  const sumByCode = (code: string) => round1(
     records.filter(item => item.code === code)
       .reduce((sum, item) => sum + parseAmount(item.strVal), 0),
   );
@@ -826,20 +965,20 @@ export function buildSummary(
     amount: sumByCode(def.code),
     unit: 'ml' as const,
   }));
-  const excretionTotal = round2(outputItems.reduce((sum, item) => sum + item.amount, 0));
+  const excretionTotal = round1(outputItems.reduce((sum, item) => sum + item.amount, 0));
 
   const drainItems: HljldSummaryItem[] = drainNames.map(name => ({
     key: `drain-${name}`,
     label: name,
-    amount: round2(records
+    amount: round1(records
       .filter(item => isDrainCode(item.code) && drainName(item.code) === name)
       .reduce((total, item) => total + parseAmount(item.strVal), 0)),
     unit: 'ml' as const,
   }));
-  const drainTotal = round2(drainItems.reduce((sum, item) => sum + item.amount, 0));
+  const drainTotal = round1(drainItems.reduce((sum, item) => sum + item.amount, 0));
 
-  const totalOutput = round2(urineTotal + ultrafiltrationTotal + excretionTotal + drainTotal);
-  const balance = round2(totalInput - totalOutput);
+  const totalOutput = round1(urineTotal + ultrafiltrationTotal + excretionTotal + drainTotal);
+  const balance = round1(totalInput - totalOutput);
 
   const detailLines: SummaryTextToken[][] = [
     buildInputLine({
