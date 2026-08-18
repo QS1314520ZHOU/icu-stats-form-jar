@@ -109,6 +109,12 @@ public class HljldPdfService {
                 fontStream = getClass().getResourceAsStream("/fonts/simsun.ttc");
             }
             if (fontStream == null) {
+                fontStream = getClass().getResourceAsStream("/fonts/simsunb.ttf");
+            }
+            if (fontStream == null) {
+                fontStream = getClass().getResourceAsStream("/fonts/SimsunExtG.ttf");
+            }
+            if (fontStream == null) {
                 fontStream = getClass().getResourceAsStream("/fonts/Microsoft YaHei.ttf");
             }
             if (fontStream == null) {
