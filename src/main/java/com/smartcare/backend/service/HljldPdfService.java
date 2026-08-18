@@ -11,6 +11,8 @@ import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.graphics.color.PDColor;
 import org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
+import org.apache.fontbox.ttf.TTFParser;
+import org.apache.fontbox.ttf.TrueTypeFont;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -104,31 +106,50 @@ public class HljldPdfService {
 
         try {
             // 尝试加载中文字体
-            InputStream fontStream = getClass().getResourceAsStream("/fonts/simsun.ttf");
-            if (fontStream == null) {
-                fontStream = getClass().getResourceAsStream("/fonts/simsun.ttc");
+            // .ttc 文件需要使用 TrueTypeCollection 提取
+            String[] fontPaths = {
+                "/fonts/simsun.ttc",
+                "/fonts/simsun.ttf",
+                "/fonts/simsunb.ttf",
+                "/fonts/SimsunExtG.ttf",
+                "/fonts/Microsoft YaHei.ttf",
+                "/fonts/NotoSansCJKsc-Regular.otf"
+            };
+
+            for (String fontPath : fontPaths) {
+                InputStream fontStream = getClass().getResourceAsStream(fontPath);
+                if (fontStream != null) {
+                    try {
+                        PDDocument tempDoc = new PDDocument();
+                        if (fontPath.endsWith(".ttc")) {
+                            // TTC 文件：读取字节后用 TTFParser 解析
+                            // 注意：TTC 包含多个字体，这里取第一个
+                            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                            fontStream.transferTo(baos);
+                            fontStream.close();
+                            byte[] fontBytes = baos.toByteArray();
+
+                            // 使用反射或直接尝试加载
+                            // PDFBox 2.0 的 PDType0Font.load 可以处理 TTC 的第一个字体
+                            try (java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(fontBytes)) {
+                                TTFParser ttfParser = new TTFParser();
+                                TrueTypeFont ttf = ttfParser.parse(bais);
+                                chineseFont = PDType0Font.load(tempDoc, ttf, true);
+                            }
+                        } else {
+                            chineseFont = PDType0Font.load(tempDoc, fontStream);
+                        }
+                        tempDoc.close();
+                        log.info("中文字体加载成功: {}", fontPath);
+                        return;
+                    } catch (Exception e) {
+                        log.warn("字体加载失败 {}: {}", fontPath, e.getMessage());
+                        try { fontStream.close(); } catch (Exception ignored) {}
+                    }
+                }
             }
-            if (fontStream == null) {
-                fontStream = getClass().getResourceAsStream("/fonts/simsunb.ttf");
-            }
-            if (fontStream == null) {
-                fontStream = getClass().getResourceAsStream("/fonts/SimsunExtG.ttf");
-            }
-            if (fontStream == null) {
-                fontStream = getClass().getResourceAsStream("/fonts/Microsoft YaHei.ttf");
-            }
-            if (fontStream == null) {
-                fontStream = getClass().getResourceAsStream("/fonts/NotoSansCJKsc-Regular.otf");
-            }
-            if (fontStream == null) {
-                log.warn("未找到中文字体文件，PDF中文将无法正常显示。请将字体文件放到 src/main/resources/fonts/ 目录下");
-                // 不设置 chineseFont，保持 null，render 方法会跳过文字渲染
-            } else {
-                PDDocument tempDoc = new PDDocument();
-                chineseFont = PDType0Font.load(tempDoc, fontStream);
-                tempDoc.close();
-                log.info("中文字体加载成功");
-            }
+
+            log.warn("未找到可用的中文字体文件，PDF中文将无法正常显示。请将字体文件放到 src/main/resources/fonts/ 目录下");
         } catch (Exception e) {
             log.error("加载中文字体失败，PDF中文将无法显示", e);
         }
