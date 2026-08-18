@@ -338,9 +338,13 @@ public class HljldPdfService {
 
     /**
      * 获取患者信息
+     * pid 可能是 _id 也可能是 pid 字段
      */
     private Document getPatientInfo(String pid) {
-        Query query = new Query(Criteria.where("pid").is(pid));
+        Query query = new Query(new Criteria().orOperator(
+            Criteria.where("_id").is(pid),
+            Criteria.where("pid").is(pid)
+        ));
         Document patient = mongoTemplate.findOne(query, Document.class, "patient");
         if (patient == null) {
             patient = new Document();
