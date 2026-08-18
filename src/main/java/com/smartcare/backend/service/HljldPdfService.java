@@ -1,19 +1,14 @@
 package com.smartcare.backend.service;
 
+import com.itextpdf.awt.PdfGraphics2D;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.PageSize;
+import com.itextpdf.text.pdf.PdfContentByte;
+import com.itextpdf.text.pdf.PdfTemplate;
+import com.itextpdf.text.pdf.PdfWriter;
 import com.smartcare.backend.entity.HljldPageIndex;
 import com.smartcare.backend.repository.HljldPageIndexRepository;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.common.PDRectangle;
-import org.apache.pdfbox.pdmodel.font.PDFont;
-import org.apache.pdfbox.pdmodel.font.PDType0Font;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.graphics.color.PDColor;
-import org.apache.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
-import org.apache.fontbox.ttf.TTFParser;
-import org.apache.fontbox.ttf.TrueTypeFont;
-import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,19 +18,21 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
+import java.awt.*;
+import java.awt.geom.Line2D;
+import java.awt.geom.Rectangle2D;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
 
 /**
  * ICU 护理记录单 PDF 生成服务
+ * 使用 iText Graphics2D 方案
  */
 @Service
 public class HljldPdfService {
@@ -45,124 +42,83 @@ public class HljldPdfService {
     private final MongoTemplate mongoTemplate;
     private final HljldPageIndexRepository pageIndexRepository;
 
-    // A4 横向尺寸（像素，72 DPI）
-    private static final float PAGE_WIDTH = 841.89f;  // 297mm
-    private static final float PAGE_HEIGHT = 595.28f; // 210mm
+    // A4 横向尺寸（点，72 DPI）
+    private static final float PAGE_WIDTH = 842f;   // 297mm
+    private static final float PAGE_HEIGHT = 595f;  // 210mm
 
     // 边距
-    private static final float MARGIN_TOP = 28.35f;   // 10mm
-    private static final float MARGIN_BOTTOM = 42.52f; // 15mm
-    private static final float MARGIN_LEFT = 19.84f;  // 7mm
-    private static final float MARGIN_RIGHT = 19.84f;
+    private static final float MARGIN_TOP = 28f;    // 10mm
+    private static final float MARGIN_BOTTOM = 42f; // 15mm
+    private static final float MARGIN_LEFT = 20f;   // 7mm
+    private static final float MARGIN_RIGHT = 20f;
 
     // 表格区域
-    private static final float TABLE_TOP = 130f;      // 表头下方
-    private static final float TABLE_BOTTOM = PAGE_HEIGHT - 70f; // 页码上方
-    private static final float ROW_HEIGHT = 18f;      // 默认行高
+    private static final float TABLE_TOP = 130f;
+    private static final float ROW_HEIGHT = 18f;
 
-    // 列宽配置（总宽度 = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT）
+    // 列宽配置
     private static final float[] COL_WIDTHS = {
-        55f,  // 日期时间
-        38f,  // 药物名称
-        28f,  // 药物量
-        28f,  // 药物途径
-        38f,  // 胃肠名称
-        28f,  // 胃肠量
-        28f,  // 胃肠途径
-        28f,  // 尿量
-        35f,  // 净超滤量
-        38f,  // 排出物名称
-        28f,  // 排出物量
-        38f,  // 引流液名称
-        28f,  // 引流液量
-        32f,  // 检查
-        32f,  // 治疗
-        32f,  // 基础护理
-        32f,  // 健康教育
-        120f, // 护理记录
-        35f   // 签名
+        55f, 38f, 28f, 28f, 38f, 28f, 28f, 28f, 35f,
+        38f, 28f, 38f, 28f, 32f, 32f, 32f, 32f, 120f, 35f
     };
 
-    // 字体 - 延迟初始化，避免静态字段触发系统字体扫描
-    private PDFont chineseFont;
+    // 字体
+    private Font chineseFont;
     private boolean fontInitialized = false;
 
     @Autowired
     public HljldPdfService(MongoTemplate mongoTemplate, HljldPageIndexRepository pageIndexRepository) {
         this.mongoTemplate = mongoTemplate;
         this.pageIndexRepository = pageIndexRepository;
-        // 禁用 PDFBox 系统字体扫描，避免 Docker 环境中损坏字体文件导致 EOFException
-        System.setProperty("pdfbox.fontcache", "/tmp/pdfbox-fontcache");
     }
 
     /**
-     * 延迟初始化字体，首次调用时加载
+     * 初始化中文字体
      */
     private synchronized void initFont() {
-        if (fontInitialized) {
-            return;
-        }
+        if (fontInitialized) return;
         fontInitialized = true;
 
-        try {
-            // 尝试加载中文字体
-            // .ttc 文件需要使用 TrueTypeCollection 提取
-            String[] fontPaths = {
-                "/fonts/simsun.ttc",
-                "/fonts/simsun.ttf",
-                "/fonts/simsunb.ttf",
-                "/fonts/SimsunExtG.ttf",
-                "/fonts/Microsoft YaHei.ttf",
-                "/fonts/NotoSansCJKsc-Regular.otf"
-            };
+        // 尝试从 classpath 加载
+        String[] fontPaths = {
+            "/fonts/simsun.ttc", "/fonts/simsun.ttf", "/fonts/simsunb.ttf",
+            "/fonts/SimsunExtG.ttf", "/fonts/Microsoft YaHei.ttf", "/fonts/NotoSansCJKsc-Regular.otf"
+        };
 
-            for (String fontPath : fontPaths) {
-                InputStream fontStream = getClass().getResourceAsStream(fontPath);
-                if (fontStream != null) {
-                    try {
-                        PDDocument tempDoc = new PDDocument();
-                        if (fontPath.endsWith(".ttc")) {
-                            // TTC 文件：读取字节后用 TTFParser 解析
-                            // 注意：TTC 包含多个字体，这里取第一个
-                            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                            fontStream.transferTo(baos);
-                            fontStream.close();
-                            byte[] fontBytes = baos.toByteArray();
-
-                            // 使用反射或直接尝试加载
-                            // PDFBox 2.0 的 PDType0Font.load 可以处理 TTC 的第一个字体
-                            try (java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(fontBytes)) {
-                                TTFParser ttfParser = new TTFParser();
-                                TrueTypeFont ttf = ttfParser.parse(bais);
-                                chineseFont = PDType0Font.load(tempDoc, ttf, true);
-                            }
-                        } else {
-                            chineseFont = PDType0Font.load(tempDoc, fontStream);
-                        }
-                        tempDoc.close();
-                        log.info("中文字体加载成功: {}", fontPath);
-                        return;
-                    } catch (Exception e) {
-                        log.warn("字体加载失败 {}: {}", fontPath, e.getMessage());
-                        try { fontStream.close(); } catch (Exception ignored) {}
-                    }
+        for (String fontPath : fontPaths) {
+            try (InputStream is = getClass().getResourceAsStream(fontPath)) {
+                if (is != null) {
+                    Font baseFont = Font.createFont(Font.TRUETYPE_FONT, is);
+                    chineseFont = baseFont.deriveFont(Font.PLAIN, 12f);
+                    log.info("中文字体加载成功: {}", fontPath);
+                    return;
                 }
+            } catch (Exception e) {
+                log.warn("字体加载失败 {}: {}", fontPath, e.getMessage());
             }
+        }
 
-            log.warn("未找到可用的中文字体文件，PDF中文将无法正常显示。请将字体文件放到 src/main/resources/fonts/ 目录下");
+        // 从系统路径加载
+        String os = System.getProperty("os.name", "").toLowerCase();
+        String sysFontPath = os.contains("windows")
+            ? "C:/Windows/Fonts/simsun.ttc"
+            : "/usr/share/fonts/truetype/simsun.ttc";
+        try (InputStream is = new java.io.FileInputStream(sysFontPath)) {
+            Font baseFont = Font.createFont(Font.TRUETYPE_FONT, is);
+            chineseFont = baseFont.deriveFont(Font.PLAIN, 12f);
+            log.info("系统字体加载成功: {}", sysFontPath);
         } catch (Exception e) {
-            log.error("加载中文字体失败，PDF中文将无法显示", e);
+            log.warn("未找到中文字体，PDF中文将无法正常显示");
         }
     }
 
     /**
-     * 获取字体，如果未初始化则返回 null
+     * 获取指定大小的中文字体
      */
-    private PDFont getFont() {
-        if (!fontInitialized) {
-            initFont();
-        }
-        return chineseFont;
+    private Font getFont(float size) {
+        if (!fontInitialized) initFont();
+        if (chineseFont == null) return new Font("SansSerif", Font.PLAIN, (int) size);
+        return chineseFont.deriveFont(Font.PLAIN, size);
     }
 
     /**
@@ -171,49 +127,46 @@ public class HljldPdfService {
     public byte[] generateDailyPdf(String pid, String date) {
         log.info("生成PDF: pid={}, date={}", pid, date);
 
-        // 1. 查询患者信息
-        Document patient = getPatientInfo(pid);
-
-        // 2. 查询护理日数据
+        org.bson.Document patient = getPatientInfo(pid);
         NursingDayData dayData = loadNursingDayData(pid, date);
-
-        // 3. 查询页码信息
         int startPageNo = getStartPageNo(pid, date);
 
-        // 4. 创建 PDF 文档
-        try (PDDocument doc = new PDDocument()) {
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            Document pdfDoc = new Document(PageSize.A4.rotate(), 0, 0, 0, 0);
+            PdfWriter writer = PdfWriter.getInstance(pdfDoc, baos);
+            pdfDoc.open();
+
+            float w = pdfDoc.getPageSize().getWidth();
+            float h = pdfDoc.getPageSize().getHeight();
+
             if (dayData.isEmpty()) {
-                // 空白页
-                PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
-                doc.addPage(page);
-                try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                    renderHeader(cs, patient);
-                    renderTableHeader(cs);
-                    renderEmptyMessage(cs);
-                    renderFooter(cs, startPageNo, 1, date);
-                }
+                PdfContentByte cb = writer.getDirectContent();
+                PdfTemplate tp = cb.createTemplate(w, h);
+                Graphics2D g2d = new PdfGraphics2D(cb, w, h);
+
+                renderPage(g2d, patient, Collections.emptyList(), startPageNo, 1, date);
+                g2d.dispose();
+                tp.beginText();
+                tp.endText();
             } else {
-                // 分页渲染
                 List<List<Map<String, Object>>> pages = paginateData(dayData);
-
                 for (int i = 0; i < pages.size(); i++) {
-                    PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
-                    doc.addPage(page);
+                    if (i > 0) pdfDoc.newPage();
+                    PdfContentByte cb = writer.getDirectContent();
+                    PdfTemplate tp = cb.createTemplate(w, h);
+                    Graphics2D g2d = new PdfGraphics2D(cb, w, h);
 
-                    try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                        renderHeader(cs, patient);
-                        renderTableHeader(cs);
-                        renderFooter(cs, startPageNo + i, pages.size(), date);
-                        renderTableData(cs, pages.get(i));
-                    }
+                    renderPage(g2d, patient, pages.get(i), startPageNo + i, pages.size(), date);
+                    g2d.dispose();
+                    tp.beginText();
+                    tp.endText();
                 }
             }
 
-            // 5. 转换为字节数组
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            doc.save(baos);
+            pdfDoc.close();
             return baos.toByteArray();
-        } catch (IOException e) {
+        } catch (DocumentException e) {
             log.error("生成PDF失败", e);
             throw new RuntimeException("生成PDF失败: " + e.getMessage(), e);
         }
@@ -225,439 +178,294 @@ public class HljldPdfService {
     public byte[] generateAllPagesPdf(String pid) {
         log.info("生成全部PDF: pid={}", pid);
 
-        // 1. 查询页码索引
         Optional<HljldPageIndex> indexOpt = pageIndexRepository.findByPid(pid);
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
             return generateEmptyPagePdf(pid, "全部");
         }
 
         HljldPageIndex index = indexOpt.get();
-        Document patient = getPatientInfo(pid);
+        org.bson.Document patient = getPatientInfo(pid);
 
-        // 2. 创建 PDF 文档
-        try (PDDocument doc = new PDDocument()) {
-            // 3. 按日期顺序生成每一页
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            Document pdfDoc = new Document(PageSize.A4.rotate(), 0, 0, 0, 0);
+            PdfWriter writer = PdfWriter.getInstance(pdfDoc, baos);
+            pdfDoc.open();
+
+            float w = pdfDoc.getPageSize().getWidth();
+            float h = pdfDoc.getPageSize().getHeight();
+            boolean firstPage = true;
+
             for (HljldPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
                 NursingDayData dayData = loadNursingDayData(pid, dailyPage.getDate());
 
                 if (dayData.isEmpty()) {
-                    PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
-                    doc.addPage(page);
-                    try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                        renderHeader(cs, patient);
-                        renderTableHeader(cs);
-                        renderEmptyMessage(cs);
-                        renderFooter(cs, dailyPage.getStartPageNo(), 1, dailyPage.getDate());
-                    }
+                    if (!firstPage) pdfDoc.newPage();
+                    firstPage = false;
+                    PdfContentByte cb = writer.getDirectContent();
+                    PdfTemplate tp = cb.createTemplate(w, h);
+                    Graphics2D g2d = new PdfGraphics2D(cb, w, h);
+                    renderPage(g2d, patient, Collections.emptyList(), dailyPage.getStartPageNo(), 1, dailyPage.getDate());
+                    g2d.dispose();
+                    tp.beginText();
+                    tp.endText();
                 } else {
                     List<List<Map<String, Object>>> pages = paginateData(dayData);
                     for (int i = 0; i < pages.size(); i++) {
-                        PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
-                        doc.addPage(page);
-                        try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                            renderHeader(cs, patient);
-                            renderTableHeader(cs);
-                            renderTableData(cs, pages.get(i));
-                            renderFooter(cs, dailyPage.getStartPageNo() + i, pages.size(), dailyPage.getDate());
-                        }
+                        if (!firstPage) pdfDoc.newPage();
+                        firstPage = false;
+                        PdfContentByte cb = writer.getDirectContent();
+                        PdfTemplate tp = cb.createTemplate(w, h);
+                        Graphics2D g2d = new PdfGraphics2D(cb, w, h);
+                        renderPage(g2d, patient, pages.get(i), dailyPage.getStartPageNo() + i, pages.size(), dailyPage.getDate());
+                        g2d.dispose();
+                        tp.beginText();
+                        tp.endText();
                     }
                 }
             }
 
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            doc.save(baos);
+            pdfDoc.close();
             return baos.toByteArray();
-        } catch (IOException e) {
+        } catch (DocumentException e) {
             log.error("生成全部PDF失败", e);
             throw new RuntimeException("生成全部PDF失败: " + e.getMessage(), e);
         }
     }
 
     /**
-     * 加载护理日数据
+     * 渲染完整页面（使用 translate 管理布局）
      */
-    private NursingDayData loadNursingDayData(String pid, String date) {
-        // 解析日期
-        LocalDate localDate = LocalDate.parse(date, DateTimeFormatter.ISO_LOCAL_DATE);
-        ZoneId zone = ZoneId.systemDefault();
+    private void renderPage(Graphics2D g2d, org.bson.Document patient, List<Map<String, Object>> rows, int pageNo, int totalPages, String date) {
+        // 启用抗锯齿
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        // 护理日：当天 07:00 到次日 07:00
-        Date startTime = Date.from(localDate.atTime(7, 0).atZone(zone).toInstant());
-        Date endTime = Date.from(localDate.plusDays(1).atTime(7, 0).atZone(zone).toInstant());
+        // 初始偏移
+        g2d.translate(MARGIN_LEFT, MARGIN_TOP);
 
-        NursingDayData data = new NursingDayData();
+        // 1. 渲染标题和患者信息
+        float headerH = renderHeader(g2d, patient);
+        g2d.translate(0, headerH);
 
-        // 1. 查询床旁数据（生命体征）
-        data.setVitals(loadVitals(pid, startTime, endTime));
+        // 2. 渲染表头
+        float tableHeaderH = renderTableHeader(g2d);
+        g2d.translate(0, tableHeaderH);
 
-        // 2. 查询药物执行记录
-        data.setDrugExecutions(loadDrugExecutions(pid, startTime, endTime));
+        // 3. 渲染数据行
+        float tableBottom = PAGE_HEIGHT - MARGIN_BOTTOM - MARGIN_TOP - 60; // 留出页脚空间
+        float dataH = renderTableData(g2d, rows, tableBottom - headerH - tableHeaderH);
+        g2d.translate(0, dataH);
 
-        // 3. 查询护理记录
-        data.setNurseRecords(loadNurseRecords(pid, startTime, endTime));
-
-        // 4. 查询管道记录
-        data.setTubeRecords(loadTubeRecords(pid, startTime, endTime));
-
-        return data;
-    }
-
-    /**
-     * 加载生命体征数据
-     */
-    private List<Document> loadVitals(String pid, Date startTime, Date endTime) {
-        Query query = new Query();
-        query.addCriteria(Criteria.where("pid").is(pid)
-                .and("time").gte(startTime).lt(endTime));
-        query.with(Sort.by(Sort.Direction.ASC, "time"));
-        return mongoTemplate.find(query, Document.class, "bedside");
-    }
-
-    /**
-     * 加载药物执行记录
-     */
-    private List<Document> loadDrugExecutions(String pid, Date startTime, Date endTime) {
-        Criteria overlap = new Criteria().andOperator(
-                Criteria.where("startTime").lte(endTime),
-                new Criteria().orOperator(
-                        Criteria.where("endTime").exists(false),
-                        Criteria.where("endTime").is(null),
-                        Criteria.where("endTime").gt(startTime)));
-
-        Query query = new Query(Criteria.where("pid").is(pid)
-                .and("status").ne("invalid")
-                .andOperator(overlap));
-        query.with(Sort.by(Sort.Direction.ASC, "startTime"));
-        return mongoTemplate.find(query, Document.class, "drugExe");
-    }
-
-    /**
-     * 加载护理记录
-     */
-    private List<Document> loadNurseRecords(String pid, Date startTime, Date endTime) {
-        Query query = new Query();
-        query.addCriteria(Criteria.where("pid").is(pid.trim())
-                .and("time").gte(startTime).lt(endTime)
-                .and("valid").ne(false)
-                .and("desc").nin(null, ""));
-        query.with(Sort.by(Sort.Direction.ASC, "time"));
-        return mongoTemplate.find(query, Document.class, "nurseRecords");
-    }
-
-    /**
-     * 加载管道记录
-     */
-    private List<Document> loadTubeRecords(String pid, Date startTime, Date endTime) {
-        Query query = new Query();
-        query.addCriteria(Criteria.where("pid").is(pid)
-                .and("valid").ne(false)
-                .and("status").ne("invalid")
-                .and("tubeRecordList").ne(null));
-        query.with(Sort.by(Sort.Direction.ASC, "startTime"));
-        return mongoTemplate.find(query, Document.class, "tubeExe");
-    }
-
-    /**
-     * 获取患者信息
-     * pid 可能是 _id 也可能是 pid 字段
-     */
-    private Document getPatientInfo(String pid) {
-        Query query = new Query(new Criteria().orOperator(
-            Criteria.where("_id").is(pid),
-            Criteria.where("pid").is(pid)
-        ));
-        Document patient = mongoTemplate.findOne(query, Document.class, "patient");
-        if (patient == null) {
-            patient = new Document();
-            patient.put("name", "未知");
-            patient.put("bedNo", "");
-            patient.put("mrn", "");
-            patient.put("sex", "");
-            patient.put("age", "");
-        }
-        return patient;
-    }
-
-    /**
-     * 获取起始页码
-     */
-    private int getStartPageNo(String pid, String date) {
-        Optional<HljldPageIndex> indexOpt = pageIndexRepository.findByPid(pid);
-        if (indexOpt.isEmpty()) {
-            return 1;
+        // 4. 渲染空数据提示
+        if (rows.isEmpty()) {
+            renderEmptyMessage(g2d, tableBottom - headerH - tableHeaderH - dataH);
         }
 
-        return indexOpt.get().getDailyPages().stream()
-            .filter(d -> d.getDate().equals(date))
-            .map(HljldPageIndex.DailyPageInfo::getStartPageNo)
-            .findFirst()
-            .orElse(1);
+        // 5. 渲染页脚（回到页面底部）
+        g2d.translate(0, -(headerH + tableHeaderH + dataH)); // 回到顶部
+        g2d.translate(0, PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM - 20);
+        renderFooter(g2d, pageNo, totalPages, date);
     }
 
     /**
-     * 渲染页面头部
+     * 渲染页面头部，返回高度
      */
-    private void renderHeader(PDPageContentStream cs, Document patient) throws IOException {
-        if (getFont() == null) {
-            return;
-        }
-
-        float y = PAGE_HEIGHT - MARGIN_TOP;
+    private float renderHeader(Graphics2D g2d, org.bson.Document patient) {
+        float y = 0;
 
         // 标题
-        cs.beginText();
-        cs.setFont(getFont(), 16);
-        float titleWidth = getFont().getStringWidth("重钢总医院重症医学科护理记录单") / 1000 * 16;
-        cs.newLineAtOffset((PAGE_WIDTH - titleWidth) / 2, y - 20);
-        cs.showText("重钢总医院重症医学科护理记录单");
-        cs.endText();
+        g2d.setFont(getFont(16f));
+        g2d.setColor(Color.BLACK);
+        String title = "重钢总医院重症医学科护理记录单";
+        FontMetrics fm = g2d.getFontMetrics();
+        int titleW = fm.stringWidth(title);
+        g2d.drawString(title, (PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT - titleW) / 2, y + 16);
+        y += 30;
 
-        // 患者信息行
-        y -= 45;
-        cs.beginText();
-        cs.setFont(getFont(), 9);
-        cs.newLineAtOffset(MARGIN_LEFT, y);
-
-        StringBuilder info = new StringBuilder();
-        info.append("床号：").append(getStringOrDefault(patient, "bedNo", "—"));
-        info.append("  姓名：").append(getStringOrDefault(patient, "name", "—"));
-        info.append("  住院号：").append(getStringOrDefault(patient, "mrn", "—"));
-        info.append("  性别：").append(getStringOrDefault(patient, "sex", "—"));
-        info.append("  年龄：").append(getStringOrDefault(patient, "age", "—"));
-
-        cs.showText(info.toString());
-        cs.endText();
+        // 患者信息
+        g2d.setFont(getFont(9f));
+        String info = String.format("床号：%s  姓名：%s  住院号：%s  性别：%s  年龄：%s",
+            str(patient, "bedNo"), str(patient, "name"), str(patient, "mrn"),
+            str(patient, "sex"), str(patient, "age"));
+        g2d.drawString(info, 0, y + 10);
+        y += 20;
 
         // 分隔线
-        y -= 15;
-        cs.setStrokingColor(0, 0, 0);
-        cs.setLineWidth(0.5f);
-        cs.moveTo(MARGIN_LEFT, y);
-        cs.lineTo(PAGE_WIDTH - MARGIN_RIGHT, y);
-        cs.stroke();
+        g2d.setColor(Color.BLACK);
+        g2d.setStroke(new BasicStroke(0.5f));
+        g2d.draw(new Line2D.Float(0, y, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, y));
+        y += 5;
+
+        return y;
     }
 
     /**
-     * 渲染表头
+     * 渲染表头，返回高度
      */
-    private void renderTableHeader(PDPageContentStream cs) throws IOException {
-        if (getFont() == null) {
-            return;
-        }
+    private float renderTableHeader(Graphics2D g2d) {
+        float tableW = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+        float headerH = 35;
 
-        float y = TABLE_TOP;
-        float x = MARGIN_LEFT;
-        float totalWidth = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+        // 背景
+        g2d.setColor(new Color(240, 240, 240));
+        g2d.fill(new Rectangle2D.Float(0, 0, tableW, headerH));
 
-        // 表头背景
-        cs.setNonStrokingColor(240, 240, 240);
-        cs.addRect(MARGIN_LEFT, y - 35, totalWidth, 35);
-        cs.fill();
-
-        // 表头边框
-        cs.setStrokingColor(0, 0, 0);
-        cs.setLineWidth(0.5f);
-        cs.addRect(MARGIN_LEFT, y - 35, totalWidth, 35);
-        cs.stroke();
+        // 边框
+        g2d.setColor(Color.BLACK);
+        g2d.setStroke(new BasicStroke(0.5f));
+        g2d.draw(new Rectangle2D.Float(0, 0, tableW, headerH));
 
         // 表头文字
-        String[] headers = {"日期时间", "药物治疗", "名称", "量/ml", "途径",
-                           "胃肠摄入", "名称", "量/ml", "途径",
-                           "尿量", "净超滤量", "排出物", "名称", "量/ml",
-                           "引流液", "名称", "量/ml",
-                           "检查", "治疗", "基础护理", "健康教育", "护理记录", "签名"};
+        String[] headers = {
+            "日期时间", "药物治疗", "名称", "量/ml", "途径",
+            "胃肠摄入", "名称", "量/ml", "途径",
+            "尿量", "净超滤量", "排出物", "名称", "量/ml",
+            "引流液", "名称", "量/ml",
+            "检查", "治疗", "基础护理", "健康教育", "护理记录", "签名"
+        };
 
-        cs.setFont(getFont(), 7);
-        cs.setNonStrokingColor(0, 0, 0);
-
-        x = MARGIN_LEFT;
+        g2d.setFont(getFont(7f));
+        g2d.setColor(Color.BLACK);
+        float x = 0;
         for (int i = 0; i < Math.min(headers.length, COL_WIDTHS.length); i++) {
             if (!headers[i].isEmpty()) {
-                cs.beginText();
-                cs.newLineAtOffset(x + 2, y - 12);
-                cs.showText(headers[i]);
-                cs.endText();
+                g2d.drawString(headers[i], x + 2, 12);
             }
             x += COL_WIDTHS[i];
         }
 
-        // 绘制列分隔线
-        x = MARGIN_LEFT;
+        // 列分隔线
+        x = 0;
+        g2d.setStroke(new BasicStroke(0.3f));
         for (int i = 0; i < COL_WIDTHS.length - 1; i++) {
             x += COL_WIDTHS[i];
-            cs.moveTo(x, y);
-            cs.lineTo(x, y - 35);
-            cs.stroke();
+            g2d.draw(new Line2D.Float(x, 0, x, headerH));
         }
+
+        return headerH;
     }
 
     /**
-     * 渲染表格数据
+     * 渲染表格数据，返回高度
      */
-    private void renderTableData(PDPageContentStream cs, List<Map<String, Object>> rows) throws IOException {
-        if (getFont() == null) {
-            return;
-        }
-
-        float y = TABLE_TOP - 40;
+    private float renderTableData(Graphics2D g2d, List<Map<String, Object>> rows, float maxHeight) {
+        float y = 0;
+        float tableW = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
 
         for (Map<String, Object> row : rows) {
-            if (y < TABLE_BOTTOM) {
-                break;
-            }
+            if (y + ROW_HEIGHT > maxHeight) break;
 
-            renderDataRow(cs, y, row);
-            y -= ROW_HEIGHT;
+            // 绘制单元格文本
+            g2d.setFont(getFont(7f));
+            g2d.setColor(Color.BLACK);
+            float x = 0;
+            drawCell(g2d, x, y, row, "timeText");      x += COL_WIDTHS[0];
+            drawCell(g2d, x, y, row, "medName");        x += COL_WIDTHS[1];
+            drawCell(g2d, x, y, row, "medAmount");      x += COL_WIDTHS[2];
+            drawCell(g2d, x, y, row, "medRoute");       x += COL_WIDTHS[3];
+            drawCell(g2d, x, y, row, "enteralName");    x += COL_WIDTHS[4];
+            drawCell(g2d, x, y, row, "enteralAmount");  x += COL_WIDTHS[5];
+            drawCell(g2d, x, y, row, "enteralRoute");   x += COL_WIDTHS[6];
+            drawCell(g2d, x, y, row, "urine");          x += COL_WIDTHS[7];
+            drawCell(g2d, x, y, row, "ultrafiltration");x += COL_WIDTHS[8];
+            drawCell(g2d, x, y, row, "outputName");     x += COL_WIDTHS[9];
+            drawCell(g2d, x, y, row, "outputAmount");   x += COL_WIDTHS[10];
+            drawCell(g2d, x, y, row, "drainName");      x += COL_WIDTHS[11];
+            drawCell(g2d, x, y, row, "drainAmount");    x += COL_WIDTHS[12];
+            drawCell(g2d, x, y, row, "examination");    x += COL_WIDTHS[13];
+            drawCell(g2d, x, y, row, "treatment");      x += COL_WIDTHS[14];
+            drawCell(g2d, x, y, row, "basicCare");      x += COL_WIDTHS[15];
+            drawCell(g2d, x, y, row, "healthEducation");x += COL_WIDTHS[16];
+            drawCell(g2d, x, y, row, "nursingRecord");  x += COL_WIDTHS[17];
+            drawCell(g2d, x, y, row, "signature");
+
+            // 行边框
+            g2d.setColor(new Color(200, 200, 200));
+            g2d.setStroke(new BasicStroke(0.3f));
+            g2d.draw(new Rectangle2D.Float(0, y, tableW, ROW_HEIGHT));
+
+            y += ROW_HEIGHT;
+        }
+
+        return y;
+    }
+
+    /**
+     * 绘制单元格
+     */
+    private void drawCell(Graphics2D g2d, float x, float y, Map<String, Object> row, String key) {
+        String text = mapStr(row, key);
+        if (text != null && !text.isEmpty()) {
+            g2d.drawString(truncate(text, 20), x + 2, y + 12);
         }
     }
 
     /**
-     * 渲染单行数据
+     * 渲染空数据提示
      */
-    private void renderDataRow(PDPageContentStream cs, float y, Map<String, Object> row) throws IOException {
-        float x = MARGIN_LEFT;
-
-        // 时间
-        drawCellText(cs, x, y, getStringFromMap(row, "timeText"));
-        x += COL_WIDTHS[0];
-
-        // 药物
-        drawCellText(cs, x, y, getStringFromMap(row, "medName"));
-        x += COL_WIDTHS[1];
-        drawCellText(cs, x, y, getStringFromMap(row, "medAmount"));
-        x += COL_WIDTHS[2];
-        drawCellText(cs, x, y, getStringFromMap(row, "medRoute"));
-        x += COL_WIDTHS[3];
-
-        // 胃肠
-        drawCellText(cs, x, y, getStringFromMap(row, "enteralName"));
-        x += COL_WIDTHS[4];
-        drawCellText(cs, x, y, getStringFromMap(row, "enteralAmount"));
-        x += COL_WIDTHS[5];
-        drawCellText(cs, x, y, getStringFromMap(row, "enteralRoute"));
-        x += COL_WIDTHS[6];
-
-        // 尿量
-        drawCellText(cs, x, y, getStringFromMap(row, "urine"));
-        x += COL_WIDTHS[7];
-
-        // 净超滤量
-        drawCellText(cs, x, y, getStringFromMap(row, "ultrafiltration"));
-        x += COL_WIDTHS[8];
-
-        // 排出物
-        drawCellText(cs, x, y, getStringFromMap(row, "outputName"));
-        x += COL_WIDTHS[9];
-        drawCellText(cs, x, y, getStringFromMap(row, "outputAmount"));
-        x += COL_WIDTHS[10];
-
-        // 引流液
-        drawCellText(cs, x, y, getStringFromMap(row, "drainName"));
-        x += COL_WIDTHS[11];
-        drawCellText(cs, x, y, getStringFromMap(row, "drainAmount"));
-        x += COL_WIDTHS[12];
-
-        // 其他
-        drawCellText(cs, x, y, getStringFromMap(row, "examination"));
-        x += COL_WIDTHS[13];
-        drawCellText(cs, x, y, getStringFromMap(row, "treatment"));
-        x += COL_WIDTHS[14];
-        drawCellText(cs, x, y, getStringFromMap(row, "basicCare"));
-        x += COL_WIDTHS[15];
-        drawCellText(cs, x, y, getStringFromMap(row, "healthEducation"));
-        x += COL_WIDTHS[16];
-        drawCellText(cs, x, y, getStringFromMap(row, "nursingRecord"));
-        x += COL_WIDTHS[17];
-        drawCellText(cs, x, y, getStringFromMap(row, "signature"));
-
-        // 绘制行边框
-        cs.setStrokingColor(200, 200, 200);
-        cs.setLineWidth(0.3f);
-        cs.addRect(MARGIN_LEFT, y - 5, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, ROW_HEIGHT);
-        cs.stroke();
+    private void renderEmptyMessage(Graphics2D g2d, float availableHeight) {
+        g2d.setFont(getFont(12f));
+        g2d.setColor(new Color(150, 150, 150));
+        String msg = "该护理日暂无记录";
+        FontMetrics fm = g2d.getFontMetrics();
+        int msgW = fm.stringWidth(msg);
+        g2d.drawString(msg, (PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT - msgW) / 2, availableHeight / 2);
     }
 
     /**
      * 渲染页脚
      */
-    private void renderFooter(PDPageContentStream cs, int pageNo, int totalPages, String date) throws IOException {
-        if (getFont() == null) {
-            return;
-        }
-
-        float y = MARGIN_BOTTOM + 20;
+    private void renderFooter(Graphics2D g2d, int pageNo, int totalPages, String date) {
+        float tableW = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
 
         // 备注区域
-        cs.setStrokingColor(200, 200, 200);
-        cs.setLineWidth(0.3f);
-        cs.addRect(MARGIN_LEFT, y - 15, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, 15);
-        cs.stroke();
-
-        cs.beginText();
-        cs.setFont(getFont(), 8);
-        cs.newLineAtOffset(MARGIN_LEFT + 5, y - 10);
-        cs.showText("备注：");
-        cs.endText();
+        g2d.setColor(new Color(200, 200, 200));
+        g2d.setStroke(new BasicStroke(0.3f));
+        g2d.draw(new Rectangle2D.Float(0, 0, tableW, 15));
+        g2d.setFont(getFont(8f));
+        g2d.setColor(Color.BLACK);
+        g2d.drawString("备注：", 5, 10);
 
         // 页码
+        g2d.setFont(getFont(10f));
         String pageText = String.format("第 %d 页", pageNo);
-        float pageTextWidth = getFont().getStringWidth(pageText) / 1000 * 10;
-        cs.beginText();
-        cs.setFont(getFont(), 10);
-        cs.newLineAtOffset((PAGE_WIDTH - pageTextWidth) / 2, 25);
-        cs.showText(pageText);
-        cs.endText();
+        FontMetrics fm = g2d.getFontMetrics();
+        int pageW = fm.stringWidth(pageText);
+        g2d.drawString(pageText, (tableW - pageW) / 2, 35);
 
         // 日期
-        cs.beginText();
-        cs.setFont(getFont(), 7);
-        cs.newLineAtOffset(PAGE_WIDTH - MARGIN_RIGHT - 80, 25);
-        cs.showText("护理日：" + date);
-        cs.endText();
-    }
-
-    /**
-     * 渲染空白页消息
-     */
-    private void renderEmptyMessage(PDPageContentStream cs) throws IOException {
-        if (getFont() == null) {
-            return;
-        }
-
-        float y = (TABLE_TOP + TABLE_BOTTOM) / 2;
-        String message = "该护理日暂无记录";
-        float messageWidth = getFont().getStringWidth(message) / 1000 * 12;
-
-        cs.setNonStrokingColor(150, 150, 150);
-        cs.beginText();
-        cs.setFont(getFont(), 12);
-        cs.newLineAtOffset((PAGE_WIDTH - messageWidth) / 2, y);
-        cs.showText(message);
-        cs.endText();
+        g2d.setFont(getFont(7f));
+        g2d.drawString("护理日：" + date, tableW - 80, 35);
     }
 
     /**
      * 生成空白页 PDF
      */
     private byte[] generateEmptyPagePdf(String pid, String date) {
-        try (PDDocument doc = new PDDocument()) {
-            PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
-            doc.addPage(page);
-
-            Document patient = getPatientInfo(pid);
-            int startPageNo = getStartPageNo(pid, date);
-
-            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                renderHeader(cs, patient);
-                renderTableHeader(cs);
-                renderEmptyMessage(cs);
-                renderFooter(cs, startPageNo, 1, date);
-            }
-
+        try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            doc.save(baos);
+            Document pdfDoc = new Document(PageSize.A4.rotate(), 0, 0, 0, 0);
+            PdfWriter writer = PdfWriter.getInstance(pdfDoc, baos);
+            pdfDoc.open();
+
+            float w = pdfDoc.getPageSize().getWidth();
+            float h = pdfDoc.getPageSize().getHeight();
+
+            PdfContentByte cb = writer.getDirectContent();
+            PdfTemplate tp = cb.createTemplate(w, h);
+            Graphics2D g2d = new PdfGraphics2D(cb, w, h);
+
+            org.bson.Document patient = getPatientInfo(pid);
+            int startPageNo = getStartPageNo(pid, date);
+            renderPage(g2d, patient, Collections.emptyList(), startPageNo, 1, date);
+            g2d.dispose();
+            tp.beginText();
+            tp.endText();
+
+            pdfDoc.close();
             return baos.toByteArray();
-        } catch (IOException e) {
+        } catch (DocumentException e) {
             throw new RuntimeException("生成空白页PDF失败", e);
         }
     }
@@ -667,154 +475,164 @@ public class HljldPdfService {
      */
     public int calculatePageCount(String pid, String date) {
         NursingDayData dayData = loadNursingDayData(pid, date);
-        List<List<Map<String, Object>>> pages = paginateData(dayData);
-        return pages.size();
+        return paginateData(dayData).size();
     }
 
-    /**
-     * 数据分页
-     */
+    // ==================== 数据加载 ====================
+
+    private NursingDayData loadNursingDayData(String pid, String date) {
+        LocalDate localDate = LocalDate.parse(date, DateTimeFormatter.ISO_LOCAL_DATE);
+        ZoneId zone = ZoneId.systemDefault();
+        Date startTime = Date.from(localDate.atTime(7, 0).atZone(zone).toInstant());
+        Date endTime = Date.from(localDate.plusDays(1).atTime(7, 0).atZone(zone).toInstant());
+
+        NursingDayData data = new NursingDayData();
+        data.setVitals(loadVitals(pid, startTime, endTime));
+        data.setDrugExecutions(loadDrugExecutions(pid, startTime, endTime));
+        data.setNurseRecords(loadNurseRecords(pid, startTime, endTime));
+        data.setTubeRecords(loadTubeRecords(pid, startTime, endTime));
+        return data;
+    }
+
+    private List<org.bson.Document> loadVitals(String pid, Date start, Date end) {
+        Query q = new Query(Criteria.where("pid").is(pid).and("time").gte(start).lt(end));
+        q.with(Sort.by(Sort.Direction.ASC, "time"));
+        return mongoTemplate.find(q, org.bson.Document.class, "bedside");
+    }
+
+    private List<org.bson.Document> loadDrugExecutions(String pid, Date start, Date end) {
+        Criteria overlap = new Criteria().andOperator(
+            Criteria.where("startTime").lte(end),
+            new Criteria().orOperator(
+                Criteria.where("endTime").exists(false),
+                Criteria.where("endTime").is(null),
+                Criteria.where("endTime").gt(start)));
+        Query q = new Query(Criteria.where("pid").is(pid).and("status").ne("invalid").andOperator(overlap));
+        q.with(Sort.by(Sort.Direction.ASC, "startTime"));
+        return mongoTemplate.find(q, org.bson.Document.class, "drugExe");
+    }
+
+    private List<org.bson.Document> loadNurseRecords(String pid, Date start, Date end) {
+        Query q = new Query(Criteria.where("pid").is(pid.trim()).and("time").gte(start).lt(end)
+            .and("valid").ne(false).and("desc").nin(null, ""));
+        q.with(Sort.by(Sort.Direction.ASC, "time"));
+        return mongoTemplate.find(q, org.bson.Document.class, "nurseRecords");
+    }
+
+    private List<org.bson.Document> loadTubeRecords(String pid, Date start, Date end) {
+        Query q = new Query(Criteria.where("pid").is(pid).and("valid").ne(false)
+            .and("status").ne("invalid").and("tubeRecordList").ne(null));
+        q.with(Sort.by(Sort.Direction.ASC, "startTime"));
+        return mongoTemplate.find(q, org.bson.Document.class, "tubeExe");
+    }
+
+    private org.bson.Document getPatientInfo(String pid) {
+        Query q = new Query(new Criteria().orOperator(
+            Criteria.where("_id").is(pid), Criteria.where("pid").is(pid)));
+        org.bson.Document p = mongoTemplate.findOne(q, org.bson.Document.class, "patient");
+        if (p == null) {
+            p = new org.bson.Document();
+            p.put("name", "未知"); p.put("bedNo", ""); p.put("mrn", "");
+            p.put("sex", ""); p.put("age", "");
+        }
+        return p;
+    }
+
+    private int getStartPageNo(String pid, String date) {
+        return pageIndexRepository.findByPid(pid)
+            .flatMap(idx -> idx.getDailyPages().stream()
+                .filter(d -> d.getDate().equals(date))
+                .map(HljldPageIndex.DailyPageInfo::getStartPageNo)
+                .findFirst())
+            .orElse(1);
+    }
+
+    // ==================== 数据转换 ====================
+
     private List<List<Map<String, Object>>> paginateData(NursingDayData dayData) {
         List<Map<String, Object>> allRows = convertToRows(dayData);
         List<List<Map<String, Object>>> pages = new ArrayList<>();
-        List<Map<String, Object>> currentPage = new ArrayList<>();
-        float currentHeight = 0;
-        float maxHeight = TABLE_BOTTOM - TABLE_TOP - 40;
+        List<Map<String, Object>> current = new ArrayList<>();
+        float h = 0, maxH = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM - TABLE_TOP - 80;
 
         for (Map<String, Object> row : allRows) {
-            if (currentHeight + ROW_HEIGHT > maxHeight && !currentPage.isEmpty()) {
-                pages.add(currentPage);
-                currentPage = new ArrayList<>();
-                currentHeight = 0;
+            if (h + ROW_HEIGHT > maxH && !current.isEmpty()) {
+                pages.add(current);
+                current = new ArrayList<>();
+                h = 0;
             }
-            currentPage.add(row);
-            currentHeight += ROW_HEIGHT;
+            current.add(row);
+            h += ROW_HEIGHT;
         }
-
-        if (!currentPage.isEmpty()) {
-            pages.add(currentPage);
-        }
-
-        if (pages.isEmpty()) {
-            pages.add(new ArrayList<>());
-        }
-
+        if (!current.isEmpty()) pages.add(current);
+        if (pages.isEmpty()) pages.add(new ArrayList<>());
         return pages;
     }
 
-    /**
-     * 将数据转换为行
-     */
     private List<Map<String, Object>> convertToRows(NursingDayData dayData) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
-
-        // 合并所有数据源，按时间排序
+        SimpleDateFormat tf = new SimpleDateFormat("HH:mm");
         TreeMap<Date, Map<String, Object>> timeMap = new TreeMap<>();
 
-        // 处理生命体征
-        for (Document vital : dayData.getVitals()) {
-            Date time = vital.getDate("time");
-            if (time == null) continue;
-
-            Map<String, Object> row = timeMap.computeIfAbsent(time, k -> new LinkedHashMap<>());
-            row.put("timeText", timeFormat.format(time));
-            row.put("t", getStringOrDefault(vital, "t", ""));
-            row.put("hr", getStringOrDefault(vital, "hr", ""));
-            row.put("rr", getStringOrDefault(vital, "rr", ""));
-            row.put("bpSys", getStringOrDefault(vital, "bpSys", ""));
-            row.put("bpDia", getStringOrDefault(vital, "bpDia", ""));
-            row.put("spo2", getStringOrDefault(vital, "spo2", ""));
-            row.put("cvp", getStringOrDefault(vital, "cvp", ""));
+        for (org.bson.Document v : dayData.getVitals()) {
+            Date t = v.getDate("time");
+            if (t == null) continue;
+            Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
+            row.put("timeText", tf.format(t));
         }
-
-        // 处理护理记录
-        for (Document record : dayData.getNurseRecords()) {
-            Date time = record.getDate("time");
-            if (time == null) continue;
-
-            Map<String, Object> row = timeMap.computeIfAbsent(time, k -> new LinkedHashMap<>());
-            row.put("timeText", timeFormat.format(time));
-            row.put("nursingRecord", getStringOrDefault(record, "desc", ""));
-            row.put("signature", getStringOrDefault(record, "accountId", ""));
+        for (org.bson.Document r : dayData.getNurseRecords()) {
+            Date t = r.getDate("time");
+            if (t == null) continue;
+            Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
+            row.put("timeText", tf.format(t));
+            row.put("nursingRecord", str(r, "desc"));
+            row.put("signature", str(r, "accountId"));
         }
-
-        // 处理药物执行
-        for (Document drug : dayData.getDrugExecutions()) {
-            Date time = drug.getDate("startTime");
-            if (time == null) continue;
-
-            Map<String, Object> row = timeMap.computeIfAbsent(time, k -> new LinkedHashMap<>());
-            row.put("timeText", timeFormat.format(time));
-            row.put("medName", getStringOrDefault(drug, "drugName", ""));
-            row.put("medAmount", getStringOrDefault(drug, "dose", ""));
-            row.put("medRoute", getStringOrDefault(drug, "route", ""));
+        for (org.bson.Document d : dayData.getDrugExecutions()) {
+            Date t = d.getDate("startTime");
+            if (t == null) continue;
+            Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
+            row.put("timeText", tf.format(t));
+            row.put("medName", str(d, "drugName"));
+            row.put("medAmount", str(d, "dose"));
+            row.put("medRoute", str(d, "route"));
         }
 
         rows.addAll(timeMap.values());
         return rows;
     }
 
-    /**
-     * 绘制单元格文本
-     */
-    private void drawCellText(PDPageContentStream cs, float x, float y, String text) throws IOException {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
+    // ==================== 工具方法 ====================
 
-        cs.beginText();
-        cs.setFont(getFont(), 7);
-        cs.newLineAtOffset(x + 2, y - 12);
-        cs.showText(truncateText(text, 20));
-        cs.endText();
+    private String str(org.bson.Document doc, String key) {
+        Object v = doc.get(key);
+        return v != null ? v.toString() : "";
     }
 
-    /**
-     * 截断文本
-     */
-    private String truncateText(String text, int maxLength) {
+    private String mapStr(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        return v != null ? v.toString() : "";
+    }
+
+    private String truncate(String text, int max) {
         if (text == null) return "";
-        return text.length() > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
+        return text.length() > max ? text.substring(0, max - 3) + "..." : text;
     }
 
-    /**
-     * 获取字符串值
-     */
-    private String getStringOrDefault(Document doc, String key, String defaultValue) {
-        Object value = doc.get(key);
-        return value != null ? value.toString() : defaultValue;
-    }
-
-    /**
-     * 从 Map 获取字符串值
-     */
-    private String getStringFromMap(Map<String, Object> map, String key) {
-        Object value = map.get(key);
-        return value != null ? value.toString() : "";
-    }
-
-    /**
-     * 护理日数据
-     */
     private static class NursingDayData {
-        private List<Document> vitals = new ArrayList<>();
-        private List<Document> drugExecutions = new ArrayList<>();
-        private List<Document> nurseRecords = new ArrayList<>();
-        private List<Document> tubeRecords = new ArrayList<>();
+        private List<org.bson.Document> vitals = new ArrayList<>();
+        private List<org.bson.Document> drugExecutions = new ArrayList<>();
+        private List<org.bson.Document> nurseRecords = new ArrayList<>();
+        private List<org.bson.Document> tubeRecords = new ArrayList<>();
 
-        public boolean isEmpty() {
-            return vitals.isEmpty() && drugExecutions.isEmpty() && nurseRecords.isEmpty();
-        }
-
-        // Getters and Setters
-        public List<Document> getVitals() { return vitals; }
-        public void setVitals(List<Document> vitals) { this.vitals = vitals; }
-        public List<Document> getDrugExecutions() { return drugExecutions; }
-        public void setDrugExecutions(List<Document> drugExecutions) { this.drugExecutions = drugExecutions; }
-        public List<Document> getNurseRecords() { return nurseRecords; }
-        public void setNurseRecords(List<Document> nurseRecords) { this.nurseRecords = nurseRecords; }
-        public List<Document> getTubeRecords() { return tubeRecords; }
-        public void setTubeRecords(List<Document> tubeRecords) { this.tubeRecords = tubeRecords; }
+        boolean isEmpty() { return vitals.isEmpty() && drugExecutions.isEmpty() && nurseRecords.isEmpty(); }
+        List<org.bson.Document> getVitals() { return vitals; }
+        void setVitals(List<org.bson.Document> v) { this.vitals = v; }
+        List<org.bson.Document> getDrugExecutions() { return drugExecutions; }
+        void setDrugExecutions(List<org.bson.Document> v) { this.drugExecutions = v; }
+        List<org.bson.Document> getNurseRecords() { return nurseRecords; }
+        void setNurseRecords(List<org.bson.Document> v) { this.nurseRecords = v; }
+        List<org.bson.Document> getTubeRecords() { return tubeRecords; }
+        void setTubeRecords(List<org.bson.Document> v) { this.tubeRecords = v; }
     }
 }
