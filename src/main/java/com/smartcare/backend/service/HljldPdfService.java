@@ -81,20 +81,33 @@ public class HljldPdfService {
         35f   // 签名
     };
 
-    // 字体
+    // 字体 - 延迟初始化，避免静态字段触发系统字体扫描
     private PDFont chineseFont;
+    private boolean fontInitialized = false;
 
     @Autowired
     public HljldPdfService(MongoTemplate mongoTemplate, HljldPageIndexRepository pageIndexRepository) {
         this.mongoTemplate = mongoTemplate;
         this.pageIndexRepository = pageIndexRepository;
+        // 禁用 PDFBox 系统字体扫描，避免 Docker 环境中损坏字体文件导致 EOFException
+        System.setProperty("pdfbox.fontcache", "/tmp/pdfbox-fontcache");
     }
 
-    @PostConstruct
-    public void init() {
+    /**
+     * 延迟初始化字体，首次调用时加载
+     */
+    private synchronized void initFont() {
+        if (fontInitialized) {
+            return;
+        }
+        fontInitialized = true;
+
         try {
-            // 加载中文字体
+            // 尝试加载中文字体
             InputStream fontStream = getClass().getResourceAsStream("/fonts/simsun.ttf");
+            if (fontStream == null) {
+                fontStream = getClass().getResourceAsStream("/fonts/simsun.ttc");
+            }
             if (fontStream == null) {
                 fontStream = getClass().getResourceAsStream("/fonts/Microsoft YaHei.ttf");
             }
@@ -103,16 +116,26 @@ public class HljldPdfService {
             }
             if (fontStream == null) {
                 log.warn("未找到中文字体文件，PDF中文将无法正常显示。请将字体文件放到 src/main/resources/fonts/ 目录下");
-                chineseFont = PDType1Font.HELVETICA;
+                // 不设置 chineseFont，保持 null，render 方法会跳过文字渲染
             } else {
                 PDDocument tempDoc = new PDDocument();
                 chineseFont = PDType0Font.load(tempDoc, fontStream);
+                tempDoc.close();
                 log.info("中文字体加载成功");
             }
-        } catch (IOException e) {
-            log.error("加载中文字体失败，使用默认字体", e);
-            chineseFont = PDType1Font.HELVETICA;
+        } catch (Exception e) {
+            log.error("加载中文字体失败，PDF中文将无法显示", e);
         }
+    }
+
+    /**
+     * 获取字体，如果未初始化则返回 null
+     */
+    private PDFont getFont() {
+        if (!fontInitialized) {
+            initFont();
+        }
+        return chineseFont;
     }
 
     /**
@@ -344,7 +367,7 @@ public class HljldPdfService {
      * 渲染页面头部
      */
     private void renderHeader(PDPageContentStream cs, Document patient) throws IOException {
-        if (chineseFont == null) {
+        if (getFont() == null) {
             return;
         }
 
@@ -352,8 +375,8 @@ public class HljldPdfService {
 
         // 标题
         cs.beginText();
-        cs.setFont(chineseFont, 16);
-        float titleWidth = chineseFont.getStringWidth("重钢总医院重症医学科护理记录单") / 1000 * 16;
+        cs.setFont(getFont(), 16);
+        float titleWidth = getFont().getStringWidth("重钢总医院重症医学科护理记录单") / 1000 * 16;
         cs.newLineAtOffset((PAGE_WIDTH - titleWidth) / 2, y - 20);
         cs.showText("重钢总医院重症医学科护理记录单");
         cs.endText();
@@ -361,7 +384,7 @@ public class HljldPdfService {
         // 患者信息行
         y -= 45;
         cs.beginText();
-        cs.setFont(chineseFont, 9);
+        cs.setFont(getFont(), 9);
         cs.newLineAtOffset(MARGIN_LEFT, y);
 
         StringBuilder info = new StringBuilder();
@@ -387,7 +410,7 @@ public class HljldPdfService {
      * 渲染表头
      */
     private void renderTableHeader(PDPageContentStream cs) throws IOException {
-        if (chineseFont == null) {
+        if (getFont() == null) {
             return;
         }
 
@@ -413,7 +436,7 @@ public class HljldPdfService {
                            "引流液", "名称", "量/ml",
                            "检查", "治疗", "基础护理", "健康教育", "护理记录", "签名"};
 
-        cs.setFont(chineseFont, 7);
+        cs.setFont(getFont(), 7);
         cs.setNonStrokingColor(0, 0, 0);
 
         x = MARGIN_LEFT;
@@ -441,7 +464,7 @@ public class HljldPdfService {
      * 渲染表格数据
      */
     private void renderTableData(PDPageContentStream cs, List<Map<String, Object>> rows) throws IOException {
-        if (chineseFont == null) {
+        if (getFont() == null) {
             return;
         }
 
@@ -527,7 +550,7 @@ public class HljldPdfService {
      * 渲染页脚
      */
     private void renderFooter(PDPageContentStream cs, int pageNo, int totalPages, String date) throws IOException {
-        if (chineseFont == null) {
+        if (getFont() == null) {
             return;
         }
 
@@ -540,23 +563,23 @@ public class HljldPdfService {
         cs.stroke();
 
         cs.beginText();
-        cs.setFont(chineseFont, 8);
+        cs.setFont(getFont(), 8);
         cs.newLineAtOffset(MARGIN_LEFT + 5, y - 10);
         cs.showText("备注：");
         cs.endText();
 
         // 页码
         String pageText = String.format("第 %d 页", pageNo);
-        float pageTextWidth = chineseFont.getStringWidth(pageText) / 1000 * 10;
+        float pageTextWidth = getFont().getStringWidth(pageText) / 1000 * 10;
         cs.beginText();
-        cs.setFont(chineseFont, 10);
+        cs.setFont(getFont(), 10);
         cs.newLineAtOffset((PAGE_WIDTH - pageTextWidth) / 2, 25);
         cs.showText(pageText);
         cs.endText();
 
         // 日期
         cs.beginText();
-        cs.setFont(chineseFont, 7);
+        cs.setFont(getFont(), 7);
         cs.newLineAtOffset(PAGE_WIDTH - MARGIN_RIGHT - 80, 25);
         cs.showText("护理日：" + date);
         cs.endText();
@@ -566,17 +589,17 @@ public class HljldPdfService {
      * 渲染空白页消息
      */
     private void renderEmptyMessage(PDPageContentStream cs) throws IOException {
-        if (chineseFont == null) {
+        if (getFont() == null) {
             return;
         }
 
         float y = (TABLE_TOP + TABLE_BOTTOM) / 2;
         String message = "该护理日暂无记录";
-        float messageWidth = chineseFont.getStringWidth(message) / 1000 * 12;
+        float messageWidth = getFont().getStringWidth(message) / 1000 * 12;
 
         cs.setNonStrokingColor(150, 150, 150);
         cs.beginText();
-        cs.setFont(chineseFont, 12);
+        cs.setFont(getFont(), 12);
         cs.newLineAtOffset((PAGE_WIDTH - messageWidth) / 2, y);
         cs.showText(message);
         cs.endText();
@@ -701,7 +724,7 @@ public class HljldPdfService {
         }
 
         cs.beginText();
-        cs.setFont(chineseFont, 7);
+        cs.setFont(getFont(), 7);
         cs.newLineAtOffset(x + 2, y - 12);
         cs.showText(truncateText(text, 20));
         cs.endText();
