@@ -1,5 +1,7 @@
 <section class="hljld-shell">
-  <header class="toolbar no-print" aria-label="护理记录日期工具栏">
+  <!-- 工具栏 -->
+  <header class="toolbar no-print" aria-label="护理记录工具栏">
+    <!-- 日期选择 -->
     <div class="date-tools" role="group" aria-label="护理记录日期选择">
       <button
         type="button"
@@ -44,252 +46,81 @@
       >今天</button>
     </div>
 
+    <!-- 页码选择 -->
+    <div class="page-tools" *ngIf="pageOptions.length > 0">
+      <label class="page-label">页码：</label>
+      <select
+        class="page-select"
+        [ngModel]="selectedPageNo"
+        (ngModelChange)="onPageSelect($event)"
+      >
+        <option *ngFor="let pageNo of pageOptions" [value]="pageNo">
+          第 {{ pageNo }} 页
+        </option>
+      </select>
+      <span class="page-info">共 {{ pageIndex.pageCount }} 页</span>
+    </div>
+
     <div class="toolbar-spacer"></div>
 
-    <div *ngIf="sourceError" class="source-warning" role="status">{{ sourceError }}</div>
+    <!-- 操作按钮 -->
+    <div class="action-tools">
+      <button
+        type="button"
+        class="recalculate-button"
+        [disabled]="recalculating || !patient.pid"
+        (click)="recalculatePageIndexes()"
+        title="重新计算页码"
+      >
+        {{ recalculating ? '计算中...' : '纠正页码' }}
+      </button>
 
-    <!-- 缩放控制 -->
-    <div class="scale-controls no-print" *ngIf="pages.length > 0">
       <button
         type="button"
-        class="scale-button"
-        [class.active]="scaleMode === 'fit'"
-        (click)="setScaleMode('fit')"
-        title="适应宽度"
-      >适应宽度</button>
+        class="print-button"
+        [disabled]="!pdfUrl || loading"
+        (click)="printCurrentPage()"
+      >打印当前页</button>
+
       <button
         type="button"
-        class="scale-button"
-        [class.active]="scaleMode === '50'"
-        (click)="setScaleMode('50')"
-        title="50%"
-      >50%</button>
-      <button
-        type="button"
-        class="scale-button"
-        [class.active]="scaleMode === '75'"
-        (click)="setScaleMode('75')"
-        title="75%"
-      >75%</button>
-      <button
-        type="button"
-        class="scale-button"
-        [class.active]="scaleMode === '100'"
-        (click)="setScaleMode('100')"
-        title="100%"
-      >100%</button>
+        class="print-button print-all-button"
+        [disabled]="!patient.pid || loading"
+        (click)="printAll()"
+      >打印全部</button>
     </div>
-
-    <!-- 页导航 -->
-    <div class="page-nav no-print" *ngIf="pages.length > 1">
-      <button
-        type="button"
-        class="nav-arrow"
-        (click)="previousPage()"
-        [disabled]="currentPageIndex <= 0"
-        aria-label="上一页"
-        title="上一页"
-      >‹</button>
-      <span class="page-indicator">{{ currentPageIndex + 1 }} / {{ pages.length }}</span>
-      <button
-        type="button"
-        class="nav-arrow"
-        (click)="nextPage()"
-        [disabled]="currentPageIndex >= pages.length - 1"
-        aria-label="下一页"
-        title="下一页"
-      >›</button>
-    </div>
-
-    <button
-      type="button"
-      class="print-button"
-      [disabled]="!vm || printing"
-      (click)="print()"
-    >{{ printing ? '正在生成打印页…' : '打印' }}</button>
-
-    <button
-      type="button"
-      class="print-button print-all-button"
-      [disabled]="!patient.pid || printingAll"
-      (click)="printAll()"
-    >{{ printingAll ? '正在批量打印…' : '一键打印全部' }}</button>
   </header>
 
-  <ng-container *ngIf="vm as form; else statePanel">
-    <!-- A4 分页视图 -->
-    <div class="hljld-pages-viewport" *ngIf="pages.length > 0">
-      <div
-        class="hljld-sheet-scaler"
-        [style.transform]="'scale(' + sheetScale + ')'"
-        [style.width.px]="a4WidthPx"
-      >
-        <section
-          *ngFor="let page of pages; let i = index; trackBy: trackPage"
-          class="print-page"
-          [attr.data-page-index]="i"
-        >
-          <article class="sheet">
-            <header class="sheet-head">
-              <div class="title-line">重钢总医院重症医学科护理记录单</div>
-              <div class="patient-info-row">
-                <span class="info-item">床号：<strong>{{ form.patient.bedNo ? (form.patient.bedNo.endsWith('床') ? form.patient.bedNo : form.patient.bedNo + '床') : '—' }}</strong></span>
-                <span class="info-item">姓名：<strong>{{ form.patient.name || '—' }}</strong></span>
-                <span class="info-item">住院号：<strong>{{ form.patient.mrn || '—' }}</strong></span>
-                <span class="info-item">性别：<strong>{{ form.patient.sex || '—' }}</strong></span>
-                <span class="info-item">年龄：<strong>{{ form.patient.age || '—' }}</strong></span>
-                <span class="diagnosis-item">诊断：<strong>{{ form.patient.diagnosis || '—' }}</strong></span>
-              </div>
-            </header>
-
-            <div class="print-table-wrap">
-              <table class="print-record-table">
-                <colgroup>
-                  <col class="col-time" />
-                  <col class="col-med-name" />
-                  <col class="col-med-amount" />
-                  <col class="col-med-route" />
-                  <col class="col-enteral-name" />
-                  <col class="col-enteral-amount" />
-                  <col class="col-enteral-route" />
-                  <col class="col-urine" />
-                  <col class="col-ultrafiltration" />
-                  <col class="col-output-name" />
-                  <col class="col-output-amount" />
-                  <col class="col-drain-name" />
-                  <col class="col-drain-amount" />
-                  <col class="col-check" />
-                  <col class="col-treatment" />
-                  <col class="col-basic-care" />
-                  <col class="col-health" />
-                  <col class="col-nursing" />
-                  <col class="col-sign" />
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th rowspan="2">日期时间</th>
-                    <th colspan="3">药物治疗</th>
-                    <th colspan="3">胃肠摄入</th>
-                    <th rowspan="2">尿量(ml)</th>
-                    <th rowspan="2">净超滤量(ml)</th>
-                    <th colspan="2">排出物</th>
-                    <th colspan="2">引流液</th>
-                    <th rowspan="2">检查</th>
-                    <th rowspan="2">治疗</th>
-                    <th rowspan="2">基础护理</th>
-                    <th rowspan="2">健康教育</th>
-                    <th rowspan="2">护理记录</th>
-                    <th rowspan="2">签名</th>
-                  </tr>
-                  <tr>
-                    <th>名称</th><th>量/ml</th><th>途径</th>
-                    <th>名称</th><th>量/ml</th><th>途径</th>
-                    <th>名称</th><th>量/ml</th>
-                    <th>名称</th><th>量/ml</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <ng-container *ngFor="let item of page.items">
-                    <!-- 时间组行 -->
-                    <ng-container *ngIf="item.kind === 'time-group'">
-                      <tr
-                        *ngFor="let row of item.rows; trackBy: trackRow"
-                        [class.continuation-row]="!row.firstLine"
-                      >
-                        <td class="time-cell">{{ row.timeText }}</td>
-                        <td>{{ row.medication?.name || '' }}</td>
-                        <td>{{ row.medication?.amount || '' }}</td>
-                        <td>{{ row.medication?.route || '' }}</td>
-                        <td>{{ row.enteral?.name || '' }}</td>
-                        <td>{{ row.enteral?.amount || '' }}</td>
-                        <td>{{ row.enteral?.route || '' }}</td>
-                        <td>{{ row.urine }}</td>
-                        <td>{{ row.ultrafiltration }}</td>
-                        <td>{{ row.output?.name || '' }}</td>
-                        <td>{{ row.output?.amount || '' }}</td>
-                        <td>{{ row.drain?.name || '' }}</td>
-                        <td>{{ row.drain?.amount || '' }}</td>
-                        <td>{{ row.examination }}</td>
-                        <td>{{ row.treatment }}</td>
-                        <td>{{ row.basicCare }}</td>
-                        <td>{{ row.healthEducation }}</td>
-                        <td class="nursing-cell">{{ row.nursingRecord }}</td>
-                        <td>{{ row.signature }}</td>
-                      </tr>
-                    </ng-container>
-
-                    <!-- 小结行 -->
-                    <tr
-                      *ngIf="item.kind === 'summary'"
-                      class="print-summary-row"
-                      [class.print-summary-day]="item.summaryClassName === 'print-summary-day'"
-                      [class.print-summary-shift]="item.summaryClassName === 'print-summary-shift'"
-                      [class.print-summary-24h]="item.summaryClassName === 'print-summary-24h'"
-                      [class.print-summary-discharge]="item.summaryClassName === 'print-summary-discharge'"
-                    >
-                      <td colspan="19">
-                        <section class="print-summary-panel">
-                          <div class="print-summary-title-row">
-                            <strong class="print-summary-title">{{ item.summary.label }}</strong>
-                            <span class="print-summary-period">{{ item.summary.periodText }}</span>
-                          </div>
-                          <div class="print-summary-line" *ngFor="let line of item.summary.detailLines; trackBy: trackText">
-                            <ng-container *ngFor="let token of line; trackBy: trackText">
-                              <span *ngIf="token.strong" class="print-summary-strong">{{ token.text }}</span>
-                              <span *ngIf="!token.strong && token.sep" class="print-summary-sep">{{ token.text }}</span>
-                              <span *ngIf="!token.strong && !token.sep">{{ token.text }}</span>
-                            </ng-container>
-                          </div>
-                        </section>
-                      </td>
-                    </tr>
-
-                    <!-- 空页 -->
-                    <tr *ngIf="item.kind === 'empty'">
-                      <td colspan="19" style="text-align:center;padding:20px;color:#999;font-size:12pt;">该护理日暂无记录</td>
-                    </tr>
-                  </ng-container>
-                </tbody>
-                <tfoot>
-                  <tr class="print-remark-row" *ngIf="page.showRemark">
-                    <th>备注</th>
-                    <td colspan="18">
-                      <div class="print-remark-lines">
-                        <div class="print-remark-line" *ngFor="let line of defaultRemarkLines; trackBy: trackText">{{ line }}</div>
-                      </div>
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            <footer class="sheet-pageno">
-              <span class="page-current">{{ formatPageNo(page) }}</span>
-            </footer>
-          </article>
-        </section>
+  <!-- PDF 查看器 -->
+  <ng-container *ngIf="pageState === 'ready'; else statePanel">
+    <div class="pdf-container" *ngIf="pdfUrl">
+      <div *ngIf="loading" class="loading-overlay">
+        <div class="spinner" aria-hidden="true"></div>
+        <strong>加载中...</strong>
       </div>
-    </div>
 
-    <!-- 骨架态 -->
-    <div class="skeleton-panel" *ngIf="loading">
-      <div class="spinner" aria-hidden="true"></div>
-      <strong>正在排版…</strong>
+      <iframe
+        class="pdf-viewer"
+        [src]="pdfUrl"
+        frameborder="0"
+        width="100%"
+        height="100%"
+        title="护理记录单"
+      ></iframe>
     </div>
   </ng-container>
-</section>
 
-<ng-template #statePanel>
-  <div class="state-panel" [class.error]="pageState === 'error'">
-    <div *ngIf="pageState === 'loading'" class="spinner" aria-hidden="true"></div>
-    <strong>
-      <ng-container [ngSwitch]="pageState">
-        <ng-container *ngSwitchCase="'loading'">正在加载护理记录…</ng-container>
-        <ng-container *ngSwitchCase="'before-admission'">入科时间之前不展示，请修改时间。</ng-container>
-        <ng-container *ngSwitchCase="'after-discharge'">患者已出科，请切换时间。</ng-container>
-        <ng-container *ngSwitchCase="'error'">{{ error || '护理数据加载异常' }}</ng-container>
-        <ng-container *ngSwitchDefault>等待患者信息</ng-container>
-      </ng-container>
-    </strong>
-  </div>
-</ng-template>
+  <!-- 状态面板 -->
+  <ng-template #statePanel>
+    <div class="state-panel" [class.error]="pageState === 'error'">
+      <div *ngIf="pageState === 'loading'" class="spinner" aria-hidden="true"></div>
+      <strong>
+        <ng-container [ngSwitch]="pageState">
+          <ng-container *ngSwitchCase="'waiting-patient'">等待患者信息...</ng-container>
+          <ng-container *ngSwitchCase="'loading'">正在加载护理记录...</ng-container>
+          <ng-container *ngSwitchCase="'error'">{{ error || '加载失败，请重试' }}</ng-container>
+        </ng-container>
+      </strong>
+    </div>
+  </ng-template>
+</section>

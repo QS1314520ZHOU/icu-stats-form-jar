@@ -25,6 +25,7 @@ import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { HljldFormComponent } from './hljld-form.component';
 import { HljldFormService } from './hljld-form.service';
+import { HljldPdfService } from './hljld-pdf.service';
 import { HandoverReportComponent } from './handover-report.component';
 import { PrintCenterComponent } from './print-center.component';
 import { PrintCenterService } from './print-center.service';
@@ -68,7 +69,7 @@ import { routes } from './app.routes';
     FormsModule,
     RouterModule.forRoot(routes),
   ],
-  providers: [HljldFormService, HandoverReportService, PrintCenterService],
+  providers: [HljldFormService, HljldPdfService, HandoverReportService, PrintCenterService],
   bootstrap: [App],
 })
 export class AppModule {}

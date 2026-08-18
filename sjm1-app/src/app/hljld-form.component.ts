@@ -1,13 +1,11 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
-import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
-import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
+import { Subject, EMPTY } from 'rxjs';
+import { takeUntil, switchMap, filter, distinctUntilChanged, catchError } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService } from './hljld-form.service';
-import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext } from './hljld-form.models';
-import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
+import { HljldPdfService, PageIndexInfo } from './hljld-pdf.service';
+import { PatientContext } from './hljld-form.models';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
-import { printHljldRecord, printAllHljldRecords } from './hljld-print.util';
-import { HljldPageModel, paginateHljld, formatHljldPageNo } from './hljld-pagination.core';
 
 @Component({
   standalone: false,
@@ -18,118 +16,37 @@ import { HljldPageModel, paginateHljld, formatHljldPageNo } from './hljld-pagina
 })
 export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
-  private readonly dateChange$ = new ReplaySubject<void>(1);
 
   patient: PatientContext = { pid: '' };
   selectedDate = new Date();
   dateInput = this.toDateString(this.selectedDate);
+
+  // PDF 相关
+  pdfUrl = '';
+  pageIndex: PageIndexInfo = { startPageNo: 1, pageCount: 0 };
+  pageOptions: number[] = [];
+  selectedPageNo = 1;
+
+  // 状态
   loading = false;
+  pageState: 'waiting-patient' | 'loading' | 'ready' | 'error' = 'waiting-patient';
   error = '';
-  sourceError = '';
-  pageState: HljldPageState = 'waiting-patient';
-  vm?: HljldViewModel;
-  readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
-  printing = false;
-  printingAll = false;
+  recalculating = false;
 
-  // A4 分页相关
-  pages: HljldPageModel[] = [];
-  currentPageIndex = 0;
-  sheetScale = 1;
-  scaleMode: 'fit' | '50' | '75' | '100' = 'fit';
-  private a4WidthPx = 0;
-  private resizeObserver?: ResizeObserver;
-
-  private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
-  private accountMap = new Map<string, string>();
-  private readonly clockRefresh$ = interval(60_000);
-
-  /** 请求版本令牌，每次日期请求递增，防止异步竞态 */
-  private loadVersion = 0;
+  // 日期范围
+  minDateInput = '';
+  maxDateInput = '';
 
   constructor(
-    private service: HljldFormService,
-    private hostPatient: HostPatientService,
-    private cdr: ChangeDetectorRef,
-    private elementRef: ElementRef<HTMLElement>,
+    private readonly hostPatient: HostPatientService,
+    private readonly hljldService: HljldFormService,
+    private readonly pdfService: HljldPdfService,
+    private readonly cdr: ChangeDetectorRef,
+    private readonly elementRef: ElementRef,
   ) {}
 
   ngOnInit(): void {
-    this.dateChange$.pipe(
-      takeUntil(this.destroy$),
-      map(() => ({ pid: this.patient.pid, date: new Date(this.selectedDate) })),
-      filter(condition => !!condition.pid),
-      distinctUntilChanged((a, b) => a.pid === b.pid && this.isSameLocalDate(a.date, b.date)),
-      switchMap(condition => {
-        // 每次请求前递增版本号，防止同患者快速切换日期时旧结果覆盖
-        const requestVersion = ++this.loadVersion;
-        const dateKey = this.toDateString(condition.date);
-
-        const stayRange = resolveActiveStayRange(this.patient, startOfNursingDay(condition.date), endOfNursingDay(condition.date));
-        if (stayRange.beforeAdmission) {
-          this.pageState = 'before-admission';
-          this.loading = false;
-          this.vm = undefined;
-          this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
-          this.sourceError = '';
-          this.error = '';
-          this.cdr.markForCheck();
-          return EMPTY;
-        }
-        if (stayRange.afterDischarge) {
-          this.pageState = 'after-discharge';
-          this.loading = false;
-          this.vm = undefined;
-          this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
-          this.sourceError = '';
-          this.error = '';
-          this.cdr.markForCheck();
-          return EMPTY;
-        }
-        this.pageState = 'loading';
-        this.cdr.markForCheck();
-        return this.loadCondition(condition.pid, condition.date).pipe(
-          map(result => ({ result, pid: condition.pid, requestVersion, dateKey })),
-        );
-      }),
-    ).subscribe({
-      next: async ({ result, pid, requestVersion, dateKey }) => {
-        if (!result) { return; }
-        if (requestVersion !== this.loadVersion || pid !== this.patient.pid) { return; }
-        this.sourceError = this.buildSourceError(result.statuses);
-        this.source = result.data;
-
-        const accountMap = await this.collectSignatures(result.data);
-
-        // 落地前再次校验版本、患者和日期
-        if (requestVersion !== this.loadVersion || pid !== this.patient.pid || dateKey !== this.toDateString(this.selectedDate)) { return; }
-        this.source = result.data;
-        this.accountMap = accountMap;
-        this.vm = this.toViewModel(result.data, accountMap);
-        this.loading = false;
-        this.pageState = 'ready';
-        this.updatePages();
-
-        const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
-        if (isDev) {
-          console.info('[HLJLD][source-counts]', {
-            pid: this.patient.pid,
-            bedside: result.data.bedside.length,
-            drugExecutions: result.data.drugExecutions.length,
-            drugMethods: result.data.drugMethods.length,
-            nurseRecords: result.data.nurseRecords.length,
-          });
-        }
-        this.cdr.markForCheck();
-      },
-      error: err => {
-        this.loading = false;
-        this.pageState = 'error';
-        this.error = err?.message || '护理数据加载异常，请检查数据接口';
-        this.cdr.markForCheck();
-      },
-    });
-
+    // 监听患者变化
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
       if (!p) {
         this.resetPatientData();
@@ -137,6 +54,7 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.cdr.markForCheck();
         return;
       }
+
       const nextPid = getSmartCarePatientPid(p);
       if (!nextPid) {
         this.resetPatientData();
@@ -145,654 +63,326 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
         this.cdr.markForCheck();
         return;
       }
+
       const previousPid = this.patient.pid;
       this.patient = this.toPatientContext(p);
+
       if (nextPid !== previousPid) {
-        this.clearClinicalData();
-        this.initializeDateForPatient();
-        this.dateChange$.next();
+        this.updateDateRange();
+        this.selectedDate = this.getDefaultDate();
+        this.dateInput = this.toDateString(this.selectedDate);
       }
-      const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
-      if (isDev) {
-        console.info('[HLJLD][patient-sync]', {
-          transportId: p.id,
-          mongoIdAlias: (p as any)._id,
-          resolvedPid: nextPid,
-          mrn: this.patient.mrn,
-          bedNo: this.patient.bedNo,
-        });
-      }
+
+      this.pageState = 'loading';
       this.cdr.markForCheck();
+      this.loadPdf();
     });
 
-    this.clockRefresh$.pipe(
+    // 监听日期变化
+    this.hostPatient.patient$.pipe(
       takeUntil(this.destroy$),
-      filter(() => !!this.patient.pid && !!this.source.bedside.length),
-    ).subscribe(() => {
-      if (this.vm) {
-        this.vm = this.toViewModel(this.source, this.accountMap);
-        this.updatePages();
-        this.cdr.markForCheck();
-      }
-    });
+      filter(Boolean),
+      distinctUntilChanged(),
+      switchMap(() => {
+        this.loadPdf();
+        return EMPTY;
+      }),
+    ).subscribe();
   }
 
   ngAfterViewInit(): void {
-    this.initScale();
+    // 初始化
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    this.resizeObserver?.disconnect();
   }
 
-  // ── A4 分页 ──
-
   /**
-   * 更新分页模型。仅在 vm 变化时调用，缩放不触发重新分页。
+   * 加载 PDF
    */
-  private updatePages(): void {
-    if (!this.vm) {
-      this.pages = [];
-      this.currentPageIndex = 0;
+  private loadPdf(): void {
+    if (!this.patient.pid) {
       return;
     }
 
-    // 创建离屏容器进行分页计算
-    const doc = document;
-    const host = doc.createElement('div');
-    host.style.cssText = 'position:fixed;left:-10000px;visibility:hidden;transform:none;';
-    doc.body.appendChild(host);
-
-    try {
-      this.pages = paginateHljld(doc, host, this.vm, this.defaultRemarkLines);
-      this.currentPageIndex = 0;
-    } catch (error) {
-      console.error('[HLJLD][pagination-error]', error);
-      this.pages = [];
-    } finally {
-      doc.body.removeChild(host);
-    }
-  }
-
-  /**
-   * 初始化缩放。在ViewInit中调用。
-   */
-  initScale(): void {
-    // 测量 A4 宽度（px）
-    const probe = document.createElement('div');
-    probe.style.cssText = 'position:absolute;width:297mm;height:0;overflow:hidden;';
-    document.body.appendChild(probe);
-    this.a4WidthPx = probe.offsetWidth;
-    document.body.removeChild(probe);
-
-    // 监听容器尺寸变化
-    const viewport = this.elementRef.nativeElement.querySelector('.hljld-pages-viewport');
-    if (viewport) {
-      this.resizeObserver = new ResizeObserver(() => {
-        this.updateScale();
-      });
-      this.resizeObserver.observe(viewport);
-    }
-
-    this.updateScale();
-  }
-
-  /**
-   * 更新缩放比例。
-   */
-  private updateScale(): void {
-    if (this.scaleMode === 'fit') {
-      const viewport = this.elementRef.nativeElement.querySelector('.hljld-pages-viewport');
-      if (viewport && this.a4WidthPx > 0) {
-        const containerWidth = viewport.clientWidth - 40; // 减去 padding
-        this.sheetScale = Math.min(containerWidth / this.a4WidthPx, 2.0);
-      }
-    } else {
-      this.sheetScale = parseInt(this.scaleMode, 10) / 100;
-    }
-    this.cdr.markForCheck();
-  }
-
-  /**
-   * 切换缩放模式。
-   */
-  setScaleMode(mode: 'fit' | '50' | '75' | '100'): void {
-    this.scaleMode = mode;
-    this.updateScale();
-  }
-
-  /**
-   * 格式化页码。
-   */
-  formatPageNo(page: HljldPageModel): string {
-    return formatHljldPageNo(page.indexInDay);
-  }
-
-  /**
-   * 跳转到指定页。
-   */
-  goToPage(index: number): void {
-    if (index >= 0 && index < this.pages.length) {
-      this.currentPageIndex = index;
-      // 滚动到对应页面
-      const pageEl = this.elementRef.nativeElement.querySelector(`[data-page-index="${index}"]`);
-      if (pageEl) {
-        pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }
-  }
-
-  /**
-   * 上一页。
-   */
-  previousPage(): void {
-    this.goToPage(this.currentPageIndex - 1);
-  }
-
-  /**
-   * 下一页。
-   */
-  nextPage(): void {
-    this.goToPage(this.currentPageIndex + 1);
-  }
-
-  previousDay(): void {
-    if (!this.canPreviousDay()) { return; }
-    this.moveDate(-1);
-  }
-
-  nextDay(): void {
-    if (!this.canNextDay()) { return; }
-    this.moveDate(1);
-  }
-
-  today(): void {
-    if (!this.canSelectToday()) { return; }
-    this.setSelectedDate(new Date());
-  }
-
-  openDatePicker(event: Event): void {
-    const input = event.currentTarget as HTMLInputElement;
-    if (!input || input.disabled) { return; }
-    if (event instanceof KeyboardEvent) { event.preventDefault(); }
-    try {
-      if (typeof input.showPicker === 'function') { input.showPicker(); } else { input.focus(); }
-    } catch { input.focus(); }
-  }
-
-  onDateInput(value: string): void {
-    const date = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(date.getTime()) || !this.isSelectableDate(date)) {
-      this.restoreDateInput();
-      return;
-    }
-    this.setSelectedDate(date);
-  }
-
-  isTodaySelected(): boolean {
-    const s = this.selectedDate;
-    const t = new Date();
-    return s.getFullYear() === t.getFullYear() && s.getMonth() === t.getMonth() && s.getDate() === t.getDate();
-  }
-
-  get minDateInput(): string | null {
-    const minimum = this.getMinimumSelectableDate();
-    return minimum ? this.toDateString(minimum) : null;
-  }
-
-  get maxDateInput(): string {
-    return this.toDateString(this.getMaximumSelectableDate());
-  }
-
-  canPreviousDay(): boolean {
-    const minimum = this.getMinimumSelectableDate();
-    if (!minimum) { return true; }
-    const previous = this.addCalendarDays(this.selectedDate, -1);
-    return this.compareCalendarDate(previous, minimum) >= 0;
-  }
-
-  canNextDay(): boolean {
-    const next = this.addCalendarDays(this.selectedDate, 1);
-    const maximum = this.getMaximumSelectableDate();
-    return this.compareCalendarDate(next, maximum) <= 0;
-  }
-
-  canSelectToday(): boolean {
-    const today = this.startOfCalendarDate(new Date());
-    const minimum = this.getMinimumSelectableDate();
-    const maximum = this.getMaximumSelectableDate();
-    return (!minimum || this.compareCalendarDate(today, minimum) >= 0)
-      && this.compareCalendarDate(today, maximum) <= 0;
-  }
-
-  async print(): Promise<void> {
-    if (!this.vm || this.printing) {
-      return;
-    }
-
-    this.printing = true;
-    this.cdr.markForCheck();
-
-    try {
-      await printHljldRecord({
-        vm: this.vm,
-        remarkLines: this.defaultRemarkLines,
-      });
-    } catch (error) {
-      console.error('[HLJLD][print-error]', error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : '打印页生成失败，请重试',
-      );
-    } finally {
-      this.printing = false;
-      this.cdr.markForCheck();
-    }
-  }
-
-  async printAll(): Promise<void> {
-    if (!this.patient.pid || this.printingAll) {
-      return;
-    }
-
-    const admissionTs = parsePatientDateTime(this.patient.admissionTime);
-    if (!Number.isFinite(admissionTs)) {
-      alert('无法获取入科时间，无法批量打印');
-      return;
-    }
-
-    this.printingAll = true;
-    this.cdr.markForCheck();
-
-    try {
-      const minDate = this.getMinimumSelectableDate();
-      const maxDate = this.getMaximumSelectableDate();
-      if (!minDate) {
-        throw new Error('无法确定入科日期');
-      }
-
-      // 收集所有日期
-      const dates: Date[] = [];
-      let current = new Date(minDate);
-      while (this.compareCalendarDate(current, maxDate) <= 0) {
-        dates.push(new Date(current));
-        current = this.addCalendarDays(current, 1);
-      }
-
-      if (dates.length === 0) {
-        throw new Error('没有可打印的日期范围');
-      }
-
-      // 逐天加载数据并构建 VM
-      const vms: HljldViewModel[] = [];
-
-      for (const date of dates) {
-        const pid = this.patient.pid;
-        const rangeStart = startOfNursingDay(date);
-        const rangeEnd = endOfNursingDay(date);
-
-        // 加载数据
-        const loadResult = await firstValueFrom(this.service.load(pid, rangeStart, rangeEnd));
-
-        // 查询账户信息
-        const accountIds = new Set<string>();
-        for (const nr of loadResult.data.nurseRecords) {
-          if (nr.userId) { accountIds.add(nr.userId); }
-        }
-        const accountMap = accountIds.size > 0
-          ? await firstValueFrom(this.service.queryAccounts(Array.from(accountIds)))
-          : new Map<string, string>();
-
-        // 构建 VM（临时保存并恢复 selectedDate）
-        const originalDate = this.selectedDate;
-        this.selectedDate = date;
-        const vm = this.toViewModel(loadResult.data, accountMap);
-        this.selectedDate = originalDate;
-
-        vms.push(vm);
-      }
-
-      // 批量打印
-      await printAllHljldRecords({
-        vms,
-        remarkLines: this.defaultRemarkLines,
-      });
-    } catch (error) {
-      console.error('[HLJLD][print-all-error]', error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : '批量打印失败，请重试',
-      );
-    } finally {
-      this.printingAll = false;
-      this.cdr.markForCheck();
-    }
-  }
-
-  trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
-  trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
-  trackText(index: number): number { return index; }
-  trackPage(index: number, page: HljldPageModel): string { return `${page.indexInDay}-${page.items.length}`; }
-
-  private initializeDateForPatient(): void {
-    let targetDate = new Date();
-
-    if (this.patient.isDischarged) {
-      const admissionTs = parsePatientDateTime(this.patient.admissionTime);
-      const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
-
-      if (Number.isFinite(admissionTs)) {
-        const admission = new Date(admissionTs);
-        targetDate = new Date(admission.getFullYear(), admission.getMonth(), admission.getDate());
-      } else if (Number.isFinite(dischargeTs)) {
-        targetDate = this.nursingDateForTimestamp(dischargeTs);
-      } else {
-        const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
-        if (isDev) { console.warn('[HLJLD][init-date] discharged patient without valid admission/discharge time, fallback to today'); }
-      }
-    }
-
-    this.selectedDate = targetDate;
-    this.clampSelectedDateToRange();
-  }
-
-  private moveDate(days: number): void {
-    const target = this.addCalendarDays(this.selectedDate, days);
-    if (!this.isSelectableDate(target)) { return; }
-    this.setSelectedDate(target);
-  }
-
-  private setSelectedDate(date: Date): void {
-    this.selectedDate = this.startOfCalendarDate(date);
-    this.dateInput = this.toDateString(this.selectedDate);
-    this.dateChange$.next();
-  }
-
-  private toDateString(date: Date): string {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  }
-
-  private getMinimumSelectableDate(): Date | null {
-    const admissionTs = parsePatientDateTime(this.patient.admissionTime);
-    if (!Number.isFinite(admissionTs)) { return null; }
-    return this.nursingDateForTimestamp(admissionTs);
-  }
-
-  private getMaximumSelectableDate(): Date {
-    if (this.patient.isDischarged) {
-      const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
-      if (Number.isFinite(dischargeTs)) {
-        return this.nursingDateForTimestamp(dischargeTs);
-      }
-    }
-    return this.startOfCalendarDate(new Date());
-  }
-
-  private nursingDateForTimestamp(timestamp: number): Date {
-    const value = new Date(timestamp);
-    const nursingDate = new Date(value.getFullYear(), value.getMonth(), value.getDate());
-    const dayStart = new Date(nursingDate);
-    dayStart.setHours(7, 0, 0, 0);
-    // 护理日为 (当日07:00, 次日07:00]，07:00 整点及之前归上一护理日
-    if (minuteInstant(timestamp) <= dayStart.getTime()) {
-      nursingDate.setDate(nursingDate.getDate() - 1);
-    }
-    return nursingDate;
-  }
-
-  private startOfCalendarDate(date: Date): Date {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  }
-
-  private addCalendarDays(date: Date, days: number): Date {
-    const result = this.startOfCalendarDate(date);
-    result.setDate(result.getDate() + days);
-    return result;
-  }
-
-  private compareCalendarDate(left: Date, right: Date): number {
-    return this.startOfCalendarDate(left).getTime() - this.startOfCalendarDate(right).getTime();
-  }
-
-  private isSelectableDate(date: Date): boolean {
-    const minimum = this.getMinimumSelectableDate();
-    const maximum = this.getMaximumSelectableDate();
-    if (minimum && this.compareCalendarDate(date, minimum) < 0) { return false; }
-    return this.compareCalendarDate(date, maximum) <= 0;
-  }
-
-  private restoreDateInput(): void {
-    this.dateInput = this.toDateString(this.selectedDate);
-    this.cdr.markForCheck();
-  }
-
-  private clampSelectedDateToRange(): void {
-    const minimum = this.getMinimumSelectableDate();
-    const maximum = this.getMaximumSelectableDate();
-    if (minimum && this.compareCalendarDate(this.selectedDate, minimum) < 0) {
-      this.selectedDate = new Date(minimum);
-    }
-    if (this.compareCalendarDate(this.selectedDate, maximum) > 0) {
-      this.selectedDate = new Date(maximum);
-    }
-    this.dateInput = this.toDateString(this.selectedDate);
-  }
-
-  private isSameLocalDate(a: Date, b: Date): boolean {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  }
-
-  private loadCondition(pid: string, date: Date) {
     this.loading = true;
-    this.error = '';
-    this.sourceError = '';
     this.cdr.markForCheck();
-    const rangeStart = startOfNursingDay(date);
-    const rangeEnd = endOfNursingDay(date);
-    return this.service.load(pid, rangeStart, rangeEnd)
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => { this.loading = false; this.cdr.markForCheck(); }),
-      );
+
+    const dateStr = this.toDateString(this.selectedDate);
+
+    // 获取页码信息
+    this.pdfService.getPageIndex(this.patient.pid, dateStr).pipe(
+      catchError(err => {
+        console.error('[HLJLD] 获取页码信息失败', err);
+        return [{ startPageNo: 1, pageCount: 1 }];
+      }),
+    ).subscribe(info => {
+      this.pageIndex = info;
+      this.updatePageOptions();
+
+      // 生成 PDF URL
+      this.pdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr);
+
+      this.loading = false;
+      this.pageState = 'ready';
+      this.cdr.markForCheck();
+    });
   }
 
-  private toViewModel(source: HljldSourceData, accountMap: Map<string, string>): HljldViewModel {
-    const rangeStart = startOfNursingDay(this.selectedDate);
-    const rangeEnd = endOfNursingDay(this.selectedDate);
-    const dayBoundary = new Date(rangeStart); dayBoundary.setHours(17, 0, 0, 0);
-    // nextMorning = endOfNursingDay = 次日07:00（不再减1ms）
-    const nextMorning = endOfNursingDay(this.selectedDate);
+  /**
+   * 更新页码选项
+   */
+  private updatePageOptions(): void {
+    this.pageOptions = [];
+    for (let i = 0; i < this.pageIndex.pageCount; i++) {
+      this.pageOptions.push(this.pageIndex.startPageNo + i);
+    }
+    this.selectedPageNo = this.pageOptions[0] || 1;
+  }
 
-    // 护理日级有效区间：用于页面入科前/出科后判断、明细、引流项目收集
-    const nursingDayStay = resolveActiveStayRange(this.patient, rangeStart, rangeEnd);
-
-    const rows = nursingDayStay.hasValidRange
-      ? buildRows(source, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd, accountMap, nursingDayStay.startExclusive)
-      : [];
-    const timeGroups = buildDisplayGroups(rows);
-
-    const drainNames = nursingDayStay.hasValidRange
-      ? collectDrainNames(source.bedside, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd, nursingDayStay.startExclusive)
-      : [];
-
-    // 每个小结自行根据自己的 periodStart/periodEnd 计算有效范围
-    const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary, drainNames);
-
-    // 7点"小结"直接复制日间小结数据，统计范围与日间小结完全一致（07:00—17:00）
-    const shiftSummary: HljldSummary = {
-      ...daySummary,
-      kind: 'shift',
-      label: '日间小结',
-      inputItems: daySummary.inputItems.map(item => ({ ...item })),
-      outputItems: daySummary.outputItems.map(item => ({ ...item })),
-      drainItems: daySummary.drainItems.map(item => ({ ...item })),
-      drugTreatmentItems: daySummary.drugTreatmentItems.map(item => ({ ...item })),
-      gastrointestinalInputItems: daySummary.gastrointestinalInputItems.map(item => ({ ...item })),
-      // 文本行与日间小结完全一致，直接复用
-      detailLines: daySummary.detailLines,
-    };
-
-    const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
-    if (isDev) {
-      const sameAsDaySummary =
-        shiftSummary.periodStart === daySummary.periodStart &&
-        shiftSummary.periodEnd === daySummary.periodEnd &&
-        shiftSummary.periodText === daySummary.periodText &&
-        shiftSummary.totalInput === daySummary.totalInput &&
-        shiftSummary.totalOutput === daySummary.totalOutput &&
-        shiftSummary.balance === daySummary.balance;
-      if (!sameAsDaySummary) {
-        console.error('[HLJLD][shift-summary-mismatch]', { daySummary, shiftSummary });
-      }
+  /**
+   * 日期变化
+   */
+  onDateInput(dateStr: string): void {
+    if (!dateStr) {
+      return;
     }
 
-    const fullDaySummary = buildSummary('24h', '24小时总结', this.patient, source, rangeStart, nextMorning, drainNames);
-
-    // 出科总结：出科时间落在 (当日07:00, 次日07:00] 之内
-    let dischargeSummary: HljldSummary | undefined;
-    const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
-    if (
-      Number.isFinite(dischargeTs)
-      && minuteInstant(dischargeTs) > minuteInstant(rangeStart)
-      && minuteInstant(dischargeTs) <= minuteInstant(nextMorning)
-    ) {
-      dischargeSummary = buildSummary('discharge', '出科总结', this.patient, source, rangeStart, new Date(dischargeTs), drainNames);
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      return;
     }
 
-    const nowMs = Date.now();
-    const timeline = buildTimeline(
-      timeGroups,
-      daySummary,
-      shiftSummary,
-      fullDaySummary,
-      dayBoundary.getTime(),
-      nextMorning.getTime(),
-      nowMs,
-      dischargeSummary,
-      nursingDayStay.effectiveEnd.getTime(),
-    );
-
-    return {
-      patient: this.patient,
-      selectedDate: this.selectedDate,
-      rangeStart,
-      rangeEnd,
-      rows,
-      displayRows: timeGroups.flatMap(g => g.rows),
-      timeGroups,
-      timeline,
-      daySummary,
-      shiftSummary,
-      fullDaySummary,
-      dischargeSummary,
-      remark: '',
-    };
+    this.selectedDate = date;
+    this.loadPdf();
   }
 
-  private async collectSignatures(source: HljldSourceData): Promise<Map<string, string>> {
-    const yishiIds = source.bedside
-      .filter(item => item.valid !== false && item.code === 'param_Yishi' && !!item.time && !!item.editUser)
-      .map(item => String(item.editUser).trim());
-
-    // 护理记录签名：仅在记录未自带 username/trueName 时需要用 ID 反查
-    const nurseIds = source.nurseRecords
-      .filter(item => item.valid !== false)
-      .filter(item => !String(item.username ?? '').trim() && !String(item.trueName ?? '').trim())
-      .map(item => String(item.userId ?? item.editUser ?? '').trim());
-
-    const userIds = [...yishiIds, ...nurseIds].filter(Boolean);
-    if (!userIds.length) { return new Map(); }
-    return firstValueFrom(this.service.queryAccounts(userIds));
+  /**
+   * 选择页码
+   */
+  onPageSelect(pageNo: number): void {
+    this.selectedPageNo = pageNo;
+    // 滚动到指定页码（PDF viewer 支持）
+    this.scrollToPage(pageNo - this.pageIndex.startPageNo + 1);
   }
 
-  private toPatientContext(p: any): PatientContext {
-    const admissionTime = p?.admissionTime || p?.inTime || '';
-    const dischargeTime = p?.dischargeTime || p?.outTime || '';
+  /**
+   * 滚动到指定页
+   */
+  private scrollToPage(pageNumber: number): void {
+    const iframe = this.elementRef.nativeElement.querySelector('.pdf-viewer') as HTMLIFrameElement;
+    if (iframe?.contentWindow) {
+      // PDF.js 支持的页码参数
+      iframe.contentWindow.location.hash = `#page=${pageNumber}`;
+    }
+  }
 
-    // 状态标准化：兼容多种出科状态文本
-    const status = String(p?.status ?? p?.patientStatus ?? '').trim().toLowerCase();
-    const hasDischargedStatus = (
-      status === 'discharged' ||
-      status === '已出科' ||
-      status === '出科' ||
-      status === '转出' ||
-      status === '已转出' ||
-      !!p?.outTime ||
-      !!p?.dischargeTime
-    );
-
-    // 出科判断必须依赖有效出科时间，不能只依赖状态文字
-    const dischargeTs = parsePatientDateTime(dischargeTime);
-    const isDischarged = hasDischargedStatus && Number.isFinite(dischargeTs);
-
-    // 开发环境下记录患者状态字段，便于调试
-    const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
-    if (isDev && hasDischargedStatus && !isDischarged) {
-      console.warn('[HLJLD][patient-context] patient status indicates discharged but no valid dischargeTime:', {
-        status: p?.status,
-        patientStatus: p?.patientStatus,
-        outTime: p?.outTime,
-        dischargeTime: p?.dischargeTime,
-      });
+  /**
+   * 纠正页码
+   */
+  recalculatePageIndexes(): void {
+    if (!this.patient.pid || this.recalculating) {
+      return;
     }
 
-    return {
-      pid: getSmartCarePatientPid(p),
-      mrn: String(p?.mrn ?? p?.hospitalNo ?? '').trim(),
-      name: String(p?.name ?? p?.patientName ?? '').trim(),
-      sex: this.genderText(p?.sex ?? p?.gender ?? ''),
-      age: String(p?.age ?? '').trim(),
-      bedNo: String(p?.hisBed ?? p?.bedNo ?? p?.bedCode ?? '').trim(),
-      diagnosis: this.formatDiagnosis(p?.clinicalDiagnosis ?? p?.diagnosis ?? ''),
-      admissionTime,
-      dischargeTime,
-      isDischarged,
-    };
-  }
-
-  private genderText(gender?: string): string {
-    const value = String(gender ?? '').trim();
-    if (value === 'Male' || value === 'M' || value === '男') { return '男'; }
-    if (value === 'Female' || value === 'F' || value === '女') { return '女'; }
-    return value;
-  }
-
-  private formatDiagnosis(diagnosis?: string): string {
-    const value = String(diagnosis ?? '').trim();
-    if (!value) { return ''; }
-    let idx = -1;
-    for (const sep of [';', '；', ',', '，']) {
-      const cur = value.indexOf(sep);
-      if (cur >= 0 && (idx < 0 || cur < idx)) { idx = cur; }
+    const confirmed = confirm('确定要重新计算页码吗？\n\n这将根据入科时间到当前时间的所有数据重新计算，可能需要一些时间。');
+    if (!confirmed) {
+      return;
     }
-    return idx >= 0 ? value.substring(0, idx).trim() : value;
+
+    this.recalculating = true;
+    this.cdr.markForCheck();
+
+    this.pdfService.recalculatePageIndexes(this.patient.pid).subscribe({
+      next: (result) => {
+        alert(result.message || '页码重新计算完成！');
+        this.recalculating = false;
+        this.loadPdf(); // 重新加载
+      },
+      error: (err) => {
+        alert('页码计算失败：' + (err.message || '请重试'));
+        this.recalculating = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
+  /**
+   * 打印当前页
+   */
+  printCurrentPage(): void {
+    const iframe = this.elementRef.nativeElement.querySelector('.pdf-viewer') as HTMLIFrameElement;
+    if (iframe?.contentWindow) {
+      iframe.contentWindow.print();
+    }
+  }
+
+  /**
+   * 打印全部
+   */
+  printAll(): void {
+    if (!this.patient.pid) {
+      return;
+    }
+    window.open(this.pdfService.getAllPdfsUrl(this.patient.pid), '_blank');
+  }
+
+  /**
+   * 前一天
+   */
+  previousDay(): void {
+    const date = new Date(this.selectedDate);
+    date.setDate(date.getDate() - 1);
+    if (this.minDateInput && date < new Date(this.minDateInput)) {
+      return;
+    }
+    this.selectedDate = date;
+    this.dateInput = this.toDateString(date);
+    this.loadPdf();
+  }
+
+  /**
+   * 后一天
+   */
+  nextDay(): void {
+    const date = new Date(this.selectedDate);
+    date.setDate(date.getDate() + 1);
+    if (this.maxDateInput && date > new Date(this.maxDateInput)) {
+      return;
+    }
+    this.selectedDate = date;
+    this.dateInput = this.toDateString(date);
+    this.loadPdf();
+  }
+
+  /**
+   * 今天
+   */
+  today(): void {
+    this.selectedDate = new Date();
+    this.dateInput = this.toDateString(this.selectedDate);
+    this.loadPdf();
+  }
+
+  /**
+   * 是否可以前一天
+   */
+  canPreviousDay(): boolean {
+    if (!this.minDateInput) {
+      return true;
+    }
+    const date = new Date(this.selectedDate);
+    date.setDate(date.getDate() - 1);
+    return date >= new Date(this.minDateInput);
+  }
+
+  /**
+   * 是否可以后一天
+   */
+  canNextDay(): boolean {
+    if (!this.maxDateInput) {
+      return true;
+    }
+    const date = new Date(this.selectedDate);
+    date.setDate(date.getDate() - 1);
+    return date <= new Date(this.maxDateInput);
+  }
+
+  /**
+   * 是否是今天
+   */
+  isTodaySelected(): boolean {
+    const today = new Date();
+    return this.selectedDate.toDateString() === today.toDateString();
+  }
+
+  /**
+   * 是否可以选择今天
+   */
+  canSelectToday(): boolean {
+    if (!this.maxDateInput) {
+      return true;
+    }
+    return new Date() <= new Date(this.maxDateInput);
+  }
+
+  /**
+   * 更新日期范围
+   */
+  private updateDateRange(): void {
+    if (this.patient.admissionTime) {
+      const admissionDate = new Date(this.patient.admissionTime);
+      this.minDateInput = this.toDateString(admissionDate);
+    } else {
+      this.minDateInput = '';
+    }
+
+    if (this.patient.dischargeTime) {
+      const dischargeDate = new Date(this.patient.dischargeTime);
+      this.maxDateInput = this.toDateString(dischargeDate);
+    } else {
+      this.maxDateInput = this.toDateString(new Date());
+    }
+  }
+
+  /**
+   * 获取默认日期
+   */
+  private getDefaultDate(): Date {
+    if (this.patient.dischargeTime) {
+      return new Date(this.patient.dischargeTime);
+    }
+    return new Date();
+  }
+
+  /**
+   * 重置患者数据
+   */
   private resetPatientData(): void {
     this.patient = { pid: '' };
-    this.vm = undefined;
-    this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
-    this.accountMap = new Map();
+    this.pdfUrl = '';
+    this.pageIndex = { startPageNo: 1, pageCount: 0 };
+    this.pageOptions = [];
+    this.selectedPageNo = 1;
+    this.minDateInput = '';
+    this.maxDateInput = '';
   }
 
-  private clearClinicalData(): void {
-    this.vm = undefined;
-    this.error = '';
-    this.sourceError = '';
-    this.source = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
-    this.accountMap = new Map();
-    this.loadVersion++;
+  /**
+   * 转换患者上下文
+   */
+  private toPatientContext(p: any): PatientContext {
+    return {
+      pid: getSmartCarePatientPid(p) || '',
+      mrn: p.mrn || '',
+      name: p.name || '',
+      sex: p.sex || '',
+      age: p.age || '',
+      bedNo: p.bedNo || '',
+      diagnosis: p.diagnosis || '',
+      admissionTime: p.admissionTime || '',
+      dischargeTime: p.dischargeTime || '',
+      isDischarged: p.isDischarged || false,
+    };
   }
 
-  private buildSourceError(statuses: import('./hljld-form.service').SourceStatus[]): string {
-    const errors = statuses.filter(s => s.status === 'error');
-    if (!errors.length) { return ''; }
-    const names = errors.map(e => `${e.source}(${e.httpStatus || '?'})`).join('、');
-    return `部分数据接口异常：${names}`;
+  /**
+   * 日期转字符串
+   */
+  private toDateString(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * 打开日期选择器
+   */
+  openDatePicker(event: MouseEvent): void {
+    const input = event.target as HTMLInputElement;
+    input.showPicker();
   }
 }
