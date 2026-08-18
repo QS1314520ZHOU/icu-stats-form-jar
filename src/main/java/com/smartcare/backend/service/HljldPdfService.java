@@ -15,6 +15,7 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -25,6 +26,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -79,7 +83,6 @@ public class HljldPdfService {
 
     // 字体
     private PDFont chineseFont;
-    private PDFont chineseFontBold;
 
     @Autowired
     public HljldPdfService(MongoTemplate mongoTemplate, HljldPageIndexRepository pageIndexRepository) {
@@ -93,16 +96,13 @@ public class HljldPdfService {
             // 加载中文字体
             InputStream fontStream = getClass().getResourceAsStream("/fonts/simsun.ttf");
             if (fontStream == null) {
-                // 尝试加载系统字体
                 fontStream = getClass().getResourceAsStream("/fonts/Microsoft YaHei.ttf");
             }
             if (fontStream == null) {
-                // 尝试加载项目中的其他字体
                 fontStream = getClass().getResourceAsStream("/fonts/NotoSansCJKsc-Regular.otf");
             }
             if (fontStream == null) {
-                log.warn("未找到中文字体文件，将使用默认字体。请将字体文件放到 src/main/resources/fonts/ 目录下");
-                // 使用 Helvetica 作为后备
+                log.warn("未找到中文字体文件，PDF中文将无法正常显示。请将字体文件放到 src/main/resources/fonts/ 目录下");
                 chineseFont = PDType1Font.HELVETICA;
             } else {
                 PDDocument tempDoc = new PDDocument();
@@ -121,39 +121,45 @@ public class HljldPdfService {
     public byte[] generateDailyPdf(String pid, String date) {
         log.info("生成PDF: pid={}, date={}", pid, date);
 
-        // 1. 查询当天数据
-        List<Document> timeline = loadTimelineData(pid, date);
-        if (timeline.isEmpty()) {
-            return generateEmptyPagePdf(pid, date);
-        }
-
-        // 2. 查询患者信息
+        // 1. 查询患者信息
         Document patient = getPatientInfo(pid);
+
+        // 2. 查询护理日数据
+        NursingDayData dayData = loadNursingDayData(pid, date);
 
         // 3. 查询页码信息
         int startPageNo = getStartPageNo(pid, date);
 
         // 4. 创建 PDF 文档
         try (PDDocument doc = new PDDocument()) {
-            // 5. 分页渲染
-            List<List<Document>> pages = paginateData(timeline);
-
-            for (int i = 0; i < pages.size(); i++) {
+            if (dayData.isEmpty()) {
+                // 空白页
                 PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
                 doc.addPage(page);
-
                 try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
-                    // 渲染固定部分
                     renderHeader(cs, patient);
                     renderTableHeader(cs);
-                    renderFooter(cs, startPageNo + i, pages.size(), date);
+                    renderEmptyMessage(cs);
+                    renderFooter(cs, startPageNo, 1, date);
+                }
+            } else {
+                // 分页渲染
+                List<List<Map<String, Object>>> pages = paginateData(dayData);
 
-                    // 渲染动态数据
-                    renderTableData(cs, pages.get(i));
+                for (int i = 0; i < pages.size(); i++) {
+                    PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
+                    doc.addPage(page);
+
+                    try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                        renderHeader(cs, patient);
+                        renderTableHeader(cs);
+                        renderFooter(cs, startPageNo + i, pages.size(), date);
+                        renderTableData(cs, pages.get(i));
+                    }
                 }
             }
 
-            // 6. 转换为字节数组
+            // 5. 转换为字节数组
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             doc.save(baos);
             return baos.toByteArray();
@@ -176,16 +182,15 @@ public class HljldPdfService {
         }
 
         HljldPageIndex index = indexOpt.get();
+        Document patient = getPatientInfo(pid);
 
         // 2. 创建 PDF 文档
         try (PDDocument doc = new PDDocument()) {
             // 3. 按日期顺序生成每一页
             for (HljldPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
-                List<Document> timeline = loadTimelineData(pid, dailyPage.getDate());
-                Document patient = getPatientInfo(pid);
+                NursingDayData dayData = loadNursingDayData(pid, dailyPage.getDate());
 
-                if (timeline.isEmpty()) {
-                    // 空白页
+                if (dayData.isEmpty()) {
                     PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
                     doc.addPage(page);
                     try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
@@ -195,8 +200,7 @@ public class HljldPdfService {
                         renderFooter(cs, dailyPage.getStartPageNo(), 1, dailyPage.getDate());
                     }
                 } else {
-                    // 数据页
-                    List<List<Document>> pages = paginateData(timeline);
+                    List<List<Map<String, Object>>> pages = paginateData(dayData);
                     for (int i = 0; i < pages.size(); i++) {
                         PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, PAGE_HEIGHT));
                         doc.addPage(page);
@@ -220,19 +224,87 @@ public class HljldPdfService {
     }
 
     /**
-     * 加载时间线数据
+     * 加载护理日数据
      */
-    private List<Document> loadTimelineData(String pid, String date) {
-        Query query = new Query(Criteria.where("pid").is(pid).and("date").is(date));
-        Document record = mongoTemplate.findOne(query, Document.class, "hljld_records");
-        if (record == null) {
-            return Collections.emptyList();
-        }
-        List<?> timeline = record.getList("timeline", Document.class);
-        return timeline != null ? timeline.stream()
-            .filter(Document.class::isInstance)
-            .map(Document.class::cast)
-            .collect(Collectors.toList()) : Collections.emptyList();
+    private NursingDayData loadNursingDayData(String pid, String date) {
+        // 解析日期
+        LocalDate localDate = LocalDate.parse(date, DateTimeFormatter.ISO_LOCAL_DATE);
+        ZoneId zone = ZoneId.systemDefault();
+
+        // 护理日：当天 07:00 到次日 07:00
+        Date startTime = Date.from(localDate.atTime(7, 0).atZone(zone).toInstant());
+        Date endTime = Date.from(localDate.plusDays(1).atTime(7, 0).atZone(zone).toInstant());
+
+        NursingDayData data = new NursingDayData();
+
+        // 1. 查询床旁数据（生命体征）
+        data.setVitals(loadVitals(pid, startTime, endTime));
+
+        // 2. 查询药物执行记录
+        data.setDrugExecutions(loadDrugExecutions(pid, startTime, endTime));
+
+        // 3. 查询护理记录
+        data.setNurseRecords(loadNurseRecords(pid, startTime, endTime));
+
+        // 4. 查询管道记录
+        data.setTubeRecords(loadTubeRecords(pid, startTime, endTime));
+
+        return data;
+    }
+
+    /**
+     * 加载生命体征数据
+     */
+    private List<Document> loadVitals(String pid, Date startTime, Date endTime) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("pid").is(pid)
+                .and("time").gte(startTime).lt(endTime));
+        query.with(Sort.by(Sort.Direction.ASC, "time"));
+        return mongoTemplate.find(query, Document.class, "bedside");
+    }
+
+    /**
+     * 加载药物执行记录
+     */
+    private List<Document> loadDrugExecutions(String pid, Date startTime, Date endTime) {
+        Criteria overlap = new Criteria().andOperator(
+                Criteria.where("startTime").lte(endTime),
+                new Criteria().orOperator(
+                        Criteria.where("endTime").exists(false),
+                        Criteria.where("endTime").is(null),
+                        Criteria.where("endTime").gt(startTime)));
+
+        Query query = new Query(Criteria.where("pid").is(pid)
+                .and("status").ne("invalid")
+                .andOperator(overlap));
+        query.with(Sort.by(Sort.Direction.ASC, "startTime"));
+        return mongoTemplate.find(query, Document.class, "drugExe");
+    }
+
+    /**
+     * 加载护理记录
+     */
+    private List<Document> loadNurseRecords(String pid, Date startTime, Date endTime) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("pid").is(pid.trim())
+                .and("time").gte(startTime).lt(endTime)
+                .and("valid").ne(false)
+                .and("desc").nin(null, ""));
+        query.with(Sort.by(Sort.Direction.ASC, "time"));
+        return mongoTemplate.find(query, Document.class, "nurseRecords");
+    }
+
+    /**
+     * 加载管道记录
+     */
+    private List<Document> loadTubeRecords(String pid, Date startTime, Date endTime) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("pid").is(pid)
+                .and("valid").ne(false)
+                .and("status").ne("invalid")
+                .and("tubeRecordList").ne(null));
+        query.with(Sort.by(Sort.Direction.ASC, "startTime"));
+        return mongoTemplate.find(query, Document.class, "tubeExe");
     }
 
     /**
@@ -240,7 +312,7 @@ public class HljldPdfService {
      */
     private Document getPatientInfo(String pid) {
         Query query = new Query(Criteria.where("pid").is(pid));
-        Document patient = mongoTemplate.findOne(query, Document.class, "patients");
+        Document patient = mongoTemplate.findOne(query, Document.class, "patient");
         if (patient == null) {
             patient = new Document();
             patient.put("name", "未知");
@@ -269,7 +341,7 @@ public class HljldPdfService {
     }
 
     /**
-     * 渲染页面头部（标题 + 患者信息）
+     * 渲染页面头部
      */
     private void renderHeader(PDPageContentStream cs, Document patient) throws IOException {
         if (chineseFont == null) {
@@ -298,7 +370,6 @@ public class HljldPdfService {
         info.append("  住院号：").append(getStringOrDefault(patient, "mrn", "—"));
         info.append("  性别：").append(getStringOrDefault(patient, "sex", "—"));
         info.append("  年龄：").append(getStringOrDefault(patient, "age", "—"));
-        info.append("  诊断：").append(getStringOrDefault(patient, "diagnosis", "—"));
 
         cs.showText(info.toString());
         cs.endText();
@@ -313,7 +384,7 @@ public class HljldPdfService {
     }
 
     /**
-     * 渲染表头（固定）
+     * 渲染表头
      */
     private void renderTableHeader(PDPageContentStream cs) throws IOException {
         if (chineseFont == null) {
@@ -335,37 +406,22 @@ public class HljldPdfService {
         cs.addRect(MARGIN_LEFT, y - 35, totalWidth, 35);
         cs.stroke();
 
-        // 第一行表头
-        String[] headers1 = {"日期时间", "药物治疗", "", "", "胃肠摄入", "", "",
-                            "尿量", "净超滤量", "排出物", "", "引流液", "",
-                            "检查", "治疗", "基础护理", "健康教育", "护理记录", "签名"};
+        // 表头文字
+        String[] headers = {"日期时间", "药物治疗", "名称", "量/ml", "途径",
+                           "胃肠摄入", "名称", "量/ml", "途径",
+                           "尿量", "净超滤量", "排出物", "名称", "量/ml",
+                           "引流液", "名称", "量/ml",
+                           "检查", "治疗", "基础护理", "健康教育", "护理记录", "签名"};
 
         cs.setFont(chineseFont, 7);
         cs.setNonStrokingColor(0, 0, 0);
 
         x = MARGIN_LEFT;
-        for (int i = 0; i < headers1.length; i++) {
-            if (!headers1[i].isEmpty()) {
+        for (int i = 0; i < Math.min(headers.length, COL_WIDTHS.length); i++) {
+            if (!headers[i].isEmpty()) {
                 cs.beginText();
                 cs.newLineAtOffset(x + 2, y - 12);
-                cs.showText(headers1[i]);
-                cs.endText();
-            }
-            x += COL_WIDTHS[i];
-        }
-
-        // 第二行表头（子列）
-        String[] headers2 = {"", "名称", "量/ml", "途径", "名称", "量/ml", "途径",
-                            "ml", "ml", "名称", "量/ml", "名称", "量/ml",
-                            "", "", "", "", "", ""};
-
-        cs.setFont(chineseFont, 6);
-        x = MARGIN_LEFT;
-        for (int i = 0; i < headers2.length; i++) {
-            if (!headers2[i].isEmpty()) {
-                cs.beginText();
-                cs.newLineAtOffset(x + 2, y - 25);
-                cs.showText(headers2[i]);
+                cs.showText(headers[i]);
                 cs.endText();
             }
             x += COL_WIDTHS[i];
@@ -382,110 +438,83 @@ public class HljldPdfService {
     }
 
     /**
-     * 渲染表格数据（动态）
+     * 渲染表格数据
      */
-    private void renderTableData(PDPageContentStream cs, List<Document> items) throws IOException {
+    private void renderTableData(PDPageContentStream cs, List<Map<String, Object>> rows) throws IOException {
         if (chineseFont == null) {
             return;
         }
 
-        float y = TABLE_TOP - 40; // 从表头下方开始
+        float y = TABLE_TOP - 40;
 
-        for (Document item : items) {
-            String kind = item.getString("kind");
-
-            if ("time-group".equals(kind)) {
-                List<?> rows = item.getList("rows", Document.class);
-                if (rows != null) {
-                    for (Object rowObj : rows) {
-                        if (rowObj instanceof Document) {
-                            Document row = (Document) rowObj;
-                            renderDataRow(cs, y, row);
-                            y -= ROW_HEIGHT;
-                        }
-                    }
-                }
-            } else if (kind != null && kind.contains("summary")) {
-                Document summary = (Document) item.get("summary");
-                if (summary != null) {
-                    renderSummaryRow(cs, y, summary);
-                    y -= ROW_HEIGHT * 2;
-                }
-            }
-
-            // 检查是否需要换页
+        for (Map<String, Object> row : rows) {
             if (y < TABLE_BOTTOM) {
                 break;
             }
+
+            renderDataRow(cs, y, row);
+            y -= ROW_HEIGHT;
         }
     }
 
     /**
      * 渲染单行数据
      */
-    private void renderDataRow(PDPageContentStream cs, float y, Document row) throws IOException {
+    private void renderDataRow(PDPageContentStream cs, float y, Map<String, Object> row) throws IOException {
         float x = MARGIN_LEFT;
 
         // 时间
-        drawCellText(cs, x, y, getStringOrDefault(row, "timeText", ""));
+        drawCellText(cs, x, y, getStringFromMap(row, "timeText"));
         x += COL_WIDTHS[0];
 
-        // 药物治疗
-        Document medication = (Document) row.get("medication");
-        drawCellText(cs, x, y, medication != null ? getStringOrDefault(medication, "name", "") : "");
+        // 药物
+        drawCellText(cs, x, y, getStringFromMap(row, "medName"));
         x += COL_WIDTHS[1];
-        drawCellText(cs, x, y, medication != null ? getStringOrDefault(medication, "amount", "") : "");
+        drawCellText(cs, x, y, getStringFromMap(row, "medAmount"));
         x += COL_WIDTHS[2];
-        drawCellText(cs, x, y, medication != null ? getStringOrDefault(medication, "route", "") : "");
+        drawCellText(cs, x, y, getStringFromMap(row, "medRoute"));
         x += COL_WIDTHS[3];
 
-        // 胃肠摄入
-        Document enteral = (Document) row.get("enteral");
-        drawCellText(cs, x, y, enteral != null ? getStringOrDefault(enteral, "name", "") : "");
+        // 胃肠
+        drawCellText(cs, x, y, getStringFromMap(row, "enteralName"));
         x += COL_WIDTHS[4];
-        drawCellText(cs, x, y, enteral != null ? getStringOrDefault(enteral, "amount", "") : "");
+        drawCellText(cs, x, y, getStringFromMap(row, "enteralAmount"));
         x += COL_WIDTHS[5];
-        drawCellText(cs, x, y, enteral != null ? getStringOrDefault(enteral, "route", "") : "");
+        drawCellText(cs, x, y, getStringFromMap(row, "enteralRoute"));
         x += COL_WIDTHS[6];
 
         // 尿量
-        drawCellText(cs, x, y, getStringOrDefault(row, "urine", ""));
+        drawCellText(cs, x, y, getStringFromMap(row, "urine"));
         x += COL_WIDTHS[7];
 
         // 净超滤量
-        drawCellText(cs, x, y, getStringOrDefault(row, "ultrafiltration", ""));
+        drawCellText(cs, x, y, getStringFromMap(row, "ultrafiltration"));
         x += COL_WIDTHS[8];
 
         // 排出物
-        Document output = (Document) row.get("output");
-        drawCellText(cs, x, y, output != null ? getStringOrDefault(output, "name", "") : "");
+        drawCellText(cs, x, y, getStringFromMap(row, "outputName"));
         x += COL_WIDTHS[9];
-        drawCellText(cs, x, y, output != null ? getStringOrDefault(output, "amount", "") : "");
+        drawCellText(cs, x, y, getStringFromMap(row, "outputAmount"));
         x += COL_WIDTHS[10];
 
         // 引流液
-        Document drain = (Document) row.get("drain");
-        drawCellText(cs, x, y, drain != null ? getStringOrDefault(drain, "name", "") : "");
+        drawCellText(cs, x, y, getStringFromMap(row, "drainName"));
         x += COL_WIDTHS[11];
-        drawCellText(cs, x, y, drain != null ? getStringOrDefault(drain, "amount", "") : "");
+        drawCellText(cs, x, y, getStringFromMap(row, "drainAmount"));
         x += COL_WIDTHS[12];
 
-        // 检查、治疗、基础护理、健康教育
-        drawCellText(cs, x, y, getStringOrDefault(row, "examination", ""));
+        // 其他
+        drawCellText(cs, x, y, getStringFromMap(row, "examination"));
         x += COL_WIDTHS[13];
-        drawCellText(cs, x, y, getStringOrDefault(row, "treatment", ""));
+        drawCellText(cs, x, y, getStringFromMap(row, "treatment"));
         x += COL_WIDTHS[14];
-        drawCellText(cs, x, y, getStringOrDefault(row, "basicCare", ""));
+        drawCellText(cs, x, y, getStringFromMap(row, "basicCare"));
         x += COL_WIDTHS[15];
-        drawCellText(cs, x, y, getStringOrDefault(row, "healthEducation", ""));
+        drawCellText(cs, x, y, getStringFromMap(row, "healthEducation"));
         x += COL_WIDTHS[16];
-
-        // 护理记录
-        drawCellText(cs, x, y, getStringOrDefault(row, "nursingRecord", ""));
+        drawCellText(cs, x, y, getStringFromMap(row, "nursingRecord"));
         x += COL_WIDTHS[17];
-
-        // 签名
-        drawCellText(cs, x, y, getStringOrDefault(row, "signature", ""));
+        drawCellText(cs, x, y, getStringFromMap(row, "signature"));
 
         // 绘制行边框
         cs.setStrokingColor(200, 200, 200);
@@ -495,63 +524,7 @@ public class HljldPdfService {
     }
 
     /**
-     * 渲染小结行
-     */
-    private void renderSummaryRow(PDPageContentStream cs, float y, Document summary) throws IOException {
-        // 小结背景
-        String kind = summary.getString("kind");
-        PDColor bgColor;
-        if ("day-summary".equals(kind)) {
-            bgColor = new PDColor(new float[]{0.97f, 0.95f, 0.87f}, PDDeviceRGB.INSTANCE);
-        } else if ("shift-summary".equals(kind)) {
-            bgColor = new PDColor(new float[]{0.96f, 0.94f, 0.89f}, PDDeviceRGB.INSTANCE);
-        } else {
-            bgColor = new PDColor(new float[]{0.93f, 0.96f, 0.93f}, PDDeviceRGB.INSTANCE);
-        }
-
-        cs.setNonStrokingColor(bgColor);
-        cs.addRect(MARGIN_LEFT, y - 30, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, 30);
-        cs.fill();
-
-        // 小结标题
-        cs.setNonStrokingColor(0, 0, 0);
-        cs.beginText();
-        cs.setFont(chineseFont, 8);
-        cs.newLineAtOffset(MARGIN_LEFT + 5, y - 12);
-        cs.showText(summary.getString("label"));
-        cs.endText();
-
-        // 小结内容
-        List<?> detailLines = summary.getList("detailLines", List.class);
-        if (detailLines != null && !detailLines.isEmpty()) {
-            cs.beginText();
-            cs.setFont(chineseFont, 7);
-            cs.newLineAtOffset(MARGIN_LEFT + 5, y - 24);
-            // 简化处理：只显示第一行
-            StringBuilder content = new StringBuilder();
-            for (Object line : detailLines) {
-                if (line instanceof List) {
-                    for (Object token : (List<?>) line) {
-                        if (token instanceof Document) {
-                            content.append(((Document) token).getString("text"));
-                        }
-                    }
-                }
-                break; // 只取第一行
-            }
-            cs.showText(content.toString());
-            cs.endText();
-        }
-
-        // 小结边框
-        cs.setStrokingColor(180, 180, 180);
-        cs.setLineWidth(0.5f);
-        cs.addRect(MARGIN_LEFT, y - 30, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, 30);
-        cs.stroke();
-    }
-
-    /**
-     * 渲染页脚（备注 + 页码）
+     * 渲染页脚
      */
     private void renderFooter(PDPageContentStream cs, int pageNo, int totalPages, String date) throws IOException {
         if (chineseFont == null) {
@@ -581,7 +554,7 @@ public class HljldPdfService {
         cs.showText(pageText);
         cs.endText();
 
-        // 日期（右下角）
+        // 日期
         cs.beginText();
         cs.setFont(chineseFont, 7);
         cs.newLineAtOffset(PAGE_WIDTH - MARGIN_RIGHT - 80, 25);
@@ -597,7 +570,7 @@ public class HljldPdfService {
             return;
         }
 
-        float y = (PAGE_WIDTH - TABLE_TOP - TABLE_BOTTOM) / 2 + TABLE_BOTTOM;
+        float y = (TABLE_TOP + TABLE_BOTTOM) / 2;
         String message = "该护理日暂无记录";
         float messageWidth = chineseFont.getStringWidth(message) / 1000 * 12;
 
@@ -636,34 +609,29 @@ public class HljldPdfService {
     }
 
     /**
-     * 数据分页逻辑
+     * 数据分页
      */
-    private List<List<Document>> paginateData(List<Document> timeline) {
-        List<List<Document>> pages = new ArrayList<>();
-        List<Document> currentPage = new ArrayList<>();
+    private List<List<Map<String, Object>>> paginateData(NursingDayData dayData) {
+        List<Map<String, Object>> allRows = convertToRows(dayData);
+        List<List<Map<String, Object>>> pages = new ArrayList<>();
+        List<Map<String, Object>> currentPage = new ArrayList<>();
         float currentHeight = 0;
-        float maxHeight = TABLE_BOTTOM - TABLE_TOP - 40; // 减去表头和页脚
+        float maxHeight = TABLE_BOTTOM - TABLE_TOP - 40;
 
-        for (Document item : timeline) {
-            float itemHeight = estimateItemHeight(item);
-
-            // 如果当前页放不下，先保存当前页
-            if (currentHeight + itemHeight > maxHeight && !currentPage.isEmpty()) {
+        for (Map<String, Object> row : allRows) {
+            if (currentHeight + ROW_HEIGHT > maxHeight && !currentPage.isEmpty()) {
                 pages.add(currentPage);
                 currentPage = new ArrayList<>();
                 currentHeight = 0;
             }
-
-            currentPage.add(item);
-            currentHeight += itemHeight;
+            currentPage.add(row);
+            currentHeight += ROW_HEIGHT;
         }
 
-        // 添加最后一页
         if (!currentPage.isEmpty()) {
             pages.add(currentPage);
         }
 
-        // 确保至少有一页
         if (pages.isEmpty()) {
             pages.add(new ArrayList<>());
         }
@@ -672,19 +640,56 @@ public class HljldPdfService {
     }
 
     /**
-     * 估算数据项高度
+     * 将数据转换为行
      */
-    private float estimateItemHeight(Document item) {
-        String kind = item.getString("kind");
+    private List<Map<String, Object>> convertToRows(NursingDayData dayData) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
 
-        if ("time-group".equals(kind)) {
-            List<?> rows = item.getList("rows", Document.class);
-            return rows != null ? rows.size() * ROW_HEIGHT : ROW_HEIGHT;
-        } else if (kind != null && kind.contains("summary")) {
-            return ROW_HEIGHT * 2; // 小结占更多空间
+        // 合并所有数据源，按时间排序
+        TreeMap<Date, Map<String, Object>> timeMap = new TreeMap<>();
+
+        // 处理生命体征
+        for (Document vital : dayData.getVitals()) {
+            Date time = vital.getDate("time");
+            if (time == null) continue;
+
+            Map<String, Object> row = timeMap.computeIfAbsent(time, k -> new LinkedHashMap<>());
+            row.put("timeText", timeFormat.format(time));
+            row.put("t", getStringOrDefault(vital, "t", ""));
+            row.put("hr", getStringOrDefault(vital, "hr", ""));
+            row.put("rr", getStringOrDefault(vital, "rr", ""));
+            row.put("bpSys", getStringOrDefault(vital, "bpSys", ""));
+            row.put("bpDia", getStringOrDefault(vital, "bpDia", ""));
+            row.put("spo2", getStringOrDefault(vital, "spo2", ""));
+            row.put("cvp", getStringOrDefault(vital, "cvp", ""));
         }
 
-        return ROW_HEIGHT;
+        // 处理护理记录
+        for (Document record : dayData.getNurseRecords()) {
+            Date time = record.getDate("time");
+            if (time == null) continue;
+
+            Map<String, Object> row = timeMap.computeIfAbsent(time, k -> new LinkedHashMap<>());
+            row.put("timeText", timeFormat.format(time));
+            row.put("nursingRecord", getStringOrDefault(record, "desc", ""));
+            row.put("signature", getStringOrDefault(record, "accountId", ""));
+        }
+
+        // 处理药物执行
+        for (Document drug : dayData.getDrugExecutions()) {
+            Date time = drug.getDate("startTime");
+            if (time == null) continue;
+
+            Map<String, Object> row = timeMap.computeIfAbsent(time, k -> new LinkedHashMap<>());
+            row.put("timeText", timeFormat.format(time));
+            row.put("medName", getStringOrDefault(drug, "drugName", ""));
+            row.put("medAmount", getStringOrDefault(drug, "dose", ""));
+            row.put("medRoute", getStringOrDefault(drug, "route", ""));
+        }
+
+        rows.addAll(timeMap.values());
+        return rows;
     }
 
     /**
@@ -698,23 +703,16 @@ public class HljldPdfService {
         cs.beginText();
         cs.setFont(chineseFont, 7);
         cs.newLineAtOffset(x + 2, y - 12);
-
-        // 截断过长的文本
-        float maxWidth = 100; // 默认最大宽度
-        String truncated = truncateText(text, maxWidth);
-        cs.showText(truncated);
+        cs.showText(truncateText(text, 20));
         cs.endText();
     }
 
     /**
      * 截断文本
      */
-    private String truncateText(String text, float maxWidth) {
-        if (text == null) {
-            return "";
-        }
-        // 简单截断，实际应该根据字体计算宽度
-        return text.length() > 20 ? text.substring(0, 17) + "..." : text;
+    private String truncateText(String text, int maxLength) {
+        if (text == null) return "";
+        return text.length() > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
     }
 
     /**
@@ -723,5 +721,37 @@ public class HljldPdfService {
     private String getStringOrDefault(Document doc, String key, String defaultValue) {
         Object value = doc.get(key);
         return value != null ? value.toString() : defaultValue;
+    }
+
+    /**
+     * 从 Map 获取字符串值
+     */
+    private String getStringFromMap(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value != null ? value.toString() : "";
+    }
+
+    /**
+     * 护理日数据
+     */
+    private static class NursingDayData {
+        private List<Document> vitals = new ArrayList<>();
+        private List<Document> drugExecutions = new ArrayList<>();
+        private List<Document> nurseRecords = new ArrayList<>();
+        private List<Document> tubeRecords = new ArrayList<>();
+
+        public boolean isEmpty() {
+            return vitals.isEmpty() && drugExecutions.isEmpty() && nurseRecords.isEmpty();
+        }
+
+        // Getters and Setters
+        public List<Document> getVitals() { return vitals; }
+        public void setVitals(List<Document> vitals) { this.vitals = vitals; }
+        public List<Document> getDrugExecutions() { return drugExecutions; }
+        public void setDrugExecutions(List<Document> drugExecutions) { this.drugExecutions = drugExecutions; }
+        public List<Document> getNurseRecords() { return nurseRecords; }
+        public void setNurseRecords(List<Document> nurseRecords) { this.nurseRecords = nurseRecords; }
+        public List<Document> getTubeRecords() { return tubeRecords; }
+        public void setTubeRecords(List<Document> tubeRecords) { this.tubeRecords = tubeRecords; }
     }
 }

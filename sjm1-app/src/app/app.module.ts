@@ -26,6 +26,7 @@ import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { HljldFormComponent } from './hljld-form.component';
 import { HljldFormService } from './hljld-form.service';
 import { HljldPdfService } from './hljld-pdf.service';
+import { DomSafePipe } from './dom-safe.pipe';
 import { HandoverReportComponent } from './handover-report.component';
 import { PrintCenterComponent } from './print-center.component';
 import { PrintCenterService } from './print-center.service';
@@ -62,6 +63,7 @@ import { routes } from './app.routes';
     BloodSugarComponent,
     UnplannedExtubationComponent,
     PrintPageMultiSelectComponent,
+    DomSafePipe,
   ],
   imports: [
     BrowserModule,

@@ -1,4 +1,5 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
+import { DomSafePipe } from './dom-safe.pipe';
 import { Subject, EMPTY } from 'rxjs';
 import { takeUntil, switchMap, filter, distinctUntilChanged, catchError } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
@@ -77,17 +78,6 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
       this.cdr.markForCheck();
       this.loadPdf();
     });
-
-    // 监听日期变化
-    this.hostPatient.patient$.pipe(
-      takeUntil(this.destroy$),
-      filter(Boolean),
-      distinctUntilChanged(),
-      switchMap(() => {
-        this.loadPdf();
-        return EMPTY;
-      }),
-    ).subscribe();
   }
 
   ngAfterViewInit(): void {
@@ -164,7 +154,6 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   onPageSelect(pageNo: number): void {
     this.selectedPageNo = pageNo;
-    // 滚动到指定页码（PDF viewer 支持）
     this.scrollToPage(pageNo - this.pageIndex.startPageNo + 1);
   }
 
@@ -174,7 +163,6 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
   private scrollToPage(pageNumber: number): void {
     const iframe = this.elementRef.nativeElement.querySelector('.pdf-viewer') as HTMLIFrameElement;
     if (iframe?.contentWindow) {
-      // PDF.js 支持的页码参数
       iframe.contentWindow.location.hash = `#page=${pageNumber}`;
     }
   }
@@ -199,7 +187,7 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
       next: (result) => {
         alert(result.message || '页码重新计算完成！');
         this.recalculating = false;
-        this.loadPdf(); // 重新加载
+        this.loadPdf();
       },
       error: (err) => {
         alert('页码计算失败：' + (err.message || '请重试'));
@@ -286,7 +274,7 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
       return true;
     }
     const date = new Date(this.selectedDate);
-    date.setDate(date.getDate() - 1);
+    date.setDate(date.getDate() + 1);
     return date <= new Date(this.maxDateInput);
   }
 
