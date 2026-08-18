@@ -4,8 +4,6 @@ import com.itextpdf.awt.PdfGraphics2D;
 import com.itextpdf.text.Document;
 import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.PageSize;
-import com.itextpdf.text.pdf.PdfContentByte;
-import com.itextpdf.text.pdf.PdfTemplate;
 import com.itextpdf.text.pdf.PdfWriter;
 import com.smartcare.backend.entity.HljldPageIndex;
 import com.smartcare.backend.repository.HljldPageIndexRepository;
@@ -141,26 +139,16 @@ public class HljldPdfService {
             float h = pdfDoc.getPageSize().getHeight();
 
             if (dayData.isEmpty()) {
-                PdfContentByte cb = writer.getDirectContent();
-                PdfTemplate tp = cb.createTemplate(w, h);
-                Graphics2D g2d = new PdfGraphics2D(cb, w, h);
-
+                Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
                 renderPage(g2d, patient, Collections.emptyList(), startPageNo, 1, date);
                 g2d.dispose();
-                tp.beginText();
-                tp.endText();
             } else {
                 List<List<Map<String, Object>>> pages = paginateData(dayData);
                 for (int i = 0; i < pages.size(); i++) {
                     if (i > 0) pdfDoc.newPage();
-                    PdfContentByte cb = writer.getDirectContent();
-                    PdfTemplate tp = cb.createTemplate(w, h);
-                    Graphics2D g2d = new PdfGraphics2D(cb, w, h);
-
+                    Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
                     renderPage(g2d, patient, pages.get(i), startPageNo + i, pages.size(), date);
                     g2d.dispose();
-                    tp.beginText();
-                    tp.endText();
                 }
             }
 
@@ -202,25 +190,17 @@ public class HljldPdfService {
                 if (dayData.isEmpty()) {
                     if (!firstPage) pdfDoc.newPage();
                     firstPage = false;
-                    PdfContentByte cb = writer.getDirectContent();
-                    PdfTemplate tp = cb.createTemplate(w, h);
-                    Graphics2D g2d = new PdfGraphics2D(cb, w, h);
+                    Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
                     renderPage(g2d, patient, Collections.emptyList(), dailyPage.getStartPageNo(), 1, dailyPage.getDate());
                     g2d.dispose();
-                    tp.beginText();
-                    tp.endText();
                 } else {
                     List<List<Map<String, Object>>> pages = paginateData(dayData);
                     for (int i = 0; i < pages.size(); i++) {
                         if (!firstPage) pdfDoc.newPage();
                         firstPage = false;
-                        PdfContentByte cb = writer.getDirectContent();
-                        PdfTemplate tp = cb.createTemplate(w, h);
-                        Graphics2D g2d = new PdfGraphics2D(cb, w, h);
+                        Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
                         renderPage(g2d, patient, pages.get(i), dailyPage.getStartPageNo() + i, pages.size(), dailyPage.getDate());
                         g2d.dispose();
-                        tp.beginText();
-                        tp.endText();
                     }
                 }
             }
@@ -234,87 +214,50 @@ public class HljldPdfService {
     }
 
     /**
-     * 渲染完整页面（使用 translate 管理布局）
+     * 渲染完整页面（使用绝对坐标）
      */
     private void renderPage(Graphics2D g2d, org.bson.Document patient, List<Map<String, Object>> rows, int pageNo, int totalPages, String date) {
-        // 启用抗锯齿
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        // 初始偏移
-        g2d.translate(MARGIN_LEFT, MARGIN_TOP);
+        float lx = MARGIN_LEFT;  // 左边距
+        float tw = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT; // 表格宽度
+        float y; // 当前 y 坐标
 
-        // 1. 渲染标题和患者信息
-        float headerH = renderHeader(g2d, patient);
-        g2d.translate(0, headerH);
-
-        // 2. 渲染表头
-        float tableHeaderH = renderTableHeader(g2d);
-        g2d.translate(0, tableHeaderH);
-
-        // 3. 渲染数据行
-        float tableBottom = PAGE_HEIGHT - MARGIN_BOTTOM - MARGIN_TOP - 60; // 留出页脚空间
-        float dataH = renderTableData(g2d, rows, tableBottom - headerH - tableHeaderH);
-        g2d.translate(0, dataH);
-
-        // 4. 渲染空数据提示
-        if (rows.isEmpty()) {
-            renderEmptyMessage(g2d, tableBottom - headerH - tableHeaderH - dataH);
-        }
-
-        // 5. 渲染页脚（回到页面底部）
-        g2d.translate(0, -(headerH + tableHeaderH + dataH)); // 回到顶部
-        g2d.translate(0, PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM - 20);
-        renderFooter(g2d, pageNo, totalPages, date);
-    }
-
-    /**
-     * 渲染页面头部，返回高度
-     */
-    private float renderHeader(Graphics2D g2d, org.bson.Document patient) {
-        float y = 0;
-
-        // 标题
+        // ===== 1. 标题 =====
+        y = MARGIN_TOP + 20;
         g2d.setFont(getFont(16f));
         g2d.setColor(Color.BLACK);
         String title = "重钢总医院重症医学科护理记录单";
-        FontMetrics fm = g2d.getFontMetrics();
-        int titleW = fm.stringWidth(title);
-        g2d.drawString(title, (PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT - titleW) / 2, y + 16);
-        y += 30;
+        FontMetrics fm16 = g2d.getFontMetrics();
+        g2d.drawString(title, lx + (tw - fm16.stringWidth(title)) / 2, y);
 
-        // 患者信息
+        // ===== 2. 患者信息 =====
+        y = MARGIN_TOP + 45;
         g2d.setFont(getFont(9f));
         String info = String.format("床号：%s  姓名：%s  住院号：%s  性别：%s  年龄：%s",
             str(patient, "bedNo"), str(patient, "name"), str(patient, "mrn"),
             str(patient, "sex"), str(patient, "age"));
-        g2d.drawString(info, 0, y + 10);
-        y += 20;
+        g2d.drawString(info, lx, y);
 
-        // 分隔线
+        // ===== 3. 分隔线 =====
+        y = MARGIN_TOP + 60;
         g2d.setColor(Color.BLACK);
         g2d.setStroke(new BasicStroke(0.5f));
-        g2d.draw(new Line2D.Float(0, y, PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT, y));
-        y += 5;
+        g2d.draw(new Line2D.Float(lx, y, lx + tw, y));
 
-        return y;
-    }
-
-    /**
-     * 渲染表头，返回高度
-     */
-    private float renderTableHeader(Graphics2D g2d) {
-        float tableW = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+        // ===== 4. 表头 =====
+        float tableTop = MARGIN_TOP + 70;
         float headerH = 35;
 
-        // 背景
+        // 表头背景
         g2d.setColor(new Color(240, 240, 240));
-        g2d.fill(new Rectangle2D.Float(0, 0, tableW, headerH));
+        g2d.fill(new Rectangle2D.Float(lx, tableTop, tw, headerH));
 
-        // 边框
+        // 表头边框
         g2d.setColor(Color.BLACK);
         g2d.setStroke(new BasicStroke(0.5f));
-        g2d.draw(new Rectangle2D.Float(0, 0, tableW, headerH));
+        g2d.draw(new Rectangle2D.Float(lx, tableTop, tw, headerH));
 
         // 表头文字
         String[] headers = {
@@ -324,71 +267,94 @@ public class HljldPdfService {
             "引流液", "名称", "量/ml",
             "检查", "治疗", "基础护理", "健康教育", "护理记录", "签名"
         };
-
         g2d.setFont(getFont(7f));
         g2d.setColor(Color.BLACK);
-        float x = 0;
+        float hx = lx;
         for (int i = 0; i < Math.min(headers.length, COL_WIDTHS.length); i++) {
             if (!headers[i].isEmpty()) {
-                g2d.drawString(headers[i], x + 2, 12);
+                g2d.drawString(headers[i], hx + 2, tableTop + 12);
             }
-            x += COL_WIDTHS[i];
+            hx += COL_WIDTHS[i];
         }
 
         // 列分隔线
-        x = 0;
+        hx = lx;
         g2d.setStroke(new BasicStroke(0.3f));
         for (int i = 0; i < COL_WIDTHS.length - 1; i++) {
-            x += COL_WIDTHS[i];
-            g2d.draw(new Line2D.Float(x, 0, x, headerH));
+            hx += COL_WIDTHS[i];
+            g2d.draw(new Line2D.Float(hx, tableTop, hx, tableTop + headerH));
         }
 
-        return headerH;
-    }
+        // ===== 5. 数据行 =====
+        float dataTop = tableTop + headerH;
+        float maxDataY = PAGE_HEIGHT - MARGIN_BOTTOM - 50; // 留出页脚空间
+        float dy = dataTop;
 
-    /**
-     * 渲染表格数据，返回高度
-     */
-    private float renderTableData(Graphics2D g2d, List<Map<String, Object>> rows, float maxHeight) {
-        float y = 0;
-        float tableW = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+        g2d.setFont(getFont(7f));
+        g2d.setColor(Color.BLACK);
 
         for (Map<String, Object> row : rows) {
-            if (y + ROW_HEIGHT > maxHeight) break;
+            if (dy + ROW_HEIGHT > maxDataY) break;
 
-            // 绘制单元格文本
-            g2d.setFont(getFont(7f));
-            g2d.setColor(Color.BLACK);
-            float x = 0;
-            drawCell(g2d, x, y, row, "timeText");      x += COL_WIDTHS[0];
-            drawCell(g2d, x, y, row, "medName");        x += COL_WIDTHS[1];
-            drawCell(g2d, x, y, row, "medAmount");      x += COL_WIDTHS[2];
-            drawCell(g2d, x, y, row, "medRoute");       x += COL_WIDTHS[3];
-            drawCell(g2d, x, y, row, "enteralName");    x += COL_WIDTHS[4];
-            drawCell(g2d, x, y, row, "enteralAmount");  x += COL_WIDTHS[5];
-            drawCell(g2d, x, y, row, "enteralRoute");   x += COL_WIDTHS[6];
-            drawCell(g2d, x, y, row, "urine");          x += COL_WIDTHS[7];
-            drawCell(g2d, x, y, row, "ultrafiltration");x += COL_WIDTHS[8];
-            drawCell(g2d, x, y, row, "outputName");     x += COL_WIDTHS[9];
-            drawCell(g2d, x, y, row, "outputAmount");   x += COL_WIDTHS[10];
-            drawCell(g2d, x, y, row, "drainName");      x += COL_WIDTHS[11];
-            drawCell(g2d, x, y, row, "drainAmount");    x += COL_WIDTHS[12];
-            drawCell(g2d, x, y, row, "examination");    x += COL_WIDTHS[13];
-            drawCell(g2d, x, y, row, "treatment");      x += COL_WIDTHS[14];
-            drawCell(g2d, x, y, row, "basicCare");      x += COL_WIDTHS[15];
-            drawCell(g2d, x, y, row, "healthEducation");x += COL_WIDTHS[16];
-            drawCell(g2d, x, y, row, "nursingRecord");  x += COL_WIDTHS[17];
-            drawCell(g2d, x, y, row, "signature");
+            float dx = lx;
+            drawCell(g2d, dx, dy, row, "timeText");       dx += COL_WIDTHS[0];
+            drawCell(g2d, dx, dy, row, "medName");         dx += COL_WIDTHS[1];
+            drawCell(g2d, dx, dy, row, "medAmount");       dx += COL_WIDTHS[2];
+            drawCell(g2d, dx, dy, row, "medRoute");        dx += COL_WIDTHS[3];
+            drawCell(g2d, dx, dy, row, "enteralName");     dx += COL_WIDTHS[4];
+            drawCell(g2d, dx, dy, row, "enteralAmount");   dx += COL_WIDTHS[5];
+            drawCell(g2d, dx, dy, row, "enteralRoute");    dx += COL_WIDTHS[6];
+            drawCell(g2d, dx, dy, row, "urine");           dx += COL_WIDTHS[7];
+            drawCell(g2d, dx, dy, row, "ultrafiltration"); dx += COL_WIDTHS[8];
+            drawCell(g2d, dx, dy, row, "outputName");      dx += COL_WIDTHS[9];
+            drawCell(g2d, dx, dy, row, "outputAmount");    dx += COL_WIDTHS[10];
+            drawCell(g2d, dx, dy, row, "drainName");       dx += COL_WIDTHS[11];
+            drawCell(g2d, dx, dy, row, "drainAmount");     dx += COL_WIDTHS[12];
+            drawCell(g2d, dx, dy, row, "examination");     dx += COL_WIDTHS[13];
+            drawCell(g2d, dx, dy, row, "treatment");       dx += COL_WIDTHS[14];
+            drawCell(g2d, dx, dy, row, "basicCare");       dx += COL_WIDTHS[15];
+            drawCell(g2d, dx, dy, row, "healthEducation"); dx += COL_WIDTHS[16];
+            drawCell(g2d, dx, dy, row, "nursingRecord");   dx += COL_WIDTHS[17];
+            drawCell(g2d, dx, dy, row, "signature");
 
             // 行边框
             g2d.setColor(new Color(200, 200, 200));
             g2d.setStroke(new BasicStroke(0.3f));
-            g2d.draw(new Rectangle2D.Float(0, y, tableW, ROW_HEIGHT));
+            g2d.draw(new Rectangle2D.Float(lx, dy, tw, ROW_HEIGHT));
+            g2d.setColor(Color.BLACK);
 
-            y += ROW_HEIGHT;
+            dy += ROW_HEIGHT;
         }
 
-        return y;
+        // ===== 6. 空数据提示 =====
+        if (rows.isEmpty()) {
+            g2d.setFont(getFont(12f));
+            g2d.setColor(new Color(150, 150, 150));
+            String msg = "该护理日暂无记录";
+            FontMetrics fm12 = g2d.getFontMetrics();
+            g2d.drawString(msg, lx + (tw - fm12.stringWidth(msg)) / 2, (dataTop + maxDataY) / 2);
+        }
+
+        // ===== 7. 页脚 =====
+        float footerY = PAGE_HEIGHT - MARGIN_BOTTOM - 15;
+
+        // 备注区域
+        g2d.setColor(new Color(200, 200, 200));
+        g2d.setStroke(new BasicStroke(0.3f));
+        g2d.draw(new Rectangle2D.Float(lx, footerY, tw, 15));
+        g2d.setFont(getFont(8f));
+        g2d.setColor(Color.BLACK);
+        g2d.drawString("备注：", lx + 5, footerY + 10);
+
+        // 页码
+        g2d.setFont(getFont(10f));
+        String pageText = String.format("第 %d 页", pageNo);
+        FontMetrics fm10 = g2d.getFontMetrics();
+        g2d.drawString(pageText, lx + (tw - fm10.stringWidth(pageText)) / 2, footerY + 35);
+
+        // 日期
+        g2d.setFont(getFont(7f));
+        g2d.drawString("护理日：" + date, lx + tw - 80, footerY + 35);
     }
 
     /**
@@ -399,44 +365,6 @@ public class HljldPdfService {
         if (text != null && !text.isEmpty()) {
             g2d.drawString(truncate(text, 20), x + 2, y + 12);
         }
-    }
-
-    /**
-     * 渲染空数据提示
-     */
-    private void renderEmptyMessage(Graphics2D g2d, float availableHeight) {
-        g2d.setFont(getFont(12f));
-        g2d.setColor(new Color(150, 150, 150));
-        String msg = "该护理日暂无记录";
-        FontMetrics fm = g2d.getFontMetrics();
-        int msgW = fm.stringWidth(msg);
-        g2d.drawString(msg, (PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT - msgW) / 2, availableHeight / 2);
-    }
-
-    /**
-     * 渲染页脚
-     */
-    private void renderFooter(Graphics2D g2d, int pageNo, int totalPages, String date) {
-        float tableW = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
-
-        // 备注区域
-        g2d.setColor(new Color(200, 200, 200));
-        g2d.setStroke(new BasicStroke(0.3f));
-        g2d.draw(new Rectangle2D.Float(0, 0, tableW, 15));
-        g2d.setFont(getFont(8f));
-        g2d.setColor(Color.BLACK);
-        g2d.drawString("备注：", 5, 10);
-
-        // 页码
-        g2d.setFont(getFont(10f));
-        String pageText = String.format("第 %d 页", pageNo);
-        FontMetrics fm = g2d.getFontMetrics();
-        int pageW = fm.stringWidth(pageText);
-        g2d.drawString(pageText, (tableW - pageW) / 2, 35);
-
-        // 日期
-        g2d.setFont(getFont(7f));
-        g2d.drawString("护理日：" + date, tableW - 80, 35);
     }
 
     /**
@@ -452,16 +380,11 @@ public class HljldPdfService {
             float w = pdfDoc.getPageSize().getWidth();
             float h = pdfDoc.getPageSize().getHeight();
 
-            PdfContentByte cb = writer.getDirectContent();
-            PdfTemplate tp = cb.createTemplate(w, h);
-            Graphics2D g2d = new PdfGraphics2D(cb, w, h);
-
+            Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
             org.bson.Document patient = getPatientInfo(pid);
             int startPageNo = getStartPageNo(pid, date);
             renderPage(g2d, patient, Collections.emptyList(), startPageNo, 1, date);
             g2d.dispose();
-            tp.beginText();
-            tp.endText();
 
             pdfDoc.close();
             return baos.toByteArray();
@@ -553,7 +476,8 @@ public class HljldPdfService {
         List<Map<String, Object>> allRows = convertToRows(dayData);
         List<List<Map<String, Object>>> pages = new ArrayList<>();
         List<Map<String, Object>> current = new ArrayList<>();
-        float h = 0, maxH = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM - TABLE_TOP - 80;
+        // 可用高度 = 页面高度 - 上边距 - 标题区域(70) - 表头(35) - 页脚(50) - 下边距
+        float h = 0, maxH = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM - 70 - 35 - 50;
 
         for (Map<String, Object> row : allRows) {
             if (h + ROW_HEIGHT > maxH && !current.isEmpty()) {
