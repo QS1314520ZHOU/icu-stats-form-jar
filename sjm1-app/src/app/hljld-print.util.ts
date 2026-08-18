@@ -1408,6 +1408,8 @@ function createColGroup(doc: Document): HTMLTableColElement['parentNode'] {
     'col-enteral-name',
     'col-enteral-amount',
     'col-enteral-route',
+    'col-urine',
+    'col-ultrafiltration',
     'col-output-name',
     'col-output-amount',
     'col-drain-name',
@@ -1437,6 +1439,8 @@ function createThead(doc: Document): HTMLTableSectionElement {
     <th rowspan="2">日期时间</th>
     <th colspan="3">药物治疗</th>
     <th colspan="3">胃肠摄入</th>
+    <th rowspan="2">尿量(ml)</th>
+    <th rowspan="2">净超滤量(ml)</th>
     <th colspan="2">排出物</th>
     <th colspan="2">引流液</th>
     <th rowspan="2">检查</th>
@@ -1508,6 +1512,9 @@ function createDisplayRowTr(
   tr.appendChild(cell(doc, row.enteral?.name || ''));
   tr.appendChild(cell(doc, row.enteral?.amount || ''));
   tr.appendChild(cell(doc, row.enteral?.route || ''));
+
+  tr.appendChild(cell(doc, row.urine ?? ''));
+  tr.appendChild(cell(doc, row.ultrafiltration ?? ''));
 
   tr.appendChild(cell(doc, row.output?.name || ''));
   tr.appendChild(cell(doc, row.output?.amount || ''));
