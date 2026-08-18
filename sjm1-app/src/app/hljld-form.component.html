@@ -113,11 +113,12 @@
   <!-- 状态面板 -->
   <ng-template #statePanel>
     <div class="state-panel" [class.error]="pageState === 'error'">
-      <div *ngIf="pageState === 'loading'" class="spinner" aria-hidden="true"></div>
+      <div *ngIf="pageState === 'loading' || pageState === 'calculating'" class="spinner" aria-hidden="true"></div>
       <strong>
         <ng-container [ngSwitch]="pageState">
           <ng-container *ngSwitchCase="'waiting-patient'">等待患者信息...</ng-container>
           <ng-container *ngSwitchCase="'loading'">正在加载护理记录...</ng-container>
+          <ng-container *ngSwitchCase="'calculating'">首次加载，正在计算页码... {{ calculatingProgress > 0 ? calculatingProgress + '%' : '' }}</ng-container>
           <ng-container *ngSwitchCase="'error'">{{ error || '加载失败，请重试' }}</ng-container>
         </ng-container>
       </strong>

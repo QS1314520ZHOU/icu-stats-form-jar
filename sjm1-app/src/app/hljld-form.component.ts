@@ -24,15 +24,17 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // PDF 相关
   pdfUrl = '';
-  pageIndex: PageIndexInfo = { startPageNo: 1, pageCount: 0 };
+  pageIndex: PageIndexInfo = { startPageNo: 1, pageCount: 0, status: 'completed' };
   pageOptions: number[] = [];
   selectedPageNo = 1;
 
   // 状态
   loading = false;
-  pageState: 'waiting-patient' | 'loading' | 'ready' | 'error' = 'waiting-patient';
+  pageState: 'waiting-patient' | 'loading' | 'ready' | 'error' | 'calculating' = 'waiting-patient';
   error = '';
   recalculating = false;
+  calculatingProgress = 0;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   // 日期范围
   minDateInput = '';
@@ -85,6 +87,7 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.stopPolling();
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -98,6 +101,7 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.loading = true;
+    this.stopPolling();
     this.cdr.markForCheck();
 
     const dateStr = this.toDateString(this.selectedDate);
@@ -106,19 +110,80 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
     this.pdfService.getPageIndex(this.patient.pid, dateStr).pipe(
       catchError(err => {
         console.error('[HLJLD] 获取页码信息失败', err);
-        return [{ startPageNo: 1, pageCount: 1 }];
+        return [{ startPageNo: 1, pageCount: 1, status: 'completed' as const }];
       }),
     ).subscribe(info => {
       this.pageIndex = info;
+
+      if (info.status === 'calculating') {
+        // 后端正在计算页码，进入轮询
+        this.pageState = 'calculating';
+        this.loading = false;
+        this.calculatingProgress = 0;
+        this.cdr.markForCheck();
+        this.startPolling();
+        return;
+      }
+
+      if (info.status === 'failed') {
+        this.pageState = 'error';
+        this.error = '页码计算失败，请点击「纠正页码」重试';
+        this.loading = false;
+        this.cdr.markForCheck();
+        return;
+      }
+
+      // 正常加载
       this.updatePageOptions();
-
-      // 生成 PDF URL
       this.pdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr);
-
       this.loading = false;
       this.pageState = 'ready';
       this.cdr.markForCheck();
     });
+  }
+
+  /**
+   * 开始轮询计算状态
+   */
+  private startPolling(): void {
+    this.pollTimer = setInterval(() => {
+      if (!this.patient.pid) {
+        this.stopPolling();
+        return;
+      }
+
+      this.pdfService.getRecalculateStatus(this.patient.pid).subscribe({
+        next: (status) => {
+          this.calculatingProgress = status.progress || 0;
+          this.cdr.markForCheck();
+
+          if (status.status === 'completed') {
+            this.stopPolling();
+            this.recalculating = false;
+            this.loadPdf(); // 重新加载
+          } else if (status.status === 'failed') {
+            this.stopPolling();
+            this.recalculating = false;
+            this.pageState = 'error';
+            this.error = '页码计算失败，请点击「纠正页码」重试';
+            this.cdr.markForCheck();
+          }
+        },
+        error: () => {
+          // 轮询出错不停止，继续尝试
+        }
+      });
+    }, 2000); // 每2秒轮询一次
+  }
+
+  /**
+   * 停止轮询
+   */
+  private stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 
   /**
@@ -181,17 +246,19 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.recalculating = true;
+    this.pageState = 'calculating';
+    this.calculatingProgress = 0;
     this.cdr.markForCheck();
 
     this.pdfService.recalculatePageIndexes(this.patient.pid).subscribe({
-      next: (result) => {
-        alert(result.message || '页码重新计算完成！');
-        this.recalculating = false;
-        this.loadPdf();
+      next: () => {
+        // 后端异步处理，开始轮询
+        this.startPolling();
       },
       error: (err) => {
-        alert('页码计算失败：' + (err.message || '请重试'));
+        alert('页码计算启动失败：' + (err.message || '请重试'));
         this.recalculating = false;
+        this.pageState = 'ready';
         this.cdr.markForCheck();
       },
     });
@@ -329,9 +396,10 @@ export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
    * 重置患者数据
    */
   private resetPatientData(): void {
+    this.stopPolling();
     this.patient = { pid: '' };
     this.pdfUrl = '';
-    this.pageIndex = { startPageNo: 1, pageCount: 0 };
+    this.pageIndex = { startPageNo: 1, pageCount: 0, status: 'completed' };
     this.pageOptions = [];
     this.selectedPageNo = 1;
     this.minDateInput = '';

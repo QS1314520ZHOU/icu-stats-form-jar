@@ -76,11 +76,12 @@ public class HljldPdfController {
             @PathVariable String pid,
             @RequestParam String date) {
         try {
-            HljldPageIndexService.PageIndexInfo info = pageIndexService.getPageInfo(pid, date);
+            HljldPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, date);
 
             Map<String, Object> response = new HashMap<>();
-            response.put("startPageNo", info.getStartPageNo());
-            response.put("pageCount", info.getpageCount());
+            response.put("startPageNo", result.getStartPageNo());
+            response.put("pageCount", result.getPageCount());
+            response.put("status", result.getStatus());
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -116,14 +117,7 @@ public class HljldPdfController {
     @GetMapping("/recalculate-status/{pid}")
     public ResponseEntity<Map<String, Object>> getRecalculateStatus(@PathVariable String pid) {
         try {
-            // 查询索引状态
-            Map<String, Object> response = new HashMap<>();
-
-            // 这里需要从数据库查询状态
-            // 简化处理，直接返回完成状态
-            response.put("status", "completed");
-            response.put("progress", 100);
-
+            Map<String, Object> response = pageIndexService.getCalculationStatus(pid);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

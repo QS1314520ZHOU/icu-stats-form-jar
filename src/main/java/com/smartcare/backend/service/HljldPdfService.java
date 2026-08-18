@@ -638,6 +638,15 @@ public class HljldPdfService {
     }
 
     /**
+     * 计算某天的页数（供 HljldPageIndexService 调用）
+     */
+    public int calculatePageCount(String pid, String date) {
+        NursingDayData dayData = loadNursingDayData(pid, date);
+        List<List<Map<String, Object>>> pages = paginateData(dayData);
+        return pages.size();
+    }
+
+    /**
      * 数据分页
      */
     private List<List<Map<String, Object>>> paginateData(NursingDayData dayData) {

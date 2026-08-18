@@ -8,6 +8,7 @@ import { Observable } from 'rxjs';
 export interface PageIndexInfo {
   startPageNo: number;
   pageCount: number;
+  status: 'completed' | 'calculating' | 'failed';
 }
 
 /**

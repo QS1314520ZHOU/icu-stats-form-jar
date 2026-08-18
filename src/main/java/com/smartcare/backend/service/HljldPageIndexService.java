@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * ICU 护理记录单页码管理服务
@@ -26,49 +25,93 @@ public class HljldPageIndexService {
 
     private final MongoTemplate mongoTemplate;
     private final HljldPageIndexRepository pageIndexRepository;
-
-    // 每页数据行数（用于估算页数）
-    private static final int ROWS_PER_PAGE = 25;
+    private final HljldPdfService pdfService;
 
     @Autowired
-    public HljldPageIndexService(MongoTemplate mongoTemplate, HljldPageIndexRepository pageIndexRepository) {
+    public HljldPageIndexService(MongoTemplate mongoTemplate,
+                                  HljldPageIndexRepository pageIndexRepository,
+                                  HljldPdfService pdfService) {
         this.mongoTemplate = mongoTemplate;
         this.pageIndexRepository = pageIndexRepository;
+        this.pdfService = pdfService;
     }
 
     /**
      * 获取指定日期的页码信息
+     * 如果数据库没有索引，自动触发异步计算并返回 calculating 状态
      */
-    public PageIndexInfo getPageInfo(String pid, String date) {
+    public PageIndexResult getPageInfo(String pid, String date) {
         Optional<HljldPageIndex> indexOpt = pageIndexRepository.findByPid(pid);
+
         if (indexOpt.isEmpty()) {
-            return new PageIndexInfo(1, 1);
+            // 无索引，自动触发计算
+            log.info("数据库无页码索引，自动触发计算: pid={}", pid);
+            triggerCalculation(pid);
+            return new PageIndexResult(1, 1, "calculating");
         }
 
         HljldPageIndex index = indexOpt.get();
+        String status = index.getStatus();
+
+        // 正在计算中
+        if ("calculating".equals(status)) {
+            return new PageIndexResult(1, 1, "calculating");
+        }
+
+        // 计算失败
+        if ("failed".equals(status)) {
+            return new PageIndexResult(1, 1, "failed");
+        }
+
+        // 已完成，查找当天数据
         Optional<HljldPageIndex.DailyPageInfo> dailyInfo = index.getDailyPages().stream()
             .filter(d -> d.getDate().equals(date))
             .findFirst();
 
         if (dailyInfo.isEmpty()) {
-            return new PageIndexInfo(1, 1);
+            // 索引中没有这一天的数据（可能是新一天），返回最后一页的后续
+            if (!index.getDailyPages().isEmpty()) {
+                HljldPageIndex.DailyPageInfo last = index.getDailyPages().get(index.getDailyPages().size() - 1);
+                return new PageIndexResult(last.getEndPageNo() + 1, 1, "completed");
+            }
+            return new PageIndexResult(1, 1, "completed");
         }
 
-        return new PageIndexInfo(dailyInfo.get().getStartPageNo(), dailyInfo.get().getPageCount());
+        return new PageIndexResult(dailyInfo.get().getStartPageNo(), dailyInfo.get().getPageCount(), "completed");
     }
 
     /**
-     * 获取指定日期的起始页码
+     * 触发异步计算（不阻塞当前请求）
      */
-    public int getStartPageNo(String pid, String date) {
-        return getPageInfo(pid, date).getStartPageNo();
-    }
+    private void triggerCalculation(String pid) {
+        try {
+            // 先标记状态为 calculating
+            Document patient = getPatientContext(pid);
+            if (patient == null) {
+                log.error("未找到患者信息: pid={}", pid);
+                return;
+            }
 
-    /**
-     * 获取指定日期的页数
-     */
-    public int getPageCount(String pid, String date) {
-        return getPageInfo(pid, date).getpageCount();
+            Date admissionTime = patient.getDate("admissionTime");
+            if (admissionTime == null) {
+                log.error("患者入科时间为空: pid={}", pid);
+                return;
+            }
+
+            HljldPageIndex index = pageIndexRepository.findByPid(pid).orElse(new HljldPageIndex());
+            index.setPid(pid);
+            index.setAdmissionTime(admissionTime);
+            index.setDischargeTime(patient.getDate("dischargeTime"));
+            index.setStatus("calculating");
+            index.setProgress(0);
+            index.setLastUpdated(new Date());
+            pageIndexRepository.save(index);
+
+            // 异步执行计算
+            recalculatePageIndexes(pid);
+        } catch (Exception e) {
+            log.error("触发页码计算失败: pid={}", pid, e);
+        }
     }
 
     /**
@@ -82,6 +125,7 @@ public class HljldPageIndexService {
         Document patient = getPatientContext(pid);
         if (patient == null) {
             log.error("未找到患者信息: pid={}", pid);
+            markFailed(pid, "未找到患者信息");
             return;
         }
 
@@ -90,13 +134,14 @@ public class HljldPageIndexService {
 
         if (admissionTime == null) {
             log.error("患者入科时间为空: pid={}", pid);
+            markFailed(pid, "入科时间为空");
             return;
         }
 
         // 2. 确定计算范围
         Calendar cal = Calendar.getInstance();
         cal.setTime(admissionTime);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.HOUR_OF_DAY, 7);
         cal.set(Calendar.MINUTE, 0);
         cal.set(Calendar.SECOND, 0);
         cal.set(Calendar.MILLISECOND, 0);
@@ -132,8 +177,8 @@ public class HljldPageIndexService {
             while (!cal.getTime().after(endDate)) {
                 String dateStr = dateFormat.format(cal.getTime());
 
-                // 计算当天页数
-                int pageCount = calculatePageCount(pid, dateStr);
+                // 使用 HljldPdfService 的分页逻辑计算当天页数
+                int pageCount = pdfService.calculatePageCount(pid, dateStr);
 
                 HljldPageIndex.DailyPageInfo dailyInfo = new HljldPageIndex.DailyPageInfo();
                 dailyInfo.setDate(dateStr);
@@ -145,10 +190,14 @@ public class HljldPageIndexService {
                 currentPageNo += pageCount;
                 processedDays++;
 
-                // 更新进度
-                int progress = (int) ((processedDays * 100.0) / totalDays);
-                index.setProgress(progress);
-                pageIndexRepository.save(index);
+                // 每处理 7 天保存一次进度
+                if (processedDays % 7 == 0) {
+                    int progress = (int) ((processedDays * 100.0) / totalDays);
+                    index.setProgress(progress);
+                    index.setDailyPages(new ArrayList<>(dailyPages));
+                    pageIndexRepository.save(index);
+                    log.info("页码计算进度: pid={}, {}/{}天, {}%", pid, processedDays, totalDays, progress);
+                }
 
                 cal.add(Calendar.DAY_OF_MONTH, 1);
             }
@@ -166,6 +215,17 @@ public class HljldPageIndexService {
 
         } catch (Exception e) {
             log.error("页码计算失败: pid={}", pid, e);
+            markFailed(pid, e.getMessage());
+        }
+    }
+
+    /**
+     * 标记计算失败
+     */
+    private void markFailed(String pid, String reason) {
+        Optional<HljldPageIndex> indexOpt = pageIndexRepository.findByPid(pid);
+        if (indexOpt.isPresent()) {
+            HljldPageIndex index = indexOpt.get();
             index.setStatus("failed");
             index.setLastUpdated(new Date());
             pageIndexRepository.save(index);
@@ -173,47 +233,31 @@ public class HljldPageIndexService {
     }
 
     /**
-     * 计算某天的页数
-     */
-    private int calculatePageCount(String pid, String date) {
-        // 查询当天数据量
-        Query query = new Query(Criteria.where("pid").is(pid).and("date").is(date));
-        Document record = mongoTemplate.findOne(query, Document.class, "hljld_records");
-
-        if (record == null) {
-            return 1; // 空白页
-        }
-
-        List<?> timeline = record.getList("timeline", Document.class);
-        if (timeline == null || timeline.isEmpty()) {
-            return 1; // 空白页
-        }
-
-        // 估算页数
-        int totalRows = 0;
-        for (Object item : timeline) {
-            if (item instanceof Document) {
-                Document doc = (Document) item;
-                String kind = doc.getString("kind");
-
-                if ("time-group".equals(kind)) {
-                    List<?> rows = doc.getList("rows", Document.class);
-                    totalRows += rows != null ? rows.size() : 1;
-                } else if (kind != null && kind.contains("summary")) {
-                    totalRows += 2; // 小结占2行
-                }
-            }
-        }
-
-        return Math.max(1, (int) Math.ceil((double) totalRows / ROWS_PER_PAGE));
-    }
-
-    /**
-     * 获取患者上下文
+     * 获取患者上下文（从 patient 集合）
      */
     private Document getPatientContext(String pid) {
         Query query = new Query(Criteria.where("pid").is(pid));
-        return mongoTemplate.findOne(query, Document.class, "patients");
+        return mongoTemplate.findOne(query, Document.class, "patient");
+    }
+
+    /**
+     * 获取计算状态（供 Controller 调用）
+     */
+    public Map<String, Object> getCalculationStatus(String pid) {
+        Map<String, Object> response = new HashMap<>();
+        Optional<HljldPageIndex> indexOpt = pageIndexRepository.findByPid(pid);
+
+        if (indexOpt.isEmpty()) {
+            response.put("status", "not_started");
+            response.put("progress", 0);
+            return response;
+        }
+
+        HljldPageIndex index = indexOpt.get();
+        response.put("status", index.getStatus());
+        response.put("progress", index.getProgress());
+        response.put("totalPages", index.getTotalPages());
+        return response;
     }
 
     /**
@@ -225,23 +269,29 @@ public class HljldPageIndexService {
     }
 
     /**
-     * 页码信息
+     * 页码信息结果（含状态）
      */
-    public static class PageIndexInfo {
+    public static class PageIndexResult {
         private final int startPageNo;
         private final int pageCount;
+        private final String status; // completed, calculating, failed
 
-        public PageIndexInfo(int startPageNo, int pageCount) {
+        public PageIndexResult(int startPageNo, int pageCount, String status) {
             this.startPageNo = startPageNo;
             this.pageCount = pageCount;
+            this.status = status;
         }
 
         public int getStartPageNo() {
             return startPageNo;
         }
 
-        public int getpageCount() {
+        public int getPageCount() {
             return pageCount;
+        }
+
+        public String getStatus() {
+            return status;
         }
     }
 }
