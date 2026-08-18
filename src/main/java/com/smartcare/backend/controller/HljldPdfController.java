@@ -38,8 +38,9 @@ public class HljldPdfController {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
-            headers.setContentDispositionFormData("filename",
-                String.format("护理记录_%s_%s.pdf", pid, date));
+            // 使用 ASCII 安全的文件名，避免 Tomcat 编码中文出错
+            String safeFilename = String.format("hljld_%s_%s.pdf", pid, date);
+            headers.setContentDispositionFormData("filename", safeFilename);
             headers.setContentLength(pdfData.length);
 
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
@@ -58,8 +59,9 @@ public class HljldPdfController {
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
-            headers.setContentDispositionFormData("filename",
-                String.format("护理记录_全部_%s.pdf", pid));
+            // 使用 ASCII 安全的文件名
+            String safeFilename = String.format("hljld_all_%s.pdf", pid);
+            headers.setContentDispositionFormData("filename", safeFilename);
             headers.setContentLength(pdfData.length);
 
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
