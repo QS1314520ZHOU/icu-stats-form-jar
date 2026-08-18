@@ -123,7 +123,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
           <label class="rl-item">
             <span>结果：</span>
             <input class="result-combo screen-only" type="text" [attr.list]="'braden-result-options-' + page.index" [(ngModel)]="pageExtra(page.index).result" (ngModelChange)="scheduleSavePageExtra(page.index)" placeholder="请选择或输入" autocomplete="off" />
-            <datalist [id]="'braden-result-options-' + page.index"><option value="出院"></option><option value="死亡"></option></datalist>
+            <datalist [id]="'braden-result-options-' + page.index"><option value="出院"></option><option value="死亡"></option><option value="转出"></option></datalist>
             <span class="fill-val print-only">{{ pageExtra(page.index).result }}</span>
           </label>
           <label class="rl-item">
@@ -241,7 +241,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   pages: RenderPage[] = [];
   selectedPrintPages: number[] = [];
 
-  readonly resultOptions = ['出院', '死亡'];
+  readonly resultOptions = ['出院', '死亡', '转出'];
   private pageExtraMap = new Map<number, PageExtraData>();
   private pageSaveTimers = new Map<number, ReturnType<typeof setTimeout>>();
 

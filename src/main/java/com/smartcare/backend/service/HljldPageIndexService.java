@@ -38,7 +38,7 @@ public class HljldPageIndexService {
 
     /**
      * 获取指定日期的页码信息
-     * 如果数据库没有索引，自动触发异步计算并返回 calculating 状态
+     * 如果数据库没有索引，自动触发计算并返回 calculating 状态
      */
     public PageIndexResult getPageInfo(String pid, String date) {
         Optional<HljldPageIndex> indexOpt = pageIndexRepository.findByPid(pid);
@@ -47,7 +47,12 @@ public class HljldPageIndexService {
             // 无索引，自动触发计算
             log.info("数据库无页码索引，自动触发计算: pid={}", pid);
             triggerCalculation(pid);
-            return new PageIndexResult(1, 1, "calculating");
+
+            // 重新查询（计算可能已同步完成）
+            indexOpt = pageIndexRepository.findByPid(pid);
+            if (indexOpt.isEmpty()) {
+                return new PageIndexResult(1, 1, "failed");
+            }
         }
 
         HljldPageIndex index = indexOpt.get();
