@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
@@ -7,6 +7,7 @@ import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTi
 import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljldRecord, printAllHljldRecords } from './hljld-print.util';
+import { HljldPageModel, paginateHljld, formatHljldPageNo } from './hljld-pagination.core';
 
 @Component({
   standalone: false,
@@ -15,7 +16,7 @@ import { printHljldRecord, printAllHljldRecords } from './hljld-print.util';
   styleUrls: ['./hljld-form.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HljldFormComponent implements OnInit, OnDestroy {
+export class HljldFormComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly dateChange$ = new ReplaySubject<void>(1);
 
@@ -30,6 +31,15 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
   printing = false;
   printingAll = false;
+
+  // A4 分页相关
+  pages: HljldPageModel[] = [];
+  currentPageIndex = 0;
+  sheetScale = 1;
+  scaleMode: 'fit' | '50' | '75' | '100' = 'fit';
+  private a4WidthPx = 0;
+  private resizeObserver?: ResizeObserver;
+
   private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   private accountMap = new Map<string, string>();
   private readonly clockRefresh$ = interval(60_000);
@@ -98,6 +108,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         this.vm = this.toViewModel(result.data, accountMap);
         this.loading = false;
         this.pageState = 'ready';
+        this.updatePages();
 
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
         if (isDev) {
@@ -160,14 +171,131 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     ).subscribe(() => {
       if (this.vm) {
         this.vm = this.toViewModel(this.source, this.accountMap);
+        this.updatePages();
         this.cdr.markForCheck();
       }
     });
   }
 
+  ngAfterViewInit(): void {
+    this.initScale();
+  }
+
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.resizeObserver?.disconnect();
+  }
+
+  // ── A4 分页 ──
+
+  /**
+   * 更新分页模型。仅在 vm 变化时调用，缩放不触发重新分页。
+   */
+  private updatePages(): void {
+    if (!this.vm) {
+      this.pages = [];
+      this.currentPageIndex = 0;
+      return;
+    }
+
+    // 创建离屏容器进行分页计算
+    const doc = document;
+    const host = doc.createElement('div');
+    host.style.cssText = 'position:fixed;left:-10000px;visibility:hidden;transform:none;';
+    doc.body.appendChild(host);
+
+    try {
+      this.pages = paginateHljld(doc, host, this.vm, this.defaultRemarkLines);
+      this.currentPageIndex = 0;
+    } catch (error) {
+      console.error('[HLJLD][pagination-error]', error);
+      this.pages = [];
+    } finally {
+      doc.body.removeChild(host);
+    }
+  }
+
+  /**
+   * 初始化缩放。在ViewInit中调用。
+   */
+  initScale(): void {
+    // 测量 A4 宽度（px）
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;width:297mm;height:0;overflow:hidden;';
+    document.body.appendChild(probe);
+    this.a4WidthPx = probe.offsetWidth;
+    document.body.removeChild(probe);
+
+    // 监听容器尺寸变化
+    const viewport = this.elementRef.nativeElement.querySelector('.hljld-pages-viewport');
+    if (viewport) {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.updateScale();
+      });
+      this.resizeObserver.observe(viewport);
+    }
+
+    this.updateScale();
+  }
+
+  /**
+   * 更新缩放比例。
+   */
+  private updateScale(): void {
+    if (this.scaleMode === 'fit') {
+      const viewport = this.elementRef.nativeElement.querySelector('.hljld-pages-viewport');
+      if (viewport && this.a4WidthPx > 0) {
+        const containerWidth = viewport.clientWidth - 40; // 减去 padding
+        this.sheetScale = Math.min(containerWidth / this.a4WidthPx, 2.0);
+      }
+    } else {
+      this.sheetScale = parseInt(this.scaleMode, 10) / 100;
+    }
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * 切换缩放模式。
+   */
+  setScaleMode(mode: 'fit' | '50' | '75' | '100'): void {
+    this.scaleMode = mode;
+    this.updateScale();
+  }
+
+  /**
+   * 格式化页码。
+   */
+  formatPageNo(page: HljldPageModel): string {
+    return formatHljldPageNo(page.indexInDay);
+  }
+
+  /**
+   * 跳转到指定页。
+   */
+  goToPage(index: number): void {
+    if (index >= 0 && index < this.pages.length) {
+      this.currentPageIndex = index;
+      // 滚动到对应页面
+      const pageEl = this.elementRef.nativeElement.querySelector(`[data-page-index="${index}"]`);
+      if (pageEl) {
+        pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }
+
+  /**
+   * 上一页。
+   */
+  previousPage(): void {
+    this.goToPage(this.currentPageIndex - 1);
+  }
+
+  /**
+   * 下一页。
+   */
+  nextPage(): void {
+    this.goToPage(this.currentPageIndex + 1);
   }
 
   previousDay(): void {
@@ -248,32 +376,10 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      // 计算从入科日累计的起始页码
-      let startPageNo = 1;
-      const admissionTs = parsePatientDateTime(this.patient.admissionTime);
-      if (Number.isFinite(admissionTs)) {
-        const admissionDate = this.toDateString(new Date(admissionTs));
-        const currentDate = this.toDateString(this.selectedDate);
-        if (currentDate > admissionDate) {
-          startPageNo = await firstValueFrom(
-            this.service.getStartPageNo(this.patient.pid, admissionDate, currentDate),
-          );
-        }
-      }
-
-      const pageCount = await printHljldRecord({
+      await printHljldRecord({
         vm: this.vm,
         remarkLines: this.defaultRemarkLines,
-        startPageNo,
       });
-
-      // 保存当日页数到后端
-      const nursingDate = this.toDateString(this.selectedDate);
-      try {
-        await firstValueFrom(this.service.savePageCount(this.patient.pid, nursingDate, pageCount));
-      } catch (err) {
-        console.warn('[HLJLD][page-count-save-error]', err);
-      }
     } catch (error) {
       console.error('[HLJLD][print-error]', error);
       alert(
@@ -350,22 +456,10 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       }
 
       // 批量打印
-      const result = await printAllHljldRecords({
+      await printAllHljldRecords({
         vms,
         remarkLines: this.defaultRemarkLines,
-        startPageNo: 1,
       });
-
-      // 保存每日页数
-      for (let i = 0; i < dates.length; i++) {
-        const dateStr = this.toDateString(dates[i]);
-        const pageCount = result.pageCounts[i] || 1;
-        try {
-          await firstValueFrom(this.service.savePageCount(this.patient.pid, dateStr, pageCount));
-        } catch (err) {
-          console.warn('[HLJLD][page-count-save-error]', err);
-        }
-      }
     } catch (error) {
       console.error('[HLJLD][print-all-error]', error);
       alert(
@@ -382,6 +476,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
+  trackPage(index: number, page: HljldPageModel): string { return `${page.indexInDay}-${page.items.length}`; }
 
   private initializeDateForPatient(): void {
     let targetDate = new Date();

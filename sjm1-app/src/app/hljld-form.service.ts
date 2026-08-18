@@ -112,27 +112,6 @@ export class HljldFormService {
   }
 
   /**
-   * 查询从入科日到指定日期前一天的累计页数，返回起始页码。
-   */
-  getStartPageNo(pid: string, admissionDate: string, currentDate: string): Observable<number> {
-    const params = new HttpParams()
-      .set('pid', pid)
-      .set('admissionDate', admissionDate)
-      .set('currentDate', currentDate);
-    return this.http.get<{ startPageNo: number }>(`${this.hljldBase}/start-page`, { params }).pipe(
-      map(res => res.startPageNo ?? 1),
-      catchError(() => of(1)),
-    );
-  }
-
-  /**
-   * 保存指定护理日的打印页数。
-   */
-  savePageCount(pid: string, nursingDate: string, pageCount: number): Observable<void> {
-    return this.http.post<void>(`${this.hljldBase}/page-count`, { pid, nursingDate, pageCount });
-  }
-
-  /**
    * 批量查询账户信息，返回 accountId → trueName 映射。
    */
   queryAccounts(userIds: string[]): Observable<Map<string, string>> {
