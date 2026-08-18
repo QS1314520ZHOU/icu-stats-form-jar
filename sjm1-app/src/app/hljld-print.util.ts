@@ -8,6 +8,8 @@ import {
 type PrintInput = {
   vm: HljldViewModel;
   remarkLines: string[];
+  /** 从入科日累计的起始页码，默认 1 */
+  startPageNo?: number;
 };
 
 type SummaryPrintBlock = {
@@ -362,7 +364,8 @@ body {
 export async function printHljldRecord({
   vm,
   remarkLines,
-}: PrintInput): Promise<void> {
+  startPageNo,
+}: PrintInput): Promise<number> {
   const printWindow = window.open('', '_blank', 'width=1400,height=960');
 
   if (!printWindow) {
@@ -406,12 +409,12 @@ export async function printHljldRecord({
       emptyTd.style.cssText = 'text-align:center;padding:20px;color:#999;font-size:12pt;';
       emptyRow.appendChild(emptyTd);
       emptyPage.tbodyEl.appendChild(emptyRow);
-      fillPageNumbers([emptyPage]);
+      fillPageNumbers([emptyPage], startPageNo ?? 1);
       printWindow.addEventListener('afterprint', () => { try { printWindow.close(); } catch { /* ignore */ } });
       printWindow.focus();
       await nextTwoFrames(printWindow);
       printWindow.print();
-      return;
+      return 1;
     }
 
     const pages = paginateToPages(
@@ -425,7 +428,7 @@ export async function printHljldRecord({
     // Wait for layout to stabilize before filling page numbers
     await nextTwoFrames(printWindow);
 
-    fillPageNumbers(pages);
+    fillPageNumbers(pages, startPageNo ?? 1);
 
     // Re-check after page numbers added
     await nextTwoFrames(printWindow);
@@ -448,6 +451,8 @@ export async function printHljldRecord({
     printWindow.focus();
     await nextTwoFrames(printWindow);
     printWindow.print();
+
+    return pages.length;
   } catch (error) {
     console.error('[HLJLD][print-error]', error);
     try {
@@ -1359,7 +1364,7 @@ function createPage(
   const pageNoEl = doc.createElement('footer');
   pageNoEl.className = 'sheet-pageno';
   pageNoEl.innerHTML = `
-    第<span class="page-current"></span>页 共<span class="page-total"></span>页
+    第<span class="page-current"></span>页
   `;
   sheetEl.appendChild(pageNoEl);
 
@@ -1596,19 +1601,13 @@ function cell(
   return td;
 }
 
-function fillPageNumbers(pages: PageRefs[]): void {
-  const total = pages.length;
-
+function fillPageNumbers(pages: PageRefs[], startPageNo: number = 1): void {
   pages.forEach((page, index) => {
     const current = page.pageNoEl.querySelector('.page-current');
-    const totalNode = page.pageNoEl.querySelector('.page-total');
-
-    if (!current || !totalNode) {
+    if (!current) {
       throw new Error(`第 ${index + 1} 页页码节点缺失`);
     }
-
-    current.textContent = String(index + 1);
-    totalNode.textContent = String(total);
+    current.textContent = String(startPageNo + index);
   });
 }
 
@@ -1618,9 +1617,8 @@ function validateGeneratedPages(pages: PageRefs[]): boolean {
 
   for (const [pageIndex, page] of pages.entries()) {
     const current = page.pageNoEl.querySelector('.page-current');
-    const total = page.pageNoEl.querySelector('.page-total');
 
-    if (!current?.textContent?.trim() || !total?.textContent?.trim()) {
+    if (!current?.textContent?.trim()) {
       console.error('[HLJLD][print-validate] missing page number value', pageIndex + 1);
       ok = false;
     }

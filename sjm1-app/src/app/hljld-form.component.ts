@@ -247,10 +247,30 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      await printHljldRecord({
+      // 计算从入科日累计的起始页码
+      let startPageNo = 1;
+      const admissionTs = parsePatientDateTime(this.patient.admissionTime);
+      if (Number.isFinite(admissionTs)) {
+        const admissionDate = this.toDateString(new Date(admissionTs));
+        const currentDate = this.toDateString(this.selectedDate);
+        if (currentDate > admissionDate) {
+          startPageNo = await firstValueFrom(
+            this.service.getStartPageNo(this.patient.pid, admissionDate, currentDate),
+          );
+        }
+      }
+
+      const pageCount = await printHljldRecord({
         vm: this.vm,
         remarkLines: this.defaultRemarkLines,
+        startPageNo,
       });
+
+      // 保存当日页数到后端
+      const nursingDate = this.toDateString(this.selectedDate);
+      firstValueFrom(this.service.savePageCount(this.patient.pid, nursingDate, pageCount)).catch(
+        err => console.warn('[HLJLD][page-count-save-error]', err),
+      );
     } catch (error) {
       console.error('[HLJLD][print-error]', error);
       alert(

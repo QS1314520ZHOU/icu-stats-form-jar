@@ -1,5 +1,7 @@
 package com.smartcare.backend.controller;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -14,9 +16,13 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.smartcare.backend.entity.HljldPageCount;
+import com.smartcare.backend.repository.HljldPageCountRepository;
 
 @RestController
 @RequestMapping("/api/v1/icu/hljld")
@@ -24,9 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class HljldController {
 
     private final MongoTemplate mongoTemplate;
+    private final HljldPageCountRepository pageCountRepository;
 
-    public HljldController(MongoTemplate mongoTemplate) {
+    public HljldController(MongoTemplate mongoTemplate, HljldPageCountRepository pageCountRepository) {
         this.mongoTemplate = mongoTemplate;
+        this.pageCountRepository = pageCountRepository;
     }
 
     @GetMapping("/drug-executions")
@@ -205,5 +213,49 @@ public class HljldController {
             result.add((Map<String, Object>) normalizeUtcValue(document));
         }
         return result;
+    }
+
+    // ── 跨日连续页码 ──
+
+    /**
+     * 获取从入科日到指定日期前一天的累计页数（即该日打印时的起始页码）。
+     * GET /api/v1/icu/hljld/start-page?pid=xxx&admissionDate=2024-01-15&currentDate=2024-01-20
+     * 返回: { "startPageNo": 42 }
+     */
+    @GetMapping("/start-page")
+    public Map<String, Object> getStartPageNo(
+            @RequestParam String pid,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate admissionDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate currentDate) {
+        LocalDate dayBefore = currentDate.minusDays(1);
+        // 查询从入科日到昨天的页数记录
+        List<HljldPageCount> records = pageCountRepository.findByPidAndNursingDateBetween(
+                pid, admissionDate, dayBefore);
+        int total = 0;
+        for (HljldPageCount r : records) {
+            total += r.getPageCount();
+        }
+        // 起始页码 = 累计页数 + 1
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("startPageNo", total + 1);
+        return result;
+    }
+
+    /**
+     * 保存某日的页数（打印完成后调用）。
+     * POST /api/v1/icu/hljld/page-count
+     * Body: { "pid": "xxx", "nursingDate": "2024-01-20", "pageCount": 3 }
+     */
+    @PostMapping("/page-count")
+    public HljldPageCount savePageCount(@RequestBody HljldPageCount body) {
+        LocalDate nursingDate = body.getNursingDate();
+        String pid = body.getPid();
+        // upsert: 已存在则更新，否则新建
+        HljldPageCount existing = pageCountRepository.findByPidAndNursingDate(pid, nursingDate).orElse(null);
+        if (existing != null) {
+            existing.setPageCount(body.getPageCount());
+            return pageCountRepository.save(existing);
+        }
+        return pageCountRepository.save(body);
     }
 }
