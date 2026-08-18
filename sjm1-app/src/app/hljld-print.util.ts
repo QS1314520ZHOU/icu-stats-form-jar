@@ -464,6 +464,126 @@ export async function printHljldRecord({
   }
 }
 
+/**
+ * 批量打印多天护理记录，页码从 startPageNo 连续递增。
+ * 返回总页数和每日页数。
+ */
+export async function printAllHljldRecords({
+  vms,
+  remarkLines,
+  startPageNo = 1,
+}: {
+  vms: HljldViewModel[];
+  remarkLines: string[];
+  startPageNo?: number;
+}): Promise<{ totalPages: number; pageCounts: number[] }> {
+  if (vms.length === 0) {
+    return { totalPages: 0, pageCounts: [] };
+  }
+
+  const printWindow = window.open('', '_blank', 'width=1400,height=960');
+  if (!printWindow) {
+    throw new Error('打印窗口被拦截，请允许浏览器弹出打印窗口。');
+  }
+
+  try {
+    printWindow.document.open();
+    printWindow.document.write(`
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>护理记录打印</title>
+  <style>${PRINT_CSS}</style>
+</head>
+<body>
+  <div id="print-root" class="print-root"></div>
+</body>
+</html>
+    `);
+    printWindow.document.close();
+
+    await waitForPrintWindowReady(printWindow);
+
+    const root = printWindow.document.getElementById('print-root');
+    if (!root) {
+      throw new Error('打印根节点初始化失败。');
+    }
+
+    const allPages: PageRefs[] = [];
+    const pageCounts: number[] = [];
+    let currentPageNo = startPageNo;
+
+    for (const vm of vms) {
+      const blocks = buildPrintBlocks(vm.timeline);
+
+      if (blocks.length === 0) {
+        const emptyPage = createPage(printWindow.document, vm, remarkLines);
+        root.appendChild(emptyPage.pageEl);
+        const emptyRow = printWindow.document.createElement('tr');
+        const emptyTd = printWindow.document.createElement('td');
+        emptyTd.colSpan = 19;
+        emptyTd.textContent = '该护理日暂无记录';
+        emptyTd.style.cssText = 'text-align:center;padding:20px;color:#999;font-size:12pt;';
+        emptyRow.appendChild(emptyTd);
+        emptyPage.tbodyEl.appendChild(emptyRow);
+        fillPageNumbers([emptyPage], currentPageNo);
+        allPages.push(emptyPage);
+        pageCounts.push(1);
+        currentPageNo += 1;
+        continue;
+      }
+
+      const pages = paginateToPages(
+        printWindow.document,
+        root,
+        vm,
+        remarkLines,
+        blocks,
+      );
+
+      for (const page of pages) {
+        root.appendChild(page.pageEl);
+      }
+
+      fillPageNumbers(pages, currentPageNo);
+      allPages.push(...pages);
+      pageCounts.push(pages.length);
+      currentPageNo += pages.length;
+    }
+
+    await nextTwoFrames(printWindow);
+
+    const ok = validateGeneratedPages(allPages);
+    const seqOk = validateSummarySequence(allPages);
+    if (!ok || !seqOk) {
+      throw new Error('打印分页校验失败，存在未完整显示的内容或重复总结。');
+    }
+
+    printWindow.addEventListener('afterprint', () => {
+      try {
+        printWindow.close();
+      } catch {
+        // ignore
+      }
+    });
+
+    printWindow.focus();
+    await nextTwoFrames(printWindow);
+    printWindow.print();
+
+    return { totalPages: allPages.length, pageCounts };
+  } catch (error) {
+    console.error('[HLJLD][print-all-error]', error);
+    try {
+      printWindow.close();
+    } catch {
+      // ignore
+    }
+    throw error;
+  }
+}
+
 function buildPrintBlocks(
   timeline: HljldTimelineItem[],
 ): PrintBlock[] {

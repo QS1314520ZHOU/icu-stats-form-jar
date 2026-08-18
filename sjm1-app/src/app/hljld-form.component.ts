@@ -6,7 +6,7 @@ import { HljldFormService } from './hljld-form.service';
 import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext } from './hljld-form.models';
 import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
-import { printHljldRecord } from './hljld-print.util';
+import { printHljldRecord, printAllHljldRecords } from './hljld-print.util';
 
 @Component({
   standalone: false,
@@ -29,6 +29,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   vm?: HljldViewModel;
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
   printing = false;
+  printingAll = false;
   private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   private accountMap = new Map<string, string>();
   private readonly clockRefresh$ = interval(60_000);
@@ -268,9 +269,11 @@ export class HljldFormComponent implements OnInit, OnDestroy {
 
       // 保存当日页数到后端
       const nursingDate = this.toDateString(this.selectedDate);
-      firstValueFrom(this.service.savePageCount(this.patient.pid, nursingDate, pageCount)).catch(
-        err => console.warn('[HLJLD][page-count-save-error]', err),
-      );
+      try {
+        await firstValueFrom(this.service.savePageCount(this.patient.pid, nursingDate, pageCount));
+      } catch (err) {
+        console.warn('[HLJLD][page-count-save-error]', err);
+      }
     } catch (error) {
       console.error('[HLJLD][print-error]', error);
       alert(
@@ -283,6 +286,99 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     }
   }
+
+  async printAll(): Promise<void> {
+    if (!this.patient.pid || this.printingAll) {
+      return;
+    }
+
+    const admissionTs = parsePatientDateTime(this.patient.admissionTime);
+    if (!Number.isFinite(admissionTs)) {
+      alert('无法获取入科时间，无法批量打印');
+      return;
+    }
+
+    this.printingAll = true;
+    this.cdr.markForCheck();
+
+    try {
+      const minDate = this.getMinimumSelectableDate();
+      const maxDate = this.getMaximumSelectableDate();
+      if (!minDate) {
+        throw new Error('无法确定入科日期');
+      }
+
+      // 收集所有日期
+      const dates: Date[] = [];
+      let current = new Date(minDate);
+      while (this.compareCalendarDate(current, maxDate) <= 0) {
+        dates.push(new Date(current));
+        current = this.addCalendarDays(current, 1);
+      }
+
+      if (dates.length === 0) {
+        throw new Error('没有可打印的日期范围');
+      }
+
+      // 逐天加载数据并构建 VM
+      const vms: HljldViewModel[] = [];
+
+      for (const date of dates) {
+        const pid = this.patient.pid;
+        const rangeStart = startOfNursingDay(date);
+        const rangeEnd = endOfNursingDay(date);
+
+        // 加载数据
+        const loadResult = await firstValueFrom(this.service.load(pid, rangeStart, rangeEnd));
+
+        // 查询账户信息
+        const accountIds = new Set<string>();
+        for (const nr of loadResult.data.nurseRecords) {
+          if (nr.userId) { accountIds.add(nr.userId); }
+        }
+        const accountMap = accountIds.size > 0
+          ? await firstValueFrom(this.service.queryAccounts(Array.from(accountIds)))
+          : new Map<string, string>();
+
+        // 构建 VM（临时保存并恢复 selectedDate）
+        const originalDate = this.selectedDate;
+        this.selectedDate = date;
+        const vm = this.toViewModel(loadResult.data, accountMap);
+        this.selectedDate = originalDate;
+
+        vms.push(vm);
+      }
+
+      // 批量打印
+      const result = await printAllHljldRecords({
+        vms,
+        remarkLines: this.defaultRemarkLines,
+        startPageNo: 1,
+      });
+
+      // 保存每日页数
+      for (let i = 0; i < dates.length; i++) {
+        const dateStr = this.toDateString(dates[i]);
+        const pageCount = result.pageCounts[i] || 1;
+        try {
+          await firstValueFrom(this.service.savePageCount(this.patient.pid, dateStr, pageCount));
+        } catch (err) {
+          console.warn('[HLJLD][page-count-save-error]', err);
+        }
+      }
+    } catch (error) {
+      console.error('[HLJLD][print-all-error]', error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : '批量打印失败，请重试',
+      );
+    } finally {
+      this.printingAll = false;
+      this.cdr.markForCheck();
+    }
+  }
+
   trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }

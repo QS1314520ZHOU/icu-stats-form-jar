@@ -51,6 +51,10 @@
 .print-button:hover { background: #1266a8; }
 .print-button:disabled { opacity: 0.4; cursor: not-allowed; background: #93c5fd; border-color: #93c5fd; }
 .print-button:disabled:hover { background: #93c5fd; }
+.print-all-button { background: #059669; border-color: #059669; }
+.print-all-button:hover { background: #047857; }
+.print-all-button:disabled { background: #6ee7b7; border-color: #6ee7b7; }
+.print-all-button:disabled:hover { background: #6ee7b7; }
 
 /* Paper */
 .paper { width: calc(100% - 24px); max-width: 1480px; margin: 12px auto 0; padding: 14px 16px 20px; box-sizing: border-box; background: #fff; container-type: inline-size; container-name: hljld-paper; font-family: var(--hljld-ui-font); font-synthesis: none; text-shadow: none; -webkit-text-stroke: 0; }

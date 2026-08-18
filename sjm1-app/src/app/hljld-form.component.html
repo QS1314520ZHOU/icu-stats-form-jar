@@ -54,6 +54,13 @@
       [disabled]="!vm || printing"
       (click)="print()"
     >{{ printing ? '正在生成打印页…' : '打印' }}</button>
+
+    <button
+      type="button"
+      class="print-button print-all-button"
+      [disabled]="!patient.pid || printingAll"
+      (click)="printAll()"
+    >{{ printingAll ? '正在批量打印…' : '一键打印全部' }}</button>
   </header>
 
   <ng-container *ngIf="vm as form; else statePanel">
