@@ -818,7 +818,7 @@ export function findPreviousDayRemainders(
 
     remainders.push({
       name,
-      amount: `剩余量\n${displayAmount(remainder.toFixed(1))}\nml`,
+      amount: `剩余量 ${displayAmount(remainder.toFixed(1))} ml 实用量 ${displayAmount(usedAmount.toFixed(1))} ml`,
       numericAmount: remainder,
       route: routeLabel(method.name),
     });
@@ -1431,37 +1431,24 @@ export function buildRows(
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
 
-      // 持续药物：正在进行 或 恰好在此刻开始 → 展示"实用量XXml"
+      // 持续药物：仅在开始时间列展示"实用量XXml"，后续时间列不再重复
       if (method.isOnce === false) {
         const startMs = toMs(String(execution.startTime ?? ''));
-        const ongoing = isDrugOngoingAt(execution, dayBoundaryMs);
         const startsAtTime = Number.isFinite(startMs) && startMs === timeMs;
-        if (ongoing || startsAtTime) {
+        if (startsAtTime) {
           const drugList = execution.drugList ?? [];
           const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
           if (name) {
-            if (startsAtTime && !ongoing) {
-              // 药物恰好在此刻开始：展示"实用量0ml"，剩余量由 remainder 行展示
-              const cell: NameAmountRoute = {
-                name,
-                amount: '实用量\n0.0\nml',
-                numericAmount: 0,
-                route: routeLabel(method.name),
-              };
-              if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
-            } else {
-              // 正在进行中：计算从当前时间到边界的实用量
-              const usage = calcDrugUsageForPeriod(execution, new Date(timeMs), dayBoundary);
-              if (usage.inRange > 0) {
-                const cell: NameAmountRoute = {
-                  name,
-                  amount: `实用量\n${usage.inRange.toFixed(1)}\nml`,
-                  numericAmount: usage.inRange,
-                  route: routeLabel(method.name),
-                };
-                if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
-              }
-            }
+            // 计算从开始到17:00（或结束时间）的实用量
+            const usage = calcDrugUsageForPeriod(execution, new Date(timeMs), dayBoundary);
+            const amount = usage.inRange;
+            const cell: NameAmountRoute = {
+              name,
+              amount: amount > 0 ? `实用量\n${amount.toFixed(1)}\nml` : '实用量\n0.0\nml',
+              numericAmount: amount,
+              route: routeLabel(method.name),
+            };
+            if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
             return;
           }
         }
