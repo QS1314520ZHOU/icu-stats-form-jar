@@ -719,8 +719,11 @@ export function buildDrugRemainderAfterSummary(
     // 只处理持续药物（isOnce === false）
     if (method.isOnce !== false) { continue; }
 
-    // 判断药物在小结时间点是否仍在进行
-    if (!isDrugOngoingAt(execution, summaryTimeMs)) { continue; }
+    // 判断药物在小结时间点是否仍在进行，或恰好在此刻开始
+    const startMs = toMs(String(execution.startTime ?? ''));
+    const ongoing = isDrugOngoingAt(execution, summaryTimeMs);
+    const startsAtSummary = Number.isFinite(startMs) && startMs === summaryTimeMs;
+    if (!ongoing && !startsAtSummary) { continue; }
 
     const totalAmount = resolveLiquidCap(execution);
     if (totalAmount <= 0) { continue; }
