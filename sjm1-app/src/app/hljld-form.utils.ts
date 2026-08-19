@@ -500,6 +500,27 @@ const MS_PER_HOUR = 3_600_000;
 /** 变更速度的动作，speed 为变更后的绝对值 */
 const SPEED_ACTIONS = new Set(['start', 'recovery', 'add', 'minus']);
 
+/** 动作别名规范化映射（trim + 小写 + 中英别名） */
+const ACTION_ALIAS: Record<string, 'speed' | 'pause' | 'stop' | 'quickAdd'> = {
+  start: 'speed', begin: 'speed', recovery: 'speed', resume: 'speed',
+  add: 'speed', minus: 'speed', adjust: 'speed', change: 'speed',
+  '开始': 'speed', '升始': 'speed', '恢复': 'speed', '调速': 'speed',
+  pause: 'pause', '暂停': 'pause',
+  stop: 'stop', end: 'stop', complete: 'stop', finish: 'stop',
+  '停止': 'stop', '完成': 'stop', '结束': 'stop',
+  quickadd: 'quickAdd', bolus: 'quickAdd', '快推': 'quickAdd',
+};
+
+function normalizeAction(raw: DrugActionItem, unknown?: Set<string>): 'speed' | 'pause' | 'stop' | 'quickAdd' | null {
+  const key = String(raw.action ?? '').trim().toLowerCase();
+  const hit = ACTION_ALIAS[key];
+  if (hit) { return hit; }
+  // 未登记但带了速度值，按调速处理，比静默丢弃安全
+  if (raw.speed != null && String(raw.speed).trim() !== '') { return 'speed'; }
+  if (key) { unknown?.add(key); }
+  return null;
+}
+
 /** 参与出入量统计的入量通道，其余（含空值）一律不计 */
 const COUNTED_IN_CHANNELS = new Set(['胃肠', '静脉', '输血']);
 
@@ -524,6 +545,9 @@ function normalizeSpeed(action: DrugActionItem): number {
   if (!Number.isFinite(speed) || speed <= 0) { return 0; }
   const unit = String(action.speedUnit ?? '').trim().toLowerCase();
   if (unit === 'ml/min') { return speed * 60; }
+  if (unit && unit !== 'ml/h' && unit !== 'ml/hour' && unit !== 'ml/hours') {
+    console.warn('[hljld] 未识别的速度单位，按 ml/h 处理：', unit, action);
+  }
   return speed;
 }
 
@@ -590,6 +614,7 @@ export function calcContinuousDrugAmount(
   let cursor = startMs;
   let speed = 0;
   let stopped = false;
+  const unknownActions = new Set<string>();
 
   for (const { raw, ts } of actions) {
     const at = Math.min(Math.max(ts, cursor), cutoff);
@@ -598,17 +623,20 @@ export function calcContinuousDrugAmount(
     }
     cursor = at;
 
-    const action = String(raw.action ?? '').trim();
-    if (action === 'quickAdd') {
+    const normalized = normalizeAction(raw, unknownActions);
+    if (normalized === 'quickAdd') {
       const amount = parseAmount(raw.quickAddAmount);
       if (amount > 0) { boluses.push({ time: at, amount }); }
-      continue;                                   // 快推不改变速度
+      continue;
     }
-    if (action === 'pause') { speed = 0; continue; }
-    if (action === 'stop') { speed = 0; stopped = true; break; }
-    if (SPEED_ACTIONS.has(action)) { speed = normalizeSpeed(raw); continue; }
-    // 未知动作：带 speed 视为调速，否则忽略
-    if (raw.speed != null) { speed = normalizeSpeed(raw); }
+    if (normalized === 'pause') { speed = 0; continue; }
+    if (normalized === 'stop') { speed = 0; stopped = true; break; }
+    if (normalized === 'speed') { speed = normalizeSpeed(raw); continue; }
+    // null: 未识别且无速度值，忽略
+  }
+
+  if (unknownActions.size) {
+    console.warn('[hljld] 未识别的泵注动作，速度按 0 处理：', [...unknownActions]);
   }
 
   if (!stopped && cursor < cutoff && speed > 0) {
@@ -707,125 +735,142 @@ function calcDrugUsageUpTo(execution: DrugExecution, timeMs: number): number {
   return result.inRange;
 }
 
-/**
- * 构建小结之后的药物剩余量展示数据。
- * 用于17:00日间小结或7:00小结之后的单元格展示。
- *
- * @param summaryTime 小结时间点（17:00 或 7:00）
- * @returns 剩余量展示数据列表
- */
-export function buildDrugRemainderAfterSummary(
-  drugExecutions: DrugExecution[],
-  drugMethods: DrugMethodConfig[],
-  summaryTime: Date,
-): NameAmountRoute[] {
-  const summaryTimeMs = summaryTime.getTime();
-  const remainders: NameAmountRoute[] = [];
+/* ================= 护理班段（唯一口径） ================= */
 
-  for (const execution of drugExecutions) {
-    if (!isRenderableDrugExecution(execution)) { continue; }
+export type NursingSegmentKey = 'day' | 'night';
 
-    const method = findDrugMethod(execution.methodCode, drugMethods);
-    if (!method) { continue; }
+export interface NursingSegment {
+  key: NursingSegmentKey;
+  /** 左端点，左开，不计入 */
+  start: Date;
+  /** 右端点，右闭，结算点 */
+  end: Date;
+  label: string;
+}
 
-    // 只处理持续药物（isOnce === false）
-    if (method.isOnce !== false) { continue; }
-
-    // 判断药物在小结时间点是否仍在进行，或恰好在此刻开始
-    const startMs = toMs(String(execution.startTime ?? ''));
-    const ongoing = isDrugOngoingAt(execution, summaryTimeMs);
-    const startsAtSummary = Number.isFinite(startMs) && startMs === summaryTimeMs;
-    if (!ongoing && !startsAtSummary) { continue; }
-
-    const totalAmount = resolveLiquidCap(execution);
-    if (totalAmount <= 0) { continue; }
-
-    // 计算到小结时间点的已用量
-    const usedAmount = calcDrugUsageUpTo(execution, summaryTimeMs);
-    const remainder = totalAmount - usedAmount;
-
-    if (remainder <= 0) { continue; }
-
-    // 构建药名
-    const drugList = execution.drugList ?? [];
-    const name = drugList.map(item => {
-      const n = String(item.name ?? '').trim();
-      return n;
-    }).filter(Boolean).join('、');
-
-    if (!name) { continue; }
-
-    remainders.push({
-      name,
-      amount: `剩余量 ${displayAmount(remainder.toFixed(1))} ml 实用量 ${displayAmount(usedAmount.toFixed(1))} ml`,
-      numericAmount: remainder,
-      route: routeLabel(method.name),
-    });
-  }
-
-  return remainders;
+/** 护理日切成 (7:00,17:00] 与 (17:00,次日7:00] 两段 */
+export function resolveNursingSegments(selectedDate: Date): NursingSegment[] {
+  const dayStart = startOfNursingDay(selectedDate);           // D 07:00
+  const shiftPoint = new Date(dayStart);
+  shiftPoint.setHours(17, 0, 0, 0);                           // D 17:00
+  const nightEnd = endOfNursingDay(selectedDate);             // D+1 07:00
+  return [
+    { key: 'day',   start: dayStart,   end: shiftPoint, label: '07:00-17:00' },
+    { key: 'night', start: shiftPoint, end: nightEnd,   label: '17:00-次日07:00' },
+  ];
 }
 
 /**
- * 查找前一天未完成的持续药物，用于在当天开始时展示剩余量。
- *
- * @param currentDayStart 当天7:00
- * @returns 前一天剩余量展示数据列表
+ * 段内用量 = 累计(段末) - 累计(段初)。
+ * 用差值而非重新积分，天然保证 Σ段用量 === 总用量，且复用已有的 cap 封顶逻辑。
  */
-export function findPreviousDayRemainders(
-  drugExecutions: DrugExecution[],
-  drugMethods: DrugMethodConfig[],
-  currentDayStart: Date,
-): NameAmountRoute[] {
-  const currentDayStartMs = currentDayStart.getTime();
-  const remainders: NameAmountRoute[] = [];
+export function calcSegmentUsage(
+  execution: DrugExecution,
+  segStart: Date,
+  segEnd: Date,
+): number {
+  const from = calcDrugUsageUpTo(execution, segStart.getTime());
+  const to = calcDrugUsageUpTo(execution, segEnd.getTime());
+  return Math.max(0, round1(to - from));
+}
 
-  for (const execution of drugExecutions) {
-    if (!isRenderableDrugExecution(execution)) { continue; }
+export interface SegmentSettlement {
+  execution: DrugExecution;
+  name: string;
+  route: string;
+  /** 本段实用量 */
+  segmentUsed: number;
+  /** 至段末累计已入 */
+  cumulativeUsed: number;
+  /** 至段末剩余 */
+  remainder: number;
+  cap: number;
+  /** 段末仍在泵注 */
+  ongoing: boolean;
+  /** 段未走完，只结算到 now */
+  partial: boolean;
+  /** cumulativeUsed + remainder === cap */
+  consistent: boolean;
+}
 
-    const method = findDrugMethod(execution.methodCode, drugMethods);
-    if (!method) { continue; }
+/** 获取药物显示名称 */
+function drugDisplayName(execution: DrugExecution): string {
+  const drugList = execution.drugList ?? [];
+  return drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
+}
 
-    // 只处理持续药物（isOnce === false）
-    if (method.isOnce !== false) { continue; }
+/**
+ * 结算一个班段内所有持续泵注药物。
+ * @param nowMs 截断时刻，打印时必须显式传入固定值，不要用默认的 Date.now()
+ */
+export function buildSegmentSettlements(
+  executions: DrugExecution[],
+  methods: DrugMethodConfig[],
+  segment: NursingSegment,
+  nowMs: number = Date.now(),
+): SegmentSettlement[] {
+  const segStartMs = segment.start.getTime();
+  const segEndMs = segment.end.getTime();
 
-    const startMs = toMs(String(execution.startTime ?? ''));
-    if (!Number.isFinite(startMs)) { continue; }
+  // 整段还没开始，不结算
+  if (nowMs <= segStartMs) { return []; }
 
-    // 药物必须在当天7:00之前开始（前一天的药物）
-    if (startMs >= currentDayStartMs) { continue; }
+  const cutoffMs = Math.min(segEndMs, nowMs);
+  const cutoff = new Date(cutoffMs);
+  const partial = cutoffMs < segEndMs;
 
-    // 判断药物在当天7:00是否仍在进行
-    if (!isDrugOngoingAt(execution, currentDayStartMs)) { continue; }
+  const out: SegmentSettlement[] = [];
 
-    const totalAmount = resolveLiquidCap(execution);
-    if (totalAmount <= 0) { continue; }
+  for (const execution of executions) {
+    const method = findDrugMethod(execution.methodCode, methods);
+    // 只处理持续泵注；单次给药走原有明细行逻辑
+    if (!method || method.isOnce !== false) { continue; }
 
-    // 计算到当天7:00的已用量
-    const usedAmount = calcDrugUsageUpTo(execution, currentDayStartMs);
-    const remainder = totalAmount - usedAmount;
+    const startMs = databaseTimeValue(execution.startTime);
+    if (!Number.isFinite(startMs) || startMs >= cutoffMs) { continue; }
 
-    if (remainder <= 0) { continue; }
+    const endRaw = databaseTimeValue(execution.endTime);
+    const endMs = Number.isFinite(endRaw) ? endRaw : NaN;
+    // 本段开始前就停了，与本段无关
+    if (Number.isFinite(endMs) && endMs <= segStartMs) { continue; }
 
-    // 构建药名
-    const drugList = execution.drugList ?? [];
-    const name = drugList.map(item => {
-      const n = String(item.name ?? '').trim();
-      return n;
-    }).filter(Boolean).join('、');
+    const cap = round1(resolveLiquidCap(execution));
+    const segmentUsed = calcSegmentUsage(execution, segment.start, cutoff);
+    const cumulativeUsed = round1(calcDrugUsageUpTo(execution, cutoffMs));
+    const remainder = round1(cap - cumulativeUsed);
+    const ongoing = !Number.isFinite(endMs) || endMs > cutoffMs;
 
-    if (!name) { continue; }
+    // 本段没跑量、且段末已停药 -> 不出行
+    if (segmentUsed <= 0 && !ongoing) { continue; }
 
-    remainders.push({
-      name,
-      amount: `剩余量 ${displayAmount(remainder.toFixed(1))} ml 实用量 ${displayAmount(usedAmount.toFixed(1))} ml`,
-      numericAmount: remainder,
+    const consistent = Math.abs(cumulativeUsed + remainder - cap) < 0.05;
+    if (!consistent) {
+      console.warn('[hljld] 用量不自洽，仅渲染实用量', {
+        id: (execution as any).id, cap, cumulativeUsed, remainder,
+      });
+    }
+
+    out.push({
+      execution,
+      name: drugDisplayName(execution),
       route: routeLabel(method.name),
+      segmentUsed, cumulativeUsed, remainder, cap,
+      ongoing, partial, consistent,
     });
   }
 
-  return remainders;
+  return out;
 }
+
+/** 量列文案：实用量在前；已停药不显示剩余量；不自洽只显示实用量 */
+export function formatSegmentAmountText(s: SegmentSettlement): string {
+  const used = `实用量 ${s.segmentUsed.toFixed(1)} ml`;
+  if (!s.consistent) { return used; }
+  if (!s.ongoing) { return used; }
+  return `${used} 剩余量 ${s.remainder.toFixed(1)} ml`;
+}
+
+
 
 /* ==== 通道归类与聚合 ==== */
 
@@ -879,9 +924,13 @@ function sumDrugAmountsByChannel(
 
     let amount = 0;
     if (method.isOnce === false) {
-      const result = calcContinuousDrugAmount(execution, start, end, startExclusive);
-      amount = result.inRange;
-      if (result.fallback) { totals.fallbackCount++; }
+      // 班段口径：用量 = calcDrugUsageUpTo(段末) - calcDrugUsageUpTo(段初)
+      const execStartMs = databaseTimeValue(execution.startTime);
+      const effectiveStartMs = startExclusive && Number.isFinite(execStartMs) && execStartMs > start.getTime()
+        ? execStartMs : start.getTime();
+      const usageAtEnd = calcDrugUsageUpTo(execution, end.getTime());
+      const usageAtStart = calcDrugUsageUpTo(execution, effectiveStartMs);
+      amount = round1(Math.max(0, usageAtEnd - usageAtStart));
     } else {
       if (!inNursingRange(execution.startTime, start, end, startExclusive)) { continue; }
       amount = resolveLiquidCap(execution);
@@ -1358,32 +1407,10 @@ export function buildRows(
   dayBoundary.setHours(17, 0, 0, 0);
   const dayBoundaryMs = dayBoundary.getTime();
 
-  // 在主循环之前，先添加前一天剩余量作为单独一行
-  const prevRemainders = findPreviousDayRemainders(
-    source.drugExecutions,
-    source.drugMethods,
-    start,
-  );
-  if (prevRemainders.length > 0) {
-    const remainderKey = `remainder-prev-${start.getTime()}`;
-    rows.push({
-      key: remainderKey,
-      time: new Date(start.getTime() - 1000), // 比第一天早1秒，确保排序在最前
-      timeText: '',
-      medications: prevRemainders,
-      enteral: [],
-      urines: [],
-      ultrafiltrations: [],
-      outputs: [],
-      drains: [],
-      examination: [],
-      treatment: [],
-      basicCare: [],
-      healthEducation: [],
-      nursingRecords: [],
-      signature: '',
-    });
-  }
+  // 解析护理班段
+  const segments = resolveNursingSegments(start);
+  const daySegment = segments[0];   // (07:00, 17:00]
+  const nightSegment = segments[1]; // (17:00, 次日07:00]
 
   // 追踪是否已添加日间小结后剩余量
   let daySummaryRemaindersAdded = false;
@@ -1393,20 +1420,27 @@ export function buildRows(
     const bedside = bedsideInPeriod.filter(item => minuteKey(item.time) === key);
     const drugExecutions = drugsInPeriod.filter(item => minuteKey(item.startTime) === key);
 
-    // 日间小结（17:00）之后：先添加剩余量单独一行，再添加正常数据
+    // 日间小结（17:00）之后：插入 day 段结算行
     if (!daySummaryRemaindersAdded && timeMs > dayBoundaryMs) {
-      const dayRemainders = buildDrugRemainderAfterSummary(
+      const nowMs = Date.now();
+      const settlements = buildSegmentSettlements(
         source.drugExecutions,
         source.drugMethods,
-        dayBoundary,
+        daySegment,
+        nowMs,
       );
-      if (dayRemainders.length > 0) {
-        const remainderKey = `remainder-day-${dayBoundaryMs}`;
+      if (settlements.length > 0) {
+        const settlementMeds: NameAmountRoute[] = settlements.map(s => ({
+          name: s.name,
+          amount: formatSegmentAmountText(s),
+          numericAmount: s.segmentUsed,
+          route: s.route,
+        }));
         rows.push({
-          key: remainderKey,
+          key: `settlement-day-${dayBoundaryMs}`,
           time: new Date(dayBoundaryMs + 1000), // 比17:00晚1秒
           timeText: '',
-          medications: dayRemainders,
+          medications: settlementMeds,
           enteral: [],
           urines: [],
           ultrafiltrations: [],
@@ -1547,6 +1581,42 @@ export function buildRows(
       nursingRecords,
       signature,
     });
+  }
+
+  // night 段结算行（07:00）：插入到表尾
+  {
+    const nowMs = Date.now();
+    const nightSettlements = buildSegmentSettlements(
+      source.drugExecutions,
+      source.drugMethods,
+      nightSegment,
+      nowMs,
+    );
+    if (nightSettlements.length > 0) {
+      const settlementMeds: NameAmountRoute[] = nightSettlements.map(s => ({
+        name: s.name,
+        amount: formatSegmentAmountText(s),
+        numericAmount: s.segmentUsed,
+        route: s.route,
+      }));
+      rows.push({
+        key: `settlement-night-${nightSegment.end.getTime()}`,
+        time: new Date(nightSegment.end.getTime() + 1000), // 比07:00晚1秒
+        timeText: '',
+        medications: settlementMeds,
+        enteral: [],
+        urines: [],
+        ultrafiltrations: [],
+        outputs: [],
+        drains: [],
+        examination: [],
+        treatment: [],
+        basicCare: [],
+        healthEducation: [],
+        nursingRecords: [],
+        signature: '',
+      });
+    }
   }
 
   return rows;
