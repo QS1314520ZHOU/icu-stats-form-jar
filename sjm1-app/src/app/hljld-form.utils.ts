@@ -1426,12 +1426,11 @@ export function buildRows(
           const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
           if (name) {
             if (startsAtBoundary && !ongoing) {
-              // 恰好在边界开始：不计算实用量（为0），直接展示全量，剩余量由 daySummary 之后的 remainder 行展示
-              const total = resolveLiquidCap(execution);
+              // 恰好在边界开始的持续药物：展示"实用量0ml"，剩余量由 daySummary 之后的 remainder 行展示
               const cell: NameAmountRoute = {
                 name,
-                amount: total > 0 ? `${total.toFixed(1)}` : '',
-                numericAmount: total,
+                amount: '实用量\n0.0\nml',
+                numericAmount: 0,
                 route: routeLabel(method.name),
               };
               if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
