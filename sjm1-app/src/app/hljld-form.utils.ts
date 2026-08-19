@@ -1416,20 +1416,38 @@ export function buildRows(
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
 
-      // 持续药物且在17:00仍在进行：展示"实用量XXml"
-      if (method.isOnce === false && isDrugOngoingAt(execution, dayBoundaryMs)) {
-        const usage = calcDrugUsageForPeriod(execution, new Date(timeMs), dayBoundary);
-        if (usage.inRange > 0) {
+      // 持续药物在边界（17:00）：正在进行 或 恰好在此刻开始 → 展示"实用量XXml"或全量
+      if (method.isOnce === false) {
+        const startMs = toMs(String(execution.startTime ?? ''));
+        const ongoing = isDrugOngoingAt(execution, dayBoundaryMs);
+        const startsAtBoundary = Number.isFinite(startMs) && startMs === timeMs && timeMs === dayBoundaryMs;
+        if (ongoing || startsAtBoundary) {
           const drugList = execution.drugList ?? [];
           const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
           if (name) {
-            const cell: NameAmountRoute = {
-              name,
-              amount: `实用量\n${usage.inRange.toFixed(1)}\nml`,
-              numericAmount: usage.inRange,
-              route: routeLabel(method.name),
-            };
-            if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
+            if (startsAtBoundary && !ongoing) {
+              // 恰好在边界开始：不计算实用量（为0），直接展示全量，剩余量由 daySummary 之后的 remainder 行展示
+              const total = resolveLiquidCap(execution);
+              const cell: NameAmountRoute = {
+                name,
+                amount: total > 0 ? `${total.toFixed(1)}` : '',
+                numericAmount: total,
+                route: routeLabel(method.name),
+              };
+              if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
+            } else {
+              // 正在进行中：计算从当前时间到边界的实用量
+              const usage = calcDrugUsageForPeriod(execution, new Date(timeMs), dayBoundary);
+              if (usage.inRange > 0) {
+                const cell: NameAmountRoute = {
+                  name,
+                  amount: `实用量\n${usage.inRange.toFixed(1)}\nml`,
+                  numericAmount: usage.inRange,
+                  route: routeLabel(method.name),
+                };
+                if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
+              }
+            }
             return;
           }
         }
