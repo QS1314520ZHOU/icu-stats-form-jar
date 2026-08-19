@@ -629,7 +629,7 @@ export function calcContinuousDrugAmount(
       used += amount;
       const ovStart = Math.max(start, rangeStartMs);
       const ovEnd = Math.min(effEnd, rangeEndMs);
-      if (ovEnd > ovStart) { inRange += rate * (ovEnd - ovStart) / MS_PER_HOUR; }
+      if (ovEnd >= ovStart) { inRange += rate * (ovEnd - ovStart) / MS_PER_HOUR; }
     } else if (ev.bolus) {
       const amount = Math.min(ev.bolus.amount, avail);
       if (amount <= 0) { continue; }
