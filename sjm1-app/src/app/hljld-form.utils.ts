@@ -1343,8 +1343,34 @@ export function buildRows(
   dayBoundary.setHours(17, 0, 0, 0);
   const dayBoundaryMs = dayBoundary.getTime();
 
-  // 追踪是否已添加剩余量
-  let previousDayRemaindersAdded = false;
+  // 在主循环之前，先添加前一天剩余量作为单独一行
+  const prevRemainders = findPreviousDayRemainders(
+    source.drugExecutions,
+    source.drugMethods,
+    start,
+  );
+  if (prevRemainders.length > 0) {
+    const remainderKey = `remainder-prev-${start.getTime()}`;
+    rows.push({
+      key: remainderKey,
+      time: new Date(start.getTime() - 1000), // 比第一天早1秒，确保排序在最前
+      timeText: '',
+      medications: prevRemainders,
+      enteral: [],
+      urines: [],
+      ultrafiltrations: [],
+      outputs: [],
+      drains: [],
+      examination: [],
+      treatment: [],
+      basicCare: [],
+      healthEducation: [],
+      nursingRecords: [],
+      signature: '',
+    });
+  }
+
+  // 追踪是否已添加日间小结后剩余量
   let daySummaryRemaindersAdded = false;
 
   for (const key of uniqueKeys) {
@@ -1352,30 +1378,38 @@ export function buildRows(
     const bedside = bedsideInPeriod.filter(item => minuteKey(item.time) === key);
     const drugExecutions = drugsInPeriod.filter(item => minuteKey(item.startTime) === key);
 
-    const medications: NameAmountRoute[] = [];
-    const enteral: NameAmountRoute[] = [];
-
-    // 每天第一个时间组：添加前一天的剩余量
-    if (!previousDayRemaindersAdded && uniqueKeys.indexOf(key) === 0) {
-      const prevRemainders = findPreviousDayRemainders(
-        source.drugExecutions,
-        source.drugMethods,
-        start,
-      );
-      prevRemainders.forEach(r => medications.push(r));
-      previousDayRemaindersAdded = true;
-    }
-
-    // 日间小结（17:00）之后的第一个时间组：添加当天剩余量
+    // 日间小结（17:00）之后：先添加剩余量单独一行，再添加正常数据
     if (!daySummaryRemaindersAdded && timeMs > dayBoundaryMs) {
       const dayRemainders = buildDrugRemainderAfterSummary(
         source.drugExecutions,
         source.drugMethods,
         dayBoundary,
       );
-      dayRemainders.forEach(r => medications.push(r));
+      if (dayRemainders.length > 0) {
+        const remainderKey = `remainder-day-${dayBoundaryMs}`;
+        rows.push({
+          key: remainderKey,
+          time: new Date(dayBoundaryMs + 1000), // 比17:00晚1秒
+          timeText: '',
+          medications: dayRemainders,
+          enteral: [],
+          urines: [],
+          ultrafiltrations: [],
+          outputs: [],
+          drains: [],
+          examination: [],
+          treatment: [],
+          basicCare: [],
+          healthEducation: [],
+          nursingRecords: [],
+          signature: '',
+        });
+      }
       daySummaryRemaindersAdded = true;
     }
+
+    const medications: NameAmountRoute[] = [];
+    const enteral: NameAmountRoute[] = [];
 
     drugExecutions.forEach(execution => {
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
