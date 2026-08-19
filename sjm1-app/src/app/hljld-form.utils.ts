@@ -757,7 +757,7 @@ export function buildDrugRemainderAfterSummary(
 
     remainders.push({
       name,
-      amount: `剩余量\n${displayAmount(remainder.toFixed(1))}\nml`,
+      amount: `剩余量 ${displayAmount(remainder.toFixed(1))} ml 实用量 ${displayAmount(usedAmount.toFixed(1))} ml`,
       numericAmount: remainder,
       route: routeLabel(method.name),
     });
@@ -1431,17 +1431,17 @@ export function buildRows(
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
 
-      // 持续药物在边界（17:00）：正在进行 或 恰好在此刻开始 → 展示"实用量XXml"或全量
+      // 持续药物：正在进行 或 恰好在此刻开始 → 展示"实用量XXml"
       if (method.isOnce === false) {
         const startMs = toMs(String(execution.startTime ?? ''));
         const ongoing = isDrugOngoingAt(execution, dayBoundaryMs);
-        const startsAtBoundary = Number.isFinite(startMs) && startMs === timeMs && timeMs === dayBoundaryMs;
-        if (ongoing || startsAtBoundary) {
+        const startsAtTime = Number.isFinite(startMs) && startMs === timeMs;
+        if (ongoing || startsAtTime) {
           const drugList = execution.drugList ?? [];
           const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
           if (name) {
-            if (startsAtBoundary && !ongoing) {
-              // 恰好在边界开始的持续药物：展示"实用量0ml"，剩余量由 daySummary 之后的 remainder 行展示
+            if (startsAtTime && !ongoing) {
+              // 药物恰好在此刻开始：展示"实用量0ml"，剩余量由 remainder 行展示
               const cell: NameAmountRoute = {
                 name,
                 amount: '实用量\n0.0\nml',
