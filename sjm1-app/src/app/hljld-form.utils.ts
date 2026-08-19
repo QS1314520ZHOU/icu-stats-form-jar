@@ -395,7 +395,8 @@ function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral:
     }
     return name;
   }).filter(Boolean).join('、');
-  const numericAmount = drugList.reduce((sum, item) => sum + parseAmount(item.liquidAmount), 0);
+  // 使用 resolveLiquidCap 获取 liquidAmount（优先顶层 execution.liquidAmount）
+  const numericAmount = resolveLiquidCap(execution);
   return {
     name: enteral ? enteralDisplayName(rawName) : rawName,
     amount: numericAmount !== 0 ? String(numericAmount) : '',
@@ -642,6 +643,173 @@ export function calcContinuousDrugAmount(
   }
 
   return { inRange: hasCap ? Math.min(inRange, cap) : inRange, total: used, fallback: false };
+}
+
+/* ==== 药物剩余量计算 ==== */
+
+/**
+ * 计算持续药物在指定时间段内的实际用量。
+ * 用于日间小结（14:00-17:00）或夜班小结等时段计算。
+ */
+export function calcDrugUsageForPeriod(
+  execution: DrugExecution,
+  periodStart: Date,
+  periodEnd: Date,
+): DrugActualAmount {
+  return calcContinuousDrugAmount(execution, periodStart, periodEnd, true);
+}
+
+/**
+ * 判断药物在指定时间点是否仍在进行（未停止）。
+ */
+function isDrugOngoingAt(execution: DrugExecution, timeMs: number): boolean {
+  const startMs = toMs(String(execution.startTime ?? ''));
+  if (!Number.isFinite(startMs) || startMs >= timeMs) { return false; }
+
+  // 有 endTime 且 endTime <= timeMs，说明已停止
+  if (execution.endTime) {
+    const endMs = toMs(String(execution.endTime));
+    if (Number.isFinite(endMs) && endMs <= timeMs) { return false; }
+  }
+
+  // 检查 drugActionList 中是否有 stop 动作且时间 <= timeMs
+  const actions = execution.drugActionList ?? [];
+  for (const action of actions) {
+    if (String(action.action ?? '').trim() === 'stop') {
+      const actionMs = toMs(String(action.time ?? ''));
+      if (Number.isFinite(actionMs) && actionMs <= timeMs) { return false; }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * 计算药物从开始到指定时间点的累计用量。
+ * 用于计算剩余量 = 总量 - 已用量。
+ */
+function calcDrugUsageUpTo(execution: DrugExecution, timeMs: number): number {
+  const startMs = toMs(String(execution.startTime ?? ''));
+  if (!Number.isFinite(startMs)) { return 0; }
+  const result = calcContinuousDrugAmount(execution, startMs - 1, timeMs, false);
+  return result.inRange;
+}
+
+/**
+ * 构建小结之后的药物剩余量展示数据。
+ * 用于17:00日间小结或7:00小结之后的单元格展示。
+ *
+ * @param summaryTime 小结时间点（17:00 或 7:00）
+ * @returns 剩余量展示数据列表
+ */
+export function buildDrugRemainderAfterSummary(
+  drugExecutions: DrugExecution[],
+  drugMethods: DrugMethodConfig[],
+  summaryTime: Date,
+): NameAmountRoute[] {
+  const summaryTimeMs = summaryTime.getTime();
+  const remainders: NameAmountRoute[] = [];
+
+  for (const execution of drugExecutions) {
+    if (!isRenderableDrugExecution(execution)) { continue; }
+
+    const method = findDrugMethod(execution.methodCode, drugMethods);
+    if (!method) { continue; }
+
+    // 只处理持续药物（isOnce === false）
+    if (method.isOnce !== false) { continue; }
+
+    // 判断药物在小结时间点是否仍在进行
+    if (!isDrugOngoingAt(execution, summaryTimeMs)) { continue; }
+
+    const totalAmount = resolveLiquidCap(execution);
+    if (totalAmount <= 0) { continue; }
+
+    // 计算到小结时间点的已用量
+    const usedAmount = calcDrugUsageUpTo(execution, summaryTimeMs);
+    const remainder = totalAmount - usedAmount;
+
+    if (remainder <= 0) { continue; }
+
+    // 构建药名
+    const drugList = execution.drugList ?? [];
+    const name = drugList.map(item => {
+      const n = String(item.name ?? '').trim();
+      return n;
+    }).filter(Boolean).join('、');
+
+    if (!name) { continue; }
+
+    remainders.push({
+      name,
+      amount: `剩余量${displayAmount(remainder.toFixed(1))}ml`,
+      numericAmount: remainder,
+      route: routeLabel(method.name),
+    });
+  }
+
+  return remainders;
+}
+
+/**
+ * 查找前一天未完成的持续药物，用于在当天开始时展示剩余量。
+ *
+ * @param currentDayStart 当天7:00
+ * @returns 前一天剩余量展示数据列表
+ */
+export function findPreviousDayRemainders(
+  drugExecutions: DrugExecution[],
+  drugMethods: DrugMethodConfig[],
+  currentDayStart: Date,
+): NameAmountRoute[] {
+  const currentDayStartMs = currentDayStart.getTime();
+  const remainders: NameAmountRoute[] = [];
+
+  for (const execution of drugExecutions) {
+    if (!isRenderableDrugExecution(execution)) { continue; }
+
+    const method = findDrugMethod(execution.methodCode, drugMethods);
+    if (!method) { continue; }
+
+    // 只处理持续药物（isOnce === false）
+    if (method.isOnce !== false) { continue; }
+
+    const startMs = toMs(String(execution.startTime ?? ''));
+    if (!Number.isFinite(startMs)) { continue; }
+
+    // 药物必须在当天7:00之前开始（前一天的药物）
+    if (startMs >= currentDayStartMs) { continue; }
+
+    // 判断药物在当天7:00是否仍在进行
+    if (!isDrugOngoingAt(execution, currentDayStartMs)) { continue; }
+
+    const totalAmount = resolveLiquidCap(execution);
+    if (totalAmount <= 0) { continue; }
+
+    // 计算到当天7:00的已用量
+    const usedAmount = calcDrugUsageUpTo(execution, currentDayStartMs);
+    const remainder = totalAmount - usedAmount;
+
+    if (remainder <= 0) { continue; }
+
+    // 构建药名
+    const drugList = execution.drugList ?? [];
+    const name = drugList.map(item => {
+      const n = String(item.name ?? '').trim();
+      return n;
+    }).filter(Boolean).join('、');
+
+    if (!name) { continue; }
+
+    remainders.push({
+      name,
+      amount: `剩余量${displayAmount(remainder.toFixed(1))}ml`,
+      numericAmount: remainder,
+      route: routeLabel(method.name),
+    });
+  }
+
+  return remainders;
 }
 
 /* ==== 通道归类与聚合 ==== */
@@ -1170,6 +1338,14 @@ export function buildRows(
 
   const rows: HljldTimeRow[] = [];
 
+  // 计算日间小结时间点（17:00）
+  const dayBoundary = new Date(start);
+  dayBoundary.setHours(17, 0, 0, 0);
+
+  // 追踪是否已添加剩余量
+  let previousDayRemaindersAdded = false;
+  let daySummaryRemaindersAdded = false;
+
   for (const key of uniqueKeys) {
     const timeMs = key * 60000;
     const bedside = bedsideInPeriod.filter(item => minuteKey(item.time) === key);
@@ -1177,6 +1353,28 @@ export function buildRows(
 
     const medications: NameAmountRoute[] = [];
     const enteral: NameAmountRoute[] = [];
+
+    // 每天第一个时间组：添加前一天的剩余量
+    if (!previousDayRemaindersAdded && uniqueKeys.indexOf(key) === 0) {
+      const prevRemainders = findPreviousDayRemainders(
+        source.drugExecutions,
+        source.drugMethods,
+        start,
+      );
+      prevRemainders.forEach(r => medications.push(r));
+      previousDayRemaindersAdded = true;
+    }
+
+    // 日间小结（17:00）之后的第一个时间组：添加当天剩余量
+    if (!daySummaryRemaindersAdded && timeMs > dayBoundary.getTime()) {
+      const dayRemainders = buildDrugRemainderAfterSummary(
+        source.drugExecutions,
+        source.drugMethods,
+        dayBoundary,
+      );
+      dayRemainders.forEach(r => medications.push(r));
+      daySummaryRemaindersAdded = true;
+    }
 
     drugExecutions.forEach(execution => {
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
