@@ -399,7 +399,7 @@ function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral:
   const numericAmount = resolveLiquidCap(execution);
   return {
     name: enteral ? enteralDisplayName(rawName) : rawName,
-    amount: numericAmount !== 0 ? String(numericAmount) : '',
+    amount: numericAmount !== 0 ? numericAmount.toFixed(1) : '',
     numericAmount,
     route: routeLabel(config.name),
   };
@@ -477,7 +477,7 @@ function round1(value: number): number {
 export function formatSummaryAmount(value: number): string {
   return new Intl.NumberFormat('zh-CN', {
     maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
+    minimumFractionDigits: 1,
   }).format(value);
 }
 
