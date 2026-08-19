@@ -742,7 +742,7 @@ export function buildDrugRemainderAfterSummary(
 
     remainders.push({
       name,
-      amount: `剩余量${displayAmount(remainder.toFixed(1))}ml`,
+      amount: `剩余量\n${displayAmount(remainder.toFixed(1))}\nml`,
       numericAmount: remainder,
       route: routeLabel(method.name),
     });
@@ -803,7 +803,7 @@ export function findPreviousDayRemainders(
 
     remainders.push({
       name,
-      amount: `剩余量${displayAmount(remainder.toFixed(1))}ml`,
+      amount: `剩余量\n${displayAmount(remainder.toFixed(1))}\nml`,
       numericAmount: remainder,
       route: routeLabel(method.name),
     });
@@ -1425,7 +1425,7 @@ export function buildRows(
           if (name) {
             const cell: NameAmountRoute = {
               name,
-              amount: `实用量${usage.inRange.toFixed(1)}ml`,
+              amount: `实用量\n${usage.inRange.toFixed(1)}\nml`,
               numericAmount: usage.inRange,
               route: routeLabel(method.name),
             };

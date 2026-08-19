@@ -138,6 +138,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 .number, .time-cell { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 
 .time-cell { white-space: nowrap !important; }
+.number { white-space: pre-line !important; }
 
 .nursing-cell { text-align: left !important; vertical-align: middle; color: #000; white-space: normal; word-break: break-word; overflow-wrap: anywhere; hyphens: none; }
 .sign-cell { color: #000; white-space: normal; word-break: keep-all; overflow-wrap: normal; }
