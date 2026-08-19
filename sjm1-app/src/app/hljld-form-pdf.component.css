@@ -1,0 +1,328 @@
+/* ── ICU 护理记录单 PDF 查看器样式 ── */
+
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  box-sizing: border-box;
+  color: #222;
+  background: #f5f5f5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.hljld-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f5f5f5;
+}
+
+/* ── 工具栏 ── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  z-index: 10;
+  flex-wrap: wrap;
+}
+
+.date-tools,
+.page-tools,
+.action-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+/* ── 日期选择 ── */
+
+.nav-arrow {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.nav-arrow:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #bbb;
+}
+
+.nav-arrow:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.date-picker input[type="date"] {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.date-picker input[type="date"]:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}
+
+.today-button {
+  padding: 6px 12px;
+  border: 1px solid #1976d2;
+  border-radius: 4px;
+  background: #fff;
+  color: #1976d2;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.today-button:hover:not(:disabled) {
+  background: #e3f2fd;
+}
+
+.today-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.today-button-active {
+  background: #1976d2;
+  color: #fff;
+}
+
+.today-button-active:hover:not(:disabled) {
+  background: #1565c0;
+}
+
+/* ── 页码选择 ── */
+
+.page-label {
+  font-size: 13px;
+  color: #666;
+}
+
+.page-select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 80px;
+}
+
+.page-select:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+}
+
+.page-info {
+  font-size: 13px;
+  color: #666;
+}
+
+/* ── 操作按钮 ── */
+
+.recalculate-button {
+  padding: 6px 12px;
+  border: 1px solid #ff9800;
+  border-radius: 4px;
+  background: #fff;
+  color: #ff9800;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.recalculate-button:hover:not(:disabled) {
+  background: #fff3e0;
+}
+
+.recalculate-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.print-button {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 4px;
+  background: #1976d2;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.print-button:hover:not(:disabled) {
+  background: #1565c0;
+}
+
+.print-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.print-all-button {
+  background: #388e3c;
+}
+
+.print-all-button:hover:not(:disabled) {
+  background: #2e7d32;
+}
+
+/* ── PDF 容器 ── */
+
+.pdf-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #e0e0e0;
+}
+
+.pdf-viewer {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+/* ── 加载状态 ── */
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.9);
+  z-index: 5;
+  gap: 12px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #ddd;
+  border-top-color: #1976d2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── 状态面板 ── */
+
+.state-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #666;
+}
+
+.state-panel.error {
+  color: #d32f2f;
+}
+
+.source-warning {
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 13px;
+}
+
+/* ── 辅助类 ── */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── 打印样式 ── */
+
+@media print {
+  .toolbar {
+    display: none !important;
+  }
+
+  .hljld-shell {
+    height: auto;
+  }
+
+  .pdf-container {
+    position: static;
+    height: auto;
+  }
+
+  .pdf-viewer {
+    height: auto;
+    min-height: 100vh;
+  }
+}
+
+/* ── 响应式 ── */
+
+@media (max-width: 768px) {
+  .toolbar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .date-tools,
+  .page-tools,
+  .action-tools {
+    gap: 6px;
+  }
+
+  .nav-arrow {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+
+  .today-button,
+  .recalculate-button,
+  .print-button {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+}

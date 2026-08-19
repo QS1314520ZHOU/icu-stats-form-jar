@@ -4,6 +4,8 @@ import com.itextpdf.awt.PdfGraphics2D;
 import com.itextpdf.text.Document;
 import com.itextpdf.text.DocumentException;
 import com.itextpdf.text.PageSize;
+import com.itextpdf.awt.DefaultFontMapper;
+import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PdfWriter;
 import com.smartcare.backend.entity.HljldPageIndex;
 import com.smartcare.backend.repository.HljldPageIndexRepository;
@@ -63,6 +65,7 @@ public class HljldPdfService {
     // 字体
     private Font chineseFont;
     private boolean fontInitialized = false;
+    private DefaultFontMapper fontMapper;
 
     @Autowired
     public HljldPdfService(MongoTemplate mongoTemplate, HljldPageIndexRepository pageIndexRepository) {
@@ -72,42 +75,79 @@ public class HljldPdfService {
 
     /**
      * 初始化中文字体
+     * 使用 iText FontMapper 确保 PdfGraphics2D 能正确渲染中文
      */
     private synchronized void initFont() {
         if (fontInitialized) return;
         fontInitialized = true;
+        fontMapper = new DefaultFontMapper();
 
-        // 尝试从 classpath 加载
+        // 优先从 classpath 加载（JAR 内自带，跨平台可靠）
         String[] fontPaths = {
-            "/fonts/simsun.ttc", "/fonts/simsun.ttf", "/fonts/simsunb.ttf",
-            "/fonts/SimsunExtG.ttf", "/fonts/Microsoft YaHei.ttf", "/fonts/NotoSansCJKsc-Regular.otf"
+            "/fonts/simsun.ttc",
+            "/fonts/simsun.ttf",
+            "/fonts/simsunb.ttf",
+            "/fonts/SimsunExtG.ttf",
+            "/fonts/Microsoft YaHei.ttf",
+            "/fonts/NotoSansCJKsc-Regular.otf"
         };
 
         for (String fontPath : fontPaths) {
             try (InputStream is = getClass().getResourceAsStream(fontPath)) {
                 if (is != null) {
-                    Font baseFont = Font.createFont(Font.TRUETYPE_FONT, is);
-                    chineseFont = baseFont.deriveFont(Font.PLAIN, 12f);
-                    log.info("中文字体加载成功: {}", fontPath);
+                    // 验证 BaseFont 能加载
+                    BaseFont bf = BaseFont.createFont(fontPath + ",0", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                    String bfName = bf.getFullFontName()[0][3];
+                    // 注册到 FontMapper —— PdfGraphics2D 内部通过 awtToPdf() 查找
+                    DefaultFontMapper.BaseFontParameters params = new DefaultFontMapper.BaseFontParameters(fontPath + ",0");
+                    params.encoding = BaseFont.IDENTITY_H;
+                    params.embedded = BaseFont.EMBEDDED;
+                    fontMapper.putName(bfName.toLowerCase(), params);
+                    fontMapper.putAlias(bfName, bfName.toLowerCase());
+                    // AWT Font 用于 g2d.setFont()
+                    chineseFont = new Font(bfName, Font.PLAIN, 12);
+                    log.info("字体加载成功(classpath): {}, BaseFont名称={}", fontPath, bfName);
                     return;
                 }
             } catch (Exception e) {
-                log.warn("字体加载失败 {}: {}", fontPath, e.getMessage());
+                log.warn("classpath字体加载失败 {}: {}", fontPath, e.getMessage());
             }
         }
 
-        // 从系统路径加载
+        // classpath 没有字体时，尝试系统字体目录（仅开发环境有用）
         String os = System.getProperty("os.name", "").toLowerCase();
-        String sysFontPath = os.contains("windows")
-            ? "C:/Windows/Fonts/simsun.ttc"
-            : "/usr/share/fonts/truetype/simsun.ttc";
-        try (InputStream is = new java.io.FileInputStream(sysFontPath)) {
-            Font baseFont = Font.createFont(Font.TRUETYPE_FONT, is);
-            chineseFont = baseFont.deriveFont(Font.PLAIN, 12f);
-            log.info("系统字体加载成功: {}", sysFontPath);
-        } catch (Exception e) {
-            log.warn("未找到中文字体，PDF中文将无法正常显示");
+        String[] sysFontPaths;
+        if (os.contains("windows")) {
+            sysFontPaths = new String[]{
+                "C:/Windows/Fonts/simsun.ttc",
+                "C:/Windows/Fonts/msyh.ttc",
+                "C:/Windows/Fonts/simhei.ttf"
+            };
+        } else {
+            sysFontPaths = new String[]{
+                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                "/usr/share/fonts/truetype/simsun.ttc",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+            };
         }
+
+        for (String fontPath : sysFontPaths) {
+            try {
+                java.io.File fontFile = new java.io.File(fontPath);
+                if (fontFile.exists()) {
+                    fontMapper.insertFile(fontFile);
+                    Font awtFont = Font.createFont(Font.TRUETYPE_FONT, fontFile);
+                    GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(awtFont);
+                    chineseFont = awtFont.deriveFont(Font.PLAIN, 12f);
+                    log.info("字体加载成功(系统): {}", fontPath);
+                    return;
+                }
+            } catch (Exception e) {
+                log.warn("系统字体加载失败 {}: {}", fontPath, e.getMessage());
+            }
+        }
+
+        log.error("所有中文字体加载失败，PDF中文将无法正常显示！");
     }
 
     /**
@@ -115,7 +155,10 @@ public class HljldPdfService {
      */
     private Font getFont(float size) {
         if (!fontInitialized) initFont();
-        if (chineseFont == null) return new Font("SansSerif", Font.PLAIN, (int) size);
+        if (chineseFont == null) {
+            log.warn("中文字体未加载，使用默认字体");
+            return new Font("SansSerif", Font.PLAIN, (int) size);
+        }
         return chineseFont.deriveFont(Font.PLAIN, size);
     }
 
@@ -124,6 +167,7 @@ public class HljldPdfService {
      */
     public byte[] generateDailyPdf(String pid, String date) {
         log.info("生成PDF: pid={}, date={}", pid, date);
+        initFont(); // 确保 fontMapper 已初始化
 
         org.bson.Document patient = getPatientInfo(pid);
         NursingDayData dayData = loadNursingDayData(pid, date);
@@ -139,14 +183,14 @@ public class HljldPdfService {
             float h = pdfDoc.getPageSize().getHeight();
 
             if (dayData.isEmpty()) {
-                Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
+                Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h, fontMapper);
                 renderPage(g2d, patient, Collections.emptyList(), startPageNo, 1, date);
                 g2d.dispose();
             } else {
                 List<List<Map<String, Object>>> pages = paginateData(dayData);
                 for (int i = 0; i < pages.size(); i++) {
                     if (i > 0) pdfDoc.newPage();
-                    Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
+                    Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h, fontMapper);
                     renderPage(g2d, patient, pages.get(i), startPageNo + i, pages.size(), date);
                     g2d.dispose();
                 }
@@ -165,6 +209,7 @@ public class HljldPdfService {
      */
     public byte[] generateAllPagesPdf(String pid) {
         log.info("生成全部PDF: pid={}", pid);
+        initFont(); // 确保 fontMapper 已初始化
 
         Optional<HljldPageIndex> indexOpt = pageIndexRepository.findByPid(pid);
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
@@ -190,7 +235,7 @@ public class HljldPdfService {
                 if (dayData.isEmpty()) {
                     if (!firstPage) pdfDoc.newPage();
                     firstPage = false;
-                    Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
+                    Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h, fontMapper);
                     renderPage(g2d, patient, Collections.emptyList(), dailyPage.getStartPageNo(), 1, dailyPage.getDate());
                     g2d.dispose();
                 } else {
@@ -198,7 +243,7 @@ public class HljldPdfService {
                     for (int i = 0; i < pages.size(); i++) {
                         if (!firstPage) pdfDoc.newPage();
                         firstPage = false;
-                        Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
+                        Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h, fontMapper);
                         renderPage(g2d, patient, pages.get(i), dailyPage.getStartPageNo() + i, pages.size(), dailyPage.getDate());
                         g2d.dispose();
                     }
@@ -226,9 +271,11 @@ public class HljldPdfService {
 
         // ===== 1. 标题 =====
         y = MARGIN_TOP + 20;
-        g2d.setFont(getFont(16f));
+        Font titleFont = getFont(16f);
+        g2d.setFont(titleFont);
         g2d.setColor(Color.BLACK);
         String title = "重钢总医院重症医学科护理记录单";
+        log.debug("标题字体: name={}, family={}, canDisplay='{}'={}", titleFont.getFontName(), titleFont.getFamily(), title, titleFont.canDisplayUpTo(title));
         FontMetrics fm16 = g2d.getFontMetrics();
         g2d.drawString(title, lx + (tw - fm16.stringWidth(title)) / 2, y);
 
@@ -371,6 +418,7 @@ public class HljldPdfService {
      * 生成空白页 PDF
      */
     private byte[] generateEmptyPagePdf(String pid, String date) {
+        initFont(); // 确保 fontMapper 已初始化
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             Document pdfDoc = new Document(PageSize.A4.rotate(), 0, 0, 0, 0);
@@ -380,7 +428,7 @@ public class HljldPdfService {
             float w = pdfDoc.getPageSize().getWidth();
             float h = pdfDoc.getPageSize().getHeight();
 
-            Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h);
+            Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h, fontMapper);
             org.bson.Document patient = getPatientInfo(pid);
             int startPageNo = getStartPageNo(pid, date);
             renderPage(g2d, patient, Collections.emptyList(), startPageNo, 1, date);

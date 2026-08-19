@@ -1,328 +1,386 @@
-/* ── ICU 护理记录单 PDF 查看器样式 ── */
-
 :host {
+  --hljld-ui-font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  --hljld-table-font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  --hljld-print-font: SimSun, "宋体", "Noto Serif CJK SC", serif;
+  --hljld-table-font-size: 11px;
+  --hljld-table-line-height: 16px;
+
   display: block;
   width: 100%;
   min-width: 0;
   min-height: 100%;
   box-sizing: border-box;
   color: #222;
-  background: #f5f5f5;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #f3f5f7;
+  font-family: var(--hljld-ui-font);
 }
 
-.hljld-shell {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: #f5f5f5;
+.hljld-shell { width: 100%; min-width: 0; padding: 0; box-sizing: border-box; }
+
+/* Toolbar */
+.toolbar { width: 100%; max-width: none; min-height: 52px; box-sizing: border-box; display: flex; align-items: center; gap: 12px; margin: 0; padding: 8px 12px; background: #fff; border-top: 0; border-right: 0; border-left: 0; border-bottom: 1px solid #dfe3e8; border-radius: 0; box-shadow: 0 1px 3px rgba(0,0,0,.05); position: sticky; top: 0; z-index: 50; }
+
+.date-tools { display: inline-flex; align-items: stretch; flex: 0 0 auto; gap: 0; min-width: 0; }
+
+.nav-arrow { flex: 0 0 36px; width: 36px; height: 36px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: 0; border: 1px solid #ccd3da; background: #fff; color: #333; font-size: 20px; line-height: 1; cursor: pointer; user-select: none; }
+.nav-arrow-left { border-radius: 6px 0 0 6px; }
+.nav-arrow-right { border-radius: 0 6px 6px 0; }
+.nav-arrow:hover { background: #f6f8fa; }
+.nav-arrow:focus-visible { position: relative; z-index: 2; outline: 2px solid #3478f6; outline-offset: -2px; }
+.nav-arrow:disabled { opacity: 0.4; cursor: not-allowed; background: #f5f5f5; }
+.nav-arrow:disabled:hover { background: #f5f5f5; }
+
+.date-picker { position: relative; display: block; flex: 0 0 142px; width: 142px; height: 36px; min-width: 0; cursor: pointer; }
+.date-picker input { display: block; width: 100%; height: 36px; box-sizing: border-box; margin: 0; padding: 0 8px; border-top: 1px solid #ccd3da; border-bottom: 1px solid #ccd3da; border-left: 0; border-right: 0; border-radius: 0; outline: 0; background: #fff; color: #222; font: inherit; font-variant-numeric: tabular-nums; text-align: center; cursor: pointer; }
+.date-picker input:hover { background: #f9fbfd; }
+.date-picker input:focus-visible { position: relative; z-index: 2; outline: 2px solid #3478f6; outline-offset: -2px; }
+.date-picker input::-webkit-calendar-picker-indicator { cursor: pointer; }
+
+.today-button { flex: 0 0 auto; height: 36px; box-sizing: border-box; margin-left: 8px; padding: 0 18px; border: 1px solid #ccd3da; border-radius: 6px; background: #fff; color: #222; font: inherit; white-space: nowrap; cursor: pointer; transition: all 0.15s ease; }
+.today-button:hover { background: #f6f8fa; border-color: #8aa9c8; }
+.today-button:disabled { opacity: 0.4; cursor: not-allowed; background: #f5f5f5; }
+.today-button:disabled:hover { background: #f5f5f5; border-color: #ccd3da; }
+.today-button-active { border-color: #3478f6; background: #3478f6; color: #fff; font-weight: 600; }
+.today-button-active:hover { border-color: #2868db; background: #2868db; }
+
+.toolbar-spacer { flex: 1 1 auto; min-width: 12px; }
+
+.source-warning { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b45309; font-size: 12px; padding: 4px 8px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; }
+
+.print-button { flex: 0 0 auto; height: 36px; box-sizing: border-box; padding: 0 18px; border: 1px solid #1677c8; border-radius: 6px; background: #1677c8; color: #fff; font-weight: 600; cursor: pointer; }
+.print-button:hover { background: #1266a8; }
+.print-button:disabled { opacity: 0.4; cursor: not-allowed; background: #93c5fd; border-color: #93c5fd; }
+.print-button:disabled:hover { background: #93c5fd; }
+
+/* Paper */
+.paper { width: calc(100% - 24px); max-width: 1480px; margin: 12px auto 0; padding: 14px 16px 20px; box-sizing: border-box; background: #fff; container-type: inline-size; container-name: hljld-paper; font-family: var(--hljld-ui-font); font-synthesis: none; text-shadow: none; -webkit-text-stroke: 0; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK SC", serif; font-size: 22px; letter-spacing: 2px; }
+
+.patient-strip { display: flex; flex-wrap: wrap; gap: 7px 22px; padding: 7px 4px; font-family: var(--hljld-ui-font); font-size: 12px; }
+.patient-strip b, .patient-strip strong { font-family: var(--hljld-ui-font); font-weight: 500; }
+.patient-strip .diagnosis { flex: 1 1 300px; }
+
+/* =========================================================
+   Record table — Microsoft YaHei screen font, weight 500
+   ========================================================= */
+
+.table-wrap { width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; box-sizing: border-box; scrollbar-gutter: stable; }
+
+.record-table {
+  width: 100%; min-width: 1320px;
+  border-collapse: collapse; border-spacing: 0; table-layout: fixed;
+  font-family: var(--hljld-table-font);
+  font-size: var(--hljld-table-font-size);
+  font-style: normal; font-weight: 500;
+  line-height: var(--hljld-table-line-height);
+  font-synthesis: none; text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  color: #000; text-shadow: none; -webkit-text-stroke: 0;
 }
 
-/* ── 工具栏 ── */
+/* Column widths (19 columns, total = 100%) */
+.col-time { width: 7%; }
+.col-med-name, .col-enteral-name { width: 5.5%; }
+.col-med-amount, .col-enteral-amount { width: 3.5%; }
+.col-med-route, .col-enteral-route { width: 4%; }
+.col-urine { width: 4%; }
+.col-ultrafiltration { width: 4%; }
+.col-output-name, .col-drain-name { width: 5.5%; }
+.col-output-amount, .col-drain-amount { width: 3.5%; }
+.col-check, .col-treatment, .col-basic-care, .col-health { width: 5%; }
+.col-nursing { width: 18%; }
+.col-sign { width: 6%; }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  z-index: 10;
-  flex-wrap: wrap;
+.record-table th, .record-table td,
+.record-table div, .record-table span,
+.record-table b, .record-table strong {
+  font-family: inherit !important; font-style: normal; font-synthesis: none;
+  text-shadow: none !important; -webkit-text-stroke: 0 !important; filter: none !important;
 }
 
-.date-tools,
-.page-tools,
-.action-tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.record-table th, .record-table td {
+  border: 1px solid #2b2b2b; padding: 3px 4px; vertical-align: middle; text-align: center; overflow-wrap: anywhere; word-break: break-word;
 }
 
-.toolbar-spacer {
-  flex: 1;
+.record-table thead th {
+  background: #e5edf2; color: #181818;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 600; line-height: 16px;
 }
 
-/* ── 日期选择 ── */
-
-.nav-arrow {
-  width: 32px;
-  height: 32px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #fff;
-  cursor: pointer;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+.record-table tbody td {
+  min-height: 26px; white-space: normal;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; color: #000;
+  text-shadow: none; -webkit-text-stroke: 0;
 }
 
-.nav-arrow:hover:not(:disabled) {
-  background: #f0f0f0;
-  border-color: #bbb;
+.record-table tbody td b, .record-table tbody td strong { font-weight: 600; }
+
+.record-table tbody tr.continuation-row td { border-top-style: dashed; border-top-color: #b8bec4; }
+.record-table tbody tr.continuation-row .time-cell { color: transparent; }
+
+/* =========================================================
+   Column widths & cell styles
+   ========================================================= */
+
+.time-col { width: 8%; }
+.record-col { width: 18%; }
+.sign-col { width: 6%; }
+
+.time-cell, .number, .nursing-cell, .sign-cell,
+.remark-row th, .remark-row td, .remark-line {
+  font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 16px;
+  text-shadow: none !important; -webkit-text-stroke: 0 !important;
 }
 
-.nav-arrow:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.number, .time-cell { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+.time-cell { white-space: nowrap !important; }
+
+.nursing-cell { text-align: left !important; vertical-align: middle; color: #000; white-space: normal; word-break: break-word; overflow-wrap: anywhere; hyphens: none; }
+.sign-cell { color: #000; white-space: normal; word-break: keep-all; overflow-wrap: normal; }
+
+/* =========================================================
+   Summary rows
+   ========================================================= */
+
+.summary-row { break-inside: avoid; page-break-inside: avoid; }
+.summary-row-cell { padding: 0 !important; text-align: left !important; }
+
+.summary-panel {
+  width: 100%; box-sizing: border-box; padding: 7px 10px;
+  font-family: var(--hljld-table-font); font-synthesis: none;
+  text-shadow: none; -webkit-text-stroke: 0;
+  text-align: left !important;
 }
 
-.date-picker input[type="date"] {
-  padding: 6px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
+.day-summary-row .summary-panel { background: #f7f3df; }
+.shift-summary-row .summary-panel { background: #f4f1e3; }
+.full-day-summary-row .summary-panel { background: #edf6ee; }
+.discharge-summary-row .summary-panel { background: #e8f0fe; }
+
+.summary-heading { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 5px; text-align: center !important; }
+
+.summary-title { font-family: var(--hljld-table-font); font-size: 12px; font-weight: 600; line-height: 15px; }
+.summary-period { font-family: var(--hljld-table-font); font-size: 10px; font-weight: 500; line-height: 13px; color: #444; }
+
+.summary-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 18px; min-height: 20px; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; color: #000; width: 100%; justify-content: flex-start !important; text-align: left !important; }
+
+.summary-total, .summary-group-label { flex: 0 0 auto; white-space: nowrap; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; }
+.summary-stat { flex: 0 0 auto; white-space: nowrap; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; }
+.summary-stat strong, .summary-total strong { font-family: inherit; font-size: inherit; font-weight: 600; }
+
+.summary-output-line { width: 100%; align-items: baseline; }
+.summary-output-line .summary-group-label { margin-left: 2px; }
+
+.summary-detail-line {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--hljld-table-font);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  color: #000;
+  text-align: left !important;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.summary-detail-line strong { font-weight: 600; margin: 0 3px; }
+.summary-detail-line + .summary-detail-line { margin-top: 6px; }
+.summary-detail-line .summary-sep { margin-right: 12px; }
+
+/* =========================================================
+   Remark
+   ========================================================= */
+
+.remark-row th { vertical-align: top; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; }
+.remark-row td { text-align: left; padding: 6px 8px; white-space: normal; word-break: break-word; line-height: 1.6; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; color: #000; }
+.remark-line { font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; color: #000; }
+.remark-line + .remark-line { margin-top: 2px; }
+
+/* =========================================================
+   Empty / State
+   ========================================================= */
+
+.empty-cell { height: 80px; color: #78828c; }
+.state-panel { margin: 12px auto 0; width: min(420px, calc(100% - 24px)); padding: 16px 24px; text-align: center; background: #fff; border: 1px solid #dfe3e8; border-radius: 8px; }
+.state-panel.error { color: #b42318; }
+.spinner { width: 26px; height: 26px; margin: 0 auto 12px; border: 3px solid #d8e8f5; border-top-color: #1677c8; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* =========================================================
+   Narrow screens
+   ========================================================= */
+
+@media screen and (max-width: 760px) {
+  .toolbar { gap: 8px; padding: 8px; }
+  .date-picker { flex-basis: 130px; width: 130px; }
+  .today-button, .print-button { padding: 0 12px; }
+  .source-warning { display: none; }
+  .paper { width: calc(100% - 16px); }
 }
 
-.date-picker input[type="date"]:focus {
-  outline: none;
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+/* =========================================================
+   Container query: compact layout at ~110% zoom
+   ========================================================= */
+
+@container hljld-paper (max-width: 1380px) {
+  .record-table th, .record-table td { padding: 2px 3px; }
+  .patient-strip { gap: 5px 14px; padding: 5px 3px; font-size: 11px; }
+  h1 { margin-bottom: 7px; font-size: 20px; }
+  .summary-panel { padding: 5px 8px; }
+  .summary-line { gap: 3px 12px; min-height: 18px; }
 }
 
-.today-button {
-  padding: 6px 12px;
-  border: 1px solid #1976d2;
-  border-radius: 4px;
-  background: #fff;
-  color: #1976d2;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
+@container hljld-paper (max-width: 1220px) {
+  .record-table th, .record-table td { padding: 2px; }
+  .record-table, .record-table thead th, .record-table tbody td,
+  .nursing-cell, .sign-cell { font-size: 11px; line-height: 16px; }
+  .patient-strip { gap: 4px 10px; font-size: 10px; }
+  h1 { font-size: 18px; }
 }
 
-.today-button:hover:not(:disabled) {
-  background: #e3f2fd;
+/* =========================================================
+   Record table — force pure black text
+   ========================================================= */
+
+.record-table,
+.record-table th,
+.record-table td,
+.record-table div,
+.record-table span,
+.record-table b,
+.record-table strong {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1;
+  text-shadow: none !important;
+  -webkit-text-stroke: 0 !important;
 }
 
-.today-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.record-table thead th {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
 }
 
-.today-button-active {
-  background: #1976d2;
-  color: #fff;
+.record-table tbody td {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
 }
 
-.today-button-active:hover:not(:disabled) {
-  background: #1565c0;
+.time-cell,
+.number,
+.nursing-cell,
+.sign-cell,
+.remark-row th,
+.remark-row td,
+.remark-line {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1;
 }
 
-/* ── 页码选择 ── */
-
-.page-label {
-  font-size: 13px;
-  color: #666;
+.summary-panel,
+.summary-title,
+.summary-period,
+.summary-line,
+.summary-total,
+.summary-group-label,
+.summary-stat,
+.summary-stat strong,
+.summary-total strong {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1;
 }
 
-.page-select {
-  padding: 6px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #fff;
-  font-size: 13px;
-  cursor: pointer;
-  min-width: 80px;
+/* 延续行的时间原本需要隐藏，纯黑规则优先级较高，必须重新设置透明 */
+.record-table tbody tr.continuation-row .time-cell {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
 }
 
-.page-select:focus {
-  outline: none;
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+.patient-strip,
+.patient-strip span,
+.patient-strip b,
+.patient-strip strong {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+  opacity: 1;
 }
 
-.page-info {
-  font-size: 13px;
-  color: #666;
+/* =========================================================
+   Print — SimSun (宋体)
+   ========================================================= */
+
+@media print {
+  @page { size: A4 landscape; margin: 7mm; }
+
+  :host, .hljld-shell { width: 100%; min-width: 0; max-width: none; margin: 0; padding: 0; background: #fff; }
+  .no-print { display: none !important; }
+  .paper { width: 100%; max-width: none; margin: 0; padding: 0; container-type: normal; }
+  h1 { font-size: 15pt; margin-bottom: 2mm; }
+  .patient-strip { font-family: var(--hljld-print-font); font-size: 7.5pt; padding: 1.5mm 0; gap: 1mm 5mm; }
+  .table-wrap { overflow: visible; }
+
+  .record-table,
+  .record-table th, .record-table td,
+  .record-table div, .record-table span,
+  .record-table b, .record-table strong,
+  .summary-panel, .summary-panel * {
+    font-family: var(--hljld-print-font) !important;
+    font-synthesis: none; text-shadow: none !important; -webkit-text-stroke: 0 !important;
+  }
+
+  .record-table { width: 100%; min-width: 0; font-size: 7.5pt; line-height: 9pt; }
+  .record-table th, .record-table td { padding: 0.6mm; }
+  .record-table thead { display: table-header-group; }
+  .record-table thead th { font-size: 7.5pt; font-weight: 600; line-height: 9pt; }
+  .record-table tbody td, .record-table tbody td b, .record-table tbody td strong { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+  .record-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .record-table tbody tr.continuation-row td { border-top: 0.3mm dashed #888; }
+
+  .time-col { width: 20mm; }
+  .record-col { width: 29mm; }
+  .sign-col { width: 12mm; }
+
+  .summary-panel { width: 100%; padding: 1mm 2mm; text-align: left !important; }
+  .summary-title { font-size: 8pt; font-weight: 600; line-height: 9pt; }
+  .summary-period { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+  .summary-line, .summary-total, .summary-group-label, .summary-stat { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+  .summary-detail-line { font-size: 7.5pt; font-weight: 500; line-height: 10pt; text-align: left !important; }
+  .remark-row th, .remark-row td, .remark-line { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+
+  .record-table,
+  .record-table th, .record-table td,
+  .record-table div, .record-table span,
+  .record-table b, .record-table strong,
+  .patient-strip, .patient-strip span, .patient-strip b,
+  .summary-panel, .summary-panel *,
+  .remark-row th, .remark-row td, .remark-line {
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+    -webkit-text-stroke: 0 !important;
+  }
+
+  .record-table tbody tr.continuation-row .time-cell {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+  }
 }
 
-/* ── 操作按钮 ── */
+/* =========================================================
+   Print pagination (for new print window)
+   ========================================================= */
 
-.recalculate-button {
-  padding: 6px 12px;
-  border: 1px solid #ff9800;
-  border-radius: 4px;
-  background: #fff;
-  color: #ff9800;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
-}
-
-.recalculate-button:hover:not(:disabled) {
-  background: #fff3e0;
-}
-
-.recalculate-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.print-button {
-  padding: 6px 16px;
-  border: none;
-  border-radius: 4px;
-  background: #1976d2;
-  color: #fff;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
-}
-
-.print-button:hover:not(:disabled) {
-  background: #1565c0;
-}
-
+/* 打印按钮禁用状态 */
 .print-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.print-all-button {
-  background: #388e3c;
-}
-
-.print-all-button:hover:not(:disabled) {
-  background: #2e7d32;
-}
-
-/* ── PDF 容器 ── */
-
-.pdf-container {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  background: #e0e0e0;
-}
-
-.pdf-viewer {
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: #fff;
-}
-
-/* ── 加载状态 ── */
-
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.9);
-  z-index: 5;
-  gap: 12px;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #ddd;
-  border-top-color: #1976d2;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* ── 状态面板 ── */
-
-.state-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: #666;
-}
-
-.state-panel.error {
-  color: #d32f2f;
-}
-
-.source-warning {
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: #fff3e0;
-  color: #e65100;
-  font-size: 13px;
-}
-
-/* ── 辅助类 ── */
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* ── 打印样式 ── */
-
-@media print {
-  .toolbar {
-    display: none !important;
-  }
-
-  .hljld-shell {
-    height: auto;
-  }
-
-  .pdf-container {
-    position: static;
-    height: auto;
-  }
-
-  .pdf-viewer {
-    height: auto;
-    min-height: 100vh;
-  }
-}
-
-/* ── 响应式 ── */
-
-@media (max-width: 768px) {
-  .toolbar {
-    padding: 8px 12px;
-    gap: 8px;
-  }
-
-  .date-tools,
-  .page-tools,
-  .action-tools {
-    gap: 6px;
-  }
-
-  .nav-arrow {
-    width: 28px;
-    height: 28px;
-    font-size: 16px;
-  }
-
-  .today-button,
-  .recalculate-button,
-  .print-button {
-    padding: 5px 10px;
-    font-size: 12px;
-  }
 }

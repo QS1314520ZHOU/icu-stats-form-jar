@@ -24,6 +24,7 @@ import { BradenFormComponent } from './braden-form.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { HljldFormComponent } from './hljld-form.component';
+import { HljldFormPdfComponent } from './hljld-form-pdf.component';
 import { HljldFormService } from './hljld-form.service';
 import { HljldPdfService } from './hljld-pdf.service';
 import { DomSafePipe } from './dom-safe.pipe';
@@ -58,6 +59,7 @@ import { routes } from './app.routes';
     CrrtOrderFormComponent,
     TemperatureRecordComponent,
     HljldFormComponent,
+    HljldFormPdfComponent,
     HandoverReportComponent,
     PrintCenterComponent,
     BloodSugarComponent,
