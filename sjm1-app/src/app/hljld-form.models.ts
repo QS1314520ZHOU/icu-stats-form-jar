@@ -163,6 +163,8 @@ export interface HljldTimeRow {
   key: string;
   time: Date;
   timeText: string;
+  /** 同分钟内排序优先级：carryOver=-1, 明细=0, 小结=1, 结算=2 */
+  sortRank?: number;
   medications: NameAmountRoute[];
   enteral: NameAmountRoute[];
   /** 尿量：独立列，只有量 */

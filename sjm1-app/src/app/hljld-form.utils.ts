@@ -380,7 +380,10 @@ function isRenderableDrugExecution(item: DrugExecution): boolean {
 
 /* ---- 数据转换 ---- */
 
-function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral: boolean, displayTimeMs?: number): NameAmountRoute {
+function drugToCell(
+  execution: DrugExecution, config: DrugMethodConfig, enteral: boolean,
+  displayTimeMs?: number, segStartMs?: number,
+): NameAmountRoute {
   const drugList = execution.drugList ?? [];
   const rawName = drugList.map(item => {
     const name = String(item.name ?? '').trim();
@@ -395,13 +398,14 @@ function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral:
     }
     return name;
   }).filter(Boolean).join('、');
-  // 持续药物：展示从开始到当前时间点的实际用量（与小结计算口径一致）
+  // 持续药物：展示从段初到当前时间点的实际用量（班段口径）
   // 单次药物：展示 liquidAmount 全量
   let numericAmount: number;
   if (config.isOnce === false && Number.isFinite(displayTimeMs) && displayTimeMs! > 0) {
-    const startMs = toMs(String(execution.startTime ?? ''));
-    if (Number.isFinite(startMs) && displayTimeMs! > startMs) {
-      const usage = calcContinuousDrugAmount(execution, startMs, displayTimeMs!, false);
+    const execStartMs = toMs(String(execution.startTime ?? ''));
+    const from = Number.isFinite(segStartMs) ? Math.max(execStartMs, segStartMs!) : execStartMs;
+    if (Number.isFinite(from) && displayTimeMs! > from) {
+      const usage = calcContinuousDrugAmount(execution, from, displayTimeMs!, true);
       numericAmount = usage.inRange;
     } else {
       numericAmount = 0;
@@ -505,6 +509,7 @@ const ACTION_ALIAS: Record<string, 'speed' | 'pause' | 'stop' | 'quickAdd'> = {
   start: 'speed', begin: 'speed', recovery: 'speed', resume: 'speed',
   add: 'speed', minus: 'speed', adjust: 'speed', change: 'speed',
   '开始': 'speed', '升始': 'speed', '恢复': 'speed', '调速': 'speed',
+  '加速': 'speed', '减速': 'speed', '降速': 'speed', '调快': 'speed', '调慢': 'speed',
   pause: 'pause', '暂停': 'pause',
   stop: 'stop', end: 'stop', complete: 'stop', finish: 'stop',
   '停止': 'stop', '完成': 'stop', '结束': 'stop',
@@ -1412,6 +1417,54 @@ export function buildRows(
   const daySegment = segments[0];   // (07:00, 17:00]
   const nightSegment = segments[1]; // (17:00, 次日07:00]
 
+  /** 找到 timeMs 所属的段（左开右闭） */
+  function segmentOf(timeMs: number): NursingSegment | undefined {
+    for (const seg of segments) {
+      if (timeMs > seg.start.getTime() && timeMs <= seg.end.getTime()) { return seg; }
+    }
+    return undefined;
+  }
+
+  // ---- 表首 carryOver 行：前一护理日 night 段仍在执行的续用药物 ----
+  {
+    const prevNightEnd = new Date(start); // start = 当天07:00 = 前一night段末
+    const prevNightStart = new Date(start);
+    prevNightStart.setDate(prevNightStart.getDate() - 1);
+    prevNightStart.setHours(17, 0, 0, 0);
+    const prevNightSeg: NursingSegment = { key: 'night', start: prevNightStart, end: prevNightEnd, label: '' };
+    const nowMs = Date.now();
+    const prevSettlements = buildSegmentSettlements(
+      source.drugExecutions, source.drugMethods, prevNightSeg, nowMs,
+    );
+    const carryOnes = prevSettlements.filter(s => s.ongoing);
+    if (carryOnes.length > 0) {
+      const carryMeds: NameAmountRoute[] = carryOnes.map(c => ({
+        name: c.name,
+        amount: `续用 已入${c.cumulativeUsed.toFixed(1)}/共${c.cap.toFixed(1)} ml`,
+        numericAmount: 0, // 不参与小结累加
+        route: c.route,
+      }));
+      rows.push({
+        key: `carry-over-${start.getTime()}`,
+        time: new Date(start.getTime()),
+        timeText: '',
+        sortRank: -1,
+        medications: carryMeds,
+        enteral: [],
+        urines: [],
+        ultrafiltrations: [],
+        outputs: [],
+        drains: [],
+        examination: [],
+        treatment: [],
+        basicCare: [],
+        healthEducation: [],
+        nursingRecords: [],
+        signature: '',
+      });
+    }
+  }
+
   // 追踪是否已添加日间小结后剩余量
   let daySummaryRemaindersAdded = false;
 
@@ -1440,6 +1493,7 @@ export function buildRows(
           key: `settlement-day-${dayBoundaryMs}`,
           time: new Date(dayBoundaryMs + 1000), // 比17:00晚1秒
           timeText: '',
+          sortRank: 2,
           medications: settlementMeds,
           enteral: [],
           urines: [],
@@ -1465,28 +1519,24 @@ export function buildRows(
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
 
-      // 持续药物：仅在开始时间列展示"实用量XXml"，后续时间列不再重复
+      // 持续药物：仅在开始时间列展示医嘱液体量（resolveLiquidCap），后续时间列按段内累计
       if (method.isOnce === false) {
         const startMs = toMs(String(execution.startTime ?? ''));
-        // 用分钟级匹配：药物开始时间的分钟 == 当前时间列的分钟
+        const ongoing = isDrugOngoingAt(execution, timeMs);
         const startsAtTime = Number.isFinite(startMs) && minuteKey(new Date(startMs)) === key;
+        if (!ongoing && !startsAtTime) { return; }
+
+        // 开始行：量列写医嘱液体量，实用量只在段末结算行出现
         if (startsAtTime) {
-          const drugList = execution.drugList ?? [];
-          const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
-          if (name) {
-            // 计算从药物实际开始到17:00（或结束时间）的实用量
-            const usage = calcDrugUsageForPeriod(execution, new Date(startMs), dayBoundary);
-            const amount = usage.inRange;
-            const cell: NameAmountRoute = {
-              name,
-              amount: amount > 0 ? `实用量\n${amount.toFixed(1)}\nml` : '实用量\n0.0\nml',
-              numericAmount: amount,
-              route: routeLabel(method.name),
-            };
-            if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
-            return;
-          }
+          const cell = drugToCell(execution, method, isEnteral); // 无 displayTimeMs → resolveLiquidCap
+          if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
+          return;
         }
+        // 其余行按段内累计
+        const seg = segmentOf(timeMs);
+        const cell = drugToCell(execution, method, isEnteral, timeMs, seg?.start.getTime());
+        if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
+        return;
       }
 
       const cell = drugToCell(execution, method, isEnteral, timeMs);
@@ -1568,6 +1618,7 @@ export function buildRows(
       key: String(key),
       time: new Date(timeMs),
       timeText: formatTime(timeMs),
+      sortRank: 0,
       medications,
       enteral,
       urines,
@@ -1603,6 +1654,7 @@ export function buildRows(
         key: `settlement-night-${nightSegment.end.getTime()}`,
         time: new Date(nightSegment.end.getTime() + 1000), // 比07:00晚1秒
         timeText: '',
+        sortRank: 2,
         medications: settlementMeds,
         enteral: [],
         urines: [],
@@ -1625,7 +1677,12 @@ export function buildRows(
 /* ---- 时间组展开 ---- */
 
 export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[] {
-  const sortedRows = [...sourceRows].sort((a, b) => a.time.getTime() - b.time.getTime());
+  const sortedRows = [...sourceRows].sort((a, b) => {
+    const da = minuteInstant(a.time);
+    const db = minuteInstant(b.time);
+    if (da !== db) { return da - db; }
+    return (a.sortRank ?? 0) - (b.sortRank ?? 0);
+  });
   const groups: HljldTimeGroup[] = [];
 
   for (const row of sortedRows) {

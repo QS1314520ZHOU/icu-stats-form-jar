@@ -29,7 +29,7 @@ function makeExec(opts: {
   endTime?: string;
   liquidAmount?: number;
   drugList?: Array<{ name: string; dosage?: string }>;
-  drugAction?: Array<{ time: string; action: string; speed?: string; speedUnit?: string }>;
+  drugActionList?: Array<{ time: string; action: string; speed?: string; speedUnit?: string }>;
 }) {
   return {
     id: opts.id ?? 'exec-1',
@@ -38,7 +38,7 @@ function makeExec(opts: {
     endTime: opts.endTime ?? null,
     liquidAmount: opts.liquidAmount ?? 50,
     drugList: opts.drugList ?? [{ name: 'TestDrug', dosage: '50ml' }],
-    drugAction: opts.drugAction ?? [],
+    drugActionList: opts.drugActionList ?? [],
   } as any;
 }
 
@@ -62,7 +62,7 @@ describe('hljld-form.utils 班段口径', () => {
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
         liquidAmount: 50,
-        drugAction: [
+        drugActionList: [
           { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
           { time: '2026-08-18 16:21', action: '停止' },
         ],
@@ -81,7 +81,7 @@ describe('hljld-form.utils 班段口径', () => {
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
         liquidAmount: 50,
-        drugAction: [
+        drugActionList: [
           { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
           { time: '2026-08-18 16:21', action: '停止' },
         ],
@@ -101,7 +101,7 @@ describe('hljld-form.utils 班段口径', () => {
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
         liquidAmount: 50,
-        drugAction: [
+        drugActionList: [
           { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
           { time: '2026-08-18 16:21', action: '停止' },
         ],
@@ -152,7 +152,7 @@ describe('hljld-form.utils 班段口径', () => {
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
         liquidAmount: 50,
-        drugAction: [
+        drugActionList: [
           { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
           { time: '2026-08-18 16:21', action: '停止' },
         ],
@@ -178,7 +178,7 @@ describe('hljld-form.utils 班段口径', () => {
         startTime: '2026-08-17 20:21',
         endTime: undefined, // 未结束
         liquidAmount: 50,
-        drugAction: [
+        drugActionList: [
           { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
         ],
       });
@@ -201,7 +201,7 @@ describe('hljld-form.utils 班段口径', () => {
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
         liquidAmount: 50,
-        drugAction: [
+        drugActionList: [
           { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
           { time: '2026-08-18 16:21', action: '停止' },
         ],
@@ -226,7 +226,7 @@ describe('hljld-form.utils 班段口径', () => {
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
         liquidAmount: 50,
-        drugAction: [
+        drugActionList: [
           { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
           { time: '2026-08-18 16:21', action: '停止' },
         ],
