@@ -1453,8 +1453,6 @@ export function buildRows(
             return;
           }
         }
-        // 17:00之后才开始的持续药物：不放入当前时段（属于下一时段），避免全量与小结实际用量不一致
-        if (Number.isFinite(startMs) && startMs > dayBoundaryMs) { return; }
       }
 
       const cell = drugToCell(execution, method, isEnteral);
