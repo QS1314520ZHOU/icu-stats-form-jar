@@ -380,7 +380,7 @@ function isRenderableDrugExecution(item: DrugExecution): boolean {
 
 /* ---- 数据转换 ---- */
 
-function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral: boolean): NameAmountRoute {
+function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral: boolean, displayTimeMs?: number): NameAmountRoute {
   const drugList = execution.drugList ?? [];
   const rawName = drugList.map(item => {
     const name = String(item.name ?? '').trim();
@@ -395,8 +395,20 @@ function drugToCell(execution: DrugExecution, config: DrugMethodConfig, enteral:
     }
     return name;
   }).filter(Boolean).join('、');
-  // 使用 resolveLiquidCap 获取 liquidAmount（优先顶层 execution.liquidAmount）
-  const numericAmount = resolveLiquidCap(execution);
+  // 持续药物：展示从开始到当前时间点的实际用量（与小结计算口径一致）
+  // 单次药物：展示 liquidAmount 全量
+  let numericAmount: number;
+  if (config.isOnce === false && Number.isFinite(displayTimeMs) && displayTimeMs! > 0) {
+    const startMs = toMs(String(execution.startTime ?? ''));
+    if (Number.isFinite(startMs) && displayTimeMs! > startMs) {
+      const usage = calcContinuousDrugAmount(execution, startMs, displayTimeMs!, false);
+      numericAmount = usage.inRange;
+    } else {
+      numericAmount = 0;
+    }
+  } else {
+    numericAmount = resolveLiquidCap(execution);
+  }
   return {
     name: enteral ? enteralDisplayName(rawName) : rawName,
     amount: numericAmount !== 0 ? numericAmount.toFixed(1) : '',
@@ -1455,7 +1467,7 @@ export function buildRows(
         }
       }
 
-      const cell = drugToCell(execution, method, isEnteral);
+      const cell = drugToCell(execution, method, isEnteral, timeMs);
       if (!hasNameOrAmount(cell)) { return; }
       if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
     });
