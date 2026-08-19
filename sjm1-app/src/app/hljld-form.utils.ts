@@ -1434,13 +1434,14 @@ export function buildRows(
       // 持续药物：仅在开始时间列展示"实用量XXml"，后续时间列不再重复
       if (method.isOnce === false) {
         const startMs = toMs(String(execution.startTime ?? ''));
-        const startsAtTime = Number.isFinite(startMs) && startMs === timeMs;
+        // 用分钟级匹配：药物开始时间的分钟 == 当前时间列的分钟
+        const startsAtTime = Number.isFinite(startMs) && minuteKey(new Date(startMs)) === key;
         if (startsAtTime) {
           const drugList = execution.drugList ?? [];
           const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
           if (name) {
-            // 计算从开始到17:00（或结束时间）的实用量
-            const usage = calcDrugUsageForPeriod(execution, new Date(timeMs), dayBoundary);
+            // 计算从药物实际开始到17:00（或结束时间）的实用量
+            const usage = calcDrugUsageForPeriod(execution, new Date(startMs), dayBoundary);
             const amount = usage.inRange;
             const cell: NameAmountRoute = {
               name,
