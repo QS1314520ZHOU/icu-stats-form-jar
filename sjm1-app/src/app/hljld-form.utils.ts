@@ -1341,6 +1341,7 @@ export function buildRows(
   // 计算日间小结时间点（17:00）
   const dayBoundary = new Date(start);
   dayBoundary.setHours(17, 0, 0, 0);
+  const dayBoundaryMs = dayBoundary.getTime();
 
   // 追踪是否已添加剩余量
   let previousDayRemaindersAdded = false;
@@ -1366,7 +1367,7 @@ export function buildRows(
     }
 
     // 日间小结（17:00）之后的第一个时间组：添加当天剩余量
-    if (!daySummaryRemaindersAdded && timeMs > dayBoundary.getTime()) {
+    if (!daySummaryRemaindersAdded && timeMs > dayBoundaryMs) {
       const dayRemainders = buildDrugRemainderAfterSummary(
         source.drugExecutions,
         source.drugMethods,
@@ -1380,6 +1381,26 @@ export function buildRows(
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
+
+      // 持续药物且在17:00仍在进行：展示"实用量XXml"
+      if (method.isOnce === false && isDrugOngoingAt(execution, dayBoundaryMs)) {
+        const usage = calcDrugUsageForPeriod(execution, new Date(timeMs), dayBoundary);
+        if (usage.inRange > 0) {
+          const drugList = execution.drugList ?? [];
+          const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
+          if (name) {
+            const cell: NameAmountRoute = {
+              name,
+              amount: `实用量${usage.inRange.toFixed(1)}ml`,
+              numericAmount: usage.inRange,
+              route: routeLabel(method.name),
+            };
+            if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
+            return;
+          }
+        }
+      }
+
       const cell = drugToCell(execution, method, isEnteral);
       if (!hasNameOrAmount(cell)) { return; }
       if (isEnteral) { enteral.push(cell); } else { medications.push(cell); }
