@@ -852,7 +852,7 @@ export function buildSegmentSettlements(
     // 17:00时已用完（无剩余量）的药物不出现在结算行
     if (remainder <= 0) { continue; }
 
-    const consistent = Math.abs(cumulativeUsed + remainder - cap) < 0.05;
+    const consistent = Math.abs(cumulativeAtSegStart + remainder - cap) < 0.05;
     if (!consistent) {
       console.warn('[hljld] 用量不自洽，仅渲染实用量', {
         id: (execution as any).id, cap, cumulativeUsed, remainder,
