@@ -382,7 +382,7 @@ function isRenderableDrugExecution(item: DrugExecution): boolean {
 
 function drugToCell(
   execution: DrugExecution, config: DrugMethodConfig, enteral: boolean,
-  displayTimeMs?: number, segStartMs?: number,
+  displayTimeMs?: number, segStartMs?: number, endMs?: number,
 ): NameAmountRoute {
   const drugList = execution.drugList ?? [];
   const rawName = drugList.map(item => {
@@ -398,14 +398,17 @@ function drugToCell(
     }
     return name;
   }).filter(Boolean).join('、');
-  // 持续药物：展示从段初到当前时间点的实际用量（班段口径）
+  // 持续药物：展示从 from 到 to 的实际用量（班段口径）
+  //   from = max(execStart, segStartMs) 或 execStart（开始行）
+  //   to   = endMs（开始行用段末）或 displayTimeMs（非开始行用当前时刻）
   // 单次药物：展示 liquidAmount 全量
   let numericAmount: number;
   if (config.isOnce === false && Number.isFinite(displayTimeMs) && displayTimeMs! > 0) {
     const execStartMs = toMs(String(execution.startTime ?? ''));
     const from = Number.isFinite(segStartMs) ? Math.max(execStartMs, segStartMs!) : execStartMs;
-    if (Number.isFinite(from) && displayTimeMs! > from) {
-      const usage = calcContinuousDrugAmount(execution, from, displayTimeMs!, true);
+    const to = Number.isFinite(endMs) ? endMs! : displayTimeMs!;
+    if (Number.isFinite(from) && to > from) {
+      const usage = calcContinuousDrugAmount(execution, from, to, true);
       numericAmount = usage.inRange;
     } else {
       numericAmount = 0;
@@ -1529,23 +1532,20 @@ export function buildRows(
         const startsAtTime = Number.isFinite(startMs) && minuteKey(new Date(startMs)) === key;
         if (!ongoing && !startsAtTime) { return; }
 
-        // 开始行：显示"剩余量 xx ml 实用量 0 ml"（此刻累计为0）
+        // 开始行：显示从开始到段末的实际用量
         if (startsAtTime) {
-          const cap = resolveLiquidCap(execution);
-          const drugList = execution.drugList ?? [];
-          const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
-          if (name && cap > 0) {
-            const cell: NameAmountRoute = {
-              name: isEnteral ? enteralDisplayName(name) : name,
-              amount: `剩余量 ${cap.toFixed(1)} ml 实用量 0.0 ml`,
-              numericAmount: 0, // 不参与小结累加
-              route: routeLabel(method.name),
-            };
-            (isEnteral ? enteral : medications).push(cell);
+          const seg = segmentOf(timeMs);
+          const segEndMs = seg?.end.getTime();
+          // 用量 = calcContinuousDrugAmount(start, 段末)
+          const cell = drugToCell(execution, method, isEnteral, startMs, undefined, segEndMs);
+          // 覆盖 amount 格式为 "实用量 X ml"
+          if (cell.numericAmount > 0) {
+            cell.amount = `实用量 ${cell.numericAmount.toFixed(1)} ml`;
           }
+          if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
           return;
         }
-        // 其余行按段内累计
+        // 其余行：段初到当前时刻的累计
         const seg = segmentOf(timeMs);
         const cell = drugToCell(execution, method, isEnteral, timeMs, seg?.start.getTime());
         if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
