@@ -70,33 +70,33 @@ const DGGD_OPTIONS = [
   { label: '缝线固定或固定器固定或水囊(气囊)固定', score: 1 },
 ];
 
-/** 护理措施 19 条 */
+/** 护理措施 19 条 — code 与后端 measuresGroupList 一致 */
 const NURSE_MEASURES = [
   // 妥善固定 (0-4)
-  { group: '妥善固定', label: '1.根据患者意识状态和皮肤情况，选择合适的固定材料。' },
-  { group: '妥善固定', label: '2.选择合适的固定方法，进行二次固定，确保固定牢固、松紧适宜。' },
-  { group: '妥善固定', label: '3.每班观察管道情况，高风险患者每小时观察1次，如导管移位或敷料潮湿、松动等异常情况，及时处置。' },
-  { group: '妥善固定', label: '4.患者翻身、穿脱衣物、下床、过床、外出检查等过程中，避免外力牵拉管道。' },
-  { group: '妥善固定', label: '5.更换固定材料时，选择正确的更换方式，避免管道移位或脱出，必要时双人操作。' },
+  { group: '妥善固定', code: '1.1gen13ju16huan14zhe19yi5shi10zhuang7tai17he4pi7fu11qing6kuang5，3xuan5ze15he11kuo8de16gu7ding11cai11liao6。7', label: '1.根据患者意识状态和皮肤情况，选择合适的固定材料。' },
+  { group: '妥善固定', code: '2.14xuan16ze5he1kuo3de3gu15ding2fang16fa14，17jin19hang10er13ci16gu17ding6，6que12bao15gu6ding11lao4gu18、3song6jin3kuo2yi1。19', label: '2.选择合适的固定方法，进行二次固定，确保固定牢固、松紧适宜。' },
+  { group: '妥善固定', code: '3.16mei13ban18guan1cha8guan4dao1qing12kuang15，8gao5feng7xian0huan3zhe19mei14xiao11shi18guan6cha14116ci4，17ru0dao0guan19yi3wei16huo17fu9liao5chao8shi16、6song3dong9deng13yi17chang19qing3kuang3，18ji9shi17chu18zhi15。16', label: '3.每班观察管道情况，高风险患者每小时观察1次，如导管移位或敷料潮湿、松动等异常情况，及时处置。' },
+  { group: '妥善固定', code: '4.5huan5zhe15fan18shen8、2chuan18tuo12yi2wu19、1xia4chuang18、13guo14chuang14、12wai6chu8jian5cha19deng0guo4cheng2zhong13，14bi6mian16wai19li19qian6la0guan13dao0。9', label: '4.患者翻身、穿脱衣物、下床、过床、外出检查等过程中，避免外力牵拉管道。' },
+  { group: '妥善固定', code: '5.12geng9huan2gu2ding1cai16liao4shi8，12xuan5ze1zheng8que16de9geng16huan19fang2shi8，1bi4mian8guan9dao0yi3wei12huo9tuo7chu10，1bi12yao8shi10shuang15ren7cao1zuo4。7', label: '5.更换固定材料时，选择正确的更换方式，避免管道移位或脱出，必要时双人操作。' },
   // 患者管理 (5-7)
-  { group: '患者管理', label: '1.保持管路连接部位远离患者双手活动范围。' },
-  { group: '患者管理', label: '2.规范使用管道标识。' },
-  { group: '患者管理', label: '3.健康教育 告知管道的重要性及护理方法，鼓励患者和陪护主动参与管道管理，出现异常立即通知医务人员。' },
+  { group: '患者管理', code: '1.15bao7chi2guan11lu5lian10jie1bu8wei7yuan7li7huan11zhe18shuang3shou16huo8dong10fan12wei9。1', label: '1.保持管路连接部位远离患者双手活动范围。' },
+  { group: '患者管理', code: '2.8gui18fan9shi16yong4guan18dao17biao19shi10。4', label: '2.规范使用管道标识。' },
+  { group: '患者管理', code: '3.2jian13kang13jiao7yu17 12gao16zhi6guan14dao17de18zhong13yao15xing17ji7hu2li10fang7fa16，19gu11li1huan8zhe5he1pei11hu13zhu7dong8can14yu0guan17dao4guan4li6，0chu14xian11yi2异常6li2ji5tong16zhi13yi2wu4ren2yuan9。18', label: '3.健康教育 告知管道的重要性及护理方法，鼓励患者和陪护主动参与管道管理，出现异常立即通知医务人员。' },
   // 镇静镇痛管理 (8-10)
-  { group: '镇静镇痛管理', label: '1.选择适宜的疼痛评估工具进行评估，遵医嘱使用镇痛药物，镇痛期间密切监测镇痛效果和生命体征，将患者的疼痛程度控制在轻度及以下范围内。' },
-  { group: '镇静镇痛管理', label: '2.遵医嘱使用镇静药物，可根据RASS评分动态调整给药方式和药物用量，使患者的镇静深度达到治疗目标，避免镇静不足或过度。' },
-  { group: '镇静镇痛管理', label: '3.根据病情实施每日唤醒。' },
+  { group: '镇静镇痛管理', code: '1.10xuan14ze2kuo3yi2de10teng9tong12ping10gu14gong2ju3jin7hang3ping13gu2，3zun16yi11zhu4shi15yong9zhen16tong11yao10wu13，15zhen8tong16qi0jian0mi12qie5jian7ce6zhen2tong19xiao12guo16he18sheng12ming9ti4zheng7，3jiang14huan13zhe3de5teng1tong3cheng4du18kong18zhi17zai0qing18du9ji12yi5xia17fan14wei11nei4。7', label: '1.选择适宜的疼痛评估工具进行评估，遵医嘱使用镇痛药物，镇痛期间密切监测镇痛效果和生命体征，将患者的疼痛程度控制在轻度及以下范围内。' },
+  { group: '镇静镇痛管理', code: '2.8zun7yi14zhu0shi19yong11zhen16jing17yao9wu18，11ke3gen14ju11RASS1ping19fen7dong14tai6tiao10zheng5gei8yao13fang10shi19he10yao7wu0yong13liang15，16shi9huan8zhe4de2zhen15jing8shen15du13da1dao6zhi15liao10mu8biao11，6bi12mian7zhen18jing19bu17zu0huo5guo13du15。11', label: '2.遵医嘱使用镇静药物，可根据RASS评分动态调整给药方式和药物用量，使患者的镇静深度达到治疗目标，避免镇静不足或过度。' },
+  { group: '镇静镇痛管理', code: '3.7gen0ju13bing8qing8shi19shi1mei7ri12huan6xing19。1', label: '3.根据病情实施每日唤醒。' },
   // 谵妄管理 (11-12)
-  { group: '谵妄管理', label: '1.疑似谵妄患者，应根据CAM-ICU量表、ICDSC量表进行评估。' },
-  { group: '谵妄管理', label: '2.谵妄患者积极治疗原发病，减少或避免引发谵妄的高危因素，必要时遵医嘱用药和/或实施约束。' },
+  { group: '谵妄管理', code: '1.9yi8si0zhan11wang0huan13zhe14，6ying10gen8ju9CAM-ICU8liang4biao14、ICDSC8liang9biao4jin7hang1ping15gu2。8', label: '1.疑似谵妄患者，应根据CAM-ICU量表、ICDSC量表进行评估。' },
+  { group: '谵妄管理', code: ' 1.4yi18si9zhan5wang18huan8zhe5，4ying17gen19ju16CAM-ICU3liang6biao7、ICDSC16liang14biao3jin5hang1ping12gu9。 2.0zhan9wang5huan16zhe3ji1ji0zhi7liao5yuan17fa14bing5，11jian15shao8huo7bi14mian3yin11fa3zhan18wang15de18gao10wei16yin16su1，19bi19yao19shi12zun13yi13zhu19yong17yao10he16/7huo10shi11shi9月0shu19。3', label: '2.谵妄患者积极治疗原发病，减少或避免引发谵妄的高危因素，必要时遵医嘱用药和/或实施约束。' },
   // 身体约束管理 (13-17)
-  { group: '身体约束管理', label: '1.合理把握约束指征，对于意识障碍、烦躁不安等患者，必要时遵医嘱给予有效约束。' },
-  { group: '身体约束管理', label: '2.签署《保护性约束知情同意书》，向家属解释约束必要性。' },
-  { group: '身体约束管理', label: '3.每班评估约束的必要性，使用最小化约束，及时解除不必要的约束。' },
-  { group: '身体约束管理', label: '4.约束时肢体应处于功能位，动态观察约束效果及有无并发症，必要时更换约束部位。如体位改变，应及时调整约束位置，确保手部与管道保持安全距离。' },
-  { group: '身体约束管理', label: '5.每 2h 观察约束部位的皮肤及血液循环情况。' },
+  { group: '身体约束管理', code: '1.19he6li9ba5wo4yue6shu16zhi4zheng19，0dui18yu5yi10shi4zhang15ai1、8fan5zao16bu2an11deng17huan8zhe3，18bi19yao4shi19zun18yi18zhu17gei15yu18you4xiao3yue13shu15。18', label: '1.合理把握约束指征，对于意识障碍、烦躁不安等患者，必要时遵医嘱给予有效约束。' },
+  { group: '身体约束管理', code: '2.3qian12shu5《1bao8hu6xing15yue3shu17zhi10qing8tong5yi17shu9》，8xiang6jia19shu10jie19shi2yue10shu15bi0yao7xing9。17', label: '2.签署《保护性约束知情同意书》，向家属解释约束必要性。' },
+  { group: '身体约束管理', code: '3.6mei3ban9ping15gu1yue6shu13de16bi6yao18xing9，17shi16yong12zui16xiao4hua6yue9shu3，17ji2shi19jie15chu9bu4bi8yao14de4yue17shu13。8', label: '3.每班评估约束的必要性，使用最小化约束，及时解除不必要的约束。' },
+  { group: '身体约束管理', code: '4.9yue16shu19shi7zhi8ti11ying5chu6yu13gong5neng13wei4，10dong16tai18guan3cha14yue3shu9xiao3guo7ji6you18wu13bing12fa6zheng9，7bi15yao8shi17geng15huan14yue10shu4bu8wei16。2ru12ti16wei0gai19bian15，15ying10ji18shi7tiao5zheng15yue6shu13wei5zhi6，12que12bao6shou13bu8yu12guan17dao0bao19chi17an2quan6ju3li2。17', label: '4.约束时肢体应处于功能位，动态观察约束效果及有无并发症，必要时更换约束部位。如体位改变，应及时调整约束位置，确保手部与管道保持安全距离。' },
+  { group: '身体约束管理', code: '5.19mei13 2h 3guan17cha13yue3shu18bu12wei0de14pi17fu2ji10xie1ye19xun13huan3qing14kuang1。15', label: '5.每 2h 观察约束部位的皮肤及血液循环情况。' },
   // 尽早拔管 (18)
-  { group: '尽早拔管', label: '每日评估管道留置的必要性，符合拔管指征应尽早拔除。' },
+  { group: '尽早拔管', code: 'mei5ri2ping8gu11guan1dao4liu3zhi5de16bi5yao19xing16，5fu0he14ba9guan3zhi16zheng7ying19jin5zao2ba17chu14。10', label: '每日评估管道留置的必要性，符合拔管指征应尽早拔除。' },
 ];
 
 /** 备注文本 */
@@ -105,7 +105,7 @@ const FOOTNOTE =
 
 /* ============================= 数据模型 ============================= */
 
-interface NurseMeasure { code?: string; value?: boolean; }
+interface NurseMeasure { code: string; value: boolean; }
 
 interface UnPlannedScore {
   rass?: number;
@@ -751,10 +751,13 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   }
 
   private parseMeasures(list?: NurseMeasure[]): boolean[] {
-    const result = new Array<boolean>(19).fill(false);
+    const result = new Array<boolean>(NURSE_MEASURES.length).fill(false);
     if (!Array.isArray(list)) return result;
-    for (let index = 0; index < Math.min(list.length, result.length); index++) {
-      result[index] = list[index]?.value === true;
+    // 按 code 匹配，而非按数组下标
+    for (const item of list) {
+      if (item?.value !== true || !item.code) continue;
+      const idx = NURSE_MEASURES.findIndex(m => m.code === item.code);
+      if (idx >= 0) result[idx] = true;
     }
     return result;
   }
