@@ -136,11 +136,12 @@ export async function printAllHljldRecords({
     const pageCounts: number[] = [];
 
     for (const vm of vms) {
-      // 使用分页内核获取页模型
-      const pageModels = paginateHljld(printWindow.document, root, vm, remarkLines);
+      // 使用分页内核获取页模型，传入累计页码偏移实现连续编号
+      const pageModels = paginateHljld(printWindow.document, root, vm, remarkLines, totalPages);
 
       // 渲染每一页
       for (const pageModel of pageModels) {
+        pageModel.showRemark = true;
         const pageEl = renderPageModel(printWindow.document, vm, remarkLines, pageModel);
         root.appendChild(pageEl);
       }

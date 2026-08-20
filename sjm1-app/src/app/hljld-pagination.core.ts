@@ -47,7 +47,7 @@ export type HljldPageItem =
   | { kind: 'empty' };
 
 export interface HljldPageModel {
-  /** 该护理日内的序号，1-based */
+  /** 本次打印任务内的全局页序，1-based */
   indexInDay: number;
   items: HljldPageItem[];
   /** 仅当日最后一页 true */
@@ -123,13 +123,14 @@ export function paginateHljld(
   host: HTMLElement,
   vm: HljldViewModel,
   remarkLines: string[],
+  pageOffset = 0,
 ): HljldPageModel[] {
   const blocks = buildPrintBlocks(vm.timeline);
 
   // 空 timeline：输出 1 页「该护理日暂无记录」
   if (blocks.length === 0) {
     return [{
-      indexInDay: 1,
+      indexInDay: pageOffset + 1,
       items: [{ kind: 'empty' }],
       showRemark: true,
       lastOfDay: true,
@@ -142,7 +143,7 @@ export function paginateHljld(
   const models: HljldPageModel[] = pages.map((page, index) => {
     const items = extractPageItems(page);
     return {
-      indexInDay: index + 1,
+      indexInDay: pageOffset + index + 1,
       items,
       showRemark: index === pages.length - 1,
       lastOfDay: index === pages.length - 1,

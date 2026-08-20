@@ -6,7 +6,7 @@ import { HljldFormService } from './hljld-form.service';
 import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext } from './hljld-form.models';
 import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
-import { printHljldRecord } from './hljld-print.util';
+import { printHljldRecord, printAllHljldRecords } from './hljld-print.util';
 
 @Component({
   standalone: false,
@@ -29,6 +29,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   vm?: HljldViewModel;
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
   printing = false;
+  printingAll = false;
   private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   private accountMap = new Map<string, string>();
   private readonly clockRefresh$ = interval(60_000);
@@ -260,6 +261,65 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       );
     } finally {
       this.printing = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  async printAll(): Promise<void> {
+    if (!this.patient.pid || this.printingAll) { return; }
+
+    const minDate = this.getMinimumSelectableDate();
+    const maxDate = this.getMaximumSelectableDate();
+    if (!minDate) { return; }
+
+    this.printingAll = true;
+    this.cdr.markForCheck();
+
+    try {
+      // 收集所有护理日的 ViewModel
+      const vms: HljldViewModel[] = [];
+      const allSignatures = new Map<string, string>();
+      const current = new Date(minDate);
+
+      while (current <= maxDate) {
+        const rangeStart = startOfNursingDay(current);
+        const rangeEnd = endOfNursingDay(current);
+
+        const result = await firstValueFrom(this.service.load(this.patient.pid, rangeStart, rangeEnd));
+        if (result.data) {
+          // 收集签名
+          const sigs = await this.collectSignatures(result.data);
+          sigs.forEach((v, k) => allSignatures.set(k, v));
+
+          // 临时设置 selectedDate 以便 toViewModel 使用正确的日期
+          const savedDate = this.selectedDate;
+          this.selectedDate = new Date(current);
+          vms.push(this.toViewModel(result.data, allSignatures));
+          this.selectedDate = savedDate;
+        }
+
+        // 下一天
+        current.setDate(current.getDate() + 1);
+      }
+
+      if (vms.length === 0) {
+        alert('没有可打印的护理记录');
+        return;
+      }
+
+      await printAllHljldRecords({
+        vms,
+        remarkLines: this.defaultRemarkLines,
+      });
+    } catch (error) {
+      console.error('[HLJLD][print-all-error]', error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : '一键打印失败，请重试',
+      );
+    } finally {
+      this.printingAll = false;
       this.cdr.markForCheck();
     }
   }
