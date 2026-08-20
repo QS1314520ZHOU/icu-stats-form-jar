@@ -835,7 +835,8 @@ export function buildSegmentSettlements(
     if (!method || method.isOnce !== false) { continue; }
 
     const startMs = databaseTimeValue(execution.startTime);
-    if (!Number.isFinite(startMs) || startMs >= cutoffMs) { continue; }
+    // 药物必须在段内开始（不含段末边界）：startMs 必须 < segEndMs
+    if (!Number.isFinite(startMs) || startMs >= segEndMs) { continue; }
 
     const endRaw = databaseTimeValue(execution.endTime);
     const endMs = Number.isFinite(endRaw) ? endRaw : NaN;
@@ -1532,16 +1533,13 @@ export function buildRows(
         const startsAtTime = Number.isFinite(startMs) && minuteKey(new Date(startMs)) === key;
         if (!ongoing && !startsAtTime) { return; }
 
-        // 开始行：显示从开始到段末的实际用量
+        // 开始行：显示从开始到段末的实际用量（含0量也展示）
         if (startsAtTime) {
           const seg = segmentOf(timeMs);
           const segEndMs = seg?.end.getTime();
-          // 用量 = calcContinuousDrugAmount(start, 段末)
           const cell = drugToCell(execution, method, isEnteral, startMs, undefined, segEndMs);
-          // 覆盖 amount 格式为 "实用量 X ml"
-          if (cell.numericAmount > 0) {
-            cell.amount = `实用量 ${cell.numericAmount.toFixed(1)} ml`;
-          }
+          // 始终覆盖 amount 格式，保证0量也显示
+          cell.amount = `实用量 ${cell.numericAmount.toFixed(1)} ml`;
           if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
           return;
         }
