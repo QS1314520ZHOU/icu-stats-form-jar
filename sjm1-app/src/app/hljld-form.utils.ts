@@ -850,9 +850,6 @@ export function buildSegmentSettlements(
     const remainder = round1(cap - cumulativeUsed);
     const ongoing = !Number.isFinite(endMs) || endMs > cutoffMs;
 
-    // 只展示仍在执行的药物；已停药的不再出现在结算行
-    if (!ongoing) { continue; }
-
     const consistent = Math.abs(cumulativeUsed + remainder - cap) < 0.05;
     if (!consistent) {
       console.warn('[hljld] 用量不自洽，仅渲染实用量', {
@@ -1491,13 +1488,13 @@ export function buildRows(
     const bedside = bedsideInPeriod.filter(item => minuteKey(item.time) === key);
     const drugExecutions = drugsInPeriod.filter(item => minuteKey(item.startTime) === key);
 
-    // 日间小结（17:00）之后：插入 day 段结算行
+    // 日间小结（17:00）之后：插入 night 段结算行（17:00→07:00 用量）
     if (!daySummaryRemaindersAdded && timeMs > dayBoundaryMs) {
       const nowMs = Date.now();
       const settlements = buildSegmentSettlements(
         source.drugExecutions,
         source.drugMethods,
-        daySegment,
+        nightSegment,
         nowMs,
       );
       if (settlements.length > 0) {
@@ -1544,11 +1541,12 @@ export function buildRows(
         const startsAtTime = Number.isFinite(startMs) && minuteKey(new Date(startMs)) === key;
         if (!ongoing && !startsAtTime) { return; }
 
-        // 开始行：显示从开始到段末的实际用量（含0量也展示）
+        // 开始行：显示当天所在班段（07:00→17:00 或 17:00→07:00）的实际用量
         if (startsAtTime) {
-          const seg = segmentOf(timeMs);
+          const seg = segments.find(s => startMs >= s.start.getTime() && startMs < s.end.getTime());
+          const segStartMs = seg?.start.getTime();
           const segEndMs = seg?.end.getTime();
-          const cell = drugToCell(execution, method, isEnteral, startMs, undefined, segEndMs);
+          const cell = drugToCell(execution, method, isEnteral, startMs, segStartMs, segEndMs);
           // 始终覆盖 amount 格式，保证0量也显示
           cell.amount = `实用量 ${cell.numericAmount.toFixed(1)} ml`;
           if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }

@@ -147,7 +147,7 @@ describe('hljld-form.utils 班段口径', () => {
   });
 
   describe('buildSegmentSettlements', () => {
-    it('已停药不出现在结算行', () => {
+    it('已停药也出现在结算行，显示实用量', () => {
       const exec = makeExec({
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
@@ -160,16 +160,18 @@ describe('hljld-form.utils 班段口径', () => {
       const methods = [makeMethod()];
 
       const segs18 = resolveNursingSegments(d('2026-08-18'));
-      const daySeg = segs18[0];
+      const nightSeg = segs18[1]; // night: 08-17 17:00 → 08-18 07:00
 
-      // nowMs 设为段末之后，确保药物已停
-      const nowMs = daySeg.end.getTime() + 60000;
-      const settlements = buildSegmentSettlements([exec], methods, daySeg, nowMs);
-      // 已停药不出现在结算行
-      expect(settlements.length).toBe(0);
+      const nowMs = nightSeg.end.getTime() + 60000;
+      const settlements = buildSegmentSettlements([exec], methods, nightSeg, nowMs);
+      expect(settlements.length).toBe(1);
+      expect(settlements[0].ongoing).toBe(false);
+      const text = formatSegmentAmountText(settlements[0]);
+      expect(text).toContain('实用量');
+      expect(text).not.toContain('剩余量');
     });
 
-    it('仍在执行中显示剩余量', () => {
+    it('仍在执行中显示剩余量和实用量', () => {
       const exec = makeExec({
         startTime: '2026-08-17 20:21',
         endTime: undefined, // 未结束
@@ -188,12 +190,11 @@ describe('hljld-form.utils 班段口径', () => {
       expect(settlements.length).toBe(1);
       expect(settlements[0].ongoing).toBe(true);
       const text = formatSegmentAmountText(settlements[0]);
-      // 仍在进行：只显示剩余量，实用量已在开始时间行展示
       expect(text).toContain('剩余量');
-      expect(text).not.toContain('实用量');
+      expect(text).toContain('实用量');
     });
 
-    it('08-18表首行不出现08-17 night段的26.6', () => {
+    it('结算行显示night段用量', () => {
       const exec = makeExec({
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
@@ -206,14 +207,13 @@ describe('hljld-form.utils 班段口径', () => {
       const methods = [makeMethod()];
 
       const segs18 = resolveNursingSegments(d('2026-08-18'));
-      const daySeg = segs18[0];
+      const nightSeg = segs18[1]; // night: 08-17 17:00 → 08-18 07:00
 
-      // 08-18 day段 settlement 不应包含跨天前的 night段用量
-      const nowMs = daySeg.end.getTime() + 60000;
-      const settlements = buildSegmentSettlements([exec], methods, daySeg, nowMs);
+      const nowMs = nightSeg.end.getTime() + 60000;
+      const settlements = buildSegmentSettlements([exec], methods, nightSeg, nowMs);
       expect(settlements.length).toBe(1);
-      // day段实用量应为 ~23.4，不是 26.6
-      expect(settlements[0].segmentUsed).toBeCloseTo(23.4, 0);
+      // night段实用量应为 ~26.6（17:00→07:00）
+      expect(settlements[0].segmentUsed).toBeCloseTo(26.6, 0);
     });
   });
 
