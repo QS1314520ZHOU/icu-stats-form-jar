@@ -874,12 +874,13 @@ export function buildSegmentSettlements(
   return out;
 }
 
-/** 量列文案：实用量在前；已停药不显示剩余量；不自洽只显示实用量 */
+/** 量列文案：已停药显示实用量；仍在进行只显示剩余量；不自洽只显示实用量 */
 export function formatSegmentAmountText(s: SegmentSettlement): string {
   const used = `实用量 ${s.segmentUsed.toFixed(1)} ml`;
   if (!s.consistent) { return used; }
   if (!s.ongoing) { return used; }
-  return `剩余量 ${s.remainder.toFixed(1)} ml ${used}`;
+  // 仍在进行：只显示剩余量，实用量已在开始时间行展示
+  return `剩余量 ${s.remainder.toFixed(1)} ml`;
 }
 
 
@@ -1447,7 +1448,7 @@ export function buildRows(
     if (carryOnes.length > 0) {
       const carryMeds: NameAmountRoute[] = carryOnes.map(c => ({
         name: c.name,
-        amount: `续用 已入${c.cumulativeUsed.toFixed(1)}/共${c.cap.toFixed(1)} ml`,
+        amount: `续用 剩余量 ${c.remainder.toFixed(1)} ml 实用量 ${c.segmentUsed.toFixed(1)} ml`,
         numericAmount: 0, // 不参与小结累加
         route: c.route,
       }));

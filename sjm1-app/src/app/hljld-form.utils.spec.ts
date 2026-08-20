@@ -192,8 +192,9 @@ describe('hljld-form.utils 班段口径', () => {
       expect(settlements.length).toBe(1);
       expect(settlements[0].ongoing).toBe(true);
       const text = formatSegmentAmountText(settlements[0]);
-      expect(text).toContain('实用量');
+      // 仍在进行：只显示剩余量，实用量已在开始时间行展示
       expect(text).toContain('剩余量');
+      expect(text).not.toContain('实用量');
     });
 
     it('08-18表首行不出现08-17 night段的26.6', () => {
