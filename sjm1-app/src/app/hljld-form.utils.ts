@@ -835,13 +835,14 @@ export function buildSegmentSettlements(
     if (!method || method.isOnce !== false) { continue; }
 
     const startMs = databaseTimeValue(execution.startTime);
-    // 不展示在本段内开始的药物（只展示段前已开始的）
-    if (!Number.isFinite(startMs) || startMs >= segStartMs) { continue; }
+    // 药物必须在段末前开始
+    if (!Number.isFinite(startMs) || startMs >= segEndMs) { continue; }
 
     const endRaw = databaseTimeValue(execution.endTime);
     const endMs = Number.isFinite(endRaw) ? endRaw : NaN;
-    // 本段开始前就停了，与本段无关
-    if (Number.isFinite(endMs) && endMs <= segStartMs) { continue; }
+    // 结束时间在07:00-17:00之间的不展示到结算行
+    const prevDay07 = segStartMs - 24 * 3600 * 1000; // 前一天07:00
+    if (Number.isFinite(endMs) && endMs >= prevDay07 && endMs < segStartMs) { continue; }
 
     const cap = round1(resolveLiquidCap(execution));
     const segmentUsed = calcSegmentUsage(execution, segment.start, cutoff);
