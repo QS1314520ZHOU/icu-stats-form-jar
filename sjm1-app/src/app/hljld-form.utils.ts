@@ -1483,6 +1483,20 @@ export function buildRows(
   // 追踪是否已添加日间小结后剩余量
   let daySummaryRemaindersAdded = false;
 
+  // 收集所有会在"开始行"展示的持续药物 ID（用于结算行排除）
+  const startRowDrugIds = new Set<string>();
+  for (const execution of source.drugExecutions) {
+    if (!isRenderableDrugExecution(execution)) { continue; }
+    const method = findDrugMethod(execution.methodCode, source.drugMethods);
+    if (!method || method.isOnce !== false) { continue; }
+    const startMs = toMs(String(execution.startTime ?? ''));
+    if (!Number.isFinite(startMs)) { continue; }
+    // 只要开始时间落在本护理日任意一个时间行上，就算开始行药物
+    if (uniqueKeys.includes(minuteKey(new Date(startMs)))) {
+      startRowDrugIds.add(String((execution as any).id ?? ''));
+    }
+  }
+
   for (const key of uniqueKeys) {
     const timeMs = key * 60000;
     const bedside = bedsideInPeriod.filter(item => minuteKey(item.time) === key);
@@ -1498,7 +1512,9 @@ export function buildRows(
         nowMs,
       );
       if (settlements.length > 0) {
-        const settlementMeds: NameAmountRoute[] = settlements.map(s => ({
+        // 排除已在开始行展示过的药物
+        const filteredSettlements = settlements.filter(s => !startRowDrugIds.has(String((s.execution as any).id ?? '')));
+        const settlementMeds: NameAmountRoute[] = filteredSettlements.map(s => ({
           name: s.name,
           amount: formatSegmentAmountText(s),
           numericAmount: s.segmentUsed,
@@ -1664,7 +1680,9 @@ export function buildRows(
       nowMs,
     );
     if (nightSettlements.length > 0) {
-      const settlementMeds: NameAmountRoute[] = nightSettlements.map(s => ({
+      // 排除已在开始行展示过的药物
+      const filteredNightSettlements = nightSettlements.filter(s => !startRowDrugIds.has(String((s.execution as any).id ?? '')));
+      const settlementMeds: NameAmountRoute[] = filteredNightSettlements.map(s => ({
         name: s.name,
         amount: formatSegmentAmountText(s),
         numericAmount: s.segmentUsed,
