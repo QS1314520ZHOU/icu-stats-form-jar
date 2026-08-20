@@ -850,6 +850,9 @@ export function buildSegmentSettlements(
     const remainder = round1(cap - cumulativeUsed);
     const ongoing = !Number.isFinite(endMs) || endMs > cutoffMs;
 
+    // 已用完（无剩余量）的药物不出现在结算行
+    if (remainder <= 0) { continue; }
+
     const consistent = Math.abs(cumulativeUsed + remainder - cap) < 0.05;
     if (!consistent) {
       console.warn('[hljld] 用量不自洽，仅渲染实用量', {
