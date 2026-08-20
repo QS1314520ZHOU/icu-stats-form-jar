@@ -81,14 +81,14 @@ const NURSE_MEASURES = [
   // 患者管理 (5-7)
   { group: '患者管理', code: '1.15bao7chi2guan11lu5lian10jie1bu8wei7yuan7li7huan11zhe18shuang3shou16huo8dong10fan12wei9。1', label: '1.保持管路连接部位远离患者双手活动范围。' },
   { group: '患者管理', code: '2.8gui18fan9shi16yong4guan18dao17biao19shi10。4', label: '2.规范使用管道标识。' },
-  { group: '患者管理', code: '3.2jian13kang13jiao7yu17 12gao16zhi6guan14dao17de18zhong13yao15xing17ji7hu2li10fang7fa16，19gu11li1huan8zhe5he1pei11hu13zhu7dong8can14yu0guan17dao4guan4li6，0chu14xian11yi2异常6li2ji5tong16zhi13yi2wu4ren2yuan9。18', label: '3.健康教育 告知管道的重要性及护理方法，鼓励患者和陪护主动参与管道管理，出现异常立即通知医务人员。' },
+  { group: '患者管理', code: '3.2jian13kang13jiao7yu17 12gao16zhi6guan14dao17de18zhong13yao15xing17ji7hu2li10fang7fa16，19gu11li1huan8zhe5he1pei11hu13zhu7dong8can14yu0guan17dao4guan4li6，0chu14xian11yi2chang6li2ji5tong16zhi13yi2wu4ren2yuan9。18', label: '3.健康教育 告知管道的重要性及护理方法，鼓励患者和陪护主动参与管道管理，出现异常立即通知医务人员。' },
   // 镇静镇痛管理 (8-10)
   { group: '镇静镇痛管理', code: '1.10xuan14ze2kuo3yi2de10teng9tong12ping10gu14gong2ju3jin7hang3ping13gu2，3zun16yi11zhu4shi15yong9zhen16tong11yao10wu13，15zhen8tong16qi0jian0mi12qie5jian7ce6zhen2tong19xiao12guo16he18sheng12ming9ti4zheng7，3jiang14huan13zhe3de5teng1tong3cheng4du18kong18zhi17zai0qing18du9ji12yi5xia17fan14wei11nei4。7', label: '1.选择适宜的疼痛评估工具进行评估，遵医嘱使用镇痛药物，镇痛期间密切监测镇痛效果和生命体征，将患者的疼痛程度控制在轻度及以下范围内。' },
   { group: '镇静镇痛管理', code: '2.8zun7yi14zhu0shi19yong11zhen16jing17yao9wu18，11ke3gen14ju11RASS1ping19fen7dong14tai6tiao10zheng5gei8yao13fang10shi19he10yao7wu0yong13liang15，16shi9huan8zhe4de2zhen15jing8shen15du13da1dao6zhi15liao10mu8biao11，6bi12mian7zhen18jing19bu17zu0huo5guo13du15。11', label: '2.遵医嘱使用镇静药物，可根据RASS评分动态调整给药方式和药物用量，使患者的镇静深度达到治疗目标，避免镇静不足或过度。' },
   { group: '镇静镇痛管理', code: '3.7gen0ju13bing8qing8shi19shi1mei7ri12huan6xing19。1', label: '3.根据病情实施每日唤醒。' },
   // 谵妄管理 (11-12)
   { group: '谵妄管理', code: '1.9yi8si0zhan11wang0huan13zhe14，6ying10gen8ju9CAM-ICU8liang4biao14、ICDSC8liang9biao4jin7hang1ping15gu2。8', label: '1.疑似谵妄患者，应根据CAM-ICU量表、ICDSC量表进行评估。' },
-  { group: '谵妄管理', code: ' 1.4yi18si9zhan5wang18huan8zhe5，4ying17gen19ju16CAM-ICU3liang6biao7、ICDSC16liang14biao3jin5hang1ping12gu9。 2.0zhan9wang5huan16zhe3ji1ji0zhi7liao5yuan17fa14bing5，11jian15shao8huo7bi14mian3yin11fa3zhan18wang15de18gao10wei16yin16su1，19bi19yao19shi12zun13yi13zhu19yong17yao10he16/7huo10shi11shi9月0shu19。3', label: '2.谵妄患者积极治疗原发病，减少或避免引发谵妄的高危因素，必要时遵医嘱用药和/或实施约束。' },
+  { group: '谵妄管理', code: ' 1.4yi18si9zhan5wang18huan8zhe5，4ying17gen19ju16CAM-ICU3liang6biao7、ICDSC16liang14biao3jin5hang1ping12gu9。 2.0zhan9wang5huan16zhe3ji1ji0zhi7liao5yuan17fa14bing5，11jian15shao8huo7bi14mian3yin11fa3zhan18wang15de18gao10wei16yin16su1，19bi19yao19shi12zun13yi13zhu19yong17yao10he16/7huo10shi11shi9yue0shu19。3', label: '2.谵妄患者积极治疗原发病，减少或避免引发谵妄的高危因素，必要时遵医嘱用药和/或实施约束。' },
   // 身体约束管理 (13-17)
   { group: '身体约束管理', code: '1.19he6li9ba5wo4yue6shu16zhi4zheng19，0dui18yu5yi10shi4zhang15ai1、8fan5zao16bu2an11deng17huan8zhe3，18bi19yao4shi19zun18yi18zhu17gei15yu18you4xiao3yue13shu15。18', label: '1.合理把握约束指征，对于意识障碍、烦躁不安等患者，必要时遵医嘱给予有效约束。' },
   { group: '身体约束管理', code: '2.3qian12shu5《1bao8hu6xing15yue3shu17zhi10qing8tong5yi17shu9》，8xiang6jia19shu10jie19shi2yue10shu15bi0yao7xing9。17', label: '2.签署《保护性约束知情同意书》，向家属解释约束必要性。' },
