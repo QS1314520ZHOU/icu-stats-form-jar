@@ -872,13 +872,12 @@ export function buildSegmentSettlements(
   return out;
 }
 
-/** 量列文案：已停药显示实用量；仍在进行只显示剩余量；不自洽只显示实用量 */
+/** 量列文案：已停药只显示实用量；仍在进行显示剩余量+实用量；不自洽只显示实用量 */
 export function formatSegmentAmountText(s: SegmentSettlement): string {
   const used = `实用量 ${s.segmentUsed.toFixed(1)} ml`;
   if (!s.consistent) { return used; }
   if (!s.ongoing) { return used; }
-  // 仍在进行：只显示剩余量，实用量已在开始时间行展示
-  return `剩余量 ${s.remainder.toFixed(1)} ml`;
+  return `剩余量 ${s.remainder.toFixed(1)} ml ${used}`;
 }
 
 
@@ -1433,23 +1432,36 @@ export function buildRows(
 
   // ---- 表首 carryOver 行：前一护理日 night 段仍在执行的续用药物 ----
   {
-    const prevNightEnd = new Date(start); // start = 当天07:00 = 前一night段末
-    const prevNightStart = new Date(start);
-    prevNightStart.setDate(prevNightStart.getDate() - 1);
-    prevNightStart.setHours(17, 0, 0, 0);
-    const prevNightSeg: NursingSegment = { key: 'night', start: prevNightStart, end: prevNightEnd, label: '' };
+    // ---- 表首 carryOver 行：在07:00仍活跃（含已停）的持续药物 ----
+    const dayStartMs = start.getTime();
     const nowMs = Date.now();
-    const prevSettlements = buildSegmentSettlements(
-      source.drugExecutions, source.drugMethods, prevNightSeg, nowMs,
-    );
-    const carryOnes = prevSettlements.filter(s => s.ongoing);
-    if (carryOnes.length > 0) {
-      const carryMeds: NameAmountRoute[] = carryOnes.map(c => ({
-        name: c.name,
-        amount: `续用 剩余量 ${c.remainder.toFixed(1)} ml 实用量 ${c.segmentUsed.toFixed(1)} ml`,
+    const carryMeds: NameAmountRoute[] = [];
+    for (const execution of source.drugExecutions) {
+      if (!isRenderableDrugExecution(execution)) { continue; }
+      const method = findDrugMethod(execution.methodCode, source.drugMethods);
+      if (!method || method.isOnce !== false) { continue; }
+      const startMsExec = databaseTimeValue(execution.startTime);
+      if (!Number.isFinite(startMsExec) || startMsExec >= dayStartMs) { continue; } // 当天开始的不算续用
+      // 药物在07:00必须仍在活跃（未停止或刚好在07:00之后停）
+      if (!isDrugOngoingAt(execution, dayStartMs)) { continue; }
+      const cap = round1(resolveLiquidCap(execution));
+      if (cap <= 0) { continue; }
+      const name = drugDisplayName(execution);
+      if (!name) { continue; }
+      // 剩余量 = 总量 - 到07:00的累计用量
+      const usedAt0700 = round1(calcDrugUsageUpTo(execution, dayStartMs));
+      const remaining = round1(cap - usedAt0700);
+      // 实用量 = 07:00到当前时刻的累计用量
+      const usedNow = round1(calcDrugUsageUpTo(execution, nowMs));
+      const currentUsage = round1(Math.max(0, usedNow - usedAt0700));
+      carryMeds.push({
+        name,
+        amount: `续用 剩余量 ${remaining.toFixed(1)} ml 实用量 ${currentUsage.toFixed(1)} ml`,
         numericAmount: 0, // 不参与小结累加
-        route: c.route,
-      }));
+        route: routeLabel(method.name),
+      });
+    }
+    if (carryMeds.length > 0) {
       rows.push({
         key: `carry-over-${start.getTime()}`,
         time: new Date(start.getTime()),
