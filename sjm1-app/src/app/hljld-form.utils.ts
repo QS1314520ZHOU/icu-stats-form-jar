@@ -852,8 +852,8 @@ export function buildSegmentSettlements(
     const remainder = round1(cap - cumulativeUsed);
     const ongoing = !Number.isFinite(endMs) || endMs > cutoffMs;
 
-    // 本段没跑量、且段末已停药 -> 不出行
-    if (segmentUsed <= 0 && !ongoing) { continue; }
+    // 只展示仍在执行的药物；已停药的不再出现在结算行
+    if (!ongoing) { continue; }
 
     const consistent = Math.abs(cumulativeUsed + remainder - cap) < 0.05;
     if (!consistent) {

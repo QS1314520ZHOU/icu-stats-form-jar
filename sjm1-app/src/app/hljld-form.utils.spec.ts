@@ -147,7 +147,7 @@ describe('hljld-form.utils 班段口径', () => {
   });
 
   describe('buildSegmentSettlements', () => {
-    it('已停药不显示剩余量', () => {
+    it('已停药不出现在结算行', () => {
       const exec = makeExec({
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
@@ -165,12 +165,8 @@ describe('hljld-form.utils 班段口径', () => {
       // nowMs 设为段末之后，确保药物已停
       const nowMs = daySeg.end.getTime() + 60000;
       const settlements = buildSegmentSettlements([exec], methods, daySeg, nowMs);
-      expect(settlements.length).toBe(1);
-      expect(settlements[0].ongoing).toBe(false);
-      // 已停药：formatSegmentAmountText 只显示实用量
-      const text = formatSegmentAmountText(settlements[0]);
-      expect(text).toContain('实用量');
-      expect(text).not.toContain('剩余量');
+      // 已停药不出现在结算行
+      expect(settlements.length).toBe(0);
     });
 
     it('仍在执行中显示剩余量', () => {
