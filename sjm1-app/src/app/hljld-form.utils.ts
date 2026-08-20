@@ -844,11 +844,12 @@ export function buildSegmentSettlements(
     const cap = round1(resolveLiquidCap(execution));
     const segmentUsed = calcSegmentUsage(execution, segment.start, cutoff);
     const cumulativeUsed = round1(calcDrugUsageUpTo(execution, cutoffMs));
-    // 剩余量 = 总量 - 到段末(当前时刻)的累计用量
-    const remainder = round1(cap - cumulativeUsed);
+    // 剩余量 = 总量 - 到day段末(17:00)的累计用量
+    const cumulativeAtSegStart = round1(calcDrugUsageUpTo(execution, segStartMs));
+    const remainder = round1(cap - cumulativeAtSegStart);
     const ongoing = !Number.isFinite(endMs) || endMs > cutoffMs;
 
-    // 已用完（无剩余量）的药物不出现在结算行
+    // 17:00时已用完（无剩余量）的药物不出现在结算行
     if (remainder <= 0) { continue; }
 
     const consistent = Math.abs(cumulativeUsed + remainder - cap) < 0.05;
