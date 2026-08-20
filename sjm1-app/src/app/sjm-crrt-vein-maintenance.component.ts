@@ -160,7 +160,7 @@ interface RenderPage {
 					备注：1.执行相应操作后请在栏内打"√"；透明敷料无异常7天更换，纱布敷料2天更换。<br>
 					2.维护情况标注"有/无"；每班评估管道情况，每天至少记录一次。不涉及项目标注"/"。
 				</div>
-				<div class="sheet-pageno">第 {{pi + 1}} 页 共 {{pages.length}} 页</div>
+				<div class="sheet-pageno">第 {{pi + 1}} 页</div>
 			</section>
 		</div>
 	`,

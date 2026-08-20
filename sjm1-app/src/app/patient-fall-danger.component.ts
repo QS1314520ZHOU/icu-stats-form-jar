@@ -191,7 +191,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
         </div>
 
         <div class="review-sign" *ngIf='pages.length==page.index'>审核护士签名：{{ auditorName || '__________' }}</div>
-        <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
+        <div class="sheet-pageno">第 {{page.index}} 页</div>
       </div>
   `,
   styles: [`

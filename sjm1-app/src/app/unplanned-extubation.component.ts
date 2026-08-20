@@ -315,7 +315,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
           {{ footnote }}
         </div>
 
-        <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
+        <div class="sheet-pageno">第 {{page.index}} 页</div>
       </div>
 
       <!-- 第二页：护理措施页 -->
@@ -400,7 +400,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
           {{ footnote }}
         </div>
 
-        <div class="sheet-pageno">第 {{page.index}} 页 共 {{pages.length}} 页</div>
+        <div class="sheet-pageno">第 {{page.index}} 页</div>
       </div>
     </ng-container>
   `,
