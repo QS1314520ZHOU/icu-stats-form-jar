@@ -842,6 +842,9 @@ export function buildSegmentSettlements(
     const cap = round1(resolveLiquidCap(execution));
     const segmentUsed = calcSegmentUsage(execution, segment.start, cutoff);
     const cumulativeUsed = round1(calcDrugUsageUpTo(execution, cutoffMs));
+    // 段初剩余量 = 总量 - 到段初的累计用量（用于显示"剩余量 xx ml"）
+    const usageAtSegStart = round1(calcDrugUsageUpTo(execution, segStartMs));
+    const segmentRemainder = round1(cap - usageAtSegStart);
     const remainder = round1(cap - cumulativeUsed);
     const ongoing = !Number.isFinite(endMs) || endMs > cutoffMs;
 
@@ -859,7 +862,7 @@ export function buildSegmentSettlements(
       execution,
       name: drugDisplayName(execution),
       route: routeLabel(method.name),
-      segmentUsed, cumulativeUsed, remainder, cap,
+      segmentUsed, cumulativeUsed, remainder: segmentRemainder, cap,
       ongoing, partial, consistent,
     });
   }
@@ -872,7 +875,7 @@ export function formatSegmentAmountText(s: SegmentSettlement): string {
   const used = `实用量 ${s.segmentUsed.toFixed(1)} ml`;
   if (!s.consistent) { return used; }
   if (!s.ongoing) { return used; }
-  return `${used} 剩余量 ${s.remainder.toFixed(1)} ml`;
+  return `剩余量 ${s.remainder.toFixed(1)} ml ${used}`;
 }
 
 
@@ -1526,10 +1529,20 @@ export function buildRows(
         const startsAtTime = Number.isFinite(startMs) && minuteKey(new Date(startMs)) === key;
         if (!ongoing && !startsAtTime) { return; }
 
-        // 开始行：量列写医嘱液体量，实用量只在段末结算行出现
+        // 开始行：显示"剩余量 xx ml 实用量 0 ml"（此刻累计为0）
         if (startsAtTime) {
-          const cell = drugToCell(execution, method, isEnteral); // 无 displayTimeMs → resolveLiquidCap
-          if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
+          const cap = resolveLiquidCap(execution);
+          const drugList = execution.drugList ?? [];
+          const name = drugList.map(item => String(item.name ?? '').trim()).filter(Boolean).join('、');
+          if (name && cap > 0) {
+            const cell: NameAmountRoute = {
+              name: isEnteral ? enteralDisplayName(name) : name,
+              amount: `剩余量 ${cap.toFixed(1)} ml 实用量 0.0 ml`,
+              numericAmount: 0, // 不参与小结累加
+              route: routeLabel(method.name),
+            };
+            (isEnteral ? enteral : medications).push(cell);
+          }
           return;
         }
         // 其余行按段内累计
