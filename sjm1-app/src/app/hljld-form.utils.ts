@@ -846,9 +846,7 @@ export function buildSegmentSettlements(
     const cap = round1(resolveLiquidCap(execution));
     const segmentUsed = calcSegmentUsage(execution, segment.start, cutoff);
     const cumulativeUsed = round1(calcDrugUsageUpTo(execution, cutoffMs));
-    // 段初剩余量 = 总量 - 到段初的累计用量（用于显示"剩余量 xx ml"）
-    const usageAtSegStart = round1(calcDrugUsageUpTo(execution, segStartMs));
-    const segmentRemainder = round1(cap - usageAtSegStart);
+    // 剩余量 = 总量 - 到段末(当前时刻)的累计用量
     const remainder = round1(cap - cumulativeUsed);
     const ongoing = !Number.isFinite(endMs) || endMs > cutoffMs;
 
@@ -866,7 +864,7 @@ export function buildSegmentSettlements(
       execution,
       name: drugDisplayName(execution),
       route: routeLabel(method.name),
-      segmentUsed, cumulativeUsed, remainder: segmentRemainder, cap,
+      segmentUsed, cumulativeUsed, remainder, cap,
       ongoing, partial, consistent,
     });
   }
