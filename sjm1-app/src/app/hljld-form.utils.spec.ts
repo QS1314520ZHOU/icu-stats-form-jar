@@ -147,14 +147,15 @@ describe('hljld-form.utils 班段口径', () => {
   });
 
   describe('buildSegmentSettlements', () => {
-    it('已停药也出现在结算行，显示实用量', () => {
+    it('段前开始的已停药出现在结算行，显示实用量', () => {
+      // 药物在day段08:00开始，night段内停药
       const exec = makeExec({
-        startTime: '2026-08-17 20:21',
-        endTime: '2026-08-18 16:21',
+        startTime: '2026-08-17 08:00',
+        endTime: '2026-08-18 03:00',
         liquidAmount: 50,
         drugActionList: [
-          { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
-          { time: '2026-08-18 16:21', action: '停止' },
+          { time: '2026-08-17 08:00', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
+          { time: '2026-08-18 03:00', action: '停止' },
         ],
       });
       const methods = [makeMethod()];
@@ -171,13 +172,14 @@ describe('hljld-form.utils 班段口径', () => {
       expect(text).not.toContain('剩余量');
     });
 
-    it('仍在执行中显示剩余量和实用量', () => {
+    it('段前开始的持续执行药物显示剩余量和实用量', () => {
+      // 药物在day段08:00开始，night段内仍在执行
       const exec = makeExec({
-        startTime: '2026-08-17 20:21',
-        endTime: undefined, // 未结束
+        startTime: '2026-08-17 08:00',
+        endTime: undefined,
         liquidAmount: 50,
         drugActionList: [
-          { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
+          { time: '2026-08-17 08:00', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
         ],
       });
       const methods = [makeMethod()];
@@ -194,7 +196,8 @@ describe('hljld-form.utils 班段口径', () => {
       expect(text).toContain('实用量');
     });
 
-    it('结算行显示night段用量', () => {
+    it('段内开始的药物不出现在结算行', () => {
+      // 药物在night段17:00后开始，不应出现在结算行
       const exec = makeExec({
         startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
@@ -211,9 +214,8 @@ describe('hljld-form.utils 班段口径', () => {
 
       const nowMs = nightSeg.end.getTime() + 60000;
       const settlements = buildSegmentSettlements([exec], methods, nightSeg, nowMs);
-      expect(settlements.length).toBe(1);
-      // night段实用量应为 ~26.6（17:00→07:00）
-      expect(settlements[0].segmentUsed).toBeCloseTo(26.6, 0);
+      // night段内开始的药物不出现在结算行
+      expect(settlements.length).toBe(0);
     });
   });
 

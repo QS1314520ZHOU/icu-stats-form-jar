@@ -835,8 +835,8 @@ export function buildSegmentSettlements(
     if (!method || method.isOnce !== false) { continue; }
 
     const startMs = databaseTimeValue(execution.startTime);
-    // 药物必须在段内开始（不含段末边界）：startMs 必须 < segEndMs
-    if (!Number.isFinite(startMs) || startMs >= segEndMs) { continue; }
+    // 不展示在本段内开始的药物（只展示段前已开始的）
+    if (!Number.isFinite(startMs) || startMs >= segStartMs) { continue; }
 
     const endRaw = databaseTimeValue(execution.endTime);
     const endMs = Number.isFinite(endRaw) ? endRaw : NaN;
