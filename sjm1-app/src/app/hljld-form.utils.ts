@@ -1434,17 +1434,15 @@ export function buildRows(
   {
     // ---- 表首 carryOver 行：在07:00仍活跃（含已停）的持续药物 ----
     const dayStartMs = start.getTime();
-    // 前一护理日 night 段起点（08-18 17:00）
-    const prevNightStartMs = new Date(start.getTime() - 24 * 60 * 60000).setHours(17, 0, 0, 0);
+    const nowMs = Date.now();
     const carryMeds: NameAmountRoute[] = [];
     for (const execution of source.drugExecutions) {
       if (!isRenderableDrugExecution(execution)) { continue; }
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
       if (!method || method.isOnce !== false) { continue; }
       const startMsExec = databaseTimeValue(execution.startTime);
-      // 药物必须在07:00之前开始（前一护理日 night 段或更早）
-      if (!Number.isFinite(startMsExec) || startMsExec >= dayStartMs) { continue; }
-      // 药物在07:00必须仍在活跃
+      if (!Number.isFinite(startMsExec) || startMsExec >= dayStartMs) { continue; } // 当天开始的不算续用
+      // 药物在07:00必须仍在活跃（未停止或刚好在07:00之后停）
       if (!isDrugOngoingAt(execution, dayStartMs)) { continue; }
       const cap = round1(resolveLiquidCap(execution));
       if (cap <= 0) { continue; }
@@ -1453,12 +1451,12 @@ export function buildRows(
       // 剩余量 = 总量 - 到07:00的累计用量
       const usedAt0700 = round1(calcDrugUsageUpTo(execution, dayStartMs));
       const remaining = round1(cap - usedAt0700);
-      // 实用量 = 前一 night 段(17:00→07:00)的用量
-      const nightSegStartMs = Math.max(startMsExec, prevNightStartMs);
-      const nightUsage = round1(Math.max(0, usedAt0700 - calcDrugUsageUpTo(execution, nightSegStartMs)));
+      // 实用量 = 07:00到当前时刻的累计用量
+      const usedNow = round1(calcDrugUsageUpTo(execution, nowMs));
+      const currentUsage = round1(Math.max(0, usedNow - usedAt0700));
       carryMeds.push({
         name,
-        amount: `续用 剩余量 ${remaining.toFixed(1)} ml 实用量 ${nightUsage.toFixed(1)} ml`,
+        amount: `续用 剩余量 ${remaining.toFixed(1)} ml 实用量 ${currentUsage.toFixed(1)} ml`,
         numericAmount: 0, // 不参与小结累加
         route: routeLabel(method.name),
       });
