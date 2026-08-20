@@ -147,8 +147,8 @@ describe('hljld-form.utils 班段口径', () => {
   });
 
   describe('buildSegmentSettlements', () => {
-    it('night段内结束的已停药出现在结算行', () => {
-      // 药物08:00开始，03:00停（在night段17:00→07:00内结束）
+    it('day段开始且有剩余量的药出现在结算行', () => {
+      // 药物08:00开始，03:00停（在night段内结束，有剩余量）
       const exec = makeExec({
         startTime: '2026-08-17 08:00',
         endTime: '2026-08-18 03:00',
@@ -169,7 +169,7 @@ describe('hljld-form.utils 班段口径', () => {
       expect(settlements[0].ongoing).toBe(false);
     });
 
-    it('持续执行药物出现在结算行', () => {
+    it('day段开始且仍在执行的药出现在结算行', () => {
       // 药物08:00开始，未结束
       const exec = makeExec({
         startTime: '2026-08-17 08:00',
@@ -190,14 +190,14 @@ describe('hljld-form.utils 班段口径', () => {
       expect(settlements[0].ongoing).toBe(true);
     });
 
-    it('结束时间在07:00-17:00之间的不出现在结算行', () => {
-      // 药物08:00开始，16:21停（结束在day段07:00-17:00内）
+    it('night段内开始的药不出现在结算行', () => {
+      // 药物20:21开始（在17:00之后），不应出现在结算行
       const exec = makeExec({
-        startTime: '2026-08-17 08:00',
+        startTime: '2026-08-17 20:21',
         endTime: '2026-08-18 16:21',
         liquidAmount: 50,
         drugActionList: [
-          { time: '2026-08-17 08:00', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
+          { time: '2026-08-17 20:21', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
           { time: '2026-08-18 16:21', action: '停止' },
         ],
       });
@@ -208,19 +208,19 @@ describe('hljld-form.utils 班段口径', () => {
 
       const nowMs = nightSeg.end.getTime() + 60000;
       const settlements = buildSegmentSettlements([exec], methods, nightSeg, nowMs);
-      // 结束在07:00-17:00之间，不出现在结算行
+      // night段内开始的药不出现在结算行
       expect(settlements.length).toBe(0);
     });
 
-    it('结束时间在17:00之后的出现在结算行', () => {
-      // 药物08:00开始，18:00停（结束在17:00之后）
+    it('day段开始但已用完的药不出现在结算行', () => {
+      // 药物08:00开始，speed=2.5ml/h，到07:00已用23h×2.5=57.5ml > cap=50ml
       const exec = makeExec({
         startTime: '2026-08-17 08:00',
-        endTime: '2026-08-18 18:00',
+        endTime: '2026-08-18 04:00',
         liquidAmount: 50,
         drugActionList: [
           { time: '2026-08-17 08:00', action: '开始', speed: '2.5', speedUnit: 'ml/h' },
-          { time: '2026-08-18 18:00', action: '停止' },
+          { time: '2026-08-18 04:00', action: '停止' },
         ],
       });
       const methods = [makeMethod()];
@@ -230,9 +230,8 @@ describe('hljld-form.utils 班段口径', () => {
 
       const nowMs = nightSeg.end.getTime() + 60000;
       const settlements = buildSegmentSettlements([exec], methods, nightSeg, nowMs);
-      // 结束在17:00之后，出现在结算行
-      expect(settlements.length).toBe(1);
-      expect(settlements[0].ongoing).toBe(false);
+      // 已用完（remainder<=0），不出现在结算行
+      expect(settlements.length).toBe(0);
     });
   });
 
