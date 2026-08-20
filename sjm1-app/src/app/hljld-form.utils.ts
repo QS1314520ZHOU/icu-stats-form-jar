@@ -875,7 +875,6 @@ export function buildSegmentSettlements(
 export function formatSegmentAmountText(s: SegmentSettlement): string {
   const used = `实用量 ${s.segmentUsed.toFixed(1)} ml`;
   if (!s.consistent) { return used; }
-  if (!s.ongoing) { return used; }
   return `剩余量 ${s.remainder.toFixed(1)} ml ${used}`;
 }
 
