@@ -593,8 +593,10 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   }
 
   private toPatientContext(p: any): PatientContext {
-    const admissionTime = p?.admissionTime || p?.inTime || '';
-    const dischargeTime = p?.dischargeTime || p?.outTime || '';
+    // 优先使用 icuAdmissionTime/icuDischargeTime（ICU入科/出科时间）
+    // 回退到 admissionTime/inTime 和 dischargeTime/outTime
+    const admissionTime = p?.icuAdmissionTime || p?.admissionTime || p?.inTime || '';
+    const dischargeTime = p?.icuDischargeTime || p?.dischargeTime || p?.outTime || '';
 
     // 状态标准化：兼容多种出科状态文本
     const status = String(p?.status ?? p?.patientStatus ?? '').trim().toLowerCase();
