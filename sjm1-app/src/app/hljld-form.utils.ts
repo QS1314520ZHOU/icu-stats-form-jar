@@ -418,7 +418,7 @@ function drugToCell(
   }
   return {
     name: enteral ? enteralDisplayName(rawName) : rawName,
-    amount: numericAmount !== 0 ? numericAmount.toFixed(1) : '',
+    amount: numericAmount !== 0 ? numericAmount.toFixed(1) : '0',
     numericAmount,
     route: routeLabel(config.name),
   };
@@ -1555,11 +1555,10 @@ export function buildRows(
         const actionKey = minuteKey(action.time);
         if (actionKey !== key) { continue; }
         const quickAddAmount = parseAmount(action.quickAddAmount);
-        if (quickAddAmount <= 0) { continue; }
 
         const cell: NameAmountRoute = {
           name: enteralDisplayName(drugName),
-          amount: `${quickAddAmount.toFixed(1)}`,
+          amount: quickAddAmount > 0 ? `${quickAddAmount.toFixed(1)}` : '0',
           numericAmount: quickAddAmount,
           route: routeLabel(method.name),
         };
