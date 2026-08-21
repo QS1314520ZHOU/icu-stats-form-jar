@@ -307,10 +307,30 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         return;
       }
 
-      await printAllHljldRecords({
+      // 诊断日志：打印每个 VM 的日期和 timeline 条目数
+      const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+      if (isDev) {
+        vms.forEach((vm, i) => {
+          console.info(`[HLJLD][print-all-vm] #${i}`, {
+            date: vm.selectedDate?.toISOString(),
+            rangeStart: vm.rangeStart?.toISOString(),
+            rangeEnd: vm.rangeEnd?.toISOString(),
+            rows: vm.rows.length,
+            displayRows: vm.displayRows.length,
+            timelineItems: vm.timeline.length,
+            timelineKinds: vm.timeline.map(t => t.kind),
+          });
+        });
+      }
+
+      const result = await printAllHljldRecords({
         vms,
         remarkLines: this.defaultRemarkLines,
       });
+
+      if (isDev) {
+        console.info('[HLJLD][print-all-result]', result);
+      }
     } catch (error) {
       console.error('[HLJLD][print-all-error]', error);
       alert(

@@ -150,6 +150,9 @@ export function paginateHljld(
     };
   });
 
+  // 清理度量用 DOM 元素，避免与后续 renderPageModel 生成的页面重复
+  pages.forEach(page => page.pageEl.remove());
+
   return models;
 }
 
