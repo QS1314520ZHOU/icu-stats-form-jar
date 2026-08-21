@@ -1566,6 +1566,7 @@ export function buildRows(
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
 
       // 肠内营养药物的 quickAdd 动作：在对应时间点展示快推量（仅针对 SP、TP、瑞素、瑞高、瑞能）
+      let hasQuickAddAtTime = false;
       if (isEnteral) {
         const drugName = drugDisplayName(execution);
         const isTargetEnteral = drugName.includes('SP') || drugName.includes('TP')
@@ -1577,11 +1578,12 @@ export function buildRows(
             if (actionKey !== key) { continue; }
             const quickAddAmount = parseAmount(action.quickAddAmount);
             if (quickAddAmount <= 0) { continue; }
+            hasQuickAddAtTime = true;
 
-            // 构造 quickAdd 展示单元格
+            // 构造 quickAdd 展示单元格（不显示"快推"，只显示量）
             const cell: NameAmountRoute = {
               name: enteralDisplayName(drugName),
-              amount: `快推 ${quickAddAmount.toFixed(1)} ml`,
+              amount: `${quickAddAmount.toFixed(1)}`,
               numericAmount: quickAddAmount,
               route: routeLabel(method.name),
             };
@@ -1616,12 +1618,14 @@ export function buildRows(
         return;
       }
 
-      // 单次给药：在开始时间点展示
-      const startMs = toMs(String(execution.startTime ?? ''));
-      const startsAtTime = Number.isFinite(startMs) && minuteKey(new Date(startMs)) === key;
-      if (startsAtTime) {
-        const cell = drugToCell(execution, method, isEnteral, startMs);
-        if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
+      // 单次给药：在开始时间点展示（但如果当前时间点已有 quickAdd，则跳过总量行）
+      if (!hasQuickAddAtTime) {
+        const startMs = toMs(String(execution.startTime ?? ''));
+        const startsAtTime = Number.isFinite(startMs) && minuteKey(new Date(startMs)) === key;
+        if (startsAtTime) {
+          const cell = drugToCell(execution, method, isEnteral, startMs);
+          if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
+        }
       }
     });
 
