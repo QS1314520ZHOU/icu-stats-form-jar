@@ -1535,6 +1535,38 @@ export function buildRows(
   for (const key of uniqueKeys) {
     const timeMs = key * 60000;
     const bedside = bedsideInPeriod.filter(item => minuteKey(item.time) === key);
+
+    const medications: NameAmountRoute[] = [];
+    const enteral: NameAmountRoute[] = [];
+
+    // 肠内营养 quickAdd：遍历所有区间内药物，不按 startTime 过滤
+    for (const execution of drugsInPeriod) {
+      const method = findDrugMethod(execution.methodCode, source.drugMethods);
+      if (!method) { continue; }
+      const isEnteral = String(method.group ?? '').trim() === '胃肠';
+      if (!isEnteral) { continue; }
+      const drugName = drugDisplayName(execution);
+      const isTargetEnteral = drugName.includes('SP') || drugName.includes('TP')
+        || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能');
+      if (!isTargetEnteral) { continue; }
+
+      for (const action of (execution.drugActionList ?? [])) {
+        if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
+        const actionKey = minuteKey(action.time);
+        if (actionKey !== key) { continue; }
+        const quickAddAmount = parseAmount(action.quickAddAmount);
+        if (quickAddAmount <= 0) { continue; }
+
+        const cell: NameAmountRoute = {
+          name: enteralDisplayName(drugName),
+          amount: `${quickAddAmount.toFixed(1)}`,
+          numericAmount: quickAddAmount,
+          route: routeLabel(method.name),
+        };
+        if (hasNameOrAmount(cell)) { enteral.push(cell); }
+      }
+    }
+
     const drugExecutions = drugsInPeriod.filter(item => minuteKey(item.startTime) === key);
 
     // 日间小结（17:00）之后：插入 night 段结算行（17:00→07:00 用量）
@@ -1575,15 +1607,12 @@ export function buildRows(
       daySummaryRemaindersAdded = true;
     }
 
-    const medications: NameAmountRoute[] = [];
-    const enteral: NameAmountRoute[] = [];
-
     drugExecutions.forEach(execution => {
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
 
-      // 肠内营养药物的 quickAdd 动作：在对应时间点展示快推量（仅针对 SP、TP、瑞素、瑞高、瑞能）
+      // 检查当前时间点是否有 quickAdd（用于跳过总量行）
       let hasQuickAddAtTime = false;
       if (isEnteral) {
         const drugName = drugDisplayName(execution);
@@ -1592,20 +1621,11 @@ export function buildRows(
         if (isTargetEnteral) {
           for (const action of (execution.drugActionList ?? [])) {
             if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
-            const actionKey = minuteKey(action.time);
-            if (actionKey !== key) { continue; }
+            if (minuteKey(action.time) !== key) { continue; }
             const quickAddAmount = parseAmount(action.quickAddAmount);
             if (quickAddAmount <= 0) { continue; }
             hasQuickAddAtTime = true;
-
-            // 构造 quickAdd 展示单元格（不显示"快推"，只显示量）
-            const cell: NameAmountRoute = {
-              name: enteralDisplayName(drugName),
-              amount: `${quickAddAmount.toFixed(1)}`,
-              numericAmount: quickAddAmount,
-              route: routeLabel(method.name),
-            };
-            if (hasNameOrAmount(cell)) { enteral.push(cell); }
+            break;
           }
         }
       }
