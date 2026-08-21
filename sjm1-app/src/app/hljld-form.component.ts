@@ -493,9 +493,21 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary, drainNames);
 
     // 入科时间在17:00之后：当天不需要日间小结（07:00—17:00 期间患者尚未入科）
+    // 使用上海时区的小时/分钟比较，避免 parseDatabaseUtcTime 将无时区字符串视为 UTC 导致8小时偏差
     const admissionTs = parsePatientDateTime(this.patient.admissionTime);
-    if (Number.isFinite(admissionTs) && minuteInstant(new Date(admissionTs)) >= dayBoundary.getTime()) {
-      daySummary.available = false;
+    if (Number.isFinite(admissionTs)) {
+      const fmt = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Shanghai',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: false,
+      });
+      const parts = fmt.formatToParts(new Date(admissionTs));
+      const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
+      const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
+      if (h * 60 + m >= 17 * 60) {
+        daySummary.available = false;
+      }
     }
 
     // 7点"小结"直接复制日间小结数据，统计范围与日间小结完全一致（07:00—17:00）
