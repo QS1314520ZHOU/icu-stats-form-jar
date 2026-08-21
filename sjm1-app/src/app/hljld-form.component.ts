@@ -492,22 +492,11 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     // 每个小结自行根据自己的 periodStart/periodEnd 计算有效范围
     const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary, drainNames);
 
-    // 入科时间在17:00之后：当天不需要日间小结（07:00—17:00 期间患者尚未入科）
-    // 使用上海时区的小时/分钟比较，避免 parseDatabaseUtcTime 将无时区字符串视为 UTC 导致8小时偏差
+    // 入科当天且入科时间在17:00之后：当天不需要日间小结（07:00—17:00 期间患者尚未入科）
     const admissionTs = parsePatientDateTime(this.patient.admissionTime);
-    if (Number.isFinite(admissionTs)) {
-      const fmt = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'Asia/Shanghai',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: false,
-      });
-      const parts = fmt.formatToParts(new Date(admissionTs));
-      const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
-      const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
-      if (h * 60 + m >= 17 * 60) {
-        daySummary.available = false;
-      }
+    const shouldDisableDaySummary = this.isAdmissionAfterDayBoundary(admissionTs, rangeStart);
+    if (shouldDisableDaySummary) {
+      daySummary.available = false;
     }
 
     // 7点"小结"直接复制日间小结数据，统计范围与日间小结完全一致（07:00—17:00）
@@ -523,6 +512,12 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       // 文本行与日间小结完全一致，直接复用
       detailLines: daySummary.detailLines,
     };
+
+    // shiftSummary 通过展开运算符从 daySummary 复制，需要单独检查入科时间
+    // 入科当天且入科时间在17:00之后：也不显示夜班小结
+    if (shouldDisableDaySummary) {
+      shiftSummary.available = false;
+    }
 
     const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
     if (isDev) {
@@ -658,6 +653,37 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       if (cur >= 0 && (idx < 0 || cur < idx)) { idx = cur; }
     }
     return idx >= 0 ? value.substring(0, idx).trim() : value;
+  }
+
+  /**
+   * 判断入科日期是否与 selectedDate 相同，且入科时间在17:00之后。
+   * 用于决定当天是否需要显示日间小结/夜班小结。
+   * 使用上海时区比较，避免时区偏差。
+   */
+  private isAdmissionAfterDayBoundary(admissionTs: number, rangeStart: Date): boolean {
+    if (!Number.isFinite(admissionTs)) { return false; }
+
+    const fmtDate = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const admissionDateStr = fmtDate.format(new Date(admissionTs));
+    const selectedDateStr = fmtDate.format(rangeStart);
+    if (admissionDateStr !== selectedDateStr) { return false; }
+
+    // 入科日期与 selectedDate 相同：比较时间
+    const fmtTime = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+    });
+    const parts = fmtTime.formatToParts(new Date(admissionTs));
+    const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
+    const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
+    return h * 60 + m >= 17 * 60;
   }
 
   private resetPatientData(): void {
