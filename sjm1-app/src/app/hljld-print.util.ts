@@ -213,7 +213,7 @@ function renderPageModel(
     patientInfoRow.appendChild(span);
   };
 
-  addInfoItem('床号：', vm.patient.bedNo || '');
+  addInfoItem('床号：', vm.patient.bedNo ? (vm.patient.bedNo.endsWith('床') ? vm.patient.bedNo : vm.patient.bedNo + '床') : '');
   addInfoItem('姓名：', vm.patient.name || '');
   addInfoItem('住院号：', vm.patient.mrn || '');
   addInfoItem('性别：', vm.patient.sex || '');

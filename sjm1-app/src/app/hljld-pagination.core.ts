@@ -137,7 +137,7 @@ export function paginateHljld(
     }];
   }
 
-  const pages = paginateToPages(doc, host, vm, remarkLines, blocks);
+  const { pages, allPageRefs } = paginateToPages(doc, host, vm, remarkLines, blocks);
 
   // 转换为 HljldPageModel，用原始 summary 数据（含 detailLines）替换 DOM 提取的空壳
   const models: HljldPageModel[] = pages.map((pw, index) => {
@@ -162,8 +162,10 @@ export function paginateHljld(
     };
   });
 
-  // 清理度量用 DOM 元素，避免与后续 renderPageModel 生成的页面重复
-  pages.forEach(pw => pw.page.pageEl.remove());
+  // 清理度量用 DOM 元素，避免与后续 renderPageModel 生成的页面重复。
+  // 必须使用 allPageRefs（包含 appendTimeGroupBlock 等函数创建的所有页面），
+  // 而非仅 pages（只包含顶层页面），否则分裂产生的中间页会残留在 DOM 中。
+  allPageRefs.forEach(el => el.pageEl.remove());
 
   return models;
 }
@@ -269,11 +271,21 @@ function paginateToPages(
   vm: HljldViewModel,
   remarkLines: string[],
   blocks: PrintBlock[],
-): PageWithSummaries[] {
+): { pages: PageWithSummaries[]; allPageRefs: PageRefs[] } {
   const pages: PageWithSummaries[] = [];
+  // 共享的 PageRefs 数组：所有 createPage 产生的页面都追加到这里，
+  // 确保 appendTimeGroupBlock / splitTimeGroupAcrossPages 等函数
+  // 创建的新页面也能被 paginateHljld 统一清理。
+  const allPageRefs: PageRefs[] = [];
+
+  function trackPage(pw: PageWithSummaries): void {
+    pages.push(pw);
+    allPageRefs.push(pw.page);
+  }
+
   let firstPage = createPage(doc, vm, remarkLines);
   root.appendChild(firstPage.pageEl);
-  pages.push({ page: firstPage, summaryBlocks: [] });
+  trackPage({ page: firstPage, summaryBlocks: [] });
 
   let i = 0;
   while (i < blocks.length) {
@@ -297,7 +309,7 @@ function paginateToPages(
       const newPage = createPage(doc, vm, remarkLines);
       root.appendChild(newPage.pageEl);
       const newEntry: PageWithSummaries = { page: newPage, summaryBlocks: [] };
-      pages.push(newEntry);
+      trackPage(newEntry);
 
       // 在新页尝试整组加入
       if (appendSummaryGroup(newPage, summaries)) {
@@ -321,12 +333,12 @@ function paginateToPages(
       continue;
     }
 
-    appendTimeGroupBlock(doc, root, vm, remarkLines, pages.map(p => p.page), block);
+    appendTimeGroupBlock(doc, root, vm, remarkLines, allPageRefs, block);
     i += 1;
   }
 
   pages.forEach(pw => finalizePage(pw.page));
-  return pages;
+  return { pages, allPageRefs };
 }
 
 function appendTimeGroupBlock(
