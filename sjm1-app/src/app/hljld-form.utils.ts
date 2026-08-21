@@ -1399,11 +1399,13 @@ export function buildRows(
     .filter(item => isRenderableDrugExecution(item) && inPeriod(item.startTime));
   const nurseInPeriod = source.nurseRecords
     .filter(item => isValidBusinessRecord(item) && hasText(item.desc) && inPeriod(item.time));
+  const tubeNursingInPeriod = buildTubeNursingEntries(source, start, end, startExclusive);
 
   const uniqueKeys = Array.from(new Set([
     ...bedsideInPeriod.map(item => minuteKey(item.time)),
     ...drugsInPeriod.map(item => minuteKey(item.startTime)),
     ...nurseInPeriod.map(item => minuteKey(item.time)),
+    ...tubeNursingInPeriod.map(item => minuteKey(item.time)),
   ]))
     .filter(key => Number.isFinite(key))
     .sort((a, b) => a - b);
@@ -1610,11 +1612,20 @@ export function buildRows(
     const healthEducation = values('param_健康教育');
 
     const nurseRowsAtKey = nurseInPeriod.filter(item => minuteKey(item.time) === key);
+    const tubeEntriesAtKey = tubeNursingInPeriod.filter(item => minuteKey(item.time) === key);
+    const nursingRecords: string[] = [];
+
+    // 管路维护记录
+    for (const entry of tubeEntriesAtKey) {
+      if (entry.text) { nursingRecords.push(entry.text); }
+    }
+
+    // 护理记录
     const combinedNursing = nurseRowsAtKey
       .map(item => String(item.desc).trim())
       .filter(Boolean)
       .join('；');
-    const nursingRecords = combinedNursing ? [combinedNursing] : [];
+    if (combinedNursing) { nursingRecords.push(combinedNursing); }
 
     const hasContent = medications.length || enteral.length
       || urines.length || ultrafiltrations.length

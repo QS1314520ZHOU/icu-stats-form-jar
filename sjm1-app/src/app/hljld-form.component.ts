@@ -556,7 +556,8 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       nextMorning.getTime(),
       nowMs,
       dischargeSummary,
-      nursingDayStay.effectiveEnd.getTime(),
+      // effectiveEndMs 始终使用次日07:00，确保数据行不会被 dischargeTime 截断
+      nextMorning.getTime(),
     );
 
     return {
