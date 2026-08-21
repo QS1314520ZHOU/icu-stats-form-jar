@@ -139,9 +139,21 @@ export function paginateHljld(
 
   const pages = paginateToPages(doc, host, vm, remarkLines, blocks);
 
-  // 转换为 HljldPageModel
-  const models: HljldPageModel[] = pages.map((page, index) => {
-    const items = extractPageItems(page);
+  // 转换为 HljldPageModel，用原始 summary 数据（含 detailLines）替换 DOM 提取的空壳
+  const models: HljldPageModel[] = pages.map((pw, index) => {
+    const domItems = extractPageItems(pw.page);
+    // 用原始 summary 数据替换 DOM 中提取的空壳 summary
+    const items: HljldPageItem[] = domItems.map(domItem => {
+      if (domItem.kind !== 'summary') return domItem;
+      const original = pw.summaryBlocks.find(
+        b => b.summary.kind === domItem.summary.kind
+          && b.summary.periodStart === domItem.summary.periodStart
+          && b.summary.periodEnd === domItem.summary.periodEnd,
+      );
+      return original
+        ? { ...domItem, summary: original.summary }
+        : domItem;
+    });
     return {
       indexInDay: pageOffset + index + 1,
       items,
@@ -151,7 +163,7 @@ export function paginateHljld(
   });
 
   // 清理度量用 DOM 元素，避免与后续 renderPageModel 生成的页面重复
-  pages.forEach(page => page.pageEl.remove());
+  pages.forEach(pw => pw.page.pageEl.remove());
 
   return models;
 }
@@ -246,65 +258,74 @@ function buildPrintBlocks(timeline: HljldTimelineItem[]): PrintBlock[] {
   return blocks;
 }
 
+interface PageWithSummaries {
+  page: PageRefs;
+  summaryBlocks: SummaryPrintBlock[];
+}
+
 function paginateToPages(
   doc: Document,
   root: HTMLElement,
   vm: HljldViewModel,
   remarkLines: string[],
   blocks: PrintBlock[],
-): PageRefs[] {
-  const pages: PageRefs[] = [];
-  let page = createPage(doc, vm, remarkLines);
-  root.appendChild(page.pageEl);
-  pages.push(page);
+): PageWithSummaries[] {
+  const pages: PageWithSummaries[] = [];
+  let firstPage = createPage(doc, vm, remarkLines);
+  root.appendChild(firstPage.pageEl);
+  pages.push({ page: firstPage, summaryBlocks: [] });
 
   let i = 0;
   while (i < blocks.length) {
     const block = blocks[i];
+    const current = pages[pages.length - 1];
 
     if (block.kind === 'summary') {
       // 收集连续同时间戳的 summary 组
       const { summaries, nextIndex } = collectSummaryGroup(blocks, i);
 
       // 尝试整组加入当前页
-      if (appendSummaryGroup(page, summaries)) {
+      if (appendSummaryGroup(current.page, summaries)) {
+        current.summaryBlocks.push(...summaries);
         i = nextIndex;
         continue;
       }
 
       // 整组放不下当前页：先 finalize 当前页
-      finalizePage(page);
+      finalizePage(current.page);
 
-      page = createPage(doc, vm, remarkLines);
-      root.appendChild(page.pageEl);
-      pages.push(page);
+      const newPage = createPage(doc, vm, remarkLines);
+      root.appendChild(newPage.pageEl);
+      const newEntry: PageWithSummaries = { page: newPage, summaryBlocks: [] };
+      pages.push(newEntry);
 
       // 在新页尝试整组加入
-      if (appendSummaryGroup(page, summaries)) {
+      if (appendSummaryGroup(newPage, summaries)) {
+        newEntry.summaryBlocks.push(...summaries);
         i = nextIndex;
         continue;
       }
 
       // 整组在空白页也放不下：逐个尝试
       for (const summary of summaries) {
-        if (!appendSummaryBlock(page, summary)) {
+        if (!appendSummaryBlock(newPage, summary)) {
           throw new Error(
             `总结块 ${summary.key} 超出单页容量，请检查样式或内容。` +
             `\n  kind=${summary.summary?.kind} label=${summary.summary?.label} period=${summary.summary?.periodText}` +
             `\n  className=${summary.summaryClassName}`,
           );
         }
+        newEntry.summaryBlocks.push(summary);
       }
       i = nextIndex;
       continue;
     }
 
-    appendTimeGroupBlock(doc, root, vm, remarkLines, pages, block);
-    page = pages[pages.length - 1];
+    appendTimeGroupBlock(doc, root, vm, remarkLines, pages.map(p => p.page), block);
     i += 1;
   }
 
-  pages.forEach(finalizePage);
+  pages.forEach(pw => finalizePage(pw.page));
   return pages;
 }
 

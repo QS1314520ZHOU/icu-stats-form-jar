@@ -492,6 +492,12 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     // 每个小结自行根据自己的 periodStart/periodEnd 计算有效范围
     const daySummary = buildSummary('day', '日间小结', this.patient, source, rangeStart, dayBoundary, drainNames);
 
+    // 入科时间在17:00之后：当天不需要日间小结（07:00—17:00 期间患者尚未入科）
+    const admissionTs = parsePatientDateTime(this.patient.admissionTime);
+    if (Number.isFinite(admissionTs) && minuteInstant(new Date(admissionTs)) >= dayBoundary.getTime()) {
+      daySummary.available = false;
+    }
+
     // 7点"小结"直接复制日间小结数据，统计范围与日间小结完全一致（07:00—17:00）
     const shiftSummary: HljldSummary = {
       ...daySummary,
