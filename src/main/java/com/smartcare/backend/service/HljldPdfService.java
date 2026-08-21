@@ -55,6 +55,7 @@ public class HljldPdfService {
     // 表格区域
     private static final float TABLE_TOP = 130f;
     private static final float ROW_HEIGHT = 18f;
+    private static final float LINE_HEIGHT = 12f; // 多行文本行高
 
     // 列宽配置
     private static final float[] COL_WIDTHS = {
@@ -344,25 +345,26 @@ public class HljldPdfService {
             if (dy + ROW_HEIGHT > maxDataY) break;
 
             float dx = lx;
-            drawCell(g2d, dx, dy, row, "timeText");       dx += COL_WIDTHS[0];
-            drawCell(g2d, dx, dy, row, "medName");         dx += COL_WIDTHS[1];
-            drawCell(g2d, dx, dy, row, "medAmount");       dx += COL_WIDTHS[2];
-            drawCell(g2d, dx, dy, row, "medRoute");        dx += COL_WIDTHS[3];
-            drawCell(g2d, dx, dy, row, "enteralName");     dx += COL_WIDTHS[4];
-            drawCell(g2d, dx, dy, row, "enteralAmount");   dx += COL_WIDTHS[5];
-            drawCell(g2d, dx, dy, row, "enteralRoute");    dx += COL_WIDTHS[6];
-            drawCell(g2d, dx, dy, row, "urine");           dx += COL_WIDTHS[7];
-            drawCell(g2d, dx, dy, row, "ultrafiltration"); dx += COL_WIDTHS[8];
-            drawCell(g2d, dx, dy, row, "outputName");      dx += COL_WIDTHS[9];
-            drawCell(g2d, dx, dy, row, "outputAmount");    dx += COL_WIDTHS[10];
-            drawCell(g2d, dx, dy, row, "drainName");       dx += COL_WIDTHS[11];
-            drawCell(g2d, dx, dy, row, "drainAmount");     dx += COL_WIDTHS[12];
-            drawCell(g2d, dx, dy, row, "examination");     dx += COL_WIDTHS[13];
-            drawCell(g2d, dx, dy, row, "treatment");       dx += COL_WIDTHS[14];
-            drawCell(g2d, dx, dy, row, "basicCare");       dx += COL_WIDTHS[15];
-            drawCell(g2d, dx, dy, row, "healthEducation"); dx += COL_WIDTHS[16];
-            drawCell(g2d, dx, dy, row, "nursingRecord");   dx += COL_WIDTHS[17];
-            drawCell(g2d, dx, dy, row, "signature");
+            drawCell(g2d, dx, dy, COL_WIDTHS[0], row, "timeText");       dx += COL_WIDTHS[0];
+            drawCell(g2d, dx, dy, COL_WIDTHS[1], row, "medName");         dx += COL_WIDTHS[1];
+            drawCell(g2d, dx, dy, COL_WIDTHS[2], row, "medAmount");       dx += COL_WIDTHS[2];
+            drawCell(g2d, dx, dy, COL_WIDTHS[3], row, "medRoute");        dx += COL_WIDTHS[3];
+            drawCell(g2d, dx, dy, COL_WIDTHS[4], row, "enteralName");     dx += COL_WIDTHS[4];
+            drawCell(g2d, dx, dy, COL_WIDTHS[5], row, "enteralAmount");   dx += COL_WIDTHS[5];
+            drawCell(g2d, dx, dy, COL_WIDTHS[6], row, "enteralRoute");    dx += COL_WIDTHS[6];
+            drawCell(g2d, dx, dy, COL_WIDTHS[7], row, "urine");           dx += COL_WIDTHS[7];
+            drawCell(g2d, dx, dy, COL_WIDTHS[8], row, "ultrafiltration"); dx += COL_WIDTHS[8];
+            drawCell(g2d, dx, dy, COL_WIDTHS[9], row, "outputName");      dx += COL_WIDTHS[9];
+            drawCell(g2d, dx, dy, COL_WIDTHS[10], row, "outputAmount");   dx += COL_WIDTHS[10];
+            drawCell(g2d, dx, dy, COL_WIDTHS[11], row, "drainName");      dx += COL_WIDTHS[11];
+            drawCell(g2d, dx, dy, COL_WIDTHS[12], row, "drainAmount");    dx += COL_WIDTHS[12];
+            drawCell(g2d, dx, dy, COL_WIDTHS[13], row, "examination");    dx += COL_WIDTHS[13];
+            drawCell(g2d, dx, dy, COL_WIDTHS[14], row, "treatment");      dx += COL_WIDTHS[14];
+            drawCell(g2d, dx, dy, COL_WIDTHS[15], row, "basicCare");      dx += COL_WIDTHS[15];
+            drawCell(g2d, dx, dy, COL_WIDTHS[16], row, "healthEducation");dx += COL_WIDTHS[16];
+            // 护理记录使用多行显示
+            drawMultiLineCell(g2d, dx, dy, COL_WIDTHS[17], ROW_HEIGHT, row, "nursingRecord"); dx += COL_WIDTHS[17];
+            drawCell(g2d, dx, dy, COL_WIDTHS[18], row, "signature");
 
             // 行边框
             g2d.setColor(new Color(200, 200, 200));
@@ -405,13 +407,79 @@ public class HljldPdfService {
     }
 
     /**
-     * 绘制单元格
+     * 绘制单元格（支持多行文本）
      */
-    private void drawCell(Graphics2D g2d, float x, float y, Map<String, Object> row, String key) {
+    private void drawCell(Graphics2D g2d, float x, float y, float width, Map<String, Object> row, String key) {
         String text = mapStr(row, key);
         if (text != null && !text.isEmpty()) {
-            g2d.drawString(truncate(text, 20), x + 2, y + 12);
+            // 计算该列可显示的最大字符数（基于列宽和字体大小）
+            FontMetrics fm = g2d.getFontMetrics();
+            int maxChars = calculateMaxChars(fm, width - 4); // 减去左右边距
+
+            // 如果文本长度超过限制，尝试截断
+            if (text.length() > maxChars) {
+                text = text.substring(0, maxChars - 3) + "...";
+            }
+
+            g2d.drawString(text, x + 2, y + 12);
         }
+    }
+
+    /**
+     * 计算指定宽度内可显示的最大字符数
+     */
+    private int calculateMaxChars(FontMetrics fm, float width) {
+        if (width <= 0) return 0;
+        // 估算平均字符宽度（中文字符约为字体大小的0.6-0.8倍）
+        int avgCharWidth = fm.charWidth('中');
+        if (avgCharWidth <= 0) avgCharWidth = (int)(fm.getFont().getSize() * 0.7);
+        return Math.max(1, (int)(width / avgCharWidth));
+    }
+
+    /**
+     * 绘制多行单元格（用于护理记录等长文本字段）
+     */
+    private void drawMultiLineCell(Graphics2D g2d, float x, float y, float width, float maxHeight,
+                                   Map<String, Object> row, String key) {
+        String text = mapStr(row, key);
+        if (text == null || text.isEmpty()) return;
+
+        FontMetrics fm = g2d.getFontMetrics();
+        int maxCharsPerLine = calculateMaxChars(fm, width - 4);
+        float lineHeight = LINE_HEIGHT;
+
+        // 简单的自动换行
+        List<String> lines = wrapText(text, maxCharsPerLine);
+
+        // 绘制文本（限制行数以适应行高）
+        int maxLines = (int)(maxHeight / lineHeight);
+        for (int i = 0; i < Math.min(lines.size(), maxLines); i++) {
+            String line = lines.get(i);
+            // 最后一行如果还有更多内容，添加省略号
+            if (i == maxLines - 1 && i < lines.size() - 1) {
+                line = line.substring(0, Math.max(0, line.length() - 3)) + "...";
+            }
+            g2d.drawString(line, x + 2, y + 12 + i * lineHeight);
+        }
+    }
+
+    /**
+     * 文本自动换行
+     */
+    private List<String> wrapText(String text, int maxCharsPerLine) {
+        List<String> lines = new ArrayList<>();
+        if (text == null || maxCharsPerLine <= 0) {
+            lines.add("");
+            return lines;
+        }
+
+        int start = 0;
+        while (start < text.length()) {
+            int end = Math.min(start + maxCharsPerLine, text.length());
+            lines.add(text.substring(start, end));
+            start = end;
+        }
+        return lines;
     }
 
     /**
@@ -546,32 +614,177 @@ public class HljldPdfService {
         SimpleDateFormat tf = new SimpleDateFormat("HH:mm");
         TreeMap<Date, Map<String, Object>> timeMap = new TreeMap<>();
 
+        // ========== 1. 处理生命体征/床旁数据 ==========
+        // 与前端 DISPLAY_BEDSIDE_CODES 对齐
         for (org.bson.Document v : dayData.getVitals()) {
             Date t = v.getDate("time");
             if (t == null) continue;
+            String code = str(v, "code");
+            String val = str(v, "strVal");
+            String remark = str(v, "remark");
+
+            // 跳过签名记录和无效数据
+            if ("param_Yishi".equals(code)) continue;
+            if (val == null || val.trim().isEmpty()) continue;
+
             Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
             row.put("timeText", tf.format(t));
+
+            switch (code) {
+                case "param_niaoLiang":  // 尿量
+                    row.put("urine", val);
+                    break;
+                case "param_chaoLvLiang":  // 净超滤量
+                    row.put("ultrafiltration", val);
+                    break;
+                case "param_daBianAmount":  // 大便量
+                case "param_造瘘口量":      // 造瘘口量
+                case "param_outuwuliang":   // 呕吐物量
+                case "param_咯血":          // 咯血
+                case "param_tanLiang":      // 痰液量
+                    // 排出物
+                    String outputName = getOutputName(code);
+                    row.put("outputName", outputName);
+                    row.put("outputAmount", val);
+                    break;
+                case "param_带入药量":  // 带入药量
+                case "param_kouFu":     // 口服药
+                case "param_biSi":      // 鼻饲
+                    // 胃肠摄入
+                    String route = "";
+                    if ("param_带入药量".equals(code)) route = "带入";
+                    else if ("param_kouFu".equals(code)) route = "po";
+                    else if ("param_biSi".equals(code)) route = "鼻饲";
+                    String enteralName = remark != null ? remark.trim() : "";
+                    row.put("enteralName", enteralName);
+                    row.put("enteralAmount", val);
+                    row.put("enteralRoute", route);
+                    break;
+                case "param_外出检查":  // 检查
+                    row.put("examination", val);
+                    break;
+                case "param_物理治疗":  // 治疗
+                    row.put("treatment", val);
+                    break;
+                case "param_基础护理1":  // 基础护理
+                    row.put("basicCare", val);
+                    break;
+                case "param_健康教育":  // 健康教育
+                    row.put("healthEducation", val);
+                    break;
+                default:
+                    // 引流液：code 包含 "引流"
+                    if (code.contains("引流")) {
+                        String drainName = code.replace("param_tube_", "").replace("param_", "");
+                        drainName = drainName.endsWith("管") ? drainName.substring(0, drainName.length() - 1) + "液" : drainName;
+                        row.put("drainName", drainName);
+                        row.put("drainAmount", val);
+                    }
+                    break;
+            }
         }
+
+        // ========== 2. 处理护理记录 ==========
         for (org.bson.Document r : dayData.getNurseRecords()) {
             Date t = r.getDate("time");
             if (t == null) continue;
+            String desc = str(r, "desc");
+            if (desc == null || desc.trim().isEmpty()) continue;
+
             Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
             row.put("timeText", tf.format(t));
-            row.put("nursingRecord", str(r, "desc"));
-            row.put("signature", str(r, "accountId"));
+            // 护理记录可能已有多行内容，保留完整内容
+            String existingRecord = mapStr(row, "nursingRecord");
+            if (!existingRecord.isEmpty()) {
+                row.put("nursingRecord", existingRecord + "\n" + desc);
+            } else {
+                row.put("nursingRecord", desc);
+            }
+            // 签名
+            String signature = str(r, "accountId");
+            if (signature != null && !signature.isEmpty()) {
+                row.put("signature", signature);
+            }
         }
+
+        // ========== 3. 处理药物执行 ==========
         for (org.bson.Document d : dayData.getDrugExecutions()) {
             Date t = d.getDate("startTime");
             if (t == null) continue;
             Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
             row.put("timeText", tf.format(t));
-            row.put("medName", str(d, "drugName"));
-            row.put("medAmount", str(d, "dose"));
-            row.put("medRoute", str(d, "route"));
+
+            // 提取药物名称和剂量
+            @SuppressWarnings("unchecked")
+            List<org.bson.Document> drugList = (List<org.bson.Document>) d.get("drugList");
+            if (drugList != null && !drugList.isEmpty()) {
+                StringBuilder drugNames = new StringBuilder();
+                for (org.bson.Document drug : drugList) {
+                    String name = str(drug, "name");
+                    if (!name.isEmpty()) {
+                        if (drugNames.length() > 0) drugNames.append("、");
+                        drugNames.append(name);
+                    }
+                }
+                if (drugNames.length() > 0) {
+                    row.put("medName", drugNames.toString());
+                }
+            }
+
+            // 药物剂量
+            Object doseObj = d.get("dose");
+            if (doseObj != null) {
+                row.put("medAmount", doseObj.toString());
+            }
+
+            // 给药途径
+            String route = str(d, "route");
+            if (!route.isEmpty()) {
+                row.put("medRoute", route);
+            }
+        }
+
+        // ========== 4. 处理管路记录（引流液）==========
+        for (org.bson.Document tube : dayData.getTubeRecords()) {
+            @SuppressWarnings("unchecked")
+            List<org.bson.Document> recordList = (List<org.bson.Document>) tube.get("tubeRecordList");
+            if (recordList == null) continue;
+
+            for (org.bson.Document record : recordList) {
+                Date t = record.getDate("time");
+                if (t == null) continue;
+
+                Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
+                row.put("timeText", tf.format(t));
+
+                // 提取引流液名称和量
+                String name = str(record, "name");
+                String amount = str(record, "strVal");
+                if (!name.isEmpty()) {
+                    row.put("drainName", name);
+                }
+                if (!amount.isEmpty()) {
+                    row.put("drainAmount", amount);
+                }
+            }
         }
 
         rows.addAll(timeMap.values());
         return rows;
+    }
+
+    /**
+     * 获取排出物名称
+     */
+    private String getOutputName(String code) {
+        switch (code) {
+            case "param_daBianAmount": return "大便量";
+            case "param_造瘘口量": return "造瘘口量";
+            case "param_outuwuliang": return "呕吐物量";
+            case "param_咯血": return "咯血";
+            case "param_tanLiang": return "痰液量";
+            default: return "";
+        }
     }
 
     // ==================== 工具方法 ====================
@@ -589,6 +802,13 @@ public class HljldPdfService {
     private String truncate(String text, int max) {
         if (text == null) return "";
         return text.length() > max ? text.substring(0, max - 3) + "..." : text;
+    }
+
+    /**
+     * 文本截断（不限制长度，由绘制方法根据列宽处理）
+     */
+    private String safeStr(String text) {
+        return text != null ? text : "";
     }
 
     private static class NursingDayData {
