@@ -114,7 +114,7 @@ export class HljldFormService {
   /**
    * 一次性加载整个住院期间（入科到出科）的全部护理数据。
    * 用于一键打印全部：6 个接口各发一次请求，返回完整 SourceData + statuses。
-   * bedside 接口不支持时间范围，返回该患者全部记录；其余接口按完整住院区间取数。
+   * bedside 接口支持时间范围参数，只返回当前住院区间的数据。
    */
   loadAll(pid: string, stayStart: Date, stayEnd: Date): Observable<LoadResult> {
     const statuses: SourceStatus[] = [];
@@ -143,13 +143,22 @@ export class HljldFormService {
     };
 
     // 上界放宽 1 秒保证边界数据被取回
+    const endTime = new Date(stayEnd.getTime() + 1000).toISOString();
+    const startTime = stayStart.toISOString();
+
+    // bedside 也传时间范围，只返回当前住院区间的数据
+    const bedsideParams = new HttpParams()
+      .set('pid', pid)
+      .set('startTime', startTime)
+      .set('endTime', endTime);
+
     const rangeParams = new HttpParams()
       .set('pid', pid)
-      .set('startTime', stayStart.toISOString())
-      .set('endTime', new Date(stayEnd.getTime() + 1000).toISOString());
+      .set('startTime', startTime)
+      .set('endTime', endTime);
 
     return forkJoin({
-      bedside: safeGet<BedsideRecord>('bedside', this.bedsideApi, new HttpParams().set('pid', pid)),
+      bedside: safeGet<BedsideRecord>('bedside', this.bedsideApi, bedsideParams),
       drugExecutions: safeGet<DrugExecution>('drugExecutions', `${this.hljldBase}/drug-executions`, rangeParams),
       drugMethods: safeGet<DrugMethodConfig>('drugMethods', `${this.hljldBase}/drug-methods`),
       nurseRecords: safeGet<NurseRecord>('nurseRecords', `${this.hljldBase}/nurse-records`, rangeParams),

@@ -21,4 +21,16 @@ public class BedsideService {
         }
         return this.repository.findByPidAndValidTrueAndCodeIn(pid, codes);
     }
+
+    /**
+     * 按 pid + 时间范围查询有效 bedside 记录。
+     * 用于一键打印全部：减少不必要的全量数据传输。
+     */
+    public List<Bedside> findValidByPidAndTimeRange(String pid, String startTime, String endTime) {
+        if (pid == null || pid.isEmpty()) return Collections.emptyList();
+        if (startTime == null || endTime == null) {
+            return this.repository.findByPidAndValidTrue(pid);
+        }
+        return this.repository.findByPidAndValidTrueAndTimeRange(pid, startTime, endTime);
+    }
 }
