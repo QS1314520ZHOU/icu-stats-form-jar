@@ -276,60 +276,62 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      // 收集所有护理日的 ViewModel
-      const vms: HljldViewModel[] = [];
+      // 一次性加载入科到出科的全部数据（6 个接口各一次请求）
+      const stayStart = startOfNursingDay(minDate);
+      const stayEnd = endOfNursingDay(maxDate);
+      const result = await firstValueFrom(this.service.loadAll(this.patient.pid, stayStart, stayEnd));
+
+      // 收集签名
       const allSignatures = new Map<string, string>();
+      if (result.data) {
+        const sigs = await this.collectSignatures(result.data);
+        sigs.forEach((v, k) => allSignatures.set(k, v));
+      }
+
+      // 按护理日逐天构建 ViewModel，使用统一数据源
+      const vms: HljldViewModel[] = [];
       const current = new Date(minDate);
+      const savedDate = this.selectedDate;
 
       while (current <= maxDate) {
-        const rangeStart = startOfNursingDay(current);
-        const rangeEnd = endOfNursingDay(current);
-
-        const result = await firstValueFrom(this.service.load(this.patient.pid, rangeStart, rangeEnd));
+        this.selectedDate = new Date(current);
         if (result.data) {
-          // 收集签名
-          const sigs = await this.collectSignatures(result.data);
-          sigs.forEach((v, k) => allSignatures.set(k, v));
-
-          // 临时设置 selectedDate 以便 toViewModel 使用正确的日期
-          const savedDate = this.selectedDate;
-          this.selectedDate = new Date(current);
           vms.push(this.toViewModel(result.data, allSignatures));
-          this.selectedDate = savedDate;
         }
-
-        // 下一天
         current.setDate(current.getDate() + 1);
       }
+      this.selectedDate = savedDate;
 
       if (vms.length === 0) {
         alert('没有可打印的护理记录');
         return;
       }
 
-      // 诊断日志：打印每个 VM 的日期和 timeline 条目数
+      // 诊断日志
       const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
       if (isDev) {
+        console.info('[HLJLD][print-all-loadAll]', {
+          bedside: result.data?.bedside.length,
+          drugExecutions: result.data?.drugExecutions.length,
+          nurseRecords: result.data?.nurseRecords.length,
+          tubeExecutions: result.data?.tubeExecutions.length,
+        });
         vms.forEach((vm, i) => {
           console.info(`[HLJLD][print-all-vm] #${i}`, {
             date: vm.selectedDate?.toISOString(),
-            rangeStart: vm.rangeStart?.toISOString(),
-            rangeEnd: vm.rangeEnd?.toISOString(),
             rows: vm.rows.length,
-            displayRows: vm.displayRows.length,
             timelineItems: vm.timeline.length,
-            timelineKinds: vm.timeline.map(t => t.kind),
           });
         });
       }
 
-      const result = await printAllHljldRecords({
+      const printResult = await printAllHljldRecords({
         vms,
         remarkLines: this.defaultRemarkLines,
       });
 
       if (isDev) {
-        console.info('[HLJLD][print-all-result]', result);
+        console.info('[HLJLD][print-all-result]', printResult);
       }
     } catch (error) {
       console.error('[HLJLD][print-all-error]', error);

@@ -112,6 +112,73 @@ export class HljldFormService {
   }
 
   /**
+   * 一次性加载整个住院期间（入科到出科）的全部护理数据。
+   * 用于一键打印全部：6 个接口各发一次请求，返回完整 SourceData + statuses。
+   * bedside 接口不支持时间范围，返回该患者全部记录；其余接口按完整住院区间取数。
+   */
+  loadAll(pid: string, stayStart: Date, stayEnd: Date): Observable<LoadResult> {
+    const statuses: SourceStatus[] = [];
+    const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
+
+    const safeGet = <T>(name: string, url: string, reqParams?: HttpParams): Observable<{ data: T[]; status: SourceStatus }> => {
+      return this.http.get<T[] | { data?: T[] }>(url, { params: reqParams }).pipe(
+        map(response => {
+          const data = this.normalizeArray(response);
+          const st: SourceStatus = { source: name, url, status: 'success', count: data.length };
+          statuses.push(st);
+          if (isDev) { console.info(`[HLJLD][loadAll][source] ${name}`, { url, count: data.length }); }
+          return { data, status: st };
+        }),
+        catchError(error => {
+          const st: SourceStatus = {
+            source: name, url, status: 'error',
+            httpStatus: error?.status, count: 0,
+            error: error?.message || String(error),
+          };
+          statuses.push(st);
+          if (isDev) { console.error(`[HLJLD][loadAll][source-error] ${name}`, { status: error?.status, message: st.error }); }
+          return of({ data: [] as T[], status: st });
+        }),
+      );
+    };
+
+    // 上界放宽 1 秒保证边界数据被取回
+    const rangeParams = new HttpParams()
+      .set('pid', pid)
+      .set('startTime', stayStart.toISOString())
+      .set('endTime', new Date(stayEnd.getTime() + 1000).toISOString());
+
+    return forkJoin({
+      bedside: safeGet<BedsideRecord>('bedside', this.bedsideApi, new HttpParams().set('pid', pid)),
+      drugExecutions: safeGet<DrugExecution>('drugExecutions', `${this.hljldBase}/drug-executions`, rangeParams),
+      drugMethods: safeGet<DrugMethodConfig>('drugMethods', `${this.hljldBase}/drug-methods`),
+      nurseRecords: safeGet<NurseRecord>('nurseRecords', `${this.hljldBase}/nurse-records`, rangeParams),
+      tubeExecutions: safeGet<TubeExecution>('tubeExecutions', `${this.hljldBase}/tube-executions`, rangeParams),
+      tubeViews: safeGet<ConfigTubeView>('tubeViews', `${this.hljldBase}/tube-views`),
+      signatures: of({
+        data: [] as SignatureRecord[],
+        status: { source: 'signatures', url: '', status: 'success' as const, count: 0 } as SourceStatus,
+      }),
+    }).pipe(
+      map(result => {
+        statuses.push(result.signatures.status);
+        return {
+          data: {
+            bedside: result.bedside.data,
+            drugExecutions: result.drugExecutions.data,
+            drugMethods: result.drugMethods.data,
+            nurseRecords: result.nurseRecords.data,
+            tubeExecutions: result.tubeExecutions.data,
+            tubeViews: result.tubeViews.data,
+            signatures: result.signatures.data,
+          },
+          statuses,
+        };
+      }),
+    );
+  }
+
+  /**
    * 批量查询账户信息，返回 accountId → trueName 映射。
    */
   queryAccounts(userIds: string[]): Observable<Map<string, string>> {
