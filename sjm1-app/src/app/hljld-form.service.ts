@@ -36,6 +36,7 @@ export interface LoadResult {
 export class HljldFormService {
   private readonly hljldBase = '/api/v1/icu/hljld';
   private readonly bedsideApi = '/api/v1/icu/bedside/listByPid';
+  private readonly bedsideRangeApi = '/api/v1/icu/bedside/listByPidAndTimeRange';
 
   constructor(private http: HttpClient) {}
 
@@ -146,7 +147,7 @@ export class HljldFormService {
     const endTime = new Date(stayEnd.getTime() + 1000).toISOString();
     const startTime = stayStart.toISOString();
 
-    // bedside 也传时间范围，只返回当前住院区间的数据
+    // bedside 使用专用时间范围接口，只返回当前住院区间的数据
     const bedsideParams = new HttpParams()
       .set('pid', pid)
       .set('startTime', startTime)
@@ -158,7 +159,7 @@ export class HljldFormService {
       .set('endTime', endTime);
 
     return forkJoin({
-      bedside: safeGet<BedsideRecord>('bedside', this.bedsideApi, bedsideParams),
+      bedside: safeGet<BedsideRecord>('bedside', this.bedsideRangeApi, bedsideParams),
       drugExecutions: safeGet<DrugExecution>('drugExecutions', `${this.hljldBase}/drug-executions`, rangeParams),
       drugMethods: safeGet<DrugMethodConfig>('drugMethods', `${this.hljldBase}/drug-methods`),
       nurseRecords: safeGet<NurseRecord>('nurseRecords', `${this.hljldBase}/nurse-records`, rangeParams),

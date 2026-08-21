@@ -24,16 +24,22 @@ public class BedsideController {
     @GetMapping("/listByPid")
     public ResponseEntity<List<Bedside>> listByPid(
             @RequestParam String pid,
-            @RequestParam(required = false) String codes,
-            @RequestParam(required = false) String startTime,
-            @RequestParam(required = false) String endTime) {
-        // 支持时间范围过滤：用于一键打印全部，减少不必要的全量数据传输
-        if (startTime != null && endTime != null) {
-            return ResponseEntity.ok(this.service.findValidByPidAndTimeRange(pid, startTime, endTime));
-        }
+            @RequestParam(required = false) String codes) {
         List<String> codeList = (codes == null || codes.isEmpty())
                 ? List.of()
                 : Arrays.asList(codes.split(","));
         return ResponseEntity.ok(this.service.findValidByPidAndCodes(pid, codeList));
+    }
+
+    /**
+     * 按 pid + 时间范围查询有效 bedside 记录。
+     * 专用接口：一键打印全部时使用，减少不必要的全量数据传输。
+     */
+    @GetMapping("/listByPidAndTimeRange")
+    public ResponseEntity<List<Bedside>> listByPidAndTimeRange(
+            @RequestParam String pid,
+            @RequestParam String startTime,
+            @RequestParam String endTime) {
+        return ResponseEntity.ok(this.service.findValidByPidAndTimeRange(pid, startTime, endTime));
     }
 }
