@@ -222,7 +222,7 @@ function renderPageModel(
   const diagnosisItem = doc.createElement('span');
   diagnosisItem.className = 'diagnosis-item';
   const diagStrong = doc.createElement('strong');
-  diagStrong.textContent = '—';
+  diagStrong.textContent = vm.patient.diagnosis || '—';
   diagnosisItem.textContent = '诊断：';
   diagnosisItem.appendChild(diagStrong);
   patientInfoRow.appendChild(diagnosisItem);
