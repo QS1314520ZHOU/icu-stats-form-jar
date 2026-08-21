@@ -873,9 +873,9 @@ export function buildSegmentSettlements(
 
 /** 量列文案：已停药只显示实用量；仍在进行显示剩余量+实用量；不自洽只显示实用量 */
 export function formatSegmentAmountText(s: SegmentSettlement): string {
-  const used = `实用量 ${s.segmentUsed.toFixed(1)} ml`;
+  const used = `实用量 ${s.segmentUsed.toFixed(1)}`;
   if (!s.consistent) { return used; }
-  return `剩余量 ${s.remainder.toFixed(1)} ml ${used}`;
+  return `剩余量 ${s.remainder.toFixed(1)} ${used}`;
 }
 
 
@@ -940,8 +940,26 @@ function sumDrugAmountsByChannel(
       const usageAtStart = calcDrugUsageUpTo(execution, effectiveStartMs);
       amount = round1(Math.max(0, usageAtEnd - usageAtStart));
     } else {
-      if (!inNursingRange(execution.startTime, start, end, startExclusive)) { continue; }
-      amount = resolveLiquidCap(execution);
+      // 检查是否为有 quickAdd 的 SP/TP/瑞素/瑞高/瑞能 单次给药
+      const drugName = drugDisplayName(execution);
+      const isTargetEnteral = drugName.includes('SP') || drugName.includes('TP')
+        || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能');
+      if (isTargetEnteral) {
+        // 只计算在统计区间内的 quickAdd 量
+        let quickAddTotal = 0;
+        for (const action of (execution.drugActionList ?? [])) {
+          if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
+          const actionTime = databaseTimeValue(action.time);
+          if (!Number.isFinite(actionTime)) { continue; }
+          if (inNursingRange(action.time, start, end, startExclusive)) {
+            quickAddTotal += parseAmount(action.quickAddAmount);
+          }
+        }
+        amount = round1(quickAddTotal);
+      } else {
+        if (!inNursingRange(execution.startTime, start, end, startExclusive)) { continue; }
+        amount = resolveLiquidCap(execution);
+      }
     }
     if (!amount) { continue; }
 
@@ -1484,7 +1502,7 @@ export function buildRows(
       const currentUsage = round1(Math.max(0, usedNow - usedAt0700));
       carryMeds.push({
         name,
-        amount: `续用 剩余量 ${remaining.toFixed(1)} ml 实用量 ${currentUsage.toFixed(1)} ml`,
+        amount: `续用 剩余量 ${remaining.toFixed(1)} 实用量 ${currentUsage.toFixed(1)}`,
         numericAmount: 0, // 不参与小结累加
         route: routeLabel(method.name),
       });
@@ -1606,7 +1624,7 @@ export function buildRows(
           const segEndMs = seg?.end.getTime();
           const cell = drugToCell(execution, method, isEnteral, startMs, segStartMs, segEndMs);
           // 始终覆盖 amount 格式，保证0量也显示
-          cell.amount = `实用量 ${cell.numericAmount.toFixed(1)} ml`;
+          cell.amount = `实用量 ${cell.numericAmount.toFixed(1)}`;
           if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
           return;
         }
