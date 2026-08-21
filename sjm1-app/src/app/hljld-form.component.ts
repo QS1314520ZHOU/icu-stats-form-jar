@@ -480,13 +480,15 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     // 护理日级有效区间：用于页面入科前/出科后判断、明细、引流项目收集
     const nursingDayStay = resolveActiveStayRange(this.patient, rangeStart, rangeEnd);
 
+    // buildRows 使用 nextMorning 作为结束时间，确保整个护理日的数据都被包含
+    // effectiveEnd 只用于入科前/出科后的页面判断，不用于数据过滤
     const rows = nursingDayStay.hasValidRange
-      ? buildRows(source, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd, accountMap, nursingDayStay.startExclusive)
+      ? buildRows(source, nursingDayStay.effectiveStart, nextMorning, accountMap, nursingDayStay.startExclusive)
       : [];
     const timeGroups = buildDisplayGroups(rows);
 
     const drainNames = nursingDayStay.hasValidRange
-      ? collectDrainNames(source.bedside, nursingDayStay.effectiveStart, nursingDayStay.effectiveEnd, nursingDayStay.startExclusive)
+      ? collectDrainNames(source.bedside, nursingDayStay.effectiveStart, nextMorning, nursingDayStay.startExclusive)
       : [];
 
     // 每个小结自行根据自己的 periodStart/periodEnd 计算有效范围
