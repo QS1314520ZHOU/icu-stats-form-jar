@@ -1401,11 +1401,33 @@ export function buildRows(
     .filter(item => isValidBusinessRecord(item) && hasText(item.desc) && inPeriod(item.time));
   const tubeNursingInPeriod = buildTubeNursingEntries(source, start, end, startExclusive);
 
+  // 收集肠内营养药物的 quickAdd 时间点
+  const enteralQuickAddKeys: number[] = [];
+  for (const execution of source.drugExecutions) {
+    if (!isRenderableDrugExecution(execution)) { continue; }
+    const method = findDrugMethod(execution.methodCode, source.drugMethods);
+    if (!method || method.isOnce !== false) { continue; }
+    const isEnteral = String(method.group ?? '').trim() === '胃肠';
+    if (!isEnteral) { continue; }
+
+    // 收集 quickAdd 动作的时间点
+    for (const action of (execution.drugActionList ?? [])) {
+      if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
+      const actionTime = databaseTimeValue(action.time);
+      if (!Number.isFinite(actionTime)) { continue; }
+      const actionKey = minuteKey(action.time);
+      if (Number.isFinite(actionKey) && inNursingRange(action.time, start, end, startExclusive)) {
+        enteralQuickAddKeys.push(actionKey);
+      }
+    }
+  }
+
   const uniqueKeys = Array.from(new Set([
     ...bedsideInPeriod.map(item => minuteKey(item.time)),
     ...drugsInPeriod.map(item => minuteKey(item.startTime)),
     ...nurseInPeriod.map(item => minuteKey(item.time)),
     ...tubeNursingInPeriod.map(item => minuteKey(item.time)),
+    ...enteralQuickAddKeys,
   ]))
     .filter(key => Number.isFinite(key))
     .sort((a, b) => a - b);
@@ -1555,6 +1577,28 @@ export function buildRows(
           if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
           return;
         }
+
+        // 肠内营养药物的 quickAdd 动作：在对应时间点展示快推量
+        if (isEnteral) {
+          for (const action of (execution.drugActionList ?? [])) {
+            if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
+            const actionKey = minuteKey(action.time);
+            if (actionKey !== key) { continue; }
+            const quickAddAmount = parseAmount(action.quickAddAmount);
+            if (quickAddAmount <= 0) { continue; }
+
+            // 构造 quickAdd 展示单元格
+            const drugName = drugDisplayName(execution);
+            const cell: NameAmountRoute = {
+              name: enteralDisplayName(drugName),
+              amount: `快推 ${quickAddAmount.toFixed(1)} ml`,
+              numericAmount: quickAddAmount,
+              route: routeLabel(method.name),
+            };
+            if (hasNameOrAmount(cell)) { enteral.push(cell); }
+          }
+        }
+
         // 其余行：段初到当前时刻的累计
         const seg = segmentOf(timeMs);
         const cell = drugToCell(execution, method, isEnteral, timeMs, seg?.start.getTime());
