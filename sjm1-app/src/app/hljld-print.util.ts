@@ -432,32 +432,52 @@ function escapeHtml(value: string): string {
 }
 
 async function waitForPrintWindowReady(win: Window): Promise<void> {
+  // 带超时的 document ready 等待
   await new Promise<void>(resolve => {
     if (win.document.readyState === 'complete') {
       resolve();
       return;
     }
-
+    const timer = setTimeout(resolve, 3000);
     const handler = () => {
+      clearTimeout(timer);
       win.removeEventListener('load', handler);
       resolve();
     };
-
     win.addEventListener('load', handler);
   });
 
-  const fonts = (win.document as Document & { fonts?: FontFaceSet }).fonts;
-  if (fonts?.ready) {
-    await fonts.ready;
-  }
+  // 字体加载带超时，防止某些浏览器挂起
+  try {
+    const fonts = (win.document as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts?.ready) {
+      await Promise.race([fonts.ready, timeout(2000)]);
+    }
+  } catch { /* 忽略字体加载错误 */ }
 
   await nextTwoFrames(win);
 }
 
+function timeout(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function nextTwoFrames(win: Window): Promise<void> {
+  // 带超时的 requestAnimationFrame，防止某些浏览器不触发
   await new Promise<void>(resolve => {
-    win.requestAnimationFrame(() => {
-      win.requestAnimationFrame(() => resolve());
-    });
+    let called = false;
+    const done = () => { if (!called) { called = true; resolve(); } };
+    const timer = setTimeout(done, 500);
+    try {
+      win.requestAnimationFrame(() => {
+        win.requestAnimationFrame(() => {
+          clearTimeout(timer);
+          done();
+        });
+      });
+    } catch {
+      clearTimeout(timer);
+      done();
+    }
   });
 }
