@@ -1401,7 +1401,7 @@ export function buildRows(
     .filter(item => isValidBusinessRecord(item) && hasText(item.desc) && inPeriod(item.time));
   const tubeNursingInPeriod = buildTubeNursingEntries(source, start, end, startExclusive);
 
-  // 收集肠内营养药物的 quickAdd 时间点（无论是持续还是单次给药）
+  // 收集肠内营养药物的 quickAdd 时间点（仅针对 SP、TP、瑞素、瑞高、瑞能）
   const enteralQuickAddKeys: number[] = [];
   for (const execution of source.drugExecutions) {
     if (!isRenderableDrugExecution(execution)) { continue; }
@@ -1409,6 +1409,12 @@ export function buildRows(
     if (!method) { continue; }
     const isEnteral = String(method.group ?? '').trim() === '胃肠';
     if (!isEnteral) { continue; }
+
+    // 检查药物名称是否包含 SP、TP、瑞素、瑞高、瑞能
+    const drugName = drugDisplayName(execution);
+    const isTargetEnteral = drugName.includes('SP') || drugName.includes('TP')
+      || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能');
+    if (!isTargetEnteral) { continue; }
 
     // 收集 quickAdd 动作的时间点
     for (const action of (execution.drugActionList ?? [])) {
@@ -1559,24 +1565,28 @@ export function buildRows(
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
 
-      // 肠内营养药物的 quickAdd 动作：在对应时间点展示快推量（无论是持续还是单次给药）
+      // 肠内营养药物的 quickAdd 动作：在对应时间点展示快推量（仅针对 SP、TP、瑞素、瑞高、瑞能）
       if (isEnteral) {
-        for (const action of (execution.drugActionList ?? [])) {
-          if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
-          const actionKey = minuteKey(action.time);
-          if (actionKey !== key) { continue; }
-          const quickAddAmount = parseAmount(action.quickAddAmount);
-          if (quickAddAmount <= 0) { continue; }
+        const drugName = drugDisplayName(execution);
+        const isTargetEnteral = drugName.includes('SP') || drugName.includes('TP')
+          || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能');
+        if (isTargetEnteral) {
+          for (const action of (execution.drugActionList ?? [])) {
+            if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
+            const actionKey = minuteKey(action.time);
+            if (actionKey !== key) { continue; }
+            const quickAddAmount = parseAmount(action.quickAddAmount);
+            if (quickAddAmount <= 0) { continue; }
 
-          // 构造 quickAdd 展示单元格
-          const drugName = drugDisplayName(execution);
-          const cell: NameAmountRoute = {
-            name: enteralDisplayName(drugName),
-            amount: `快推 ${quickAddAmount.toFixed(1)} ml`,
-            numericAmount: quickAddAmount,
-            route: routeLabel(method.name),
-          };
-          if (hasNameOrAmount(cell)) { enteral.push(cell); }
+            // 构造 quickAdd 展示单元格
+            const cell: NameAmountRoute = {
+              name: enteralDisplayName(drugName),
+              amount: `快推 ${quickAddAmount.toFixed(1)} ml`,
+              numericAmount: quickAddAmount,
+              route: routeLabel(method.name),
+            };
+            if (hasNameOrAmount(cell)) { enteral.push(cell); }
+          }
         }
       }
 
