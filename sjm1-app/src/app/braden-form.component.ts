@@ -58,6 +58,19 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
   template: `
     <div class="toolbar no-print">
       <div class="toolbar-right">
+        <span class="auditor-field">
+          <span class="auditor-label">审核者签名：</span>
+          <span class="auditor-combo">
+            <input class="auditor-input" type="text" [(ngModel)]="auditorQuery"
+                   [placeholder]="auditorName || '搜索并选择'"
+                   (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
+            <ul class="auditor-menu" *ngIf="auditorOpen">
+              <li class="auditor-opt empty-opt" (mousedown)="clearAuditor()">（空）</li>
+              <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="selectAuditor(a)">{{ a.accountName }}</li>
+              <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
+            </ul>
+          </span>
+        </span>
         <app-print-page-multi-select
           [totalPages]="pages.length"
           [(selectedPages)]="selectedPrintPages"
@@ -144,6 +157,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
           <div class="fn" *ngFor="let t of FOOT_NOTES">{{t}}</div>
         </div>
 
+        <div class="review-sign" *ngIf="page.index === pages.length">审核护士签名：{{ auditorName || '__________' }}</div>
         <div class="sheet-pageno">第 {{page.index}} 页</div>
       </section>
     </ng-container>
@@ -156,6 +170,14 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
     .btn{padding:5px 16px;border:1px solid #1890ff;background:#1890ff;color:#fff;border-radius:4px;cursor:pointer}
     .loading{padding:16px;font-family:'SimSun','宋体',serif}
     .sheet-hidden{display:none}
+
+    .auditor-field{display:flex;align-items:center}
+    .auditor-label{font-family:'SimSun','宋体',serif;font-size:14px;white-space:nowrap}
+    .auditor-combo{position:relative;display:inline-block}
+    .auditor-input{padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:14px;width:150px}
+    .auditor-menu{position:absolute;top:100%;left:0;right:0;margin:2px 0 0;padding:4px 0;list-style:none;max-height:240px;overflow-y:auto;background:#fff;border:1px solid #d9d9d9;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:100}
+    .auditor-opt{padding:5px 10px;font-size:14px;cursor:pointer;white-space:nowrap}
+    .auditor-opt:hover{background:#f0f7ff} .empty-opt{color:#999} .no-opt{color:#999;cursor:default}
     .sheet{box-sizing:border-box;width:297mm;min-height:210mm;margin:16px auto;padding:8mm 10mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.15);position:relative;color:#000}
     .sheet-head{text-align:center;padding-bottom:4px}
     .title-line{font-family:'SimHei','黑体',sans-serif;font-weight:700;font-size:20pt;line-height:1.3}
@@ -199,6 +221,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
     .footnote{margin-top:5px;font-family:'SimSun','宋体',serif;font-size:9.5pt;line-height:1.25;text-align:left;margin-bottom:10mm}
     .footnote .fn-title{font-weight:700;display:inline}
     .footnote .fn{margin:0}
+    .review-sign{margin-top:6px;text-align:right;font-family:'SimSun','宋体',serif;font-size:13pt;font-weight:400;padding-right:6px}
     .sheet-pageno{position:absolute;right:0;bottom:35px;left:0;width:auto;margin:0;padding:0;box-sizing:border-box;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;pointer-events:none;z-index:20}
     @media screen{.sheet{width:calc(100vw - 32px);max-width:297mm;min-width:980px;zoom:1!important;transform:none!important}}
     @media print{
@@ -217,6 +240,7 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
       .print-only{display:inline!important}
       .screen-only{display:none!important}
       .result-combo,.result-datetime,.result-line input[type="radio"]{display:none!important}
+      .review-sign{margin-top:6px;text-align:right;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;padding-right:6px}
     }
   `],
 })
@@ -224,6 +248,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   private readonly API_SCORE = '/api/v1/icu/score/listByPid';
   private readonly API_HOSPITAL = '/api/v1/config/hospital';
   private readonly API_ACCOUNT = '/api/v1/icu/accounts/listByIds';
+  private readonly API_ACCOUNT_ALL = '/api/v1/icu/accounts';
 
   readonly BRADEN_ITEMS = BRADEN_ITEMS;
   readonly MEASURE_COLUMNS = MEASURE_COLUMNS;
@@ -240,6 +265,12 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   rows: BradenRow[] = [];
   pages: RenderPage[] = [];
   selectedPrintPages: number[] = [];
+
+  // 审核者签名
+  auditorName = ''; auditorId = ''; auditorQuery = ''; auditorOpen = false;
+  accountList: { accountId: string; accountName: string }[] = [];
+  private blurTimer: any = null;
+  private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
 
   readonly resultOptions = ['出院', '死亡', '转出'];
   private pageExtraMap = new Map<number, PageExtraData>();
@@ -267,6 +298,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadHospitalName();
+    this.loadAccountList();
 
     window.addEventListener('message', this.bradenHostMessageHandler);
 
@@ -316,6 +348,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     this.age = this.calcAge(patient?.birthday);
     this.diagnosisDisplay = this.formatDiagnosis(patient?.clinicalDiagnosis || patient?.diagnosis);
     this.resetPatientData();
+    this.loadAuditor();
     this.ensureBlankPage();
     this.loading = true;
     this.cdr.detectChanges();
@@ -333,6 +366,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     this.pageSaveTimers.forEach(timer => clearTimeout(timer));
     this.pageSaveTimers.clear();
     this.pageExtraMap.clear();
+    this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false;
   }
 
   private ensureBlankPage(): void {
@@ -601,6 +635,57 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     this.http.get<any>(this.API_HOSPITAL).subscribe({
       next: res => { const name = res?.hospitalName || res?.name || res?.data?.hospitalName || res?.data?.name; if (name) this.hospitalName = String(name); },
       error: () => {},
+    });
+  }
+
+  /* ===== 审核者下拉（可检索 + 屏蔽 + 登录者置顶） ===== */
+  private get baseAccounts() { return this.accountList.filter(a => a.accountName && !this.AUDITOR_BLOCK.includes(a.accountName.trim())); }
+  get orderedAccounts(): { accountId: string; accountName: string }[] {
+    const login = this.hostPatient.getAccount(); const loginName = (login?.trueName || '').trim();
+    const list = [...this.baseAccounts];
+    if (loginName && !this.AUDITOR_BLOCK.includes(loginName)) {
+      const idx = list.findIndex(a => a.accountName === loginName);
+      const opt = idx >= 0 ? list.splice(idx, 1)[0] : { accountId: login.username || login.accountId || login.id || '', accountName: loginName };
+      return [opt, ...list];
+    }
+    return list;
+  }
+  get filteredAccounts() {
+    const q = (this.auditorQuery || '').trim().toLowerCase();
+    const base = this.orderedAccounts;
+    return q ? base.filter(a => a.accountName.toLowerCase().includes(q)) : base;
+  }
+  onAuditorFocus(): void { if (this.blurTimer) { clearTimeout(this.blurTimer); this.blurTimer = null; } this.auditorOpen = true; this.auditorQuery = ''; }
+  onAuditorBlur(): void { this.blurTimer = setTimeout(() => { this.auditorOpen = false; this.auditorQuery = this.auditorName; this.cdr.detectChanges(); }, 150); }
+  selectAuditor(a: { accountId: string; accountName: string }): void { this.auditorName = a.accountName; this.auditorId = a.accountId; this.auditorQuery = a.accountName; this.auditorOpen = false; this.saveAuditor(); }
+  clearAuditor(): void { this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false; this.saveAuditor(); }
+  private saveAuditor(): void {
+    if (!this.pid) return;
+    this.http.post(API_EXTRA_SAVE, {
+      pid: this.pid, formCode: FORM_CODE,
+      auditorId: this.auditorId, auditorName: this.auditorName,
+    }).subscribe({ next: () => {}, error: (e) => console.error('[braden] saveAuditor failed', e) });
+  }
+  private loadAuditor(): void {
+    if (!this.pid) return;
+    this.http.get<any>(API_EXTRA_LATEST, { params: { pid: this.pid, formCode: FORM_CODE } }).subscribe({
+      next: (d) => {
+        if (d) { this.auditorName = d.auditorName || ''; this.auditorId = d.auditorId || ''; }
+        this.auditorQuery = this.auditorName;
+        this.cdr.detectChanges();
+      },
+      error: () => this.cdr.detectChanges(),
+    });
+  }
+  private loadAccountList(): void {
+    this.http.get<any[]>(this.API_ACCOUNT_ALL).subscribe({
+      next: (list) => {
+        this.accountList = (Array.isArray(list) ? list : [])
+          .map(a => ({ accountId: a?.accountId || a?.username || a?.id || '', accountName: a?.accountName || a?.trueName || '' }))
+          .filter(a => a.accountName);
+        this.cdr.detectChanges();
+      },
+      error: (e) => console.error('[braden] loadAccountList failed', e),
     });
   }
 

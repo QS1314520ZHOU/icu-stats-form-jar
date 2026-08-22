@@ -418,7 +418,7 @@ function drugToCell(
   }
   return {
     name: enteral ? enteralDisplayName(rawName) : rawName,
-    amount: numericAmount !== 0 ? numericAmount.toFixed(1) : '0',
+    amount: numericAmount !== 0 ? numericAmount.toFixed(1) : '',
     numericAmount,
     route: routeLabel(config.name),
   };
@@ -1417,7 +1417,6 @@ export function buildRows(
     .filter(item => isRenderableDrugExecution(item) && inPeriod(item.startTime));
   const nurseInPeriod = source.nurseRecords
     .filter(item => isValidBusinessRecord(item) && hasText(item.desc) && inPeriod(item.time));
-  const tubeNursingInPeriod = buildTubeNursingEntries(source, start, end, startExclusive);
 
   // 收集肠内营养药物的 quickAdd 时间点（仅针对 SP、TP、瑞素、瑞高、瑞能）
   const enteralQuickAddKeys: number[] = [];
@@ -1450,7 +1449,6 @@ export function buildRows(
     ...bedsideInPeriod.map(item => minuteKey(item.time)),
     ...drugsInPeriod.map(item => minuteKey(item.startTime)),
     ...nurseInPeriod.map(item => minuteKey(item.time)),
-    ...tubeNursingInPeriod.map(item => minuteKey(item.time)),
     ...enteralQuickAddKeys,
   ]))
     .filter(key => Number.isFinite(key))
@@ -1711,13 +1709,7 @@ export function buildRows(
     const healthEducation = values('param_健康教育');
 
     const nurseRowsAtKey = nurseInPeriod.filter(item => minuteKey(item.time) === key);
-    const tubeEntriesAtKey = tubeNursingInPeriod.filter(item => minuteKey(item.time) === key);
     const nursingRecords: string[] = [];
-
-    // 管路维护记录
-    for (const entry of tubeEntriesAtKey) {
-      if (entry.text) { nursingRecords.push(entry.text); }
-    }
 
     // 护理记录
     const combinedNursing = nurseRowsAtKey

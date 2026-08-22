@@ -24,6 +24,9 @@ import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 /* ============================= 配置区 ============================= */
 
 const SCORE_TYPE = 'unPlannedCGZYYScore';
+const FORM_CODE = 'unPlannedCGZYYForm';
+const API_EXTRA_LATEST = '/api/v1/icu/fall-danger-extra/latest';
+const API_EXTRA_SAVE = '/api/v1/icu/fall-danger-extra/save';
 
 /** 未实施镇静或不适宜用 RASS 评分患者选项 */
 const NO_RASS_OPTIONS = [
@@ -167,6 +170,19 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
   template: `
     <div class="toolbar no-print">
       <div class="toolbar-right">
+        <span class="auditor-field">
+          <span class="auditor-label">审核者签名：</span>
+          <span class="auditor-combo">
+            <input class="auditor-input" type="text" [(ngModel)]="auditorQuery"
+                   [placeholder]="auditorName || '搜索并选择'"
+                   (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
+            <ul class="auditor-menu" *ngIf="auditorOpen">
+              <li class="auditor-opt empty-opt" (mousedown)="clearAuditor()">（空）</li>
+              <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="selectAuditor(a)">{{ a.accountName }}</li>
+              <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
+            </ul>
+          </span>
+        </span>
         <app-print-page-multi-select
           [totalPages]="pages.length"
           [(selectedPages)]="selectedPrintPages"
@@ -400,6 +416,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
           {{ footnote }}
         </div>
 
+        <div class="review-sign" *ngIf="page.index === pages.length">审核护士签名：{{ auditorName || '__________' }}</div>
         <div class="sheet-pageno">第 {{page.index}} 页</div>
       </div>
     </ng-container>
@@ -412,6 +429,14 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
     .loading { padding:16px; font-family:'SimSun', '宋体', serif; }
     .sheet-hidden { display:none; }
+
+    .auditor-field { display:flex; align-items:center; }
+    .auditor-label { font-family:'SimSun','宋体',serif; font-size:14px; white-space:nowrap; }
+    .auditor-combo { position:relative; display:inline-block; }
+    .auditor-input { padding:4px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px; width:150px; }
+    .auditor-menu { position:absolute; top:100%; left:0; right:0; margin:2px 0 0; padding:4px 0; list-style:none; max-height:240px; overflow-y:auto; background:#fff; border:1px solid #d9d9d9; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:100; }
+    .auditor-opt { padding:5px 10px; font-size:14px; cursor:pointer; white-space:nowrap; }
+    .auditor-opt:hover { background:#f0f7ff; } .empty-opt { color:#999; } .no-opt { color:#999; cursor:default; }
 
     .sheet {
       box-sizing: border-box;
@@ -575,6 +600,8 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
       white-space: nowrap;
     }
 
+    .review-sign { margin-top:6px; text-align:right; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; padding-right:6px; }
+
     @media screen {
       .sheet { zoom: var(--sheet-scale, 1); }
     }
@@ -591,6 +618,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   private readonly API_SCORE = '/api/v1/icu/score/listByPid';
   private readonly API_HOSPITAL = '/api/v1/config/hospital';
   private readonly API_ACCOUNT = '/api/v1/icu/accounts/listByIds';
+  private readonly API_ACCOUNT_ALL = '/api/v1/icu/accounts';
 
   readonly noRassOptions = NO_RASS_OPTIONS;
   readonly ssdOptions = SSD_OPTIONS;
@@ -615,6 +643,12 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   pages: RenderPage[] = [];
   selectedPrintPages: number[] = [];
 
+  // 审核者签名
+  auditorName = ''; auditorId = ''; auditorQuery = ''; auditorOpen = false;
+  accountList: { accountId: string; accountName: string }[] = [];
+  private blurTimer: any = null;
+  private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
+
   readonly colsPerPage = 5;
   private pid = '';
   private destroy$ = new Subject<void>();
@@ -630,6 +664,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
 
   ngOnInit(): void {
     this.loadHospitalName();
+    this.loadAccountList();
     this.hostPatient.patient$.pipe(
       filter(p => !!p),
       map(p => ({ p, pid: String(p.id || '').trim() })),
@@ -642,6 +677,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
         this.pid = pid;
         this.age = this.calcAge(p.birthday);
         this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis);
+        this.loadAuditor();
       }),
       switchMap(({ pid }) => this.loadFromServer(pid)),
       takeUntil(this.destroy$),
@@ -667,6 +703,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
     this.selectedPrintPages = [];
     this.age = null;
     this.diagnosisDisplay = '';
+    this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false;
     this.cdr.detectChanges();
   }
 
@@ -824,6 +861,57 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
     this.http.get<{ hospitalName: string }>(this.API_HOSPITAL).subscribe({
       next: (res) => { if (res?.hospitalName) { this.hospitalName = res.hospitalName; this.cdr.detectChanges(); } },
       error: () => {},
+    });
+  }
+
+  /* ===== 审核者下拉（可检索 + 屏蔽 + 登录者置顶） ===== */
+  private get baseAccounts() { return this.accountList.filter(a => a.accountName && !this.AUDITOR_BLOCK.includes(a.accountName.trim())); }
+  get orderedAccounts(): { accountId: string; accountName: string }[] {
+    const login = this.hostPatient.getAccount(); const loginName = (login?.trueName || '').trim();
+    const list = [...this.baseAccounts];
+    if (loginName && !this.AUDITOR_BLOCK.includes(loginName)) {
+      const idx = list.findIndex(a => a.accountName === loginName);
+      const opt = idx >= 0 ? list.splice(idx, 1)[0] : { accountId: login.username || login.accountId || login.id || '', accountName: loginName };
+      return [opt, ...list];
+    }
+    return list;
+  }
+  get filteredAccounts() {
+    const q = (this.auditorQuery || '').trim().toLowerCase();
+    const base = this.orderedAccounts;
+    return q ? base.filter(a => a.accountName.toLowerCase().includes(q)) : base;
+  }
+  onAuditorFocus(): void { if (this.blurTimer) { clearTimeout(this.blurTimer); this.blurTimer = null; } this.auditorOpen = true; this.auditorQuery = ''; }
+  onAuditorBlur(): void { this.blurTimer = setTimeout(() => { this.auditorOpen = false; this.auditorQuery = this.auditorName; this.cdr.detectChanges(); }, 150); }
+  selectAuditor(a: { accountId: string; accountName: string }): void { this.auditorName = a.accountName; this.auditorId = a.accountId; this.auditorQuery = a.accountName; this.auditorOpen = false; this.saveAuditor(); }
+  clearAuditor(): void { this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false; this.saveAuditor(); }
+  private saveAuditor(): void {
+    if (!this.pid) return;
+    this.http.post(API_EXTRA_SAVE, {
+      pid: this.pid, formCode: FORM_CODE,
+      auditorId: this.auditorId, auditorName: this.auditorName,
+    }).subscribe({ next: () => {}, error: (e) => console.error('[unplanned] saveAuditor failed', e) });
+  }
+  private loadAuditor(): void {
+    if (!this.pid) return;
+    this.http.get<any>(API_EXTRA_LATEST, { params: { pid: this.pid, formCode: FORM_CODE } }).subscribe({
+      next: (d) => {
+        if (d) { this.auditorName = d.auditorName || ''; this.auditorId = d.auditorId || ''; }
+        this.auditorQuery = this.auditorName;
+        this.cdr.detectChanges();
+      },
+      error: () => this.cdr.detectChanges(),
+    });
+  }
+  private loadAccountList(): void {
+    this.http.get<any[]>(this.API_ACCOUNT_ALL).subscribe({
+      next: (list) => {
+        this.accountList = (Array.isArray(list) ? list : [])
+          .map(a => ({ accountId: a?.accountId || a?.username || a?.id || '', accountName: a?.accountName || a?.trueName || '' }))
+          .filter(a => a.accountName);
+        this.cdr.detectChanges();
+      },
+      error: (e) => console.error('[unplanned] loadAccountList failed', e),
     });
   }
 
@@ -1072,6 +1160,8 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
         text-align: center;
         white-space: nowrap;
       }
+
+      .review-sign { margin-top:6px; text-align:right; font-family:'SimSun','宋体',serif; font-size:12pt; font-weight:400; padding-right:6px; }
 
       .no-print,
       .sheet-hidden {
