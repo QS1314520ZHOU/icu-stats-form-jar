@@ -102,6 +102,7 @@ Angular 表单统一挂载在 `/form/<route>`。路由源文件为 `sjm1-app/src
 | `crrtForm` | `CrrtRecordComponent` | CRRT 护理记录表单 |
 | `crrtOrderForm` | `CrrtOrderFormComponent` | CRRT 治疗医嘱单 |
 | `hljldForm` | `HljldFormComponent` | ICU 护理记录单（A4分页） |
+| `hljldForm2` | `Hljld2FormComponent` | ICU 护理记录单（独立副本，A4分页） |
 | `printCenter` | `PrintCenterComponent` | 一键批量打印中心 |
 
 空路径重定向到 `sjm1`。新增、删除或重命名路由时，必须同步检查：

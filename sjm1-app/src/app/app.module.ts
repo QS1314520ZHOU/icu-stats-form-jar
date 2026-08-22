@@ -27,6 +27,9 @@ import { HljldFormComponent } from './hljld-form.component';
 import { HljldFormPdfComponent } from './hljld-form-pdf.component';
 import { HljldFormService } from './hljld-form.service';
 import { HljldPdfService } from './hljld-pdf.service';
+import { Hljld2FormComponent } from './hljld2-form.component';
+import { Hljld2FormService } from './hljld2-form.service';
+import { Hljld2PdfService } from './hljld2-pdf.service';
 import { DomSafePipe } from './dom-safe.pipe';
 import { HandoverReportComponent } from './handover-report.component';
 import { PrintCenterComponent } from './print-center.component';
@@ -60,6 +63,7 @@ import { routes } from './app.routes';
     TemperatureRecordComponent,
     HljldFormComponent,
     HljldFormPdfComponent,
+    Hljld2FormComponent,
     HandoverReportComponent,
     PrintCenterComponent,
     BloodSugarComponent,
@@ -73,7 +77,7 @@ import { routes } from './app.routes';
     FormsModule,
     RouterModule.forRoot(routes),
   ],
-  providers: [HljldFormService, HljldPdfService, HandoverReportService, PrintCenterService],
+  providers: [HljldFormService, HljldPdfService, Hljld2FormService, Hljld2PdfService, HandoverReportService, PrintCenterService],
   bootstrap: [App],
 })
 export class AppModule {}
