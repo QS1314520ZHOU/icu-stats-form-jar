@@ -128,7 +128,7 @@
     </div>
 
     <!-- 可滚动内容区域 -->
-    <div class="scrollable-content">
+    <div class="scrollable-content" #scrollContainer (scroll)="onScroll()">
       <div class="table-wrap">
         <table class="record-table">
           <colgroup>
@@ -243,6 +243,11 @@
             </tbody>
           </table>
         </div>
+      </div>
+
+      <!-- 页码显示 -->
+      <div class="page-indicator" *ngIf="vm">
+        <span>第 {{ currentPage }} 页</span>
       </div>
     </div>
     </main>

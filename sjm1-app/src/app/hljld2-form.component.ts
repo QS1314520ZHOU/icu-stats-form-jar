@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
@@ -15,7 +15,7 @@ import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
   styleUrls: ['./hljld2-form.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Hljld2FormComponent implements OnInit, OnDestroy {
+export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly destroy$ = new Subject<void>();
   private readonly dateChange$ = new ReplaySubject<void>(1);
 
@@ -37,12 +37,23 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   /** 请求版本令牌，每次日期请求递增，防止异步竞态 */
   private loadVersion = 0;
 
+  // 分页相关属性
+  currentPage = 1;
+  @ViewChild('scrollContainer') scrollContainer!: ElementRef<HTMLElement>;
+  private pageHeight = 0; // 每页高度
+  private lastScrollTop = 0;
+
   constructor(
     private service: Hljld2FormService,
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private elementRef: ElementRef<HTMLElement>,
   ) {}
+
+  ngAfterViewInit(): void {
+    // 初始化页面高度计算
+    setTimeout(() => this.calculatePageHeight(), 0);
+  }
 
   ngOnInit(): void {
     this.dateChange$.pipe(
@@ -98,6 +109,9 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         this.vm = this.toViewModel(result.data, accountMap);
         this.loading = false;
         this.pageState = 'ready';
+
+        // 初始化页码
+        this.currentPage = 1;
 
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
         if (isDev) {
@@ -348,6 +362,38 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
+
+  // 滚动监听方法
+  onScroll(): void {
+    if (!this.scrollContainer) { return; }
+    const container = this.scrollContainer.nativeElement;
+    const scrollTop = container.scrollTop;
+
+    // 根据滚动位置计算当前页码
+    if (this.pageHeight > 0) {
+      const newPage = Math.floor(scrollTop / this.pageHeight) + 1;
+      if (newPage !== this.currentPage && newPage >= 1) {
+        this.currentPage = newPage;
+        this.cdr.markForCheck();
+      }
+    }
+
+    this.lastScrollTop = scrollTop;
+  }
+
+  // 计算页面高度（根据实际内容）
+  private calculatePageHeight(): void {
+    if (!this.scrollContainer) { return; }
+    const container = this.scrollContainer.nativeElement;
+
+    // 获取可视区域高度作为每页高度
+    this.pageHeight = container.clientHeight;
+
+    // 如果内容高度小于可视区域高度，则只有一页
+    if (container.scrollHeight <= container.clientHeight) {
+      this.currentPage = 1;
+    }
+  }
 
   private initializeDateForPatient(): void {
     let targetDate = new Date();
