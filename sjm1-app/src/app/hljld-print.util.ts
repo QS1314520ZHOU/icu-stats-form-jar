@@ -300,12 +300,12 @@ export async function printAllViaIframe({
 }
 
 /**
- * 将所有页码从 "第X页" 更新为 "第X页/共Y页" 格式
+ * 更新所有页码为 "第X页" 格式（不显示总页数）
  */
-function updatePageNumbers(root: HTMLElement, totalPages: number): void {
+function updatePageNumbers(root: HTMLElement, _totalPages: number): void {
   const pageCurrents = root.querySelectorAll('.page-current');
   pageCurrents.forEach((el, i) => {
-    el.textContent = `第 ${i + 1} 页 / 共 ${totalPages} 页`;
+    el.textContent = `第 ${i + 1} 页`;
   });
 }
 

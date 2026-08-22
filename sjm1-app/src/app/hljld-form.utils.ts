@@ -134,6 +134,7 @@ export function resolveActiveStayRange(
   patient: PatientContext,
   nursingDayStart: Date,
   nursingDayEnd: Date,
+  skipDischargeClip = false,
 ): ActiveStayRange {
   const admissionTs = parsePatientDateTime(patient.admissionTime);
   const dischargeTs = parsePatientDateTime(patient.dischargeTime);
@@ -153,9 +154,10 @@ export function resolveActiveStayRange(
   }
 
   // effectiveEnd = min(nursingDayEnd, dischargeTime)
+  // 打印时跳过出科裁剪，使用完整护理日范围，避免出科时间不准确导致数据丢失
   let effectiveEnd = new Date(nursingDayEnd);
   let dischargeClipped = false;
-  if (dischargeTime && minuteInstant(dischargeTime) < dayEndMinute) {
+  if (!skipDischargeClip && dischargeTime && minuteInstant(dischargeTime) < dayEndMinute) {
     effectiveEnd = dischargeTime;
     dischargeClipped = true;
   }

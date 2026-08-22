@@ -296,7 +296,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       while (current <= maxDate) {
         this.selectedDate = new Date(current);
         if (result.data) {
-          vms.push(this.toViewModel(result.data, allSignatures));
+          vms.push(this.toViewModel(result.data, allSignatures, true));
         }
         current.setDate(current.getDate() + 1);
       }
@@ -472,7 +472,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
       );
   }
 
-  private toViewModel(source: HljldSourceData, accountMap: Map<string, string>): HljldViewModel {
+  private toViewModel(source: HljldSourceData, accountMap: Map<string, string>, skipDischargeClip = false): HljldViewModel {
     const rangeStart = startOfNursingDay(this.selectedDate);
     const rangeEnd = endOfNursingDay(this.selectedDate);
     const dayBoundary = new Date(rangeStart); dayBoundary.setHours(17, 0, 0, 0);
@@ -480,7 +480,8 @@ export class HljldFormComponent implements OnInit, OnDestroy {
     const nextMorning = endOfNursingDay(this.selectedDate);
 
     // 护理日级有效区间：用于页面入科前/出科后判断、明细、引流项目收集
-    const nursingDayStay = resolveActiveStayRange(this.patient, rangeStart, rangeEnd);
+    // 打印时 skipDischargeClip=true，使用完整护理日范围，避免出科时间不准导致数据丢失
+    const nursingDayStay = resolveActiveStayRange(this.patient, rangeStart, rangeEnd, skipDischargeClip);
 
     // buildRows 使用 nextMorning 作为结束时间，确保整个护理日的数据都被包含
     // effectiveEnd 只用于入科前/出科后的页面判断，不用于数据过滤
