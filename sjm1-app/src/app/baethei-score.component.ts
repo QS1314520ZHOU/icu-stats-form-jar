@@ -72,7 +72,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
     <div class="toolbar no-print">
       <div class="toolbar-right">
         <span class="auditor-field">
-          <span class="auditor-label">审核者签名：</span>
+          <span class="auditor-label">审核护士签名：</span>
           <span class="auditor-combo">
             <input class="auditor-input" type="text"
                    [(ngModel)]="auditorQuery"

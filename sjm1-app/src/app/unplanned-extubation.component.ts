@@ -171,7 +171,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
     <div class="toolbar no-print">
       <div class="toolbar-right">
         <span class="auditor-field">
-          <span class="auditor-label">审核者签名：</span>
+          <span class="auditor-label">审核护士签名：</span>
           <span class="auditor-combo">
             <input class="auditor-input" type="text" [(ngModel)]="auditorQuery"
                    [placeholder]="auditorName || '搜索并选择'"
@@ -600,7 +600,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
       white-space: nowrap;
     }
 
-    .review-sign { margin-top:6px; text-align:right; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; padding-right:6px; }
+    .review-sign { margin-top:8px; text-align:right; font-family:'SimSun','宋体',serif; font-size:13pt; font-weight:400; padding-right:6px; }
 
     @media screen {
       .sheet { zoom: var(--sheet-scale, 1); }
@@ -1161,7 +1161,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
         white-space: nowrap;
       }
 
-      .review-sign { margin-top:6px; text-align:right; font-family:'SimSun','宋体',serif; font-size:12pt; font-weight:400; padding-right:6px; }
+      .review-sign { margin-top:8px; text-align:right; font-family:'SimSun','宋体',serif; font-size:12pt; font-weight:400; padding-right:6px; }
 
       .no-print,
       .sheet-hidden {
