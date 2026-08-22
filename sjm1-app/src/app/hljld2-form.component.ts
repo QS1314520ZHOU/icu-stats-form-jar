@@ -40,12 +40,8 @@ export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
   // 分页相关属性
   currentPage = 1;
   totalPages = 1;
-  private fixedHeaderHeight = 0;
-  private fixedFooterHeight = 0;
-  private rowHeights = new Map<string, number>();
+  pages: HljldTimelineItem[][] = []; // 分页后的数据
   private resizeObserver: ResizeObserver | null = null;
-  @ViewChild('scrollContainer') scrollContainer!: ElementRef<HTMLElement>;
-  private pageHeight = 0; // 每页高度
 
   constructor(
     private service: Hljld2FormService,
@@ -118,9 +114,9 @@ export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
         // 初始化页码
         this.currentPage = 1;
 
-        // 等待 DOM 更新后计算页面高度
+        // 等待 DOM 更新后计算分页
         setTimeout(() => {
-          this.calculatePageHeight();
+          this.paginateTimeline();
           this.cdr.markForCheck();
         }, 0);
 
@@ -380,41 +376,53 @@ export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
 
-  // 滚动监听方法
-  onScroll(): void {
-    if (!this.scrollContainer) { return; }
-    const container = this.scrollContainer.nativeElement;
-    const scrollTop = container.scrollTop;
-
-    // 根据滚动位置计算当前页码
-    if (this.pageHeight > 0) {
-      const newPage = Math.floor(scrollTop / this.pageHeight) + 1;
-      if (newPage !== this.currentPage && newPage >= 1) {
-        this.currentPage = newPage;
-        this.cdr.markForCheck();
-      }
+  // 上一页
+  previousPage(): void {
+    if (this.currentPage > 1) {
+      this.currentPage--;
+      this.cdr.markForCheck();
     }
   }
 
-  // 计算页面高度（根据实际内容）
-  private calculatePageHeight(): void {
-    if (!this.scrollContainer) { return; }
-    const container = this.scrollContainer.nativeElement;
-
-    // 获取可视区域高度作为每页高度
-    this.pageHeight = container.clientHeight;
-
-    // 计算总页数
-    if (this.vm) {
-      const totalContentHeight = container.scrollHeight;
-      this.totalPages = Math.max(1, Math.ceil(totalContentHeight / this.pageHeight));
+  // 下一页
+  nextPage(): void {
+    if (this.currentPage < this.totalPages) {
+      this.currentPage++;
+      this.cdr.markForCheck();
     }
+  }
 
-    // 如果内容高度小于可视区域高度，则只有一页
-    if (container.scrollHeight <= container.clientHeight) {
+  // 第一页
+  firstPage(): void {
+    if (this.currentPage !== 1) {
       this.currentPage = 1;
-      this.totalPages = 1;
+      this.cdr.markForCheck();
     }
+  }
+
+  // 最后一页
+  lastPage(): void {
+    if (this.currentPage !== this.totalPages) {
+      this.currentPage = this.totalPages;
+      this.cdr.markForCheck();
+    }
+  }
+
+  // 是否可以翻页
+  canPreviousPage(): boolean {
+    return this.currentPage > 1;
+  }
+
+  canNextPage(): boolean {
+    return this.currentPage < this.totalPages;
+  }
+
+  // 获取当前页的数据
+  getCurrentPageTimeline(): HljldTimelineItem[] {
+    if (this.pages.length === 0 || this.currentPage < 1 || this.currentPage > this.pages.length) {
+      return [];
+    }
+    return this.pages[this.currentPage - 1] || [];
   }
 
   // 设置 ResizeObserver 监听窗口大小变化
@@ -425,17 +433,67 @@ export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
 
     this.resizeObserver = new ResizeObserver(() => {
       this.ngZone.run(() => {
-        this.calculatePageHeight();
+        this.paginateTimeline();
         this.cdr.markForCheck();
       });
     });
+  }
 
-    // 监听 scrollContainer
-    setTimeout(() => {
-      if (this.scrollContainer) {
-        this.resizeObserver!.observe(this.scrollContainer.nativeElement);
-      }
-    }, 0);
+  // 分页计算
+  private paginateTimeline(): void {
+    if (!this.vm || !this.vm.timeline.length) {
+      this.pages = [];
+      this.totalPages = 1;
+      return;
+    }
+
+    // 获取页面容器高度
+    const host = this.elementRef.nativeElement;
+    const paper = host.querySelector('.paper');
+    if (!paper) {
+      this.pages = [this.vm.timeline];
+      this.totalPages = 1;
+      return;
+    }
+
+    const paperRect = paper.getBoundingClientRect();
+    const paperHeight = paperRect.height;
+
+    // 固定区域高度（表头 + 备注 + 页码）
+    const fixedHeader = host.querySelector('.page-header');
+    const fixedFooter = host.querySelector('.page-footer');
+    const headerHeight = fixedHeader ? fixedHeader.getBoundingClientRect().height : 120;
+    const footerHeight = fixedFooter ? fixedFooter.getBoundingClientRect().height : 60;
+    const pageIndicatorHeight = 40;
+
+    // 可用数据区域高度
+    const dataAreaHeight = paperHeight - headerHeight - footerHeight - pageIndicatorHeight;
+
+    if (dataAreaHeight <= 0) {
+      this.pages = [this.vm.timeline];
+      this.totalPages = 1;
+      return;
+    }
+
+    // 估算每行高度（基于字体大小和行高）
+    const avgRowHeight = 28; // 默认行高
+
+    // 每页能放多少个项目
+    const itemsPerPage = Math.max(1, Math.floor(dataAreaHeight / avgRowHeight));
+
+    // 分割数据
+    this.pages = [];
+    const timeline = this.vm.timeline;
+    for (let i = 0; i < timeline.length; i += itemsPerPage) {
+      this.pages.push(timeline.slice(i, i + itemsPerPage));
+    }
+
+    this.totalPages = Math.max(1, this.pages.length);
+
+    // 确保当前页在有效范围内
+    if (this.currentPage > this.totalPages) {
+      this.currentPage = this.totalPages;
+    }
   }
 
   private initializeDateForPatient(): void {
