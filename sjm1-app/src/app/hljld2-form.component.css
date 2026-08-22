@@ -69,7 +69,7 @@
 }
 
 /* Paper */
-.paper { width: calc(100% - 24px); max-width: 1480px; margin: 12px auto 0; padding: 14px 16px 20px; box-sizing: border-box; background: #fff; container-type: inline-size; container-name: hljld-paper; font-family: var(--hljld-ui-font); font-synthesis: none; text-shadow: none; -webkit-text-stroke: 0; display: flex; flex-direction: column; max-height: calc(100vh - 80px); }
+.paper { width: calc(100% - 24px); max-width: 1480px; margin: 12px auto 0; padding: 14px 16px 20px; box-sizing: border-box; background: #fff; container-type: inline-size; container-name: hljld-paper; font-family: var(--hljld-ui-font); font-synthesis: none; text-shadow: none; -webkit-text-stroke: 0; display: flex; flex-direction: column; height: calc(100vh - 80px); overflow: hidden; }
 
 /* 固定区域：标题 + 患者信息 + 表头 */
 .fixed-header { flex: 0 0 auto; }
