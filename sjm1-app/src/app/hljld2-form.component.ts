@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, NgZone, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
@@ -8,6 +8,9 @@ import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrai
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
 
+/** 每页最大数据行数（不含表头和备注） */
+const MAX_ROWS_PER_PAGE = 20;
+
 @Component({
   standalone: false,
   selector: 'app-hljld-form2',
@@ -15,7 +18,7 @@ import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
   styleUrls: ['./hljld2-form.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
+export class Hljld2FormComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly dateChange$ = new ReplaySubject<void>(1);
 
@@ -37,25 +40,18 @@ export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
   /** 请求版本令牌，每次日期请求递增，防止异步竞态 */
   private loadVersion = 0;
 
-  // 分页相关属性
+  // 卡片式分页
   currentPage = 1;
   totalPages = 1;
-  private resizeObserver: ResizeObserver | null = null;
-  @ViewChild('scrollContainer') scrollContainer!: ElementRef<HTMLElement>;
-  private pageHeight = 0; // 每页高度
+  pages: HljldTimelineItem[][] = [];
+  readonly remarkColSpans = Array.from({ length: 18 }, () => '');
 
   constructor(
     private service: Hljld2FormService,
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private elementRef: ElementRef<HTMLElement>,
-    private ngZone: NgZone,
   ) {}
-
-  ngAfterViewInit(): void {
-    // 监听窗口大小变化
-    this.setupResizeObserver();
-  }
 
   ngOnInit(): void {
     this.dateChange$.pipe(
@@ -112,14 +108,10 @@ export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
         this.loading = false;
         this.pageState = 'ready';
 
-        // 初始化页码
+        // 初始化页码和分页
         this.currentPage = 1;
-
-        // 等待 DOM 更新后计算页面高度
-        setTimeout(() => {
-          this.calculatePageHeight();
-          this.cdr.markForCheck();
-        }, 0);
+        this.pages = this.splitIntoPages(this.vm.timeline);
+        this.totalPages = this.pages.length;
 
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
         if (isDev) {
@@ -190,12 +182,6 @@ export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-
-    // 清理 ResizeObserver
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-      this.resizeObserver = null;
-    }
   }
 
   previousDay(): void {
@@ -377,48 +363,43 @@ export class Hljld2FormComponent implements OnInit, OnDestroy, AfterViewInit {
   trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
   trackText(index: number): number { return index; }
 
-  // 滚动监听方法
-  onScroll(): void {
-    if (!this.scrollContainer) { return; }
-    const container = this.scrollContainer.nativeElement;
-    const scrollTop = container.scrollTop;
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages || page === this.currentPage) { return; }
+    this.currentPage = page;
+    this.cdr.markForCheck();
+  }
 
-    // 根据滚动位置计算当前页码
-    if (this.pageHeight > 0) {
-      const newPage = Math.floor(scrollTop / this.pageHeight) + 1;
-      if (newPage !== this.currentPage && newPage >= 1 && newPage <= this.totalPages) {
-        this.currentPage = newPage;
-        this.cdr.markForCheck();
+  /**
+   * 将 timeline 项拆分为多页，每页最多 MAX_ROWS_PER_PAGE 行数据。
+   * 同一个时间组及其紧跟的摘要会尽量放在同一页。
+   */
+  private splitIntoPages(items: HljldTimelineItem[]): HljldTimelineItem[][] {
+    if (!items.length) { return [[]]; }
+
+    const pages: HljldTimelineItem[][] = [];
+    let current: HljldTimelineItem[] = [];
+    let rowCount = 0;
+
+    for (const item of items) {
+      // 计算该 item 占用的行数
+      const itemRows = item.kind === 'time-group' ? item.group.rows.length : 1;
+
+      // 如果加入当前 item 会超过限制，且当前页不为空，则换页
+      if (rowCount > 0 && rowCount + itemRows > MAX_ROWS_PER_PAGE) {
+        pages.push(current);
+        current = [];
+        rowCount = 0;
       }
-    }
-  }
 
-  // 计算页面高度
-  private calculatePageHeight(): void {
-    if (!this.scrollContainer) { return; }
-    const container = this.scrollContainer.nativeElement;
-
-    // 获取可视区域高度作为每页高度
-    this.pageHeight = container.clientHeight;
-
-    // 计算总页数
-    if (this.pageHeight > 0 && container.scrollHeight > 0) {
-      this.totalPages = Math.max(1, Math.ceil(container.scrollHeight / this.pageHeight));
-    }
-  }
-
-  // 设置 ResizeObserver 监听窗口大小变化
-  private setupResizeObserver(): void {
-    if (typeof ResizeObserver === 'undefined') {
-      return;
+      current.push(item);
+      rowCount += itemRows;
     }
 
-    this.resizeObserver = new ResizeObserver(() => {
-      this.ngZone.run(() => {
-        this.calculatePageHeight();
-        this.cdr.markForCheck();
-      });
-    });
+    if (current.length) {
+      pages.push(current);
+    }
+
+    return pages.length ? pages : [[]];
   }
 
   private initializeDateForPatient(): void {

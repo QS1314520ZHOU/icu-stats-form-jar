@@ -52,45 +52,132 @@
 .print-button:disabled { opacity: 0.4; cursor: not-allowed; background: #93c5fd; border-color: #93c5fd; }
 .print-button:disabled:hover { background: #93c5fd; }
 
-/* 页码显示 */
-.page-indicator {
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* =========================================================
+   翻页工具栏
+   ========================================================= */
+
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #dfe3e8;
   position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid #dfe3e8;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 500;
-  color: #444;
-  z-index: 10;
+  top: 52px;
+  z-index: 40;
 }
 
-/* Paper */
-.paper { width: calc(100% - 24px); max-width: 1480px; margin: 12px auto 0; padding: 14px 16px 20px; box-sizing: border-box; background: #fff; container-type: inline-size; container-name: hljld-paper; font-family: var(--hljld-ui-font); font-synthesis: none; text-shadow: none; -webkit-text-stroke: 0; display: flex; flex-direction: column; height: calc(100vh - 80px); overflow: hidden; }
+.page-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid #ccd3da;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
 
-/* 固定区域：标题 + 患者信息 + 表头 */
-.fixed-header { flex: 0 0 auto; }
+.page-nav-btn:hover:not(:disabled) {
+  background: #f0f6ff;
+  border-color: #3478f6;
+  color: #1677c8;
+}
 
-/* 可滚动内容区域 */
-.scrollable-content { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
+.page-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
-/* 固定底部：备注 */
-.fixed-footer { flex: 0 0 auto; border-top: 2px solid #2b2b2b; }
+.page-info {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+}
 
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.page-info b {
+  color: #1677c8;
+  font-weight: 700;
+}
+
+/* =========================================================
+   页面容器：纵向排列的卡片
+   ========================================================= */
+
+.pages-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 12px 40px;
+}
+
+/* =========================================================
+   单页卡片
+   ========================================================= */
+
+.page-card {
+  width: calc(100% - 24px);
+  max-width: 1480px;
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  overflow: hidden;
+  box-sizing: border-box;
+  container-type: inline-size;
+  container-name: hljld-page;
+  font-family: var(--hljld-ui-font);
+}
+
+.page-header {
+  padding: 14px 16px 0;
+}
+
+.page-body {
+  padding: 0 16px;
+}
+
+.page-remark {
+  padding: 0 16px 8px;
+  border-top: 2px solid #2b2b2b;
+}
+
+.page-footer {
+  display: flex;
+  justify-content: center;
+  padding: 8px 16px 10px;
+  border-top: 1px solid #e5e7eb;
+  background: #fafbfc;
+}
+
+.page-number {
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+}
+
+/* =========================================================
+   表格样式
+   ========================================================= */
 
 h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK SC", serif; font-size: 22px; letter-spacing: 2px; }
 
 .patient-strip { display: flex; flex-wrap: wrap; gap: 7px 22px; padding: 7px 4px; font-family: var(--hljld-ui-font); font-size: 12px; }
 .patient-strip b, .patient-strip strong { font-family: var(--hljld-ui-font); font-weight: 500; }
 .patient-strip .diagnosis { flex: 1 1 300px; }
-
-/* =========================================================
-   Record table — Microsoft YaHei screen font, weight 500
-   ========================================================= */
 
 .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; box-sizing: border-box; scrollbar-gutter: stable; }
 
@@ -247,14 +334,15 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   .date-picker { flex-basis: 130px; width: 130px; }
   .today-button, .print-button { padding: 0 12px; }
   .source-warning { display: none; }
-  .paper { width: calc(100% - 16px); }
+  .pages-container { padding: 12px 8px 32px; gap: 16px; }
+  .page-card { width: calc(100% - 8px); }
 }
 
 /* =========================================================
    Container query: compact layout at ~110% zoom
    ========================================================= */
 
-@container hljld-paper (max-width: 1380px) {
+@container hljld-page (max-width: 1380px) {
   .record-table th, .record-table td { padding: 2px 3px; }
   .patient-strip { gap: 5px 14px; padding: 5px 3px; font-size: 11px; }
   h1 { margin-bottom: 7px; font-size: 20px; }
@@ -262,7 +350,7 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   .summary-line { gap: 3px 12px; min-height: 18px; }
 }
 
-@container hljld-paper (max-width: 1220px) {
+@container hljld-page (max-width: 1220px) {
   .record-table th, .record-table td { padding: 2px; }
   .record-table, .record-table thead th, .record-table tbody td,
   .nursing-cell, .sign-cell { font-size: 11px; line-height: 16px; }
@@ -348,10 +436,22 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 
   :host, .hljld-shell { width: 100%; min-width: 0; max-width: none; margin: 0; padding: 0; background: #fff; }
   .no-print { display: none !important; }
-  .paper { width: 100%; max-width: none; margin: 0; padding: 0; container-type: normal; display: block; max-height: none; overflow: visible; }
-  .fixed-header { position: relative; }
-  .scrollable-content { overflow: visible; }
-  .fixed-footer { position: relative; border-top: none; }
+
+  .pages-container { padding: 0; gap: 0; display: block; }
+
+  .page-card {
+    width: 100%; max-width: none;
+    border: none; border-radius: 0;
+    box-shadow: none;
+    page-break-after: always;
+    break-after: page;
+    container-type: normal;
+  }
+
+  .page-header { padding: 0; }
+  .page-body { padding: 0; }
+  .page-remark { padding: 0; border-top: none; }
+  .page-footer { display: none; }
 
   h1 { font-size: 15pt; margin-bottom: 2mm; }
   .patient-strip { font-family: var(--hljld-print-font); font-size: 7.5pt; padding: 1.5mm 0; gap: 1mm 5mm; }
