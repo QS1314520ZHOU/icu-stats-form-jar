@@ -1427,6 +1427,68 @@ function extractDisplayRowFromTr(tr: HTMLElement): HljldDisplayRow | null {
   };
 }
 
+// ── 空白行填充 ──
+
+/**
+ * 在最后一页的表格末尾添加空白行 + "以下空白"。
+ * 按单倍行高计算还能塞几行，补等量的空白 <tr>，
+ * 并在数据末行下面加一行"以下空白"，撑满页面。
+ */
+export function addTrailingBlankRows(root: HTMLElement, doc: Document): void {
+  const pages = root.querySelectorAll('.print-page');
+  if (pages.length === 0) return;
+
+  const lastPage = pages[pages.length - 1];
+  const tbody = lastPage.querySelector('tbody');
+  if (!tbody) return;
+
+  // 收集所有非 filler 的数据行
+  const dataRows = Array.from(tbody.querySelectorAll('tr')).filter(
+    tr => !tr.classList.contains('print-filler-row') && !tr.classList.contains('print-blank-row'),
+  );
+
+  if (dataRows.length === 0) return;
+
+  // 测量单行高度（用第一个数据行作为参考）
+  const sampleRow = dataRows[0] as HTMLElement;
+  const rowHeight = sampleRow.getBoundingClientRect().height;
+  if (rowHeight <= 0) return;
+
+  // 计算表格容器可用高度
+  const table = lastPage.querySelector('.print-record-table') as HTMLElement | null;
+  const tableWrap = lastPage.querySelector('.print-table-wrap') as HTMLElement | null;
+  const tfoot = lastPage.querySelector('tfoot') as HTMLElement | null;
+  if (!table || !tableWrap) return;
+
+  const wrapHeight = tableWrap.getBoundingClientRect().height;
+  const tableHeight = table.getBoundingClientRect().height;
+  const tfootHeight = tfoot ? tfoot.getBoundingClientRect().height : 0;
+  const availableHeight = wrapHeight - tableHeight + tfootHeight;  // tbody剩余空间
+
+  const blankRowsNeeded = Math.max(0, Math.floor(availableHeight / rowHeight) - 1);  // -1 给"以下空白"行
+
+  // 添加空白行
+  for (let i = 0; i < blankRowsNeeded; i++) {
+    const tr = doc.createElement('tr');
+    tr.className = 'print-blank-row';
+    const td = doc.createElement('td');
+    td.colSpan = 19;
+    td.style.cssText = 'border:1px solid #000;height:' + rowHeight + 'px;padding:0;';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+
+  // 添加"以下空白"行
+  const blankTr = doc.createElement('tr');
+  blankTr.className = 'print-blank-row print-blank-label';
+  const blankTd = doc.createElement('td');
+  blankTd.colSpan = 19;
+  blankTd.style.cssText = 'border:1px solid #000;text-align:center;padding:1mm;font-size:7pt;color:#666;';
+  blankTd.textContent = '以下空白';
+  blankTr.appendChild(blankTd);
+  tbody.appendChild(blankTr);
+}
+
 // ── 校验函数 ──
 
 /**

@@ -6,7 +6,7 @@ import { HljldFormService } from './hljld-form.service';
 import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext } from './hljld-form.models';
 import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
-import { printHljldRecord, printAllHljldRecords } from './hljld-print.util';
+import { printHljldRecord, printAllViaIframe } from './hljld-print.util';
 
 @Component({
   standalone: false,
@@ -325,7 +325,7 @@ export class HljldFormComponent implements OnInit, OnDestroy {
         });
       }
 
-      const printResult = await printAllHljldRecords({
+      const printResult = await printAllViaIframe({
         vms,
         remarkLines: this.defaultRemarkLines,
       });

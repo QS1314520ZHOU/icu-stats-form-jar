@@ -4,7 +4,7 @@ import {
   HljldTimelineItem,
   HljldViewModel,
 } from './hljld-form.models';
-import { HljldPageModel, paginateHljld, formatHljldPageNo } from './hljld-pagination.core';
+import { HljldPageModel, paginateHljld, formatHljldPageNo, addTrailingBlankRows } from './hljld-pagination.core';
 import { HLJLD_SHEET_CSS } from './hljld-sheet.styles';
 
 type PrintInput = {
@@ -13,24 +13,27 @@ type PrintInput = {
 };
 
 /**
- * 打印单天护理记录。
- * 使用分页内核获取页模型，然后渲染到打印窗口。
+ * 打印单天护理记录（iframe 方式）。
+ * 使用分页内核获取页模型，渲染到隐藏 iframe 后触发打印。
  * 返回打印页数。
  */
 export async function printHljldRecord({
   vm,
   remarkLines,
 }: PrintInput): Promise<number> {
-  const printWindow = window.open('', '_blank', 'width=1400,height=960');
-
-  if (!printWindow) {
-    throw new Error('打印窗口被拦截，请允许浏览器弹出打印窗口。');
-  }
+  // 创建隐藏 iframe
+  const ifr = document.createElement('iframe');
+  ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0';
+  document.body.appendChild(ifr);
 
   try {
-    printWindow.document.open();
-    printWindow.document.write(`
-<!doctype html>
+    const ifrDoc = ifr.contentDocument || ifr.contentWindow?.document;
+    if (!ifrDoc) {
+      throw new Error('无法创建打印 iframe');
+    }
+
+    ifrDoc.open();
+    ifrDoc.write(`<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
@@ -40,50 +43,59 @@ export async function printHljldRecord({
 <body>
   <div id="print-root" class="print-root"></div>
 </body>
-</html>
-    `);
-    printWindow.document.close();
+</html>`);
+    ifrDoc.close();
 
-    await waitForPrintWindowReady(printWindow);
+    // 等待 iframe 加载完成
+    await new Promise<void>(resolve => {
+      if (ifrDoc.readyState === 'complete') { resolve(); return; }
+      ifr.onload = () => resolve();
+      setTimeout(resolve, 3000);
+    });
 
-    const root = printWindow.document.getElementById('print-root');
+    // 等待字体加载
+    try {
+      const fonts = ifrDoc.fonts;
+      if (fonts?.ready) {
+        await Promise.race([fonts.ready, timeout(3000)]);
+      }
+    } catch { /* 忽略 */ }
+
+    await nextTwoFrames(ifr.contentWindow!);
+
+    const root = ifrDoc.getElementById('print-root');
     if (!root) {
       throw new Error('打印根节点初始化失败。');
     }
 
     // 使用分页内核获取页模型
-    const pageModels = paginateHljld(printWindow.document, root, vm, remarkLines);
+    const pageModels = paginateHljld(ifrDoc, root, vm, remarkLines);
 
     // 渲染每一页
     for (const pageModel of pageModels) {
-      const pageEl = renderPageModel(printWindow.document, vm, remarkLines, pageModel);
+      const pageEl = renderPageModel(ifrDoc, vm, remarkLines, pageModel);
       root.appendChild(pageEl);
     }
 
-    // Wait for layout to stabilize
-    await nextTwoFrames(printWindow);
+    // 最后一页添加空白行 + "以下空白"
+    addTrailingBlankRows(root, ifrDoc);
 
-    // Register afterprint BEFORE calling print()
-    printWindow.addEventListener('afterprint', () => {
-      try {
-        printWindow.close();
-      } catch {
-        // ignore
-      }
-    });
+    // 更新页码为 "第X页/共Y页" 格式
+    updatePageNumbers(root, pageModels.length);
 
-    printWindow.focus();
-    await nextTwoFrames(printWindow);
-    printWindow.print();
+    await nextTwoFrames(ifr.contentWindow!);
+    ifr.contentWindow!.focus();
+    await nextTwoFrames(ifr.contentWindow!);
+    ifr.contentWindow!.print();
+
+    setTimeout(() => {
+      try { ifr.remove(); } catch { /* ignore */ }
+    }, 1000);
 
     return pageModels.length;
   } catch (error) {
     console.error('[HLJLD][print-error]', error);
-    try {
-      printWindow.close();
-    } catch {
-      // ignore
-    }
+    try { ifr.remove(); } catch { /* ignore */ }
     throw error;
   }
 }
@@ -175,6 +187,126 @@ export async function printAllHljldRecords({
     }
     throw error;
   }
+}
+
+/**
+ * 通过隐藏 iframe 打印多天护理记录（推荐方式）。
+ * iframe 隔离了主页面的 flex/grid 布局和第三方 CSS，排版更稳定。
+ * 返回总页数。
+ */
+export async function printAllViaIframe({
+  vms,
+  remarkLines,
+}: {
+  vms: HljldViewModel[];
+  remarkLines: string[];
+}): Promise<{ totalPages: number; pageCounts: number[] }> {
+  if (vms.length === 0) {
+    return { totalPages: 0, pageCounts: [] };
+  }
+
+  // 1. 创建隐藏 iframe
+  const ifr = document.createElement('iframe');
+  ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0';
+  document.body.appendChild(ifr);
+
+  try {
+    const ifrDoc = ifr.contentDocument || ifr.contentWindow?.document;
+    if (!ifrDoc) {
+      throw new Error('无法创建打印 iframe');
+    }
+
+    // 2. 写入完整 HTML + CSS
+    ifrDoc.open();
+    ifrDoc.write(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>护理记录打印</title>
+  <style>${HLJLD_SHEET_CSS}</style>
+</head>
+<body>
+  <div id="print-root" class="print-root"></div>
+</body>
+</html>`);
+    ifrDoc.close();
+
+    // 3. 等待 iframe 加载完成
+    await new Promise<void>(resolve => {
+      if (ifrDoc.readyState === 'complete') {
+        resolve();
+        return;
+      }
+      ifr.onload = () => resolve();
+      // 超时兜底
+      setTimeout(resolve, 3000);
+    });
+
+    // 4. 等待字体加载（关键：中文字体没就绪时测出来的行高会偏小）
+    try {
+      const fonts = ifrDoc.fonts;
+      if (fonts?.ready) {
+        await Promise.race([fonts.ready, timeout(3000)]);
+      }
+    } catch { /* 忽略字体加载错误 */ }
+
+    await nextTwoFrames(ifr.contentWindow!);
+
+    const root = ifrDoc.getElementById('print-root');
+    if (!root) {
+      throw new Error('打印根节点初始化失败');
+    }
+
+    // 5. 使用分页内核获取页模型
+    let totalPages = 0;
+    const pageCounts: number[] = [];
+    for (const vm of vms) {
+      const pageModels = paginateHljld(ifrDoc, root, vm, remarkLines, totalPages);
+
+      // 渲染每一页
+      for (const pageModel of pageModels) {
+        pageModel.showRemark = true;
+        const pageEl = renderPageModel(ifrDoc, vm, remarkLines, pageModel);
+        root.appendChild(pageEl);
+      }
+
+      totalPages += pageModels.length;
+      pageCounts.push(pageModels.length);
+    }
+
+    // 6. 在最后一页添加空白行 + "以下空白"
+    addTrailingBlankRows(root, ifrDoc);
+
+    // 7. 更新所有页码为 "第X页/共Y页" 格式
+    updatePageNumbers(root, totalPages);
+
+    // 8. 等待布局稳定后触发打印
+    await nextTwoFrames(ifr.contentWindow!);
+    ifr.contentWindow!.focus();
+    await nextTwoFrames(ifr.contentWindow!);
+    ifr.contentWindow!.print();
+
+    // 延迟移除 iframe
+    setTimeout(() => {
+      try { ifr.remove(); } catch { /* ignore */ }
+    }, 1000);
+
+    return { totalPages, pageCounts };
+  } catch (error) {
+    console.error('[HLJLD][print-iframe-error]', error);
+    try { ifr.remove(); } catch { /* ignore */ }
+    throw error;
+  }
+}
+
+/**
+ * 将所有页码从 "第X页" 更新为 "第X页/共Y页" 格式
+ */
+function updatePageNumbers(root: HTMLElement, totalPages: number): void {
+  const pageCurrents = root.querySelectorAll('.page-current');
+  pageCurrents.forEach((el, i) => {
+    el.textContent = `第 ${i + 1} 页 / 共 ${totalPages} 页`;
+  });
 }
 
 // ── 内部辅助函数 ──

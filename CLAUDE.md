@@ -138,6 +138,7 @@ Angular 表单统一挂载在 `/form/<route>`。路由源文件为 `sjm1-app/src
 - Protein A：`ProteinAController` + `ProteinARecord`
 - ECMO 扩展：`EcmoExtraController` + `EcmoRecordExtra`
 - 深静脉维护：`TubeExeController`、`Sjm1VeinExtraController` + `TubeExe`、`Sjm1VeinExtra`
+- 护理记录单打印数据：`HljldPrintController`（`GET /api/v1/icu/hljld/print-data`，一次性返回入科到出科全量合并数据）
 
 ### 护理、评分与扩展记录
 
@@ -158,6 +159,7 @@ Angular 表单统一挂载在 `/form/<route>`。路由源文件为 `sjm1-app/src
 - 校验 `postMessage` 的消息结构；涉及部署域名时应配置并校验可信 `origin`，不要默认信任任意来源。
 - MongoDB 集合名与字段名需兼容既有 SmartCare 数据，禁止随意重命名持久化字段。
 - 日期、时间、单位换算和打印逻辑优先复用 `form-date.util.ts`、`form-measure.util.ts`、`form-print.util.ts`。
+- 护理记录单（hljldForm）打印使用隐藏 iframe 方式（`printAllViaIframe`），避免主页面 CSS 干扰排版。必须等待 `fonts.ready` 后再测量行高，否则中文字体未就绪会导致每页最后一行被切掉。
 - `wpgmForm` 当前仅使用浏览器 `localStorage`，无后端持久化；不要误接入通用保存 API。
 - Bedside 数据在 ECMO、亚低温等表单中主要作为只读来源，修改前确认接口语义。
 - SmartCare 治疗记录系统的部分前端不在 `sjm1-app` 内；不要因为仓库内没有对应页面就删除其后端 API。

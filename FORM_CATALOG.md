@@ -16,7 +16,7 @@
 | 住院患者物品管理表 | /form/wpgmForm | WpgmFormComponent | 无（仅浏览器 localStorage） | 无 | 否 |
 | ECMO 运行护理记录单 | /form/ecmoForm | EcmoRecordComponent | /api/v1/icu/bedside/listByPid, /api/v1/icu/ecmo-extra | Bedside, EcmoRecordExtra | 是 |
 | 输血记录单 | /form/transfusionForm | TransfusionRecordComponent | /api/v1/icu/transfusion-record | TransfusionRecord | 是 |
-| 护理记录单 | /form/hljldForm | HljldFormComponent | /api/v1/icu/hljld/bedside, /api/v1/icu/hljld/drug-executions, /api/v1/icu/hljld/drug-methods, /api/v1/icu/hljld/nurse-records, /api/v1/icu/hljld/signatures | Bedside, DrugExecution, DrugMethodConfig, NurseRecord, SignatureRecord | 否（只读，A4分页显示） |
+| 护理记录单 | /form/hljldForm | HljldFormComponent | /api/v1/icu/hljld/bedside, /api/v1/icu/hljld/drug-executions, /api/v1/icu/hljld/drug-methods, /api/v1/icu/hljld/nurse-records, /api/v1/icu/hljld/print-data | Bedside, DrugExecution, DrugMethodConfig, NurseRecord, HljldPrintController | 否（只读，A4分页显示，iframe打印） |
 | 非计划拔管风险评估及护理措施记录单 | /form/unPlannedCGZYYForm | UnplannedExtubationComponent | /api/v1/icu/score/listByPid | Score | 是 |
 | 一键批量打印中心 | /form/printCenter | PrintCenterComponent | 聚合探测各表单 API | — | 否（只读） |
 
