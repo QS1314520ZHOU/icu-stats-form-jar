@@ -159,29 +159,50 @@
                   </tr>
                 </ng-container>
 
-                <tr *ngIf="item.kind === 'day-summary' && item.summary" class="summary-row day-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
-                  <td colspan="19" class="summary-row-cell">
-                    <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
-                  </td>
-                </tr>
+                <!-- 日间小结：固定4行 -->
+                <ng-container *ngIf="item.kind === 'day-summary' && item.summary">
+                  <tr class="summary-row day-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
+                    <td colspan="19" class="summary-cell-center">
+                      <strong class="summary-title">{{ item.summary.label }}</strong>
+                      <span class="summary-period">{{ item.summary.periodText }}</span>
+                    </td>
+                  </tr>
+                  <tr class="summary-row day-summary-row" *ngFor="let line of getDetailLines(item.summary, 3); let li = index">
+                    <td colspan="19" class="summary-cell-left">
+                      <ng-container *ngIf="line"><ng-container *ngFor="let token of line; trackBy: trackText"><strong *ngIf="token.strong; else plainT">{{ token.text }}</strong><ng-template #plainT><span [class.summary-sep]="token.sep">{{ token.text }}</span></ng-template></ng-container></ng-container>
+                    </td>
+                  </tr>
+                </ng-container>
 
-                <tr *ngIf="item.kind === 'shift-summary' && item.summary" class="summary-row shift-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
-                  <td colspan="19" class="summary-row-cell">
-                    <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
-                  </td>
-                </tr>
+                <!-- 交接班小结：固定4行 -->
+                <ng-container *ngIf="item.kind === 'shift-summary' && item.summary">
+                  <tr class="summary-row shift-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
+                    <td colspan="19" class="summary-cell-center">
+                      <strong class="summary-title">{{ item.summary.label }}</strong>
+                      <span class="summary-period">{{ item.summary.periodText }}</span>
+                    </td>
+                  </tr>
+                  <tr class="summary-row shift-summary-row" *ngFor="let line of getDetailLines(item.summary, 3); let li = index">
+                    <td colspan="19" class="summary-cell-left">
+                      <ng-container *ngIf="line"><ng-container *ngFor="let token of line; trackBy: trackText"><strong *ngIf="token.strong; else plainT">{{ token.text }}</strong><ng-template #plainT><span [class.summary-sep]="token.sep">{{ token.text }}</span></ng-template></ng-container></ng-container>
+                    </td>
+                  </tr>
+                </ng-container>
 
-                <tr *ngIf="item.kind === 'full-day-summary' && item.summary" class="summary-row full-day-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
-                  <td colspan="19" class="summary-row-cell">
-                    <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
-                  </td>
-                </tr>
-
-                <tr *ngIf="item.kind === 'discharge-summary' && item.summary" class="summary-row discharge-summary-row" [attr.data-print-group]="item.key" data-print-kind="summary">
-                  <td colspan="19" class="summary-row-cell">
-                    <ng-container *ngTemplateOutlet="summaryTemplate; context: { summary: item.summary }"></ng-container>
-                  </td>
-                </tr>
+                <!-- 全日总结/出科总结：固定8行 -->
+                <ng-container *ngIf="(item.kind === 'full-day-summary' || item.kind === 'discharge-summary') && item.summary">
+                  <tr class="summary-row" [class.full-day-summary-row]="item.kind === 'full-day-summary'" [class.discharge-summary-row]="item.kind === 'discharge-summary'" [attr.data-print-group]="item.key" data-print-kind="summary">
+                    <td colspan="19" class="summary-cell-center">
+                      <strong class="summary-title">{{ item.summary.label }}</strong>
+                      <span class="summary-period">{{ item.summary.periodText }}</span>
+                    </td>
+                  </tr>
+                  <tr class="summary-row" [class.full-day-summary-row]="item.kind === 'full-day-summary'" [class.discharge-summary-row]="item.kind === 'discharge-summary'" *ngFor="let line of getDetailLines(item.summary, 7); let li = index">
+                    <td colspan="19" class="summary-cell-left">
+                      <ng-container *ngIf="line"><ng-container *ngFor="let token of line; trackBy: trackText"><strong *ngIf="token.strong; else plainT">{{ token.text }}</strong><ng-template #plainT><span [class.summary-sep]="token.sep">{{ token.text }}</span></ng-template></ng-container></ng-container>
+                    </td>
+                  </tr>
+                </ng-container>
               </ng-container>
 
               <tr *ngIf="!page.length"><td colspan="19" class="empty-cell">该护理日暂无记录</td></tr>
@@ -189,14 +210,16 @@
           </table>
         </div>
 
-        <!-- 备注（每页都有） -->
+        <!-- 备注（每页都有，4行列合并） -->
         <div class="page-remark">
           <table class="record-table remark-table">
             <tbody>
               <tr class="remark-row">
-                <th>备注</th>
-                <td>
-                  <div class="remark-line" *ngFor="let line of defaultRemarkLines; trackBy: trackText">{{ line }}</div>
+                <td colspan="19" class="remark-label">备注</td>
+              </tr>
+              <tr class="remark-row" *ngFor="let line of getRemarkLines(3); let ri = index">
+                <td colspan="19" class="remark-cell-left">
+                  <ng-container *ngIf="line">{{ line }}</ng-container>
                 </td>
               </tr>
             </tbody>
@@ -209,18 +232,6 @@
     </main>
   </ng-container>
 </section>
-
-<ng-template #summaryTemplate let-summary="summary">
-  <section class="summary-panel">
-    <div class="summary-heading">
-      <strong class="summary-title">{{ summary.label }}</strong>
-      <span class="summary-period">{{ summary.periodText }}</span>
-    </div>
-    <div class="summary-detail-line" *ngFor="let line of summary.detailLines; trackBy: trackText">
-      <ng-container *ngFor="let token of line; trackBy: trackText"><strong *ngIf="token.strong; else plainToken">{{ token.text }}</strong><ng-template #plainToken><span [class.summary-sep]="token.sep">{{ token.text }}</span></ng-template></ng-container>
-    </div>
-  </section>
-</ng-template>
 
 <ng-template #statePanel>
   <div class="state-panel" [class.error]="pageState === 'error'">

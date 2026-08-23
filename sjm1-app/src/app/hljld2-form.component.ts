@@ -3,7 +3,7 @@ import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { Hljld2FormService } from './hljld2-form.service';
-import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext } from './hljld2-form.models';
+import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext, SummaryTextToken } from './hljld2-form.models';
 import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld2-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
@@ -381,7 +381,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
 
     for (const item of items) {
       // 计算该 item 占用的行数
-      const itemRows = item.kind === 'time-group' ? item.group.rows.length : 1;
+      const itemRows = this.getRowCount(item);
 
       // 如果加入当前 item 会超过限制，且当前页不为空，则换页
       if (rowCount > 0 && rowCount + itemRows > MAX_ROWS_PER_PAGE) {
@@ -399,6 +399,38 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     }
 
     return pages.length ? pages : [[]];
+  }
+
+  /** 计算 timeline item 占用的行数 */
+  private getRowCount(item: HljldTimelineItem): number {
+    switch (item.kind) {
+      case 'time-group': return item.group.rows.length;
+      case 'day-summary': return 4;
+      case 'shift-summary': return 4;
+      case 'full-day-summary': return 8;
+      case 'discharge-summary': return 8;
+      default: return 1;
+    }
+  }
+
+  /** 获取小结/总结的详情行，固定 maxRows 行，不足补 null */
+  getDetailLines(summary: HljldSummary, maxRows: number): (SummaryTextToken[] | null)[] {
+    const lines = summary.detailLines || [];
+    const result: (SummaryTextToken[] | null)[] = [];
+    for (let i = 0; i < maxRows; i++) {
+      result.push(i < lines.length ? lines[i] : null);
+    }
+    return result;
+  }
+
+  /** 获取备注行，固定 maxRows 行，不足补 null */
+  getRemarkLines(maxRows: number): (string | null)[] {
+    const lines = this.defaultRemarkLines || [];
+    const result: (string | null)[] = [];
+    for (let i = 0; i < maxRows; i++) {
+      result.push(i < lines.length ? lines[i] : null);
+    }
+    return result;
   }
 
   private initializeDateForPatient(): void {

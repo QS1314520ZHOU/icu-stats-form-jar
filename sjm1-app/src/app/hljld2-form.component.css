@@ -238,31 +238,31 @@
 .summary-row { break-inside: avoid; }
 .summary-row-cell { padding: 0 !important; text-align: left !important; }
 
-.summary-panel {
-  width: 100%; box-sizing: border-box; padding: 7px 10px;
-  font-family: var(--hljld-table-font); text-align: left !important;
+/* 小结/总结 — 标题行居中 */
+.summary-cell-center {
+  text-align: center !important; vertical-align: middle;
+  padding: 4px 8px !important;
 }
-
-.day-summary-row .summary-panel { background: #f7f3df; }
-.shift-summary-row .summary-panel { background: #f4f1e3; }
-.full-day-summary-row .summary-panel { background: #edf6ee; }
-.discharge-summary-row .summary-panel { background: #e8f0fe; }
-
-.summary-heading { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 5px; text-align: center !important; }
-.summary-title { font-family: var(--hljld-table-font); font-size: 12px; font-weight: 600; line-height: 15px; }
-.summary-period { font-family: var(--hljld-table-font); font-size: 10px; font-weight: 500; line-height: 13px; color: #444; }
-
-.summary-detail-line {
-  display: block; width: 100%; box-sizing: border-box;
+/* 小结/总结 — 详情行左对齐 */
+.summary-cell-left {
+  text-align: left !important; vertical-align: middle;
+  padding: 0 8px !important;
   font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 18px;
-  color: #000; text-align: left !important; white-space: normal; word-break: break-word; overflow-wrap: anywhere;
+  color: #000; white-space: normal; word-break: break-word;
 }
-.summary-detail-line strong { font-weight: 600; margin: 0 3px; }
-.summary-detail-line + .summary-detail-line { margin-top: 6px; }
-.summary-detail-line .summary-sep { margin-right: 12px; }
+.summary-cell-left strong { font-weight: 600; margin: 0 3px; }
+.summary-cell-left .summary-sep { margin-right: 12px; }
+
+.day-summary-row td { background: #f7f3df; }
+.shift-summary-row td { background: #f4f1e3; }
+.full-day-summary-row td { background: #edf6ee; }
+.discharge-summary-row td { background: #e8f0fe; }
+
+.summary-title { font-family: var(--hljld-table-font); font-size: 12px; font-weight: 600; line-height: 15px; }
+.summary-period { font-family: var(--hljld-table-font); font-size: 10px; font-weight: 500; line-height: 13px; color: #444; margin-left: 8px; }
 
 /* =========================================================
-   备注（每页都有）
+   备注（每页都有，4行列合并）
    ========================================================= */
 
 .page-remark {
@@ -271,18 +271,17 @@
   flex-shrink: 0;
 }
 
-.remark-table { min-width: 0; width: 100%; }
-.remark-table th {
-  width: 5%;
-  vertical-align: top;
+.remark-table { min-width: 0; width: 100%; border-collapse: collapse; }
+.remark-label {
+  text-align: center !important; vertical-align: middle;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 600; line-height: 18px;
+  padding: 0 8px; background: #f0f4f8;
+}
+.remark-cell-left {
+  text-align: left !important; vertical-align: middle;
   font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 18px;
+  padding: 0 8px; color: #000; white-space: normal; word-break: break-word;
 }
-.remark-table td {
-  text-align: left; padding: 6px 8px; white-space: normal; word-break: break-word;
-  line-height: 1.6; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; color: #000;
-}
-.remark-line { font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 18px; color: #000; }
-.remark-line + .remark-line { margin-top: 2px; }
 
 /* =========================================================
    页码
@@ -342,13 +341,14 @@
   -webkit-text-fill-color: #000 !important;
 }
 
-.summary-panel, .summary-title, .summary-period,
-.summary-detail-line, .summary-detail-line strong {
+.summary-cell-center, .summary-cell-center strong,
+.summary-cell-center .summary-title, .summary-cell-center .summary-period,
+.summary-cell-left, .summary-cell-left strong {
   color: #000 !important;
   -webkit-text-fill-color: #000 !important;
 }
 
-.remark-line, .remark-table th, .remark-table td {
+.remark-label, .remark-cell-left, .remark-table th, .remark-table td {
   color: #000 !important;
   -webkit-text-fill-color: #000 !important;
 }
@@ -378,7 +378,8 @@
 
   .record-table, .record-table th, .record-table td,
   .record-table b, .record-table strong,
-  .summary-panel, .summary-panel * {
+  .summary-cell-center, .summary-cell-center *,
+  .summary-cell-left, .summary-cell-left * {
     font-family: var(--hljld-print-font) !important;
   }
 
@@ -389,13 +390,11 @@
   .record-table tr { break-inside: avoid; page-break-inside: avoid; }
   .record-table tbody tr.continuation-row td { border-top: 0.3mm dashed #888; }
 
-  .summary-panel { padding: 1mm 2mm; }
   .summary-title { font-size: 8pt; font-weight: 600; line-height: 9pt; }
   .summary-period { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
-  .summary-detail-line { font-size: 7.5pt; font-weight: 500; line-height: 10pt; }
 
   .page-remark { border-top: 0.5mm solid #2b2b2b; padding: 0; }
-  .remark-table th, .remark-table td, .remark-line { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+  .remark-label, .remark-cell-left { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
 
   .page-footer { font-size: 8pt; padding: 1mm 0; border-top: 0.3pt solid #ccc; }
 
