@@ -28,7 +28,7 @@ interface BedsideRecord {
   code?: string;
   time?: string;
   strVal?: string;
-  valid?: boolean;
+  valid?: boolean | number | string;
   editUser?: string;
 }
 
@@ -310,7 +310,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       .pipe(
         tap((res) => {
           const list = Array.isArray(res) ? res : res ? [res as any] : [];
-          this.records = list.filter(r => r && r.valid === true && TARGET_CODES.includes(r.code || ''));
+          this.records = list.filter(r => r && (r.valid === true || r.valid === 1 || r.valid === '1' || String(r.valid).toLowerCase() === 'true') && TARGET_CODES.includes(r.code || ''));
           this.buildColumns();
         }),
         finalize(() => { this.loading = false; this.cdr.detectChanges(); }),
@@ -626,8 +626,8 @@ private paginate(): void {
       .filter(r => Number.isFinite(r.instant) && (r.status === '开始' || r.status === '结束'))
       .sort((a, b) => a.instant - b.instant);
 
-    // 没有治疗状态记录时，显示所有列
-    if (!statusRecords.length) { return columns; }
+    // 没有治疗状态记录时，不展示任何数据（必须有"开始"才展示）
+    if (!statusRecords.length) { return []; }
 
     // 构建有效治疗区间
     const ranges: Array<{ start: number; end: number }> = [];
