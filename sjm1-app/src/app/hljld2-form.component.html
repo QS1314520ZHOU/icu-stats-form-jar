@@ -164,7 +164,7 @@
                 <col class="col-sign" />
               </colgroup>
               <tbody>
-                <ng-container *ngFor="let item of page.items; trackBy: trackTimelineItem">
+                <ng-container *ngFor="let item of page; trackBy: trackTimelineItem">
                   <ng-container *ngIf="item.kind === 'time-group'">
                     <tr *ngFor="let row of item.group.rows; trackBy: trackRow" [class.continuation-row]="!row.firstLine" [attr.data-print-group]="row.groupKey" data-print-kind="time-group">
                       <td class="time-cell">{{ row.timeText }}</td>
@@ -214,7 +214,7 @@
                   </tr>
                 </ng-container>
 
-                <tr *ngIf="!page.items.length"><td colspan="19" class="empty-cell">该护理日暂无记录</td></tr>
+                <tr *ngIf="!page.length"><td colspan="19" class="empty-cell">该护理日暂无记录</td></tr>
               </tbody>
             </table>
           </div>
