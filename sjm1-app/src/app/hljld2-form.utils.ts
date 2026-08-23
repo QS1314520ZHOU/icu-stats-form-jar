@@ -1,4 +1,4 @@
-import {
+﻿import {
   ActiveStayRange,
   BedsideRecord,
   ConfigTubeView,
@@ -1827,18 +1827,21 @@ const COL_MAX_CHARS: Record<string, number> = {
 /** 在标点/空格处自然断句拆分文本 */
 function splitTextToLines(text: string, maxChars: number): string[] {
   const trimmed = (text || '').trimEnd();
-  if (!trimmed || trimmed.length <= maxChars) { return [trimmed]; }
+  if (!trimmed) { return ['']; }
   const lines: string[] = [];
   let remaining = trimmed;
   while (remaining.length > 0) {
     remaining = remaining.trimStart();
     if (remaining.length <= maxChars) { lines.push(remaining); break; }
-    let breakAt = maxChars;
-    for (const delim of [' ', '、', '，', '；', '：']) {
+    // 找标点断点（不计空格，空格不占视觉宽度）
+    let breakAt = -1;
+    for (const delim of ['、', '，', '；', '：', ';', ',']) {
       const pos = remaining.lastIndexOf(delim, maxChars);
       if (pos > 0) { breakAt = pos + 1; break; }
     }
-    lines.push(remaining.substring(0, breakAt).trimEnd());
+    // 无标点则在 maxChars 处硬断
+    if (breakAt <= 0) { breakAt = maxChars; }
+    lines.push(remaining.substring(0, breakAt));
     remaining = remaining.substring(breakAt);
   }
   return lines.filter(l => l.length > 0);

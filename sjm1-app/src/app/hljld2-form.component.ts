@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
+﻿import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
@@ -38,10 +38,21 @@ interface FlatRow {
 /** 拆分文本为固定长度的行 */
 function splitText(text: string, maxLen: number): string[] {
   const trimmed = (text || '').trimEnd();
-  if (!trimmed || trimmed.length <= maxLen) { return [trimmed]; }
+  if (!trimmed) { return ['']; }
   const lines: string[] = [];
-  for (let i = 0; i < trimmed.length; i += maxLen) {
-    lines.push(trimmed.substring(i, i + maxLen));
+  let remaining = trimmed;
+  while (remaining.length > 0) {
+    remaining = remaining.trimStart();
+    if (remaining.length <= maxLen) { lines.push(remaining); break; }
+    // 找标点断点（空格不参与断行）
+    let breakAt = -1;
+    for (const delim of ['、', '，', '；', '：', ';', ',']) {
+      const pos = remaining.lastIndexOf(delim, maxLen);
+      if (pos > 0) { breakAt = pos + 1; break; }
+    }
+    if (breakAt <= 0) { breakAt = maxLen; }
+    lines.push(remaining.substring(0, breakAt));
+    remaining = remaining.substring(breakAt);
   }
   return lines.filter(l => l.length > 0);
 }
