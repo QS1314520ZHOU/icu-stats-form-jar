@@ -646,7 +646,7 @@ export function calcContinuousDrugAmount(
   }
 
   if (unknownActions.size) {
-    console.warn('[hljld] 未识别的泵注动作，速度按 0 处理：', [...unknownActions]);
+    console.warn('[hljld] 未识别的泵注动作，速度按 0 处理：', Array.from(unknownActions));
   }
 
   if (!stopped && cursor < cutoff && speed > 0) {
@@ -1799,6 +1799,87 @@ export function buildRows(
   return rows;
 }
 
+/* ---- 文本按列宽拆行 ---- */
+
+/** 各列最大字符数（基于1480px表格宽度、11px字体估算） */
+const COL_MAX_CHARS: Record<string, number> = {
+  time: 14,        // 7% = 104px
+  medName: 20,     // 9.5% = 141px
+  medAmount: 9,    // 4.5% = 67px
+  medRoute: 7,     // 3.5% = 52px
+  enteralName: 18, // 8.5% = 126px
+  enteralAmount: 8, // 4% = 59px
+  enteralRoute: 7,  // 3.5% = 52px
+  urine: 7,        // 3.5% = 52px
+  ultrafiltration: 7, // 3.5% = 52px
+  outputName: 7,   // 3.5% = 52px
+  outputAmount: 6, // 3% = 44px
+  drainName: 7,    // 3.5% = 52px
+  drainAmount: 6,  // 3% = 44px
+  check: 6,        // 3% = 44px
+  treatment: 6,    // 3% = 44px
+  basicCare: 6,    // 3% = 44px
+  health: 6,       // 3% = 44px
+  nursing: 34,     // 16% = 237px
+  sign: 10,        // 5% = 74px
+};
+
+/** 在标点/空格处自然断句拆分文本 */
+function splitTextToLines(text: string, maxChars: number): string[] {
+  if (!text || text.length <= maxChars) { return [text || '']; }
+  const lines: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxChars) { lines.push(remaining); break; }
+    let breakAt = maxChars;
+    for (const delim of [' ', '、', '，', '；', '：']) {
+      const pos = remaining.lastIndexOf(delim, maxChars);
+      if (pos > 0) { breakAt = pos + 1; break; }
+    }
+    lines.push(remaining.substring(0, breakAt));
+    remaining = remaining.substring(breakAt);
+  }
+  return lines;
+}
+
+/** 拆分 NameAmountRoute 数组中过长的 name 和 amount */
+function splitNameAmountItems<T extends { name: string; amount: string; route?: string; numericAmount?: number }>(
+  items: T[], maxName: number, maxAmount: number,
+): Array<NameAmountRoute> {
+  return items.flatMap(item => {
+    const nameLines = splitTextToLines(item.name, maxName);
+    const amountLines = splitTextToLines(item.amount, maxAmount);
+    const count = Math.max(nameLines.length, amountLines.length, 1);
+    return Array.from({ length: count }, (_, i) => ({
+      name: nameLines[i] || '',
+      amount: amountLines[i] || '',
+      route: (i === 0 ? (item.route ?? '') : ''),
+      numericAmount: i === 0 ? (item.numericAmount ?? 0) : 0,
+    }));
+  });
+}
+
+/** 拆分 NameAmount 数组中过长的 name 和 amount */
+function splitNameAmountOnlyItems<T extends { name: string; amount: string; numericAmount?: number }>(
+  items: T[], maxName: number, maxAmount: number,
+): Array<NameAmount> {
+  return items.flatMap(item => {
+    const nameLines = splitTextToLines(item.name, maxName);
+    const amountLines = splitTextToLines(item.amount, maxAmount);
+    const count = Math.max(nameLines.length, amountLines.length, 1);
+    return Array.from({ length: count }, (_, i) => ({
+      name: nameLines[i] || '',
+      amount: amountLines[i] || '',
+      numericAmount: i === 0 ? (item.numericAmount ?? 0) : 0,
+    }));
+  });
+}
+
+/** 将字符串数组按列宽拆行，返回扁平行数组 */
+function splitTextArray(arr: string[], maxChars: number): string[] {
+  return arr.flatMap(text => splitTextToLines(text, maxChars));
+}
+
 /* ---- 时间组展开 ---- */
 
 export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[] {
@@ -1811,17 +1892,26 @@ export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[]
   const groups: HljldTimeGroup[] = [];
 
   for (const row of sortedRows) {
-    const medications = row.medications.filter(hasNameOrAmount);
-    const enteral = row.enteral.filter(hasNameOrAmount);
-    const urines = row.urines.filter(hasText);
-    const ultrafiltrations = row.ultrafiltrations.filter(hasText);
-    const outputs = row.outputs.filter(hasAmountValue);
-    const drains = row.drains.filter(hasAmountValue);
-    const examination = row.examination.filter(hasText);
-    const treatment = row.treatment.filter(hasText);
-    const basicCare = row.basicCare.filter(hasText);
-    const healthEducation = row.healthEducation.filter(hasText);
-    const nursingRecords = row.nursingRecords.filter(hasText);
+    // 原始过滤
+    const rawMeds = row.medications.filter(hasNameOrAmount);
+    const rawEnteral = row.enteral.filter(hasNameOrAmount);
+    const rawOutputs = row.outputs.filter(hasAmountValue);
+    const rawDrains = row.drains.filter(hasAmountValue);
+
+    // 按列宽拆行：结构化列
+    const medications = splitNameAmountItems(rawMeds, COL_MAX_CHARS.medName, COL_MAX_CHARS.medAmount);
+    const enteral = splitNameAmountItems(rawEnteral, COL_MAX_CHARS.enteralName, COL_MAX_CHARS.enteralAmount);
+    const outputs = splitNameAmountOnlyItems(rawOutputs, COL_MAX_CHARS.outputName, COL_MAX_CHARS.outputAmount);
+    const drains = splitNameAmountOnlyItems(rawDrains, COL_MAX_CHARS.drainName, COL_MAX_CHARS.drainAmount);
+
+    // 按列宽拆行：字符串列
+    const urines = splitTextArray(row.urines.filter(hasText), COL_MAX_CHARS.urine);
+    const ultrafiltrations = splitTextArray(row.ultrafiltrations.filter(hasText), COL_MAX_CHARS.ultrafiltration);
+    const examination = splitTextArray(row.examination.filter(hasText), COL_MAX_CHARS.check);
+    const treatment = splitTextArray(row.treatment.filter(hasText), COL_MAX_CHARS.treatment);
+    const basicCare = splitTextArray(row.basicCare.filter(hasText), COL_MAX_CHARS.basicCare);
+    const healthEducation = splitTextArray(row.healthEducation.filter(hasText), COL_MAX_CHARS.health);
+    const nursingRecords = splitTextArray(row.nursingRecords.filter(hasText), COL_MAX_CHARS.nursing);
 
     const lineCount = Math.max(
       medications.length, enteral.length,
