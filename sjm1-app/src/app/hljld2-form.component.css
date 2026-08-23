@@ -4,7 +4,7 @@
   --hljld-print-font: SimSun, "宋体", "Noto Serif CJK SC", serif;
   --hljld-table-font-size: 11px;
   --hljld-table-line-height: 18px;
-  /* 每行固定高度（刚好放下11px字体） */
+  /* 基础行高（换行时行高自适应） */
   --row-height: 18px;
 
   display: block;
@@ -155,10 +155,8 @@
 .patient-strip b { font-weight: 500; }
 .patient-strip .diagnosis { flex: 1 1 300px; }
 
-/* 表格区域 — 固定高度，刚好放22行 */
+/* 表格区域 — 自适应高度，按行数分页 */
 .page-table-wrap {
-  height: calc(var(--row-height) * 22 + 2px);
-  overflow: hidden;
   padding: 0 16px;
 }
 
@@ -198,23 +196,24 @@
 .col-sign          { width: 5.5%; } /* 签名 */
 
 .record-table tr {
-  height: var(--row-height);
+  min-height: var(--row-height);
 }
 
 .record-table th, .record-table td {
   border: 1px solid #2b2b2b; padding: 0 3px; vertical-align: middle;
-  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  height: var(--row-height); max-height: var(--row-height);
+  text-align: center;
   line-height: var(--row-height); font-size: var(--hljld-table-font-size);
 }
 
 .record-table thead th {
   background: #e5edf2; color: #181818;
   font-family: var(--hljld-table-font); font-size: 11px; font-weight: 600; line-height: 18px;
+  white-space: nowrap;
 }
 
 .record-table tbody td {
   font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 18px; color: #000;
+  word-break: break-all;
 }
 
 .record-table tbody td b, .record-table tbody td strong { font-weight: 600; }
@@ -228,9 +227,8 @@
 
 .time-cell, .number, .nursing-cell, .sign-cell {
   font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 18px;
-  white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis;
 }
-.number, .time-cell { font-variant-numeric: tabular-nums; }
+.number, .time-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .nursing-cell { text-align: left !important; vertical-align: middle; color: #000; }
 
 /* =========================================================
