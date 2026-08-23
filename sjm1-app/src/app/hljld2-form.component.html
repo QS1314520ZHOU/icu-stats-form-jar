@@ -210,17 +210,22 @@
           </table>
         </div>
 
-        <!-- 备注（每页都有，4行列合并） -->
+        <!-- 备注（每页都有，第一列跨4行，内容列合并） -->
         <div class="page-remark">
           <table class="record-table remark-table">
             <tbody>
               <tr class="remark-row">
-                <td colspan="19" class="remark-label">备注</td>
+                <th rowspan="4" class="remark-label">备注</th>
+                <td colspan="18" class="remark-cell-left">{{ getRemarkLine(0) }}</td>
               </tr>
-              <tr class="remark-row" *ngFor="let line of getRemarkLines(3); let ri = index">
-                <td colspan="19" class="remark-cell-left">
-                  <ng-container *ngIf="line">{{ line }}</ng-container>
-                </td>
+              <tr class="remark-row">
+                <td colspan="18" class="remark-cell-left">{{ getRemarkLine(1) }}</td>
+              </tr>
+              <tr class="remark-row">
+                <td colspan="18" class="remark-cell-left">{{ getRemarkLine(2) }}</td>
+              </tr>
+              <tr class="remark-row">
+                <td colspan="18" class="remark-cell-left">{{ getRemarkLine(3) }}</td>
               </tr>
             </tbody>
           </table>

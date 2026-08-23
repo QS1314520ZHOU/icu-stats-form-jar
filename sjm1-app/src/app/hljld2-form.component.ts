@@ -433,6 +433,12 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     return result;
   }
 
+  /** 获取单条备注行，超出范围返回空字符串 */
+  getRemarkLine(index: number): string {
+    const lines = this.defaultRemarkLines || [];
+    return index < lines.length ? lines[index] : '';
+  }
+
   private initializeDateForPatient(): void {
     let targetDate = new Date();
 
