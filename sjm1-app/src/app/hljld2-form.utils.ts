@@ -1826,20 +1826,22 @@ const COL_MAX_CHARS: Record<string, number> = {
 
 /** 在标点/空格处自然断句拆分文本 */
 function splitTextToLines(text: string, maxChars: number): string[] {
-  if (!text || text.length <= maxChars) { return [text || '']; }
+  const trimmed = (text || '').trimEnd();
+  if (!trimmed || trimmed.length <= maxChars) { return [trimmed]; }
   const lines: string[] = [];
-  let remaining = text;
+  let remaining = trimmed;
   while (remaining.length > 0) {
+    remaining = remaining.trimStart();
     if (remaining.length <= maxChars) { lines.push(remaining); break; }
     let breakAt = maxChars;
     for (const delim of [' ', '、', '，', '；', '：']) {
       const pos = remaining.lastIndexOf(delim, maxChars);
       if (pos > 0) { breakAt = pos + 1; break; }
     }
-    lines.push(remaining.substring(0, breakAt));
+    lines.push(remaining.substring(0, breakAt).trimEnd());
     remaining = remaining.substring(breakAt);
   }
-  return lines;
+  return lines.filter(l => l.length > 0);
 }
 
 /** 拆分 NameAmountRoute 数组中过长的 name 和 amount */

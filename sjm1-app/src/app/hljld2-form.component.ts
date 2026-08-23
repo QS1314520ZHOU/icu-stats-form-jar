@@ -9,7 +9,7 @@ import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
 
 /** 每页最大数据行数（不含表头和备注） */
-const MAX_ROWS_PER_PAGE = 22;
+const MAX_ROWS_PER_PAGE = 33;
 
 /** 扁平行：长文本拆分后的一行，固定18px行高 */
 interface FlatRow {
@@ -37,12 +37,13 @@ interface FlatRow {
 
 /** 拆分文本为固定长度的行 */
 function splitText(text: string, maxLen: number): string[] {
-  if (!text || text.length <= maxLen) { return [text || '']; }
+  const trimmed = (text || '').trimEnd();
+  if (!trimmed || trimmed.length <= maxLen) { return [trimmed]; }
   const lines: string[] = [];
-  for (let i = 0; i < text.length; i += maxLen) {
-    lines.push(text.substring(i, i + maxLen));
+  for (let i = 0; i < trimmed.length; i += maxLen) {
+    lines.push(trimmed.substring(i, i + maxLen));
   }
-  return lines;
+  return lines.filter(l => l.length > 0);
 }
 
 @Component({

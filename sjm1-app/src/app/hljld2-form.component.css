@@ -157,7 +157,7 @@
 
 /* 表格区域 — 固定高度，刚好放22行 */
 .page-table-wrap {
-  height: calc(var(--row-height) * 22 + 2px);
+  height: calc(var(--row-height) * 33 + 2px);
   overflow: hidden;
   padding: 0 16px;
 }
@@ -294,7 +294,7 @@
 .page-footer {
   text-align: center;
   padding: 6px 16px 8px;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: 500;
   color: #666;
   border-top: 1px solid #e5e7eb;
@@ -400,7 +400,7 @@
   .page-remark { padding: 0; }
   .remark-label, .remark-cell-left { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
 
-  .page-footer { font-size: 8pt; padding: 1mm 0; border-top: 0.3pt solid #ccc; }
+  .page-footer { font-size: 12pt; padding: 1mm 0; border-top: 0.3pt solid #ccc; }
 
   .time-col { width: 14mm; }
   .record-col { width: 26mm; }
