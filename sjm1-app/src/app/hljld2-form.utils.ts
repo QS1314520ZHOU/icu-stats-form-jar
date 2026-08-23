@@ -1840,7 +1840,7 @@ const COL_MAX_CHARS: Record<string, number> = {
 };
 
 /** 在标点/空格处自然断句拆分文本 */
-function splitTextToLines(text: string, maxChars: number, skipSpace = false): string[] {
+export function splitTextToLines(text: string, maxChars: number, skipSpace = false): string[] {
   const trimmed = (text || '').trimEnd();
   if (!trimmed) { return ['']; }
   const delims = skipSpace
@@ -1859,7 +1859,11 @@ function splitTextToLines(text: string, maxChars: number, skipSpace = false): st
     }
     // 无标点则在 maxChars 处硬断（amount 不允许被拆行时，不硬断）
     if (breakAt <= 0) {
-      if (skipSpace) { break; }
+      if (skipSpace) {
+        // 无标点可断，整行返回
+        lines.push(remaining);
+        break;
+      }
       breakAt = maxChars;
     }
     lines.push(remaining.substring(0, breakAt));
