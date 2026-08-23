@@ -203,7 +203,7 @@
 
 .record-table th, .record-table td {
   border: 1px solid #2b2b2b; padding: 0 3px; vertical-align: middle;
-  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: center; white-space: normal; overflow: hidden;
   height: var(--row-height); max-height: var(--row-height);
   line-height: var(--row-height); font-size: var(--hljld-table-font-size);
 }
@@ -232,7 +232,6 @@
 }
 .number, .time-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-/* 所有列统一：固定行高，文本超长截断，不撑开行 */
 .nursing-cell {
   text-align: left !important; vertical-align: middle; color: #000;
 }
