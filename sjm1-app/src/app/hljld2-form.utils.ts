@@ -1840,22 +1840,28 @@ const COL_MAX_CHARS: Record<string, number> = {
 };
 
 /** 在标点/空格处自然断句拆分文本 */
-function splitTextToLines(text: string, maxChars: number): string[] {
+function splitTextToLines(text: string, maxChars: number, skipSpace = false): string[] {
   const trimmed = (text || '').trimEnd();
   if (!trimmed) { return ['']; }
+  const delims = skipSpace
+    ? ['、', '，', '；', '：', ';', ',']
+    : ['、', '，', '；', '：', ';', ','];
   const lines: string[] = [];
   let remaining = trimmed;
   while (remaining.length > 0) {
     remaining = remaining.trimStart();
     if (remaining.length <= maxChars) { lines.push(remaining); break; }
-    // 找标点断点（不计空格，空格不占视觉宽度）
+    // 找标点断点
     let breakAt = -1;
-    for (const delim of ['、', '，', '；', '：', ';', ',']) {
+    for (const delim of delims) {
       const pos = remaining.lastIndexOf(delim, maxChars);
       if (pos > 0) { breakAt = pos + 1; break; }
     }
-    // 无标点则在 maxChars 处硬断
-    if (breakAt <= 0) { breakAt = maxChars; }
+    // 无标点则在 maxChars 处硬断（amount 不允许被拆行时，不硬断）
+    if (breakAt <= 0) {
+      if (skipSpace) { break; }
+      breakAt = maxChars;
+    }
     lines.push(remaining.substring(0, breakAt));
     remaining = remaining.substring(breakAt);
   }
@@ -1868,7 +1874,7 @@ function splitNameAmountItems<T extends { name: string; amount: string; route?: 
 ): Array<NameAmountRoute> {
   return items.flatMap(item => {
     const nameLines = splitTextToLines(item.name, maxName);
-    const amountLines = splitTextToLines(item.amount, maxAmount);
+    const amountLines = splitTextToLines(item.amount, maxAmount, true);
     const count = Math.max(nameLines.length, amountLines.length, 1);
     return Array.from({ length: count }, (_, i) => ({
       name: nameLines[i] || '',
@@ -1885,7 +1891,7 @@ function splitNameAmountOnlyItems<T extends { name: string; amount: string; nume
 ): Array<NameAmount> {
   return items.flatMap(item => {
     const nameLines = splitTextToLines(item.name, maxName);
-    const amountLines = splitTextToLines(item.amount, maxAmount);
+    const amountLines = splitTextToLines(item.amount, maxAmount, true);
     const count = Math.max(nameLines.length, amountLines.length, 1);
     return Array.from({ length: count }, (_, i) => ({
       name: nameLines[i] || '',

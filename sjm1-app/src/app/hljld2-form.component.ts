@@ -90,6 +90,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   currentPage = 1;
   totalPages = 1;
   pages: FlatRow[][] = [];
+  pageRowCounts: number[] = [];
 
   constructor(
     private service: Hljld2FormService,
@@ -157,6 +158,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         this.currentPage = 1;
         const rawPages = this.splitIntoPages(this.vm.timeline);
         this.pages = rawPages.map(items => this.flattenPageItems(items));
+        this.pageRowCounts = rawPages.map(items => items.reduce((sum, it) => sum + this.getRowCount(it), 0));
         this.totalPages = this.pages.length;
 
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);

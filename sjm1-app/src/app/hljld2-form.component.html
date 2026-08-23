@@ -1,4 +1,4 @@
-<section class="hljld-shell">
+﻿<section class="hljld-shell">
   <header class="toolbar no-print" aria-label="护理记录日期工具栏">
     <div class="date-tools" role="group" aria-label="护理记录日期选择">
       <button
@@ -87,7 +87,7 @@
         </div>
 
         <!-- 表格 -->
-        <div class="page-table-wrap">
+        <div class="page-table-wrap" [style.height]="(pageRowCounts[i] || 34) * 18 + 2 + 'px'">
           <table class="record-table">
             <colgroup>
               <col class="col-time" />
