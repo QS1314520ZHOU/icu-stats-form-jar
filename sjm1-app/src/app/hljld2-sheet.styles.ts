@@ -124,11 +124,11 @@ body {
   line-height: 1.25;
 }
 
-.print-record-table col.col-time { width: 7%; }
+.print-record-table col.col-time { width: 5%; }
 .print-record-table col.col-med-name,
-.print-record-table col.col-enteral-name { width: 5.5%; }
+.print-record-table col.col-enteral-name { width: 6.5%; }
 .print-record-table col.col-med-amount,
-.print-record-table col.col-enteral-amount { width: 3.5%; }
+.print-record-table col.col-enteral-amount { width: 4.5%; }
 .print-record-table col.col-med-route,
 .print-record-table col.col-enteral-route { width: 4%; }
 .print-record-table col.col-urine { width: 4%; }
@@ -136,13 +136,13 @@ body {
 .print-record-table col.col-output-name,
 .print-record-table col.col-drain-name { width: 5.5%; }
 .print-record-table col.col-output-amount,
-.print-record-table col.col-drain-amount { width: 3.5%; }
+.print-record-table col.col-drain-amount { width: 4%; }
 .print-record-table col.col-check,
 .print-record-table col.col-treatment,
 .print-record-table col.col-basic-care,
-.print-record-table col.col-health { width: 5%; }
-.print-record-table col.col-nursing { width: 18%; }
-.print-record-table col.col-sign { width: 6%; }
+.print-record-table col.col-health { width: 4%; }
+.print-record-table col.col-nursing { width: 17%; }
+.print-record-table col.col-sign { width: 5.5%; }
 
 .print-record-table th,
 .print-record-table td {

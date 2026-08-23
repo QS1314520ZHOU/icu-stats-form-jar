@@ -155,10 +155,9 @@
 .patient-strip b { font-weight: 500; }
 .patient-strip .diagnosis { flex: 1 1 300px; }
 
-/* 表格区域 — 固定高度，刚好放22行 */
+/* 表格区域 — 允许内容自然撑开（打印分页由 pagination engine 处理） */
 .page-table-wrap {
-  height: calc(var(--row-height) * 22 + 2px);
-  overflow: hidden;
+  overflow: visible;
   padding: 0 16px;
 }
 
@@ -177,25 +176,25 @@
 }
 
 /* 19列，总计100%：名称列宽，其他窄 */
-.col-time          { width: 6%; }   /* 日期时间 */
-.col-med-name      { width: 8%; }   /* 药物名称 */
-.col-med-amount    { width: 3%; }   /* 药物量 */
+.col-time          { width: 4%; }   /* 日期时间 — 缩窄 */
+.col-med-name      { width: 10.5%; }/* 药物名称 — 加宽 */
+.col-med-amount    { width: 4.5%; } /* 药物量 — 加宽 */
 .col-med-route     { width: 3.5%; } /* 药物途径 */
-.col-enteral-name  { width: 8%; }   /* 胃肠名称 */
-.col-enteral-amount{ width: 3%; }   /* 胃肠量 */
+.col-enteral-name  { width: 9.5%; } /* 胃肠名称 — 加宽 */
+.col-enteral-amount{ width: 4%; }   /* 胃肠量 — 加宽 */
 .col-enteral-route { width: 3.5%; } /* 胃肠途径 */
 .col-urine         { width: 3.5%; } /* 尿量 */
 .col-ultrafiltration{ width: 3.5%; }/* 净超滤量 */
 .col-output-name   { width: 3.5%; } /* 排出物名称 */
-.col-output-amount { width: 2.5%; } /* 排出物量 */
+.col-output-amount { width: 3%; }   /* 排出物量 — 加宽 */
 .col-drain-name    { width: 3.5%; } /* 引流液名称 */
-.col-drain-amount  { width: 2.5%; } /* 引流液量 */
-.col-check         { width: 3.5%; } /* 检查 */
-.col-treatment     { width: 3.5%; } /* 治疗 */
-.col-basic-care    { width: 3.5%; } /* 基础护理 */
-.col-health        { width: 3.5%; } /* 健康教育 */
-.col-nursing       { width: 18%; }  /* 护理记录 */
-.col-sign          { width: 5.5%; } /* 签名 */
+.col-drain-amount  { width: 3%; }   /* 引流液量 — 加宽 */
+.col-check         { width: 3%; }   /* 检查 */
+.col-treatment     { width: 3%; }   /* 治疗 */
+.col-basic-care    { width: 3%; }   /* 基础护理 */
+.col-health        { width: 3%; }   /* 健康教育 */
+.col-nursing       { width: 17%; }  /* 护理记录 */
+.col-sign          { width: 5%; }   /* 签名 */
 
 .record-table tr {
   height: var(--row-height);
@@ -204,7 +203,7 @@
 .record-table th, .record-table td {
   border: 1px solid #2b2b2b; padding: 0 3px; vertical-align: middle;
   text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  height: var(--row-height); max-height: var(--row-height);
+  height: var(--row-height);
   line-height: var(--row-height); font-size: var(--hljld-table-font-size);
 }
 
@@ -223,15 +222,32 @@
 .record-table tbody tr.continuation-row td { border-top-style: dashed; border-top-color: #b8bec4; }
 .record-table tbody tr.continuation-row .time-cell { color: transparent; }
 
-.time-col { width: 8%; }
-.record-col { width: 18%; }
-.sign-col { width: 6%; }
+.time-col { width: 4%; }
+.record-col { width: 17%; }
+.sign-col { width: 5%; }
 
 .time-cell, .number, .nursing-cell, .sign-cell {
   font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 18px;
 }
 .number, .time-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.nursing-cell { text-align: left !important; vertical-align: middle; color: #000; }
+
+/* 量列：移除截断，允许完整展示 */
+td:nth-child(3), td:nth-child(6),
+td:nth-child(11), td:nth-child(13),
+.col-med-amount, .col-enteral-amount, .col-output-amount, .col-drain-amount {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  word-break: break-all;
+}
+
+.nursing-cell {
+  text-align: left !important; vertical-align: middle; color: #000;
+  white-space: normal !important; word-break: break-word;
+  overflow: visible !important; text-overflow: unset !important;
+  height: auto !important; max-height: none !important;
+  line-height: var(--hljld-table-line-height);
+}
 
 /* =========================================================
    Summary rows
@@ -268,7 +284,7 @@
    ========================================================= */
 
 .page-remark {
-  border-top: 2px solid #2b2b2b;
+  border-top: 1px solid #2b2b2b;
   padding: 0 16px;
   flex-shrink: 0;
 }
@@ -395,12 +411,12 @@
   .summary-title { font-size: 8pt; font-weight: 600; line-height: 9pt; }
   .summary-period { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
 
-  .page-remark { border-top: 0.5mm solid #2b2b2b; padding: 0; }
+  .page-remark { border-top: 0.25mm solid #2b2b2b; padding: 0; }
   .remark-label, .remark-cell-left { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
 
   .page-footer { font-size: 8pt; padding: 1mm 0; border-top: 0.3pt solid #ccc; }
 
-  .time-col { width: 18mm; }
-  .record-col { width: 28mm; }
-  .sign-col { width: 10mm; }
+  .time-col { width: 14mm; }
+  .record-col { width: 26mm; }
+  .sign-col { width: 9mm; }
 }

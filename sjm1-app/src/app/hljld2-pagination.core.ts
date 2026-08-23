@@ -18,25 +18,25 @@ import {
 export const HLJLD_COLSPAN = 19;
 
 export const HLJLD_COLUMNS: ReadonlyArray<{ key: string; className: string; width: string }> = [
-  { key: 'time', className: 'col-time', width: '7%' },
-  { key: 'med-name', className: 'col-med-name', width: '5.5%' },
-  { key: 'med-amount', className: 'col-med-amount', width: '3.5%' },
+  { key: 'time', className: 'col-time', width: '5%' },
+  { key: 'med-name', className: 'col-med-name', width: '6.5%' },
+  { key: 'med-amount', className: 'col-med-amount', width: '4.5%' },
   { key: 'med-route', className: 'col-med-route', width: '4%' },
-  { key: 'enteral-name', className: 'col-enteral-name', width: '5.5%' },
-  { key: 'enteral-amount', className: 'col-enteral-amount', width: '3.5%' },
+  { key: 'enteral-name', className: 'col-enteral-name', width: '6.5%' },
+  { key: 'enteral-amount', className: 'col-enteral-amount', width: '4.5%' },
   { key: 'enteral-route', className: 'col-enteral-route', width: '4%' },
   { key: 'urine', className: 'col-urine', width: '4%' },
   { key: 'ultrafiltration', className: 'col-ultrafiltration', width: '4%' },
   { key: 'output-name', className: 'col-output-name', width: '5.5%' },
-  { key: 'output-amount', className: 'col-output-amount', width: '3.5%' },
+  { key: 'output-amount', className: 'col-output-amount', width: '4%' },
   { key: 'drain-name', className: 'col-drain-name', width: '5.5%' },
-  { key: 'drain-amount', className: 'col-drain-amount', width: '3.5%' },
-  { key: 'check', className: 'col-check', width: '5%' },
-  { key: 'treatment', className: 'col-treatment', width: '5%' },
-  { key: 'basic-care', className: 'col-basic-care', width: '5%' },
-  { key: 'health', className: 'col-health', width: '5%' },
-  { key: 'nursing', className: 'col-nursing', width: '18%' },
-  { key: 'sign', className: 'col-sign', width: '6%' },
+  { key: 'drain-amount', className: 'col-drain-amount', width: '4%' },
+  { key: 'check', className: 'col-check', width: '4%' },
+  { key: 'treatment', className: 'col-treatment', width: '4%' },
+  { key: 'basic-care', className: 'col-basic-care', width: '4%' },
+  { key: 'health', className: 'col-health', width: '4%' },
+  { key: 'nursing', className: 'col-nursing', width: '17%' },
+  { key: 'sign', className: 'col-sign', width: '5.5%' },
 ];
 
 // ── 类型 ──
