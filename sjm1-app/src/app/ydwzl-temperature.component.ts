@@ -56,7 +56,11 @@ const CODE_WATER = 'param_亚低温水温设置';
 const CODE_COOL = 'param_降温措施';
 const CODE_WARM = 'param_升温措施';
 const CODE_YISHI = 'param_Yishi';
-const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_YISHI];
+const CODE_YDWZL = 'param_亚低温治疗';
+const TARGET_CODES = [CODE_T, CODE_BODY, CODE_WATER, CODE_COOL, CODE_WARM, CODE_YISHI, CODE_YDWZL];
+
+/** 两个治疗区间之间小于此间隔（毫秒）视为连续 */
+const TREATMENT_GAP_MS = 2 * 60 * 60 * 1000;
 
 const COOL_OPTIONS = ['头部冰帽、背部冰毯', '前额、颈部、腋窝及腹股沟区放置冰袋', '降低室温', '血管内降温', '冬眠合剂'];
 const WARM_OPTIONS = ['复温毯、复温帽', '棉被/毛毯保暖', '提升室温', '血管内复温', '停用冬眠合剂'];
@@ -336,6 +340,9 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     const kept = [...map.values()].filter(col => !!(col.body || col.water || col.cool || col.warm));
     this.columns = kept.sort((a, b) => this.ts(a.time) - this.ts(b.time));
 
+    // 根据 param_亚低温治疗 的开始/结束状态过滤列
+    this.columns = this.filterColumnsByTreatmentRange(this.columns);
+
     // 签名：收集param_Yishi记录，按业务规则向前匹配
     const yishiRecords = this.records
       .filter(r => r.code === CODE_YISHI && r.editUser && r.time)
@@ -599,6 +606,72 @@ private paginate(): void {
     if (isNaN(d.getTime())) return v;
     const p = (n: number) => `${n}`.padStart(2, '0');
     return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  /**
+   * 根据 param_亚低温治疗 的开始/结束状态，构建有效治疗区间，
+   * 只保留在区间内的时间列。
+   *
+   * 规则：
+   * - strVal="开始" → 区间起点
+   * - strVal="结束" → 区间终点
+   * - 只有开始没有结束 → 区间延伸到数据末尾
+   * - 两个区间间隔 ≤ 2小时 → 视为连续治疗（合并）
+   */
+  private filterColumnsByTreatmentRange(columns: TimeColumn[]): TimeColumn[] {
+    // 收集治疗状态记录
+    const statusRecords = this.records
+      .filter(r => r.code === CODE_YDWZL && r.time)
+      .map(r => ({ instant: this.ts(r.time), status: (r.strVal ?? '').trim() }))
+      .filter(r => Number.isFinite(r.instant) && (r.status === '开始' || r.status === '结束'))
+      .sort((a, b) => a.instant - b.instant);
+
+    // 没有治疗状态记录时，显示所有列
+    if (!statusRecords.length) { return columns; }
+
+    // 构建有效治疗区间
+    const ranges: Array<{ start: number; end: number }> = [];
+    let rangeStart: number | null = null;
+
+    for (const rec of statusRecords) {
+      if (rec.status === '开始') {
+        if (rangeStart === null) {
+          rangeStart = rec.instant;
+        }
+        // 如果已有区间起点（连续开始），忽略后续开始
+      } else if (rec.status === '结束') {
+        if (rangeStart !== null) {
+          ranges.push({ start: rangeStart, end: rec.instant });
+          rangeStart = null;
+        }
+        // 如果没有对应的开始，忽略孤立的结束
+      }
+    }
+    // 只有开始没有结束 → 延伸到数据末尾
+    if (rangeStart !== null) {
+      const lastInstant = columns.length ? this.ts(columns[columns.length - 1].time) : rangeStart;
+      ranges.push({ start: rangeStart, end: lastInstant });
+    }
+
+    if (!ranges.length) { return columns; }
+
+    // 合并间隔 ≤ 2小时的相邻区间
+    const merged: Array<{ start: number; end: number }> = [ranges[0]];
+    for (let i = 1; i < ranges.length; i++) {
+      const prev = merged[merged.length - 1];
+      const curr = ranges[i];
+      if (curr.start - prev.end <= TREATMENT_GAP_MS) {
+        prev.end = Math.max(prev.end, curr.end);
+      } else {
+        merged.push(curr);
+      }
+    }
+
+    // 过滤列：时间在任意有效区间内才保留
+    return columns.filter(col => {
+      const instant = this.ts(col.time);
+      return merged.some(r => instant >= r.start && instant <= r.end);
+    });
   }
 
   private ts(v?: string): number { return databaseTimeValue(v); }

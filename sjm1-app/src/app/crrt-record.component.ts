@@ -284,7 +284,10 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   }
 
   private isInSession(instant: number, session: CrrtSession): boolean {
-    return instant >= session.startInstant && instant <= session.endInstant;
+    if (instant < session.startInstant) return false;
+    // ongoing session（只有上机没有下机）：上机之后的所有数据都展示
+    if (session.status === 'ongoing') return true;
+    return instant <= session.endInstant;
   }
 
   private assignSessionTimeInstants(sessions: CrrtSession[], allSortedInstants: number[]): void {
