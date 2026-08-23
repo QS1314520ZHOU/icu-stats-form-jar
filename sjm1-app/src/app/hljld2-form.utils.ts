@@ -1417,6 +1417,21 @@ export function buildRows(
     .filter(item => isRenderableBedsideRecord(item) && inPeriod(item.time));
   const drugsInPeriod = source.drugExecutions
     .filter(item => isRenderableDrugExecution(item) && inPeriod(item.startTime));
+  // 肠内营养跨护理日补充：startTime 不在当前护理日但 quickAdd 在当前护理日的药物
+  const enteralCrossDayDrugs = source.drugExecutions
+    .filter(item => {
+      if (!isRenderableDrugExecution(item)) { return false; }
+      if (inPeriod(item.startTime)) { return false; }
+      const method = findDrugMethod(item.methodCode, source.drugMethods);
+      if (!method || String(method.group ?? '').trim() !== '胃肠') { return false; }
+      const drugName = drugDisplayName(item);
+      const isTarget = drugName.includes('SP') || drugName.includes('TP')
+        || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能');
+      if (!isTarget) { return false; }
+      return (item.drugActionList ?? []).some(a =>
+        String(a.action ?? '').trim().toLowerCase() === 'quickadd' && inPeriod(a.time)
+      );
+    });
   const nurseInPeriod = source.nurseRecords
     .filter(item => isValidBusinessRecord(item) && hasText(item.desc) && inPeriod(item.time));
 
@@ -1540,7 +1555,7 @@ export function buildRows(
     const enteral: NameAmountRoute[] = [];
 
     // 肠内营养 quickAdd：遍历所有区间内药物，不按 startTime 过滤
-    for (const execution of drugsInPeriod) {
+    for (const execution of [...drugsInPeriod, ...enteralCrossDayDrugs]) {
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
       if (!method) { continue; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
