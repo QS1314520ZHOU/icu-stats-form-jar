@@ -157,7 +157,7 @@
 
 /* 表格区域 — 固定高度，刚好放22行 */
 .page-table-wrap {
-  height: calc(var(--row-height) * 22 + 1px);
+  height: calc(var(--row-height) * 22 + 2px);
   overflow: hidden;
   padding: 0 16px;
 }
@@ -197,10 +197,15 @@
 .col-nursing       { width: 18%; }  /* 护理记录 */
 .col-sign          { width: 5.5%; } /* 签名 */
 
+.record-table tr {
+  height: var(--row-height);
+}
+
 .record-table th, .record-table td {
   border: 1px solid #2b2b2b; padding: 0 3px; vertical-align: middle;
   text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  height: var(--row-height); line-height: var(--row-height);
+  height: var(--row-height); max-height: var(--row-height);
+  line-height: var(--row-height); font-size: var(--hljld-table-font-size);
 }
 
 .record-table thead th {
@@ -224,11 +229,10 @@
 
 .time-cell, .number, .nursing-cell, .sign-cell {
   font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 18px;
+  white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis;
 }
 .number, .time-cell { font-variant-numeric: tabular-nums; }
-.time-cell { white-space: nowrap !important; }
-.number { white-space: pre-line !important; }
-.nursing-cell { text-align: left !important; vertical-align: middle; color: #000; white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
+.nursing-cell { text-align: left !important; vertical-align: middle; color: #000; }
 
 /* =========================================================
    Summary rows
