@@ -79,6 +79,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   readonly defaultRemarkLines = DEFAULT_REMARK_LINES;
   printing = false;
   printingAll = false;
+  refreshingPage = false;
   private source: HljldSourceData = { bedside: [], drugExecutions: [], drugMethods: [], nurseRecords: [], tubeExecutions: [], tubeViews: [], signatures: [] };
   private accountMap = new Map<string, string>();
   private readonly clockRefresh$ = interval(60_000);
@@ -431,6 +432,45 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     }
   }
+  /**
+   * 刷新页码索引（重新计算当前患者的页码）
+   */
+  async refreshPageIndex(): Promise<void> {
+    if (!this.patient.pid || this.refreshingPage) { return; }
+    this.refreshingPage = true;
+    this.cdr.markForCheck();
+    try {
+      await firstValueFrom(this.service.recalculatePageIndexes(this.patient.pid));
+      // 轮询状态，等待计算完成
+      let attempts = 0;
+      const maxAttempts = 60;
+      while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 1000));
+        const status = await firstValueFrom(this.service.getRecalculateStatus(this.patient.pid));
+        if (status.status === 'completed') {
+          alert('页码刷新完成');
+          this.refreshingPage = false;
+          this.cdr.markForCheck();
+          return;
+        }
+        if (status.status === 'failed') {
+          alert('页码计算失败，请重试');
+          this.refreshingPage = false;
+          this.cdr.markForCheck();
+          return;
+        }
+        attempts++;
+      }
+      alert('页码计算超时，请稍后重试');
+    } catch (error) {
+      console.error('[HLJLD][refresh-page-index-error]', error);
+      alert('刷新页码失败: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      this.refreshingPage = false;
+      this.cdr.markForCheck();
+    }
+  }
+
   trackFlatRow(_: number, row: FlatRow): string {
     if (row.kind === 'data') { return row.groupKey + '_' + row.timeText + '_' + row.nursingRecord; }
     return row.printGroupKey || '';

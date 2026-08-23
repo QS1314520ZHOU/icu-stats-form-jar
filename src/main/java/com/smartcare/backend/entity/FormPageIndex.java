@@ -9,20 +9,25 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * ICU 护理记录单页码索引
- * 存储每个患者每天的起始页码，避免每次重新计算
+ * 通用页码索引
+ * 一个表服务所有表单，通过 pid + formType 唯一标识
  */
 @Data
-@Document(collection = "hljld_page_index")
-public class HljldPageIndex {
+@Document(collection = "form_page_index")
+public class FormPageIndex {
 
     @Id
     private String id;
 
     /**
-     * 患者 ID
+     * 患者ID
      */
     private String pid;
+
+    /**
+     * 表单类型标识（如 hljld、hljld2、braden、ecmo 等）
+     */
+    private String formType;
 
     /**
      * 入科时间
@@ -30,7 +35,7 @@ public class HljldPageIndex {
     private Date admissionTime;
 
     /**
-     * 出科时间（可能为 null，表示患者仍在科）
+     * 出院时间（可能为 null，表示患者仍在科）
      */
     private Date dischargeTime;
 
@@ -67,35 +72,17 @@ public class HljldPageIndex {
      */
     private int progress;
 
-    /**
-     * 每天的页码信息
-     */
     @Data
     public static class DailyPageInfo {
-
-        /**
-         * 护理日日期（格式：yyyy-MM-dd）
-         */
+        /** 护理日日期（格式：yyyy-MM-dd） */
         private String date;
-
-        /**
-         * 该天起始页码
-         */
+        /** 该天起始页码 */
         private int startPageNo;
-
-        /**
-         * 该天总页数
-         */
+        /** 该天总页数 */
         private int pageCount;
-
-        /**
-         * 该天结束页码 = startPageNo + pageCount - 1
-         */
+        /** 该天结束页码 = startPageNo + pageCount - 1 */
         private int endPageNo;
-
-        /**
-         * 数据内容哈希，用于判断是否需要重新生成
-         */
+        /** 数据内容哈希，用于判断是否需要重新生成 */
         private String contentHash;
     }
 }

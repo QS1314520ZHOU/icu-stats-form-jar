@@ -214,10 +214,10 @@ export class Hljld2FormService {
   /**
    * 获取指定日期的页码信息（startPageNo, pageCount）
    */
-  getPageIndex(pid: string, date: string): Observable<{ startPageNo: number; pageCount: number; status: string }> {
+  getPageIndex(pid: string, date: string, formType: string = 'hljld2'): Observable<{ startPageNo: number; pageCount: number; status: string }> {
     return this.http.get<{ startPageNo: number; pageCount: number; status: string }>(
       this.hljldBase + '/page-index/' + pid,
-      { params: new HttpParams().set('date', date) },
+      { params: new HttpParams().set('date', date).set('formType', formType) },
     ).pipe(
       catchError(() => of({ startPageNo: 1, pageCount: 1, status: 'failed' })),
     );
@@ -226,16 +226,16 @@ export class Hljld2FormService {
   /**
    * 触发页码重新计算（异步）
    */
-  recalculatePageIndexes(pid: string): Observable<any> {
-    return this.http.post(this.hljldBase + '/recalculate/' + pid, {});
+  recalculatePageIndexes(pid: string, formType: string = 'hljld2'): Observable<any> {
+    return this.http.post(this.hljldBase + '/recalculate/' + pid + '?formType=' + formType, {});
   }
 
   /**
    * 查询页码计算状态
    */
-  getRecalculateStatus(pid: string): Observable<{ status: string; progress: number; totalPages: number }> {
+  getRecalculateStatus(pid: string, formType: string = 'hljld2'): Observable<{ status: string; progress: number; totalPages: number }> {
     return this.http.get<{ status: string; progress: number; totalPages: number }>(
-      this.hljldBase + '/recalculate-status/' + pid,
+      this.hljldBase + '/recalculate-status/' + pid + '?formType=' + formType,
     ).pipe(
       catchError(() => of({ status: 'failed', progress: 0, totalPages: 0 })),
     );

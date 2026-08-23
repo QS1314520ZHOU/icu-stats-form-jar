@@ -61,6 +61,13 @@
       [disabled]="!patient.pid || printingAll"
       (click)="printAll()"
     >{{ printingAll ? '打印中…' : '一键打印全部' }}</button>
+    <button
+      type="button"
+      class="print-button"
+      style="margin-left: 8px;"
+      [disabled]="!patient.pid || refreshingPage"
+      (click)="refreshPageIndex()"
+    >{{ refreshingPage ? '刷新中…' : '刷新页码' }}</button>
   </header>
 
   <ng-container *ngIf="vm as form; else statePanel">

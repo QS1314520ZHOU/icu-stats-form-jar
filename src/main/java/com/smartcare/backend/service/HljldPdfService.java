@@ -7,8 +7,8 @@ import com.itextpdf.text.PageSize;
 import com.itextpdf.awt.DefaultFontMapper;
 import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PdfWriter;
-import com.smartcare.backend.entity.HljldPageIndex;
-import com.smartcare.backend.repository.HljldPageIndexRepository;
+import com.smartcare.backend.entity.FormPageIndex;
+import com.smartcare.backend.repository.FormPageIndexRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +40,7 @@ public class HljldPdfService {
     private static final Logger log = LoggerFactory.getLogger(HljldPdfService.class);
 
     private final MongoTemplate mongoTemplate;
-    private final HljldPageIndexRepository pageIndexRepository;
+    private final FormPageIndexRepository pageIndexRepository;
 
     // A4 横向尺寸（点，72 DPI）
     private static final float PAGE_WIDTH = 842f;   // 297mm
@@ -69,7 +69,7 @@ public class HljldPdfService {
     private DefaultFontMapper fontMapper;
 
     @Autowired
-    public HljldPdfService(MongoTemplate mongoTemplate, HljldPageIndexRepository pageIndexRepository) {
+    public HljldPdfService(MongoTemplate mongoTemplate, FormPageIndexRepository pageIndexRepository) {
         this.mongoTemplate = mongoTemplate;
         this.pageIndexRepository = pageIndexRepository;
     }
@@ -212,12 +212,12 @@ public class HljldPdfService {
         log.info("生成全部PDF: pid={}", pid);
         initFont(); // 确保 fontMapper 已初始化
 
-        Optional<HljldPageIndex> indexOpt = pageIndexRepository.findByPid(pid);
+        Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, "hljld2");
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
             return generateEmptyPagePdf(pid, "全部");
         }
 
-        HljldPageIndex index = indexOpt.get();
+        FormPageIndex index = indexOpt.get();
         org.bson.Document patient = getPatientInfo(pid);
 
         try {
@@ -230,7 +230,7 @@ public class HljldPdfService {
             float h = pdfDoc.getPageSize().getHeight();
             boolean firstPage = true;
 
-            for (HljldPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
+            for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
                 NursingDayData dayData = loadNursingDayData(pid, dailyPage.getDate());
 
                 if (dayData.isEmpty()) {
@@ -578,10 +578,10 @@ public class HljldPdfService {
     }
 
     private int getStartPageNo(String pid, String date) {
-        return pageIndexRepository.findByPid(pid)
+        return pageIndexRepository.findByPidAndFormType(pid, "hljld2")
             .flatMap(idx -> idx.getDailyPages().stream()
                 .filter(d -> d.getDate().equals(date))
-                .map(HljldPageIndex.DailyPageInfo::getStartPageNo)
+                .map(FormPageIndex.DailyPageInfo::getStartPageNo)
                 .findFirst())
             .orElse(1);
     }
