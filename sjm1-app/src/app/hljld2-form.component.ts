@@ -8,8 +8,42 @@ import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrai
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
 
-/** 每页最大数据行数（不含表头和备注；换行模式下行高不固定，取保守值） */
-const MAX_ROWS_PER_PAGE = 15;
+/** 每页最大数据行数（不含表头和备注） */
+const MAX_ROWS_PER_PAGE = 22;
+
+/** 扁平行：长文本拆分后的一行，固定18px行高 */
+interface FlatRow {
+  kind: 'data' | 'day-summary' | 'shift-summary' | 'full-day-summary' | 'discharge-summary';
+  /** 数据行 */
+  timeText?: string;
+  medication?: { name: string; amount: string; route: string };
+  enteral?: { name: string; amount: string; route: string };
+  urine?: string;
+  ultrafiltration?: string;
+  output?: { name: string; amount: string };
+  drain?: { name: string; amount: string };
+  examination?: string;
+  treatment?: string;
+  basicCare?: string;
+  healthEducation?: string;
+  nursingRecord?: string;
+  signature?: string;
+  groupKey?: string;
+  continuation?: boolean;
+  /** 小结/总结行 */
+  summary?: HljldSummary;
+  printGroupKey?: string;
+}
+
+/** 拆分文本为固定长度的行 */
+function splitText(text: string, maxLen: number): string[] {
+  if (!text || text.length <= maxLen) { return [text || '']; }
+  const lines: string[] = [];
+  for (let i = 0; i < text.length; i += maxLen) {
+    lines.push(text.substring(i, i + maxLen));
+  }
+  return lines;
+}
 
 @Component({
   standalone: false,
@@ -43,7 +77,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   // 卡片式分页
   currentPage = 1;
   totalPages = 1;
-  pages: HljldTimelineItem[][] = [];
+  pages: FlatRow[][] = [];
 
   constructor(
     private service: Hljld2FormService,
@@ -109,7 +143,8 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
 
         // 初始化页码和分页
         this.currentPage = 1;
-        this.pages = this.splitIntoPages(this.vm.timeline);
+        const rawPages = this.splitIntoPages(this.vm.timeline);
+        this.pages = rawPages.map(items => this.flattenPageItems(items));
         this.totalPages = this.pages.length;
 
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
@@ -358,8 +393,10 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     }
   }
-  trackRow(_: number, row: HljldDisplayRow): string { return row.key; }
-  trackTimelineItem(_: number, item: HljldTimelineItem): string { return item.key; }
+  trackFlatRow(_: number, row: FlatRow): string {
+    if (row.kind === 'data') { return row.groupKey + '_' + row.timeText + '_' + row.nursingRecord; }
+    return row.printGroupKey || '';
+  }
   trackText(index: number): number { return index; }
 
   goToPage(page: number): void {
@@ -380,16 +417,12 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     let rowCount = 0;
 
     for (const item of items) {
-      // 计算该 item 占用的行数
       const itemRows = this.getRowCount(item);
-
-      // 如果加入当前 item 会超过限制，且当前页不为空，则换页
       if (rowCount > 0 && rowCount + itemRows > MAX_ROWS_PER_PAGE) {
         pages.push(current);
         current = [];
         rowCount = 0;
       }
-
       current.push(item);
       rowCount += itemRows;
     }
@@ -401,16 +434,94 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     return pages.length ? pages : [[]];
   }
 
-  /** 计算 timeline item 占用的行数 */
+  /** 计算 timeline item 拆分后的实际行数 */
   private getRowCount(item: HljldTimelineItem): number {
     switch (item.kind) {
-      case 'time-group': return item.group.rows.length;
+      case 'time-group': return this.countSplitRows(item.group.rows);
       case 'day-summary': return 4;
       case 'shift-summary': return 4;
       case 'full-day-summary': return 8;
       case 'discharge-summary': return 8;
       default: return 1;
     }
+  }
+
+  /** 计算一组 DisplayRow 拆分后的总行数 */
+  private countSplitRows(rows: HljldDisplayRow[]): number {
+    let count = 0;
+    for (const row of rows) {
+      count += this.calcRowSplitCount(row);
+    }
+    return count;
+  }
+
+  /** 计算单个 DisplayRow 拆分后的行数 */
+  private calcRowSplitCount(row: HljldDisplayRow): number {
+    const medName = row.medication?.name || '';
+    const entName = row.enteral?.name || '';
+    const outName = row.output?.name || '';
+    const drainName = row.drain?.name || '';
+    const nursing = row.nursingRecord || '';
+    return Math.max(
+      splitText(medName, 14).length,
+      splitText(entName, 14).length,
+      splitText(outName, 10).length,
+      splitText(drainName, 10).length,
+      splitText(nursing, 28).length,
+      1,
+    );
+  }
+
+  /** 将 timeline items 扁平化为 FixedRow 数组（长文本拆行） */
+  private flattenPageItems(items: HljldTimelineItem[]): FlatRow[] {
+    const result: FlatRow[] = [];
+    for (const item of items) {
+      if (item.kind === 'time-group') {
+        for (const row of item.group.rows) {
+          const medName = row.medication?.name || '';
+          const entName = row.enteral?.name || '';
+          const outName = row.output?.name || '';
+          const drainName = row.drain?.name || '';
+          const nursing = row.nursingRecord || '';
+
+          const medLines = splitText(medName, 14);
+          const entLines = splitText(entName, 14);
+          const outLines = splitText(outName, 10);
+          const drainLines = splitText(drainName, 10);
+          const nursLines = splitText(nursing, 28);
+          const maxLines = Math.max(medLines.length, entLines.length, outLines.length, drainLines.length, nursLines.length, 1);
+
+          for (let i = 0; i < maxLines; i++) {
+            result.push({
+              kind: 'data',
+              timeText: i === 0 ? row.timeText : '',
+              medication: { name: medLines[i] || '', amount: i === 0 ? (row.medication?.amount || '') : '', route: i === 0 ? (row.medication?.route || '') : '' },
+              enteral: { name: entLines[i] || '', amount: i === 0 ? (row.enteral?.amount || '') : '', route: i === 0 ? (row.enteral?.route || '') : '' },
+              urine: i === 0 ? row.urine : '',
+              ultrafiltration: i === 0 ? row.ultrafiltration : '',
+              output: { name: outLines[i] || '', amount: i === 0 ? (row.output?.amount || '') : '' },
+              drain: { name: drainLines[i] || '', amount: i === 0 ? (row.drain?.amount || '') : '' },
+              examination: i === 0 ? row.examination : '',
+              treatment: i === 0 ? row.treatment : '',
+              basicCare: i === 0 ? row.basicCare : '',
+              healthEducation: i === 0 ? row.healthEducation : '',
+              nursingRecord: nursLines[i] || '',
+              signature: (i === maxLines - 1) ? row.signature : '',
+              groupKey: row.groupKey,
+              continuation: i > 0,
+            });
+          }
+        }
+      } else {
+        // 小结/总结行，保持原样
+        result.push({
+          kind: item.kind as FlatRow['kind'],
+          summary: item.summary,
+          printGroupKey: item.key,
+        });
+      }
+    }
+    return result;
   }
 
   /** 获取小结/总结的详情行，固定 maxRows 行，不足补 null */
