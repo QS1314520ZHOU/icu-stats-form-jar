@@ -1,4 +1,4 @@
-import {
+﻿import {
   HljldDisplayRow,
   HljldSummary,
   HljldTimelineItem,
@@ -10,6 +10,7 @@ import { HLJLD_SHEET_CSS } from './hljld2-sheet.styles';
 type PrintInput = {
   vm: HljldViewModel;
   remarkLines: string[];
+  pageOffset?: number;
 };
 
 /**
@@ -20,6 +21,7 @@ type PrintInput = {
 export async function printHljld2Record({
   vm,
   remarkLines,
+  pageOffset = 0,
 }: PrintInput): Promise<number> {
   // 创建隐藏 iframe
   const ifr = document.createElement('iframe');
@@ -69,7 +71,7 @@ export async function printHljld2Record({
     }
 
     // 使用分页内核获取页模型
-    const pageModels = paginateHljld2(ifrDoc, root, vm, remarkLines);
+    const pageModels = paginateHljld2(ifrDoc, root, vm, remarkLines, pageOffset);
 
     // 渲染每一页
     for (const pageModel of pageModels) {
@@ -197,9 +199,11 @@ export async function printAllHljld2Records({
 export async function printAllViaIframe2({
   vms,
   remarkLines,
+  pageOffset = 0,
 }: {
   vms: HljldViewModel[];
   remarkLines: string[];
+  pageOffset?: number;
 }): Promise<{ totalPages: number; pageCounts: number[] }> {
   if (vms.length === 0) {
     return { totalPages: 0, pageCounts: [] };
@@ -258,7 +262,7 @@ export async function printAllViaIframe2({
     }
 
     // 5. 使用分页内核获取页模型
-    let totalPages = 0;
+    let totalPages = pageOffset;
     const pageCounts: number[] = [];
     for (const vm of vms) {
       const pageModels = paginateHljld2(ifrDoc, root, vm, remarkLines, totalPages);

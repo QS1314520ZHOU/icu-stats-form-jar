@@ -310,9 +310,20 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
+      // 获取起始页码
+      let pageOffset = 0;
+      try {
+        const dateStr = this.toDateString(this.vm.selectedDate);
+        const pageIndex = await firstValueFrom(this.service.getPageIndex(this.patient.pid, dateStr));
+        if (pageIndex.status === 'completed' && pageIndex.startPageNo > 1) {
+          pageOffset = pageIndex.startPageNo - 1;
+        }
+      } catch { /* 后端无索引时从1开始 */ }
+
       await printHljld2Record({
         vm: this.vm,
         remarkLines: this.defaultRemarkLines,
+        pageOffset,
       });
     } catch (error) {
       console.error('[HLJLD][print-error]', error);
@@ -387,9 +398,22 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         });
       }
 
+      // 从后端获取起始页码，实现跨次打印连续编号
+      let pageOffset = 0;
+      try {
+        const firstDate = this.toDateString(minDate);
+        const pageIndex = await firstValueFrom(this.service.getPageIndex(this.patient.pid, firstDate));
+        if (pageIndex.status === 'completed' && pageIndex.startPageNo > 1) {
+          pageOffset = pageIndex.startPageNo - 1;
+        }
+      } catch {
+        // 后端无索引时从1开始
+      }
+
       const printResult = await printAllViaIframe2({
         vms,
         remarkLines: this.defaultRemarkLines,
+        pageOffset,
       });
 
       if (isDev) {

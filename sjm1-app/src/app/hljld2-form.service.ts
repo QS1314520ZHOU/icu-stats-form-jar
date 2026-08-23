@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+﻿import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, forkJoin, of } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
@@ -207,6 +207,37 @@ export class Hljld2FormService {
         return map;
       }),
       catchError(() => of(new Map())),
+    );
+  }
+
+
+  /**
+   * 获取指定日期的页码信息（startPageNo, pageCount）
+   */
+  getPageIndex(pid: string, date: string): Observable<{ startPageNo: number; pageCount: number; status: string }> {
+    return this.http.get<{ startPageNo: number; pageCount: number; status: string }>(
+      this.hljldBase + '/page-index/' + pid,
+      { params: new HttpParams().set('date', date) },
+    ).pipe(
+      catchError(() => of({ startPageNo: 1, pageCount: 1, status: 'failed' })),
+    );
+  }
+
+  /**
+   * 触发页码重新计算（异步）
+   */
+  recalculatePageIndexes(pid: string): Observable<any> {
+    return this.http.post(this.hljldBase + '/recalculate/' + pid, {});
+  }
+
+  /**
+   * 查询页码计算状态
+   */
+  getRecalculateStatus(pid: string): Observable<{ status: string; progress: number; totalPages: number }> {
+    return this.http.get<{ status: string; progress: number; totalPages: number }>(
+      this.hljldBase + '/recalculate-status/' + pid,
+    ).pipe(
+      catchError(() => of({ status: 'failed', progress: 0, totalPages: 0 })),
     );
   }
 }
