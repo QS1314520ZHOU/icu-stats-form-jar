@@ -44,7 +44,6 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   currentPage = 1;
   totalPages = 1;
   pages: HljldTimelineItem[][] = [];
-  readonly remarkColSpans = Array.from({ length: 18 }, () => '');
 
   constructor(
     private service: Hljld2FormService,

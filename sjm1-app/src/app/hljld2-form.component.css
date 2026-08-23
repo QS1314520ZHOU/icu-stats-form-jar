@@ -4,6 +4,8 @@
   --hljld-print-font: SimSun, "宋体", "Noto Serif CJK SC", serif;
   --hljld-table-font-size: 11px;
   --hljld-table-line-height: 16px;
+  /* A4 landscape body height on screen */
+  --a4-body-height: 520px;
 
   display: block;
   width: 100%;
@@ -26,20 +28,16 @@
 .nav-arrow-left { border-radius: 6px 0 0 6px; }
 .nav-arrow-right { border-radius: 0 6px 6px 0; }
 .nav-arrow:hover { background: #f6f8fa; }
-.nav-arrow:focus-visible { position: relative; z-index: 2; outline: 2px solid #3478f6; outline-offset: -2px; }
 .nav-arrow:disabled { opacity: 0.4; cursor: not-allowed; background: #f5f5f5; }
-.nav-arrow:disabled:hover { background: #f5f5f5; }
 
 .date-picker { position: relative; display: block; flex: 0 0 142px; width: 142px; height: 36px; min-width: 0; cursor: pointer; }
 .date-picker input { display: block; width: 100%; height: 36px; box-sizing: border-box; margin: 0; padding: 0 8px; border-top: 1px solid #ccd3da; border-bottom: 1px solid #ccd3da; border-left: 0; border-right: 0; border-radius: 0; outline: 0; background: #fff; color: #222; font: inherit; font-variant-numeric: tabular-nums; text-align: center; cursor: pointer; }
 .date-picker input:hover { background: #f9fbfd; }
-.date-picker input:focus-visible { position: relative; z-index: 2; outline: 2px solid #3478f6; outline-offset: -2px; }
 .date-picker input::-webkit-calendar-picker-indicator { cursor: pointer; }
 
 .today-button { flex: 0 0 auto; height: 36px; box-sizing: border-box; margin-left: 8px; padding: 0 18px; border: 1px solid #ccd3da; border-radius: 6px; background: #fff; color: #222; font: inherit; white-space: nowrap; cursor: pointer; transition: all 0.15s ease; }
 .today-button:hover { background: #f6f8fa; border-color: #8aa9c8; }
 .today-button:disabled { opacity: 0.4; cursor: not-allowed; background: #f5f5f5; }
-.today-button:disabled:hover { background: #f5f5f5; border-color: #ccd3da; }
 .today-button-active { border-color: #3478f6; background: #3478f6; color: #fff; font-weight: 600; }
 .today-button-active:hover { border-color: #2868db; background: #2868db; }
 
@@ -50,7 +48,6 @@
 .print-button { flex: 0 0 auto; height: 36px; box-sizing: border-box; padding: 0 18px; border: 1px solid #1677c8; border-radius: 6px; background: #1677c8; color: #fff; font-weight: 600; cursor: pointer; }
 .print-button:hover { background: #1266a8; }
 .print-button:disabled { opacity: 0.4; cursor: not-allowed; background: #93c5fd; border-color: #93c5fd; }
-.print-button:disabled:hover { background: #93c5fd; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
@@ -86,7 +83,6 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  user-select: none;
 }
 
 .page-nav-btn:hover:not(:disabled) {
@@ -107,29 +103,24 @@
   white-space: nowrap;
 }
 
-.page-info b {
-  color: #1677c8;
-  font-weight: 700;
-}
-
 /* =========================================================
-   页面容器：纵向排列的卡片
+   页面容器
    ========================================================= */
 
 .pages-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 24px;
   padding: 16px 12px 40px;
 }
 
 /* =========================================================
-   单页卡片
+   单页卡片 — A4 横向比例
    ========================================================= */
 
 .page-card {
-  width: calc(100% - 24px);
+  width: 100%;
   max-width: 1480px;
   background: #fff;
   border: 1px solid #d0d5dd;
@@ -137,49 +128,44 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
   overflow: hidden;
   box-sizing: border-box;
-  container-type: inline-size;
-  container-name: hljld-page;
+  display: flex;
+  flex-direction: column;
   font-family: var(--hljld-ui-font);
 }
 
-.page-header {
-  padding: 14px 16px 0;
+/* 页面标题 */
+.page-title {
+  text-align: center;
+  font-family: SimSun, "Noto Serif CJK SC", serif;
+  font-size: 22px;
+  letter-spacing: 2px;
+  padding: 12px 16px 6px;
+  line-height: 1.3;
 }
 
-.page-body {
+/* 患者信息 */
+.patient-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 22px;
+  padding: 4px 16px 8px;
+  font-family: var(--hljld-ui-font);
+  font-size: 12px;
+}
+.patient-strip b { font-weight: 500; }
+.patient-strip .diagnosis { flex: 1 1 300px; }
+
+/* 表格区域 — 固定高度，超出隐藏 */
+.page-table-wrap {
+  flex: 1 1 auto;
+  height: var(--a4-body-height);
+  overflow: hidden;
   padding: 0 16px;
 }
 
-.page-remark {
-  padding: 0 16px 8px;
-  border-top: 2px solid #2b2b2b;
-}
-
-.page-footer {
-  display: flex;
-  justify-content: center;
-  padding: 8px 16px 10px;
-  border-top: 1px solid #e5e7eb;
-  background: #fafbfc;
-}
-
-.page-number {
-  font-size: 12px;
-  font-weight: 500;
-  color: #666;
-}
-
 /* =========================================================
-   表格样式
+   表格
    ========================================================= */
-
-h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK SC", serif; font-size: 22px; letter-spacing: 2px; }
-
-.patient-strip { display: flex; flex-wrap: wrap; gap: 7px 22px; padding: 7px 4px; font-family: var(--hljld-ui-font); font-size: 12px; }
-.patient-strip b, .patient-strip strong { font-family: var(--hljld-ui-font); font-weight: 500; }
-.patient-strip .diagnosis { flex: 1 1 300px; }
-
-.table-wrap { width: 100%; max-width: 100%; overflow-x: auto; overflow-y: visible; box-sizing: border-box; scrollbar-gutter: stable; }
 
 .record-table {
   width: 100%; min-width: 1320px;
@@ -188,12 +174,9 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   font-size: var(--hljld-table-font-size);
   font-style: normal; font-weight: 500;
   line-height: var(--hljld-table-line-height);
-  font-synthesis: none; text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
-  color: #000; text-shadow: none; -webkit-text-stroke: 0;
+  color: #000;
 }
 
-/* Column widths (19 columns, total = 100%) */
 .col-time { width: 7%; }
 .col-med-name, .col-enteral-name { width: 5.5%; }
 .col-med-amount, .col-enteral-amount { width: 3.5%; }
@@ -206,15 +189,9 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 .col-nursing { width: 18%; }
 .col-sign { width: 6%; }
 
-.record-table th, .record-table td,
-.record-table div, .record-table span,
-.record-table b, .record-table strong {
-  font-family: inherit !important; font-style: normal; font-synthesis: none;
-  text-shadow: none !important; -webkit-text-stroke: 0 !important; filter: none !important;
-}
-
 .record-table th, .record-table td {
-  border: 1px solid #2b2b2b; padding: 3px 4px; vertical-align: middle; text-align: center; overflow-wrap: anywhere; word-break: break-word;
+  border: 1px solid #2b2b2b; padding: 3px 4px; vertical-align: middle;
+  text-align: center; overflow-wrap: anywhere; word-break: break-word;
 }
 
 .record-table thead th {
@@ -223,9 +200,8 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 }
 
 .record-table tbody td {
-  min-height: 26px; white-space: normal;
+  white-space: normal;
   font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; color: #000;
-  text-shadow: none; -webkit-text-stroke: 0;
 }
 
 .record-table tbody td b, .record-table tbody td strong { font-weight: 600; }
@@ -233,40 +209,28 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 .record-table tbody tr.continuation-row td { border-top-style: dashed; border-top-color: #b8bec4; }
 .record-table tbody tr.continuation-row .time-cell { color: transparent; }
 
-/* =========================================================
-   Column widths & cell styles
-   ========================================================= */
-
 .time-col { width: 8%; }
 .record-col { width: 18%; }
 .sign-col { width: 6%; }
 
-.time-cell, .number, .nursing-cell, .sign-cell,
-.remark-row th, .remark-row td, .remark-line {
+.time-cell, .number, .nursing-cell, .sign-cell {
   font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 16px;
-  text-shadow: none !important; -webkit-text-stroke: 0 !important;
 }
-
-.number, .time-cell { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
-
+.number, .time-cell { font-variant-numeric: tabular-nums; }
 .time-cell { white-space: nowrap !important; }
 .number { white-space: pre-line !important; }
-
-.nursing-cell { text-align: left !important; vertical-align: middle; color: #000; white-space: normal; word-break: break-word; overflow-wrap: anywhere; hyphens: none; }
-.sign-cell { color: #000; white-space: normal; word-break: keep-all; overflow-wrap: normal; }
+.nursing-cell { text-align: left !important; vertical-align: middle; color: #000; white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
 
 /* =========================================================
    Summary rows
    ========================================================= */
 
-.summary-row { break-inside: avoid; page-break-inside: avoid; }
+.summary-row { break-inside: avoid; }
 .summary-row-cell { padding: 0 !important; text-align: left !important; }
 
 .summary-panel {
   width: 100%; box-sizing: border-box; padding: 7px 10px;
-  font-family: var(--hljld-table-font); font-synthesis: none;
-  text-shadow: none; -webkit-text-stroke: 0;
-  text-align: left !important;
+  font-family: var(--hljld-table-font); text-align: left !important;
 }
 
 .day-summary-row .summary-panel { background: #f7f3df; }
@@ -275,45 +239,55 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 .discharge-summary-row .summary-panel { background: #e8f0fe; }
 
 .summary-heading { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 5px; text-align: center !important; }
-
 .summary-title { font-family: var(--hljld-table-font); font-size: 12px; font-weight: 600; line-height: 15px; }
 .summary-period { font-family: var(--hljld-table-font); font-size: 10px; font-weight: 500; line-height: 13px; color: #444; }
 
-.summary-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 18px; min-height: 20px; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; color: #000; width: 100%; justify-content: flex-start !important; text-align: left !important; }
-
-.summary-total, .summary-group-label { flex: 0 0 auto; white-space: nowrap; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; }
-.summary-stat { flex: 0 0 auto; white-space: nowrap; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 14px; }
-.summary-stat strong, .summary-total strong { font-family: inherit; font-size: inherit; font-weight: 600; }
-
-.summary-output-line { width: 100%; align-items: baseline; }
-.summary-output-line .summary-group-label { margin-left: 2px; }
-
 .summary-detail-line {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  font-family: var(--hljld-table-font);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 18px;
-  color: #000;
-  text-align: left !important;
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  display: block; width: 100%; box-sizing: border-box;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 18px;
+  color: #000; text-align: left !important; white-space: normal; word-break: break-word; overflow-wrap: anywhere;
 }
 .summary-detail-line strong { font-weight: 600; margin: 0 3px; }
 .summary-detail-line + .summary-detail-line { margin-top: 6px; }
 .summary-detail-line .summary-sep { margin-right: 12px; }
 
 /* =========================================================
-   Remark
+   备注（每页都有）
    ========================================================= */
 
-.remark-row th { vertical-align: top; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; }
-.remark-row td { text-align: left; padding: 6px 8px; white-space: normal; word-break: break-word; line-height: 1.6; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; color: #000; }
+.page-remark {
+  border-top: 2px solid #2b2b2b;
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+
+.remark-table { min-width: 0; width: 100%; }
+.remark-table th {
+  width: 5%;
+  vertical-align: top;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px;
+}
+.remark-table td {
+  text-align: left; padding: 6px 8px; white-space: normal; word-break: break-word;
+  line-height: 1.6; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; color: #000;
+}
 .remark-line { font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; color: #000; }
 .remark-line + .remark-line { margin-top: 2px; }
+
+/* =========================================================
+   页码
+   ========================================================= */
+
+.page-footer {
+  text-align: center;
+  padding: 6px 16px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  border-top: 1px solid #e5e7eb;
+  background: #fafbfc;
+  flex-shrink: 0;
+}
 
 /* =========================================================
    Empty / State
@@ -335,100 +309,42 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
   .today-button, .print-button { padding: 0 12px; }
   .source-warning { display: none; }
   .pages-container { padding: 12px 8px 32px; gap: 16px; }
-  .page-card { width: calc(100% - 8px); }
+  .page-card { max-width: none; }
 }
 
 /* =========================================================
-   Container query: compact layout at ~110% zoom
+   强制纯黑文字
    ========================================================= */
 
-@container hljld-page (max-width: 1380px) {
-  .record-table th, .record-table td { padding: 2px 3px; }
-  .patient-strip { gap: 5px 14px; padding: 5px 3px; font-size: 11px; }
-  h1 { margin-bottom: 7px; font-size: 20px; }
-  .summary-panel { padding: 5px 8px; }
-  .summary-line { gap: 3px 12px; min-height: 18px; }
+.record-table, .record-table th, .record-table td,
+.record-table b, .record-table strong {
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
 }
 
-@container hljld-page (max-width: 1220px) {
-  .record-table th, .record-table td { padding: 2px; }
-  .record-table, .record-table thead th, .record-table tbody td,
-  .nursing-cell, .sign-cell { font-size: 11px; line-height: 16px; }
-  .patient-strip { gap: 4px 10px; font-size: 10px; }
-  h1 { font-size: 18px; }
-}
-
-/* =========================================================
-   Record table — force pure black text
-   ========================================================= */
-
-.record-table,
-.record-table th,
-.record-table td,
-.record-table div,
-.record-table span,
-.record-table b,
-.record-table strong {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  opacity: 1;
-  text-shadow: none !important;
-  -webkit-text-stroke: 0 !important;
-}
-
-.record-table thead th {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-}
-
-.record-table tbody td {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-}
-
-.time-cell,
-.number,
-.nursing-cell,
-.sign-cell,
-.remark-row th,
-.remark-row td,
-.remark-line {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  opacity: 1;
-}
-
-.summary-panel,
-.summary-title,
-.summary-period,
-.summary-line,
-.summary-total,
-.summary-group-label,
-.summary-stat,
-.summary-stat strong,
-.summary-total strong {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  opacity: 1;
-}
-
-/* 延续行的时间原本需要隐藏，纯黑规则优先级较高，必须重新设置透明 */
 .record-table tbody tr.continuation-row .time-cell {
   color: transparent !important;
   -webkit-text-fill-color: transparent !important;
 }
 
-.patient-strip,
-.patient-strip span,
-.patient-strip b,
-.patient-strip strong {
-  color: #000000 !important;
-  -webkit-text-fill-color: #000000 !important;
-  opacity: 1;
+.patient-strip, .patient-strip span, .patient-strip b {
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
+}
+
+.summary-panel, .summary-title, .summary-period,
+.summary-detail-line, .summary-detail-line strong {
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
+}
+
+.remark-line, .remark-table th, .remark-table td {
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
 }
 
 /* =========================================================
-   Print — SimSun (宋体)
+   Print
    ========================================================= */
 
 @media print {
@@ -441,76 +357,39 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimSun, "Noto Serif CJK 
 
   .page-card {
     width: 100%; max-width: none;
-    border: none; border-radius: 0;
-    box-shadow: none;
+    border: none; border-radius: 0; box-shadow: none;
     page-break-after: always;
     break-after: page;
-    container-type: normal;
   }
 
-  .page-header { padding: 0; }
-  .page-body { padding: 0; }
-  .page-remark { padding: 0; border-top: none; }
-  .page-footer { display: none; }
-
-  h1 { font-size: 15pt; margin-bottom: 2mm; }
+  .page-title { font-size: 15pt; padding: 0 0 2mm; }
   .patient-strip { font-family: var(--hljld-print-font); font-size: 7.5pt; padding: 1.5mm 0; gap: 1mm 5mm; }
-  .table-wrap { overflow: visible; }
+  .page-table-wrap { height: auto; overflow: visible; padding: 0; }
 
-  .record-table,
-  .record-table th, .record-table td,
-  .record-table div, .record-table span,
+  .record-table, .record-table th, .record-table td,
   .record-table b, .record-table strong,
   .summary-panel, .summary-panel * {
     font-family: var(--hljld-print-font) !important;
-    font-synthesis: none; text-shadow: none !important; -webkit-text-stroke: 0 !important;
   }
 
   .record-table { width: 100%; min-width: 0; font-size: 7.5pt; line-height: 9pt; }
   .record-table th, .record-table td { padding: 0.6mm; }
-  .record-table thead { display: table-header-group; }
   .record-table thead th { font-size: 7.5pt; font-weight: 600; line-height: 9pt; }
   .record-table tbody td, .record-table tbody td b, .record-table tbody td strong { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
   .record-table tr { break-inside: avoid; page-break-inside: avoid; }
   .record-table tbody tr.continuation-row td { border-top: 0.3mm dashed #888; }
 
+  .summary-panel { padding: 1mm 2mm; }
+  .summary-title { font-size: 8pt; font-weight: 600; line-height: 9pt; }
+  .summary-period { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+  .summary-detail-line { font-size: 7.5pt; font-weight: 500; line-height: 10pt; }
+
+  .page-remark { border-top: 0.5mm solid #2b2b2b; padding: 0; }
+  .remark-table th, .remark-table td, .remark-line { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
+
+  .page-footer { font-size: 8pt; padding: 1mm 0; border-top: 0.3pt solid #ccc; }
+
   .time-col { width: 20mm; }
   .record-col { width: 29mm; }
   .sign-col { width: 12mm; }
-
-  .summary-panel { width: 100%; padding: 1mm 2mm; text-align: left !important; }
-  .summary-title { font-size: 8pt; font-weight: 600; line-height: 9pt; }
-  .summary-period { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
-  .summary-line, .summary-total, .summary-group-label, .summary-stat { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
-  .summary-detail-line { font-size: 7.5pt; font-weight: 500; line-height: 10pt; text-align: left !important; }
-  .remark-row th, .remark-row td, .remark-line { font-size: 7.5pt; font-weight: 500; line-height: 9pt; }
-
-  .record-table,
-  .record-table th, .record-table td,
-  .record-table div, .record-table span,
-  .record-table b, .record-table strong,
-  .patient-strip, .patient-strip span, .patient-strip b,
-  .summary-panel, .summary-panel *,
-  .remark-row th, .remark-row td, .remark-line {
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    opacity: 1 !important;
-    text-shadow: none !important;
-    -webkit-text-stroke: 0 !important;
-  }
-
-  .record-table tbody tr.continuation-row .time-cell {
-    color: transparent !important;
-    -webkit-text-fill-color: transparent !important;
-  }
-}
-
-/* =========================================================
-   Print pagination (for new print window)
-   ========================================================= */
-
-/* 打印按钮禁用状态 */
-.print-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
