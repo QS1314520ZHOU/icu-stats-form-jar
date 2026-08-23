@@ -1,4 +1,4 @@
-:host {
+﻿:host {
   --hljld-ui-font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   --hljld-table-font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   --hljld-print-font: SimSun, "宋体", "Noto Serif CJK SC", serif;
@@ -157,7 +157,7 @@
 
 /* 表格区域 — 固定高度，刚好放22行 */
 .page-table-wrap {
-  height: calc(var(--row-height) * 33 + 2px);
+  height: calc(var(--row-height) * 34 + 2px);
   overflow: hidden;
   padding: 0 16px;
 }

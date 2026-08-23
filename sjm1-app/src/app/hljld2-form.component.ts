@@ -9,7 +9,7 @@ import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
 
 /** 每页最大数据行数（不含表头和备注） */
-const MAX_ROWS_PER_PAGE = 33;
+const MAX_ROWS_PER_PAGE = 34;
 
 /** 扁平行：长文本拆分后的一行，固定18px行高 */
 interface FlatRow {
