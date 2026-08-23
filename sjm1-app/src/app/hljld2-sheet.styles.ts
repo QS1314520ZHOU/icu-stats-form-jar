@@ -124,19 +124,19 @@ body {
   line-height: 1.25;
 }
 
-.print-record-table col.col-time { width: 5%; }
-.print-record-table col.col-med-name,
+.print-record-table col.col-time { width: 7%; }
+.print-record-table col.col-med-name { width: 7.5%; }
 .print-record-table col.col-enteral-name { width: 6.5%; }
 .print-record-table col.col-med-amount,
-.print-record-table col.col-enteral-amount { width: 4.5%; }
+.print-record-table col.col-enteral-amount { width: 4%; }
 .print-record-table col.col-med-route,
-.print-record-table col.col-enteral-route { width: 4%; }
-.print-record-table col.col-urine { width: 4%; }
-.print-record-table col.col-ultrafiltration { width: 4%; }
+.print-record-table col.col-enteral-route { width: 3.5%; }
+.print-record-table col.col-urine { width: 3.5%; }
+.print-record-table col.col-ultrafiltration { width: 3.5%; }
 .print-record-table col.col-output-name,
-.print-record-table col.col-drain-name { width: 5.5%; }
+.print-record-table col.col-drain-name { width: 5%; }
 .print-record-table col.col-output-amount,
-.print-record-table col.col-drain-amount { width: 4%; }
+.print-record-table col.col-drain-amount { width: 3.5%; }
 .print-record-table col.col-check,
 .print-record-table col.col-treatment,
 .print-record-table col.col-basic-care,
