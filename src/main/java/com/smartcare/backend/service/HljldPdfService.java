@@ -510,7 +510,7 @@ public class HljldPdfService {
     }
 
     /**
-     * 计算某天的页数（供 HljldPageIndexService 调用）
+     * 计算某天的页数（供 FormPageIndexService 调用）
      */
     public int calculatePageCount(String pid, String date) {
         NursingDayData dayData = loadNursingDayData(pid, date);
