@@ -4,8 +4,8 @@
   --hljld-print-font: SimSun, "宋体", "Noto Serif CJK SC", serif;
   --hljld-table-font-size: 11px;
   --hljld-table-line-height: 16px;
-  /* A4 landscape body height on screen */
-  --a4-body-height: 520px;
+  /* 每行固定高度（刚好放下11px字体+上下padding） */
+  --row-height: 24px;
 
   display: block;
   width: 100%;
@@ -155,11 +155,9 @@
 .patient-strip b { font-weight: 500; }
 .patient-strip .diagnosis { flex: 1 1 300px; }
 
-/* 表格区域 — 固定高度，超出隐藏 */
+/* 表格区域 */
 .page-table-wrap {
   flex: 1 1 auto;
-  height: var(--a4-body-height);
-  overflow: hidden;
   padding: 0 16px;
 }
 
@@ -168,7 +166,7 @@
    ========================================================= */
 
 .record-table {
-  width: 100%; min-width: 1320px;
+  width: 100%; min-width: 1100px;
   border-collapse: collapse; border-spacing: 0; table-layout: fixed;
   font-family: var(--hljld-table-font);
   font-size: var(--hljld-table-font-size);
@@ -177,21 +175,31 @@
   color: #000;
 }
 
-.col-time { width: 7%; }
-.col-med-name, .col-enteral-name { width: 5.5%; }
-.col-med-amount, .col-enteral-amount { width: 3.5%; }
-.col-med-route, .col-enteral-route { width: 4%; }
-.col-urine { width: 4%; }
-.col-ultrafiltration { width: 4%; }
-.col-output-name, .col-drain-name { width: 5.5%; }
-.col-output-amount, .col-drain-amount { width: 3.5%; }
-.col-check, .col-treatment, .col-basic-care, .col-health { width: 5%; }
-.col-nursing { width: 18%; }
-.col-sign { width: 6%; }
+/* 19列，总计100%：名称列宽，其他窄 */
+.col-time          { width: 6%; }   /* 日期时间 */
+.col-med-name      { width: 8%; }   /* 药物名称 */
+.col-med-amount    { width: 3%; }   /* 药物量 */
+.col-med-route     { width: 3.5%; } /* 药物途径 */
+.col-enteral-name  { width: 8%; }   /* 胃肠名称 */
+.col-enteral-amount{ width: 3%; }   /* 胃肠量 */
+.col-enteral-route { width: 3.5%; } /* 胃肠途径 */
+.col-urine         { width: 3.5%; } /* 尿量 */
+.col-ultrafiltration{ width: 3.5%; }/* 净超滤量 */
+.col-output-name   { width: 3.5%; } /* 排出物名称 */
+.col-output-amount { width: 2.5%; } /* 排出物量 */
+.col-drain-name    { width: 3.5%; } /* 引流液名称 */
+.col-drain-amount  { width: 2.5%; } /* 引流液量 */
+.col-check         { width: 3.5%; } /* 检查 */
+.col-treatment     { width: 3.5%; } /* 治疗 */
+.col-basic-care    { width: 3.5%; } /* 基础护理 */
+.col-health        { width: 3.5%; } /* 健康教育 */
+.col-nursing       { width: 18%; }  /* 护理记录 */
+.col-sign          { width: 5.5%; } /* 签名 */
 
 .record-table th, .record-table td {
-  border: 1px solid #2b2b2b; padding: 3px 4px; vertical-align: middle;
+  border: 1px solid #2b2b2b; padding: 2px 3px; vertical-align: middle;
   text-align: center; overflow-wrap: anywhere; word-break: break-word;
+  height: var(--row-height); max-height: var(--row-height);
 }
 
 .record-table thead th {
@@ -389,7 +397,7 @@
 
   .page-footer { font-size: 8pt; padding: 1mm 0; border-top: 0.3pt solid #ccc; }
 
-  .time-col { width: 20mm; }
-  .record-col { width: 29mm; }
-  .sign-col { width: 12mm; }
+  .time-col { width: 18mm; }
+  .record-col { width: 28mm; }
+  .sign-col { width: 10mm; }
 }
