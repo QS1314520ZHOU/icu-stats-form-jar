@@ -3,9 +3,9 @@
   --hljld-table-font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
   --hljld-print-font: SimSun, "宋体", "Noto Serif CJK SC", serif;
   --hljld-table-font-size: 11px;
-  --hljld-table-line-height: 16px;
-  /* 每行固定高度（刚好放下11px字体+上下padding） */
-  --row-height: 24px;
+  --hljld-table-line-height: 18px;
+  /* 每行固定高度（刚好放下11px字体） */
+  --row-height: 18px;
 
   display: block;
   width: 100%;
@@ -155,9 +155,10 @@
 .patient-strip b { font-weight: 500; }
 .patient-strip .diagnosis { flex: 1 1 300px; }
 
-/* 表格区域 */
+/* 表格区域 — 固定高度，刚好放22行 */
 .page-table-wrap {
-  flex: 1 1 auto;
+  height: calc(var(--row-height) * 22 + 1px);
+  overflow: hidden;
   padding: 0 16px;
 }
 
@@ -197,19 +198,19 @@
 .col-sign          { width: 5.5%; } /* 签名 */
 
 .record-table th, .record-table td {
-  border: 1px solid #2b2b2b; padding: 2px 3px; vertical-align: middle;
-  text-align: center; overflow-wrap: anywhere; word-break: break-word;
-  height: var(--row-height); max-height: var(--row-height);
+  border: 1px solid #2b2b2b; padding: 0 3px; vertical-align: middle;
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  height: var(--row-height); line-height: var(--row-height);
 }
 
 .record-table thead th {
   background: #e5edf2; color: #181818;
-  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 600; line-height: 16px;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 600; line-height: 18px;
 }
 
 .record-table tbody td {
   white-space: normal;
-  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; color: #000;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 18px; color: #000;
 }
 
 .record-table tbody td b, .record-table tbody td strong { font-weight: 600; }
@@ -222,7 +223,7 @@
 .sign-col { width: 6%; }
 
 .time-cell, .number, .nursing-cell, .sign-cell {
-  font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 16px;
+  font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 18px;
 }
 .number, .time-cell { font-variant-numeric: tabular-nums; }
 .time-cell { white-space: nowrap !important; }
@@ -273,13 +274,13 @@
 .remark-table th {
   width: 5%;
   vertical-align: top;
-  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px;
+  font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 18px;
 }
 .remark-table td {
   text-align: left; padding: 6px 8px; white-space: normal; word-break: break-word;
   line-height: 1.6; font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; color: #000;
 }
-.remark-line { font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 16px; color: #000; }
+.remark-line { font-family: var(--hljld-table-font); font-size: 11px; font-weight: 500; line-height: 18px; color: #000; }
 .remark-line + .remark-line { margin-top: 2px; }
 
 /* =========================================================
