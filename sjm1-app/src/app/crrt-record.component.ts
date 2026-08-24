@@ -27,7 +27,7 @@ const CRRT_GROUPS: CrrtGroup[] = [
     { label: '抗凝剂2速度', code: 'param_抗凝剂2速度' },
   ]},
   { name: '治疗处方', metrics: [
-    { label: '血流速度', code: 'param_血流速度' },
+    { label: '血流速度', code: 'param_CBP_set_Blood_Flow' },
     { label: '前置换速度', code: 'param_CBP_set_PRE_REPL_Flow' },
     { label: '后置换速度', code: 'param_CBP_set_POST_REPL_Flow' },
     { label: '置换液更换', code: 'param_置换液更换' },

@@ -177,6 +177,14 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         this.pageRowCounts = rawPages.map(items => items.reduce((sum, it) => sum + this.getRowCount(it), 0));
         this.totalPages = this.pages.length;
 
+        // 诊断日志：分页行数
+        console.info('[HLJLD][DEBUG] MAX_ROWS_PER_PAGE=', 23, 'timelineItems=', this.vm.timeline.length);
+        console.info('[HLJLD][DEBUG] rawPages=', rawPages.length, 'pageRowCounts=', this.pageRowCounts);
+        rawPages.forEach((items, i) => {
+          const kinds = items.map(it => it.kind + '(' + this.getRowCount(it) + ')');
+          console.info(`[HLJLD][DEBUG] page ${i + 1}: ${kinds.join(', ')}`);
+        });
+
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
         if (isDev) {
           console.info('[HLJLD][source-counts]', {
@@ -529,6 +537,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
       } else {
         dataRowCount += itemRows;
       }
+      console.log(`[HLJLD][split] item=${item.kind} rows=${itemRows} dataRows=${dataRowCount} summary占用=${summaryRow占用} available=${MAX_ROWS_PER_PAGE - summaryRow占用}`);
     }
 
     if (current.length) {
