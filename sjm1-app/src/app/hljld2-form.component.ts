@@ -107,6 +107,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   totalPages = 1;
   pages: FlatRow[][] = [];
   pageRowCounts: number[] = [];
+  pageHeights: number[] = [];
 
   constructor(
     private service: Hljld2FormService,
@@ -175,6 +176,8 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         const rawPages = this.splitIntoPages(this.vm.timeline);
         this.pages = rawPages.map(items => this.flattenPageItems(items));
         this.pageRowCounts = rawPages.map(items => items.reduce((sum, it) => sum + this.getRowCount(it), 0));
+        // 页面高度：固定最大23行，超出部分被 overflow:hidden 截断
+        this.pageHeights = this.pageRowCounts.map(count => Math.min(count, MAX_ROWS_PER_PAGE) * 18 + 2);
         this.totalPages = this.pages.length;
 
         // 诊断日志：分页行数
