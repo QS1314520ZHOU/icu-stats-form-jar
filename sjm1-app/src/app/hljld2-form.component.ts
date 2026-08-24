@@ -647,8 +647,18 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
             1,
           );
 
-          // 生成每行数据
+          // 生成每行数据，跳过所有列都为空的行
           for (let i = 0; i < maxLines; i++) {
+            // 检查该行是否有内容（至少一列有非空值）
+            const hasContent = timeLines[i] || medNameLines[i] || medAmtLines[i] || medRouteLines[i]
+              || entNameLines[i] || entAmtLines[i] || entRouteLines[i]
+              || urineLines[i] || ultraLines[i]
+              || outNameLines[i] || outAmtLines[i]
+              || drainNameLines[i] || drainAmtLines[i]
+              || checkLines[i] || treatLines[i] || basicLines[i] || healthLines[i]
+              || nursLines[i] || signLines[i];
+            if (!hasContent) { continue; }
+
             result.push({
               kind: 'data',
               timeText: timeLines[i] || '',
