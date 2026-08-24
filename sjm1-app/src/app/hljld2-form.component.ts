@@ -173,6 +173,19 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
 
         // 初始化页码和分页
         this.currentPage = 1;
+
+        // 诊断日志：timeline 详情
+        console.info('[HLJLD][DEBUG] timeline items:', this.vm.timeline.length);
+        this.vm.timeline.forEach((item, i) => {
+          const rows = this.getRowCount(item);
+          if (item.kind === 'time-group') {
+            const dataRows = item.group.rows;
+            console.info(`[HLJLD][item ${i}] time-group rows=${rows} displayRows=${dataRows.length} time=${dataRows[0]?.timeText || ''}`);
+          } else {
+            console.info(`[HLJLD][item ${i}] ${item.kind} rows=${rows}`);
+          }
+        });
+
         const rawPages = this.splitIntoPages(this.vm.timeline);
         this.pages = rawPages.map(items => this.flattenPageItems(items));
         // 页面高度：基于实际扁平行数，固定最大23行，超出截断
@@ -180,12 +193,13 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         this.pageRowCounts = this.pages.map(rows => rows.length);
         this.totalPages = this.pages.length;
 
-        // 诊断日志：分页行数
-        console.info('[HLJLD][DEBUG] MAX_ROWS_PER_PAGE=', 23, 'timelineItems=', this.vm.timeline.length);
-        console.info('[HLJLD][DEBUG] rawPages=', rawPages.length, 'pageRowCounts=', this.pageRowCounts);
+        // 诊断日志：分页详情
+        console.info('[HLJLD][DEBUG] MAX_ROWS_PER_PAGE=', MAX_ROWS_PER_PAGE, 'pages=', rawPages.length);
         rawPages.forEach((items, i) => {
           const kinds = items.map(it => it.kind + '(' + this.getRowCount(it) + ')');
-          console.info(`[HLJLD][DEBUG] page ${i + 1}: ${kinds.join(', ')}`);
+          const flatCount = this.pages[i].length;
+          const height = this.pageHeights[i];
+          console.info(`[HLJLD][page ${i + 1}] items=[${kinds.join(', ')}] flatRows=${flatCount} height=${height}px`);
         });
 
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
@@ -521,6 +535,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     let current: HljldTimelineItem[] = [];
     let dataRowCount = 0;
     let summaryRows = 0;
+    let pageNum = 1;
 
     for (const item of items) {
       const itemRows = this.getRowCount(item);
@@ -538,6 +553,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         current = [];
         dataRowCount = 0;
         summaryRows = 0;
+        pageNum++;
       }
 
       current.push(item);
@@ -546,7 +562,8 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
       } else {
         dataRowCount += itemRows;
       }
-      console.log(`[HLJLD][split] item=${item.kind} rows=${itemRows} dataRows=${dataRowCount} summaryRows=${summaryRows} available=${MAX_ROWS_PER_PAGE - summaryRows}`);
+      const label = item.kind === 'time-group' ? `rows=${itemRows} displayRows=${item.group.rows.length}` : `rows=${itemRows}`;
+      console.log(`[HLJLD][split p${pageNum}] +${item.kind} ${label} → dataRows=${dataRowCount} summaryRows=${summaryRows} total=${dataRowCount + summaryRows}/${MAX_ROWS_PER_PAGE}`);
     }
 
     if (current.length) {
