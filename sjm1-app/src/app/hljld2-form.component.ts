@@ -48,7 +48,14 @@ function splitText(text: string, maxLen: number): string[] {
     let breakAt = -1;
     for (const delim of ['、', '，', '；', '：', ';', ',']) {
       const pos = remaining.lastIndexOf(delim, maxLen);
-      if (pos > 0) { breakAt = pos + 1; break; }
+      if (pos > 0) {
+        // 检查标点后是否有足够内容，避免产生过短的行
+        const afterDelim = remaining.substring(pos + 1).trimStart();
+        if (afterDelim.length > 3) {
+          breakAt = pos + 1;
+          break;
+        }
+      }
     }
     if (breakAt <= 0) { breakAt = maxLen; }
     lines.push(remaining.substring(0, breakAt));

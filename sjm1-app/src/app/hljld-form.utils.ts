@@ -877,7 +877,7 @@ export function buildSegmentSettlements(
 export function formatSegmentAmountText(s: SegmentSettlement): string {
   const used = `实用${s.segmentUsed.toFixed(1)}`;
   if (!s.consistent) { return used; }
-  return `剩余${s.remainder.toFixed(1)}|${used}`;
+  return `剩余${s.remainder.toFixed(1)} ${used}`;
 }
 
 
@@ -1502,7 +1502,7 @@ export function buildRows(
       const currentUsage = round1(Math.max(0, usedNow - usedAt0700));
       carryMeds.push({
         name,
-        amount: `续用|剩余${remaining.toFixed(1)}|实用${currentUsage.toFixed(1)}`,
+        amount: `续用${remaining.toFixed(1)}|实用${currentUsage.toFixed(1)}`,
         numericAmount: 0, // 不参与小结累加
         route: routeLabel(method.name),
       });
