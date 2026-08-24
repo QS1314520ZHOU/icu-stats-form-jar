@@ -6,8 +6,12 @@ const CST_OFFSET_MS = 8 * 3600 * 1000;
  * 无时区字符串按UTC解释（数据库存UTC）。
  * 失败返回 null（绝不返回 0）。
  */
-export function parseDatabaseUtcTime(value?: string | number | null): Date | null {
+export function parseDatabaseUtcTime(value?: string | number | Date | null): Date | null {
   if (value === null || value === undefined) return null;
+  // 处理 Date 类型（MongoDB ISODate 通过API返回时可能已是 Date 对象）
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
   if (typeof value === 'number') {
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
