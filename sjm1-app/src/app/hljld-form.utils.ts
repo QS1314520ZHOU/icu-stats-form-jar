@@ -1502,7 +1502,7 @@ export function buildRows(
       const currentUsage = round1(Math.max(0, usedNow - usedAt0700));
       carryMeds.push({
         name,
-        amount: `续用${remaining.toFixed(1)}|实用${currentUsage.toFixed(1)}`,
+        amount: `剩余${remaining.toFixed(1)}|实用${currentUsage.toFixed(1)}`,
         numericAmount: 0, // 不参与小结累加
         route: routeLabel(method.name),
       });
