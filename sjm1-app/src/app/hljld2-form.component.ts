@@ -520,12 +520,12 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     const pages: HljldTimelineItem[][] = [];
     let current: HljldTimelineItem[] = [];
     let dataRowCount = 0;
-    let summaryRow占用 = 0;
+    let summaryRows = 0;
 
     for (const item of items) {
       const itemRows = this.getRowCount(item);
       const isSummary = item.kind !== 'time-group';
-      const availableRows = MAX_ROWS_PER_PAGE - summaryRow占用;
+      const availableRows = MAX_ROWS_PER_PAGE - summaryRows;
 
       // 需要换页的情况：
       // 1. 当前页有数据且放不下新 item
@@ -537,16 +537,16 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         pages.push(current);
         current = [];
         dataRowCount = 0;
-        summaryRow占用 = 0;
+        summaryRows = 0;
       }
 
       current.push(item);
       if (isSummary) {
-        summaryRow占用 += itemRows;
+        summaryRows += itemRows;
       } else {
         dataRowCount += itemRows;
       }
-      console.log(`[HLJLD][split] item=${item.kind} rows=${itemRows} dataRows=${dataRowCount} summary占用=${summaryRow占用} available=${MAX_ROWS_PER_PAGE - summaryRow占用}`);
+      console.log(`[HLJLD][split] item=${item.kind} rows=${itemRows} dataRows=${dataRowCount} summaryRows=${summaryRows} available=${MAX_ROWS_PER_PAGE - summaryRows}`);
     }
 
     if (current.length) {
