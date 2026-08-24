@@ -175,9 +175,9 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         this.currentPage = 1;
         const rawPages = this.splitIntoPages(this.vm.timeline);
         this.pages = rawPages.map(items => this.flattenPageItems(items));
-        this.pageRowCounts = rawPages.map(items => items.reduce((sum, it) => sum + this.getRowCount(it), 0));
-        // 页面高度：固定最大23行，超出部分被 overflow:hidden 截断
-        this.pageHeights = this.pageRowCounts.map(count => Math.min(count, MAX_ROWS_PER_PAGE) * 18 + 2);
+        // 页面高度：基于实际扁平行数，固定最大23行，超出截断
+        this.pageHeights = this.pages.map(rows => Math.min(rows.length, MAX_ROWS_PER_PAGE) * 18 + 2);
+        this.pageRowCounts = this.pages.map(rows => rows.length);
         this.totalPages = this.pages.length;
 
         // 诊断日志：分页行数
