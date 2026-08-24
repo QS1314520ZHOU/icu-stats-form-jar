@@ -524,7 +524,13 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
       const isSummary = item.kind !== 'time-group';
       const availableRows = MAX_ROWS_PER_PAGE - summaryRow占用;
 
-      if (dataRowCount > 0 && dataRowCount + itemRows > availableRows) {
+      // 需要换页的情况：
+      // 1. 当前页有数据且放不下新 item
+      // 2. 当前页为空但单个 item 超过页面容量（超长行独立占一页）
+      const needNewPage = (dataRowCount > 0 && dataRowCount + itemRows > availableRows)
+        || (dataRowCount === 0 && itemRows > MAX_ROWS_PER_PAGE);
+
+      if (needNewPage) {
         pages.push(current);
         current = [];
         dataRowCount = 0;
