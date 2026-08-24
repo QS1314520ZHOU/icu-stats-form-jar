@@ -213,10 +213,10 @@ body {
 .print-summary-title-row {
   display: flex;
   align-items: baseline;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 2mm;
   margin-bottom: 0.6mm;
-  text-align: center !important;
+  text-align: left !important;
 }
 
 .print-summary-title {

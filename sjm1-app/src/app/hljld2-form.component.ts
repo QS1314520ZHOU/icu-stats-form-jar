@@ -9,12 +9,12 @@ import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
 
 /** 每页最大数据行数（不含表头和备注） */
-const MAX_ROWS_PER_PAGE = 29;
+const MAX_ROWS_PER_PAGE = 23;
 
 /** 各列最大字符数（基于1480px表格宽度、11px字体估算） */
 const COL_MAX_CHARS = {
   time: 14,        // 7%
-  medName: 23,     // 11% - 药物名称（增加空间）
+  medName: 22,     // 11% - 药物名称（减1字符防截断）
   medAmount: 9,    // 4.5%
   medRoute: 7,     // 3.5%
   enteralName: 20, // 10% - 胃肠名称（增加空间）
@@ -30,7 +30,7 @@ const COL_MAX_CHARS = {
   treatment: 6,    // 3%
   basicCare: 6,    // 3%
   health: 6,       // 3%
-  nursing: 34,     // 16%
+  nursing: 33,     // 16% - 护理记录（减1字符防截断）
   sign: 5,         // 2.5% - 签名（减少到5字符）
 };
 
@@ -499,7 +499,8 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 将 timeline 项拆分为多页，每页最多 MAX_ROWS_PER_PAGE 行数据。
+   * 将 timeline 项拆分为多页，每页最多 MAX_ROWS_PER_PAGE 行。
+   * 小结/总结行占用页面行数空间：日间小结/交接班小结减4行，全日总结/出科总结减8行。
    * 同一个时间组及其紧跟的摘要会尽量放在同一页。
    */
   private splitIntoPages(items: HljldTimelineItem[]): HljldTimelineItem[][] {
@@ -507,17 +508,27 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
 
     const pages: HljldTimelineItem[][] = [];
     let current: HljldTimelineItem[] = [];
-    let rowCount = 0;
+    let dataRowCount = 0;
+    let summaryRow占用 = 0;
 
     for (const item of items) {
       const itemRows = this.getRowCount(item);
-      if (rowCount > 0 && rowCount + itemRows > MAX_ROWS_PER_PAGE) {
+      const isSummary = item.kind !== 'time-group';
+      const availableRows = MAX_ROWS_PER_PAGE - summaryRow占用;
+
+      if (dataRowCount > 0 && dataRowCount + itemRows > availableRows) {
         pages.push(current);
         current = [];
-        rowCount = 0;
+        dataRowCount = 0;
+        summaryRow占用 = 0;
       }
+
       current.push(item);
-      rowCount += itemRows;
+      if (isSummary) {
+        summaryRow占用 += itemRows;
+      } else {
+        dataRowCount += itemRows;
+      }
     }
 
     if (current.length) {

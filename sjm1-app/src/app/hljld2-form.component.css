@@ -259,9 +259,9 @@
 .summary-row { break-inside: avoid; }
 .summary-row-cell { padding: 0 !important; text-align: left !important; }
 
-/* 小结/总结 — 标题行居中 */
+/* 小结/总结 — 标题行左对齐 */
 .summary-cell-center {
-  text-align: center !important; vertical-align: middle;
+  text-align: left !important; vertical-align: middle;
   padding: 4px 8px !important;
 }
 /* 小结/总结 — 详情行左对齐 */
