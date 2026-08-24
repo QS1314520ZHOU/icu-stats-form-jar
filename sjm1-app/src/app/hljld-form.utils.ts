@@ -299,10 +299,10 @@ export function routeLabel(name: string | undefined): string {
 
 export function enteralDisplayName(rawName: string): string {
   const name = rawName || '';
-  if (name.includes('SP')) { return '短肽'; }
-  if (name.includes('TP')) { return '瑞素'; }
-  if (name.includes('瑞高')) { return '瑞高'; }
-  if (name.includes('瑞能')) { return '瑞能'; }
+  if (name.includes('SP短肽')) { return '短肽'; }
+  if (name.includes('SP瑞素')) { return '瑞素'; }
+  if (name.includes('TP-HE瑞高') || name.includes('瑞高')) { return '瑞高'; }
+  if (name.includes('TPF-F瑞能') || name.includes('瑞能')) { return '瑞能'; }
   return name;
 }
 
