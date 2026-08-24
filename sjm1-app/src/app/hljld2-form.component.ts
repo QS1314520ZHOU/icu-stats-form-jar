@@ -11,6 +11,29 @@ import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
 /** 每页最大数据行数（不含表头和备注） */
 const MAX_ROWS_PER_PAGE = 34;
 
+/** 各列最大字符数（基于1480px表格宽度、11px字体估算） */
+const COL_MAX_CHARS = {
+  time: 14,        // 7%
+  medName: 23,     // 11% - 药物名称（增加空间）
+  medAmount: 9,    // 4.5%
+  medRoute: 7,     // 3.5%
+  enteralName: 20, // 10% - 胃肠名称（增加空间）
+  enteralAmount: 8, // 4%
+  enteralRoute: 7, // 3.5%
+  urine: 7,        // 3.5%
+  ultrafiltration: 7, // 3.5%
+  outputName: 10,  // 3.5%
+  outputAmount: 6, // 3%
+  drainName: 10,   // 3.5%
+  drainAmount: 6,  // 3%
+  check: 6,        // 3%
+  treatment: 6,    // 3%
+  basicCare: 6,    // 3%
+  health: 6,       // 3%
+  nursing: 34,     // 16%
+  sign: 5,         // 2.5% - 签名（减少到5字符）
+};
+
 /** 扁平行：长文本拆分后的一行，固定18px行高 */
 interface FlatRow {
   kind: 'data' | 'day-summary' | 'shift-summary' | 'full-day-summary' | 'discharge-summary';
@@ -542,30 +565,38 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
 
   /** 计算单个 DisplayRow 拆分后的行数 */
   private calcRowSplitCount(row: HljldDisplayRow): number {
-    const medName = row.medication?.name || '';
-    const medAmount = row.medication?.amount || '';
-    const entName = row.enteral?.name || '';
-    const entAmount = row.enteral?.amount || '';
-    const outName = row.output?.name || '';
-    const outAmount = row.output?.amount || '';
-    const drainName = row.drain?.name || '';
-    const drainAmount = row.drain?.amount || '';
-    const nursing = row.nursingRecord || '';
     // amount 先按 | 拆分，再按列宽拆行
     const splitAmount = (text: string, maxLen: number) => {
       const parts = text.includes('|') ? text.split('|') : [text];
       return parts.flatMap(p => splitText(p, maxLen));
     };
     return Math.max(
-      splitText(medName, 14).length,
-      splitAmount(medAmount, 9).length,
-      splitText(entName, 14).length,
-      splitAmount(entAmount, 8).length,
-      splitText(outName, 10).length,
-      splitAmount(outAmount, 6).length,
-      splitText(drainName, 10).length,
-      splitAmount(drainAmount, 6).length,
-      splitText(nursing, 28).length,
+      // 药物治疗列
+      splitText(row.medication?.name || '', COL_MAX_CHARS.medName).length,
+      splitAmount(row.medication?.amount || '', COL_MAX_CHARS.medAmount).length,
+      splitText(row.medication?.route || '', COL_MAX_CHARS.medRoute).length,
+      // 胃肠摄入列
+      splitText(row.enteral?.name || '', COL_MAX_CHARS.enteralName).length,
+      splitAmount(row.enteral?.amount || '', COL_MAX_CHARS.enteralAmount).length,
+      splitText(row.enteral?.route || '', COL_MAX_CHARS.enteralRoute).length,
+      // 尿量、净超滤量
+      splitText(row.urine || '', COL_MAX_CHARS.urine).length,
+      splitText(row.ultrafiltration || '', COL_MAX_CHARS.ultrafiltration).length,
+      // 排出物
+      splitText(row.output?.name || '', COL_MAX_CHARS.outputName).length,
+      splitAmount(row.output?.amount || '', COL_MAX_CHARS.outputAmount).length,
+      // 引流液
+      splitText(row.drain?.name || '', COL_MAX_CHARS.drainName).length,
+      splitAmount(row.drain?.amount || '', COL_MAX_CHARS.drainAmount).length,
+      // 检查、治疗、基础护理、健康教育
+      splitText(row.examination || '', COL_MAX_CHARS.check).length,
+      splitText(row.treatment || '', COL_MAX_CHARS.treatment).length,
+      splitText(row.basicCare || '', COL_MAX_CHARS.basicCare).length,
+      splitText(row.healthEducation || '', COL_MAX_CHARS.health).length,
+      // 护理记录
+      splitText(row.nursingRecord || '', COL_MAX_CHARS.nursing).length,
+      // 签名
+      splitText(row.signature || '', COL_MAX_CHARS.sign).length,
       1,
     );
   }
@@ -576,55 +607,71 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     for (const item of items) {
       if (item.kind === 'time-group') {
         for (const row of item.group.rows) {
-          const medName = row.medication?.name || '';
-          const medAmount = row.medication?.amount || '';
-          const entName = row.enteral?.name || '';
-          const entAmount = row.enteral?.amount || '';
-          const outName = row.output?.name || '';
-          const outAmount = row.output?.amount || '';
-          const drainName = row.drain?.name || '';
-          const drainAmount = row.drain?.amount || '';
-          const nursing = row.nursingRecord || '';
-
           // amount 先按 | 拆分，再按列宽拆行
           const splitAmount = (text: string, maxLen: number) => {
             const parts = text.includes('|') ? text.split('|') : [text];
             return parts.flatMap(p => splitText(p, maxLen));
           };
 
-          const medLines = splitText(medName, 14);
-          const medAmtLines = splitAmount(medAmount, 9);
-          const entLines = splitText(entName, 14);
-          const entAmtLines = splitAmount(entAmount, 8);
-          const outLines = splitText(outName, 10);
-          const outAmtLines = splitAmount(outAmount, 6);
-          const drainLines = splitText(drainName, 10);
-          const drainAmtLines = splitAmount(drainAmount, 6);
-          const nursLines = splitText(nursing, 28);
+          // 对所有列进行拆行
+          const timeLines = splitText(row.timeText || '', COL_MAX_CHARS.time);
+          const medNameLines = splitText(row.medication?.name || '', COL_MAX_CHARS.medName);
+          const medAmtLines = splitAmount(row.medication?.amount || '', COL_MAX_CHARS.medAmount);
+          const medRouteLines = splitText(row.medication?.route || '', COL_MAX_CHARS.medRoute);
+          const entNameLines = splitText(row.enteral?.name || '', COL_MAX_CHARS.enteralName);
+          const entAmtLines = splitAmount(row.enteral?.amount || '', COL_MAX_CHARS.enteralAmount);
+          const entRouteLines = splitText(row.enteral?.route || '', COL_MAX_CHARS.enteralRoute);
+          const urineLines = splitText(row.urine || '', COL_MAX_CHARS.urine);
+          const ultraLines = splitText(row.ultrafiltration || '', COL_MAX_CHARS.ultrafiltration);
+          const outNameLines = splitText(row.output?.name || '', COL_MAX_CHARS.outputName);
+          const outAmtLines = splitAmount(row.output?.amount || '', COL_MAX_CHARS.outputAmount);
+          const drainNameLines = splitText(row.drain?.name || '', COL_MAX_CHARS.drainName);
+          const drainAmtLines = splitAmount(row.drain?.amount || '', COL_MAX_CHARS.drainAmount);
+          const checkLines = splitText(row.examination || '', COL_MAX_CHARS.check);
+          const treatLines = splitText(row.treatment || '', COL_MAX_CHARS.treatment);
+          const basicLines = splitText(row.basicCare || '', COL_MAX_CHARS.basicCare);
+          const healthLines = splitText(row.healthEducation || '', COL_MAX_CHARS.health);
+          const nursLines = splitText(row.nursingRecord || '', COL_MAX_CHARS.nursing);
+          const signLines = splitText(row.signature || '', COL_MAX_CHARS.sign);
+
+          // 取最大行数
           const maxLines = Math.max(
-            medLines.length, medAmtLines.length,
-            entLines.length, entAmtLines.length,
-            outLines.length, outAmtLines.length,
-            drainLines.length, drainAmtLines.length,
-            nursLines.length, 1,
+            timeLines.length,
+            medNameLines.length, medAmtLines.length, medRouteLines.length,
+            entNameLines.length, entAmtLines.length, entRouteLines.length,
+            urineLines.length, ultraLines.length,
+            outNameLines.length, outAmtLines.length,
+            drainNameLines.length, drainAmtLines.length,
+            checkLines.length, treatLines.length, basicLines.length, healthLines.length,
+            nursLines.length, signLines.length,
+            1,
           );
 
+          // 生成每行数据
           for (let i = 0; i < maxLines; i++) {
             result.push({
               kind: 'data',
-              timeText: i === 0 ? row.timeText : '',
-              medication: { name: medLines[i] || '', amount: medAmtLines[i] || '', route: i === 0 ? (row.medication?.route || '') : '' },
-              enteral: { name: entLines[i] || '', amount: entAmtLines[i] || '', route: i === 0 ? (row.enteral?.route || '') : '' },
-              urine: i === 0 ? row.urine : '',
-              ultrafiltration: i === 0 ? row.ultrafiltration : '',
-              output: { name: outLines[i] || '', amount: outAmtLines[i] || '' },
-              drain: { name: drainLines[i] || '', amount: drainAmtLines[i] || '' },
-              examination: i === 0 ? row.examination : '',
-              treatment: i === 0 ? row.treatment : '',
-              basicCare: i === 0 ? row.basicCare : '',
-              healthEducation: i === 0 ? row.healthEducation : '',
+              timeText: timeLines[i] || '',
+              medication: {
+                name: medNameLines[i] || '',
+                amount: medAmtLines[i] || '',
+                route: medRouteLines[i] || '',
+              },
+              enteral: {
+                name: entNameLines[i] || '',
+                amount: entAmtLines[i] || '',
+                route: entRouteLines[i] || '',
+              },
+              urine: urineLines[i] || '',
+              ultrafiltration: ultraLines[i] || '',
+              output: { name: outNameLines[i] || '', amount: outAmtLines[i] || '' },
+              drain: { name: drainNameLines[i] || '', amount: drainAmtLines[i] || '' },
+              examination: checkLines[i] || '',
+              treatment: treatLines[i] || '',
+              basicCare: basicLines[i] || '',
+              healthEducation: healthLines[i] || '',
               nursingRecord: nursLines[i] || '',
-              signature: (i === maxLines - 1) ? row.signature : '',
+              signature: signLines[i] || '',
               groupKey: row.groupKey,
               continuation: i > 0,
             });

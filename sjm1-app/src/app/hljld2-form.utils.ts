@@ -1819,24 +1819,24 @@ export function buildRows(
 /** 各列最大字符数（基于1480px表格宽度、11px字体估算） */
 const COL_MAX_CHARS: Record<string, number> = {
   time: 14,        // 7% = 104px
-  medName: 20,     // 9.5% = 141px
+  medName: 23,     // 11% = 163px - 药物名称（增加空间）
   medAmount: 9,    // 4.5% = 67px
   medRoute: 7,     // 3.5% = 52px
-  enteralName: 18, // 8.5% = 126px
+  enteralName: 20, // 10% = 148px - 胃肠名称（增加空间）
   enteralAmount: 8, // 4% = 59px
   enteralRoute: 7,  // 3.5% = 52px
   urine: 7,        // 3.5% = 52px
   ultrafiltration: 7, // 3.5% = 52px
-  outputName: 7,   // 3.5% = 52px
+  outputName: 10,  // 3.5% = 52px
   outputAmount: 6, // 3% = 44px
-  drainName: 7,    // 3.5% = 52px
+  drainName: 10,   // 3.5% = 52px
   drainAmount: 6,  // 3% = 44px
   check: 6,        // 3% = 44px
   treatment: 6,    // 3% = 44px
   basicCare: 6,    // 3% = 44px
   health: 6,       // 3% = 44px
   nursing: 34,     // 16% = 237px
-  sign: 10,        // 5% = 74px
+  sign: 5,         // 2.5% = 37px - 签名（减少到5字符）
 };
 
 /** 在标点/空格处自然断句拆分文本 */

@@ -178,10 +178,10 @@
 
 /* 19列，总计100%：名称列宽，其他窄 */
 .col-time          { width: 7%; }   /* 日期时间 — 展示完整yyyy-MM-dd HH:mm */
-.col-med-name      { width: 9.5%; } /* 药物名称 */
+.col-med-name      { width: 11%; }  /* 药物名称（增加空间） */
 .col-med-amount    { width: 4.5%; } /* 药物量 */
 .col-med-route     { width: 3.5%; } /* 药物途径 */
-.col-enteral-name  { width: 8.5%; } /* 胃肠名称 */
+.col-enteral-name  { width: 10%; }  /* 胃肠名称（增加空间） */
 .col-enteral-amount{ width: 4%; }   /* 胃肠量 */
 .col-enteral-route { width: 3.5%; } /* 胃肠途径 */
 .col-urine         { width: 3.5%; } /* 尿量 */
@@ -195,7 +195,7 @@
 .col-basic-care    { width: 3%; }   /* 基础护理 */
 .col-health        { width: 3%; }   /* 健康教育 */
 .col-nursing       { width: 16%; }  /* 护理记录 */
-.col-sign          { width: 5%; }   /* 签名 */
+.col-sign          { width: 2.5%; } /* 签名（减少到2.5%） */
 
 .record-table tr {
   height: var(--row-height);
@@ -225,7 +225,7 @@
 
 .time-col { width: 7%; }
 .record-col { width: 16%; }
-.sign-col { width: 5%; }
+.sign-col { width: 2.5%; }
 
 .time-cell, .number, .nursing-cell, .sign-cell {
   font-family: var(--hljld-table-font) !important; font-size: 11px; font-weight: 500; line-height: 18px;
@@ -404,5 +404,5 @@
 
   .time-col { width: 14mm; }
   .record-col { width: 26mm; }
-  .sign-col { width: 9mm; }
+  .sign-col { width: 5mm; }
 }
