@@ -875,9 +875,9 @@ export function buildSegmentSettlements(
 
 /** 量列文案：已停药只显示实用量；仍在进行显示剩余量+实用量；不自洽只显示实用量 */
 export function formatSegmentAmountText(s: SegmentSettlement): string {
-  const used = `实用量 ${s.segmentUsed.toFixed(1)}`;
+  const used = `实用${s.segmentUsed.toFixed(1)}`;
   if (!s.consistent) { return used; }
-  return `剩余量 ${s.remainder.toFixed(1)} ${used}`;
+  return `剩余${s.remainder.toFixed(1)}|${used}`;
 }
 
 
@@ -1517,7 +1517,7 @@ export function buildRows(
       const currentUsage = round1(Math.max(0, usedNow - usedAt0700));
       carryMeds.push({
         name,
-        amount: `续用 剩余量 ${remaining.toFixed(1)} 实用量 ${currentUsage.toFixed(1)}`,
+        amount: `续用|剩余${remaining.toFixed(1)}|实用${currentUsage.toFixed(1)}`,
         numericAmount: 0, // 不参与小结累加
         route: routeLabel(method.name),
       });
@@ -1878,7 +1878,9 @@ function splitNameAmountItems<T extends { name: string; amount: string; route?: 
 ): Array<NameAmountRoute> {
   return items.flatMap(item => {
     const nameLines = splitTextToLines(item.name, maxName);
-    const amountLines = splitTextToLines(item.amount, maxAmount, true);
+    // amount 先按 | 拆分（续用行格式），再按列宽拆行
+    const amountParts = item.amount.includes('|') ? item.amount.split('|') : [item.amount];
+    const amountLines = amountParts.flatMap(part => splitTextToLines(part, maxAmount, true));
     const count = Math.max(nameLines.length, amountLines.length, 1);
     return Array.from({ length: count }, (_, i) => ({
       name: nameLines[i] || '',
@@ -1895,7 +1897,9 @@ function splitNameAmountOnlyItems<T extends { name: string; amount: string; nume
 ): Array<NameAmount> {
   return items.flatMap(item => {
     const nameLines = splitTextToLines(item.name, maxName);
-    const amountLines = splitTextToLines(item.amount, maxAmount, true);
+    // amount 先按 | 拆分（续用行格式），再按列宽拆行
+    const amountParts = item.amount.includes('|') ? item.amount.split('|') : [item.amount];
+    const amountLines = amountParts.flatMap(part => splitTextToLines(part, maxAmount, true));
     const count = Math.max(nameLines.length, amountLines.length, 1);
     return Array.from({ length: count }, (_, i) => ({
       name: nameLines[i] || '',

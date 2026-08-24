@@ -536,15 +536,28 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   /** 计算单个 DisplayRow 拆分后的行数 */
   private calcRowSplitCount(row: HljldDisplayRow): number {
     const medName = row.medication?.name || '';
+    const medAmount = row.medication?.amount || '';
     const entName = row.enteral?.name || '';
+    const entAmount = row.enteral?.amount || '';
     const outName = row.output?.name || '';
+    const outAmount = row.output?.amount || '';
     const drainName = row.drain?.name || '';
+    const drainAmount = row.drain?.amount || '';
     const nursing = row.nursingRecord || '';
+    // amount 先按 | 拆分，再按列宽拆行
+    const splitAmount = (text: string, maxLen: number) => {
+      const parts = text.includes('|') ? text.split('|') : [text];
+      return parts.flatMap(p => splitText(p, maxLen));
+    };
     return Math.max(
       splitText(medName, 14).length,
+      splitAmount(medAmount, 9).length,
       splitText(entName, 14).length,
+      splitAmount(entAmount, 8).length,
       splitText(outName, 10).length,
+      splitAmount(outAmount, 6).length,
       splitText(drainName, 10).length,
+      splitAmount(drainAmount, 6).length,
       splitText(nursing, 28).length,
       1,
     );
@@ -557,28 +570,48 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
       if (item.kind === 'time-group') {
         for (const row of item.group.rows) {
           const medName = row.medication?.name || '';
+          const medAmount = row.medication?.amount || '';
           const entName = row.enteral?.name || '';
+          const entAmount = row.enteral?.amount || '';
           const outName = row.output?.name || '';
+          const outAmount = row.output?.amount || '';
           const drainName = row.drain?.name || '';
+          const drainAmount = row.drain?.amount || '';
           const nursing = row.nursingRecord || '';
 
+          // amount 先按 | 拆分，再按列宽拆行
+          const splitAmount = (text: string, maxLen: number) => {
+            const parts = text.includes('|') ? text.split('|') : [text];
+            return parts.flatMap(p => splitText(p, maxLen));
+          };
+
           const medLines = splitText(medName, 14);
+          const medAmtLines = splitAmount(medAmount, 9);
           const entLines = splitText(entName, 14);
+          const entAmtLines = splitAmount(entAmount, 8);
           const outLines = splitText(outName, 10);
+          const outAmtLines = splitAmount(outAmount, 6);
           const drainLines = splitText(drainName, 10);
+          const drainAmtLines = splitAmount(drainAmount, 6);
           const nursLines = splitText(nursing, 28);
-          const maxLines = Math.max(medLines.length, entLines.length, outLines.length, drainLines.length, nursLines.length, 1);
+          const maxLines = Math.max(
+            medLines.length, medAmtLines.length,
+            entLines.length, entAmtLines.length,
+            outLines.length, outAmtLines.length,
+            drainLines.length, drainAmtLines.length,
+            nursLines.length, 1,
+          );
 
           for (let i = 0; i < maxLines; i++) {
             result.push({
               kind: 'data',
               timeText: i === 0 ? row.timeText : '',
-              medication: { name: medLines[i] || '', amount: i === 0 ? (row.medication?.amount || '') : '', route: i === 0 ? (row.medication?.route || '') : '' },
-              enteral: { name: entLines[i] || '', amount: i === 0 ? (row.enteral?.amount || '') : '', route: i === 0 ? (row.enteral?.route || '') : '' },
+              medication: { name: medLines[i] || '', amount: medAmtLines[i] || '', route: i === 0 ? (row.medication?.route || '') : '' },
+              enteral: { name: entLines[i] || '', amount: entAmtLines[i] || '', route: i === 0 ? (row.enteral?.route || '') : '' },
               urine: i === 0 ? row.urine : '',
               ultrafiltration: i === 0 ? row.ultrafiltration : '',
-              output: { name: outLines[i] || '', amount: i === 0 ? (row.output?.amount || '') : '' },
-              drain: { name: drainLines[i] || '', amount: i === 0 ? (row.drain?.amount || '') : '' },
+              output: { name: outLines[i] || '', amount: outAmtLines[i] || '' },
+              drain: { name: drainLines[i] || '', amount: drainAmtLines[i] || '' },
               examination: i === 0 ? row.examination : '',
               treatment: i === 0 ? row.treatment : '',
               basicCare: i === 0 ? row.basicCare : '',

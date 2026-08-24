@@ -318,24 +318,25 @@ describe('buildDisplayGroups 拆行', () => {
     };
   }
 
-  it('amount含空格不产生空白行', () => {
+  it('amount含分隔符不产生空白行', () => {
     const row = makeRow({
       medications: [{
         name: '肠内营养乳剂(SP)',
-        amount: '续用 剩余量 13.0 实用量',
+        amount: '续用|剩余13.0|实用0',
         route: 'iv泵',
         numericAmount: 13,
       }],
     });
     const groups = buildDisplayGroups([row]);
     expect(groups.length).toBe(1);
-    // amount 不拆行，所以 displayRows 中 amount 不应出现空行
+    // amount 按 | 拆行，所以 displayRows 中每行一个部分
     const rows = groups[0].rows;
     const amountLines = rows.filter(r => r.medication?.amount && r.medication.amount.trim());
-    // amount 应该完整出现在某一行
-    const fullAmount = rows.map(r => r.medication?.amount || '').join('');
+    expect(amountLines.length).toBe(3); // 续用、剩余13.0、实用0
+    // 所有行的 amount 拼接后包含完整信息
+    const fullAmount = rows.map(r => r.medication?.amount || '').join('|');
     expect(fullAmount).toContain('续用');
-    expect(fullAmount).toContain('剩余量');
+    expect(fullAmount).toContain('剩余');
   });
 
   it('护理记录长文本拆行但不在空格处断', () => {
@@ -356,7 +357,7 @@ describe('buildDisplayGroups 拆行', () => {
     const row = makeRow({
       medications: [
         { name: '药物A(长名称需要拆行的)', amount: '13.0', route: 'iv', numericAmount: 13 },
-        { name: '药物B', amount: '25.7 实用量', route: 'po', numericAmount: 25.7 },
+        { name: '药物B', amount: '25.7|实用0', route: 'po', numericAmount: 25.7 },
       ],
     });
     const groups = buildDisplayGroups([row]);
