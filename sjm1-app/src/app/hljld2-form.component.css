@@ -155,10 +155,10 @@
 .patient-strip b { font-weight: 500; }
 .patient-strip .diagnosis { flex: 1 1 300px; }
 
-/* 表格区域 — 固定高度，刚好放22行 */
+/* 表格区域 — 最小高度，内容可撑开 */
 .page-table-wrap {
-  height: calc(var(--row-height) * 34 + 2px);
-  overflow: hidden;
+  min-height: calc(var(--row-height) * 23 + 2px);
+  overflow: visible;
   padding: 0 16px;
 }
 
@@ -198,13 +198,13 @@
 .col-sign          { width: 2.5%; } /* 签名 */
 
 .record-table tr {
-  height: var(--row-height);
+  min-height: var(--row-height);
 }
 
 .record-table th, .record-table td {
   border: 1px solid #2b2b2b; padding: 0 3px; vertical-align: middle;
-  text-align: center; white-space: nowrap; overflow: hidden;
-  height: var(--row-height); max-height: var(--row-height);
+  text-align: center; overflow: hidden;
+  min-height: var(--row-height);
   line-height: var(--row-height); font-size: var(--hljld-table-font-size);
 }
 

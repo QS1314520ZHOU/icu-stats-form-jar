@@ -114,7 +114,6 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   totalPages = 1;
   pages: FlatRow[][] = [];
   pageRowCounts: number[] = [];
-  pageHeights: number[] = [];
 
   constructor(
     private service: Hljld2FormService,
@@ -195,8 +194,6 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
 
         const rawPages = this.splitIntoPages(this.vm.timeline);
         this.pages = rawPages.map(items => this.flattenPageItems(items));
-        // 页面高度：基于实际扁平行数，固定最大23行，超出截断
-        this.pageHeights = this.pages.map(rows => Math.min(rows.length, MAX_ROWS_PER_PAGE) * 18 + 2);
         this.pageRowCounts = this.pages.map(rows => rows.length);
         this.totalPages = this.pages.length;
 
@@ -205,8 +202,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
         rawPages.forEach((items, i) => {
           const kinds = items.map(it => it.kind + '(' + this.getRowCount(it) + ')');
           const flatCount = this.pages[i].length;
-          const height = this.pageHeights[i];
-          console.info(`[HLJLD][page ${i + 1}] items=[${kinds.join(', ')}] flatRows=${flatCount} height=${height}px`);
+          console.info(`[HLJLD][page ${i + 1}] items=[${kinds.join(', ')}] flatRows=${flatCount}`);
         });
 
         const isDev = typeof location !== 'undefined' && /localhost|127\.0\.0\.1/.test(location.hostname);
@@ -601,43 +597,9 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     return count;
   }
 
-  /** 计算单个 DisplayRow 拆分后的行数（与 flattenPageItems 一致：先截断再拆行） */
+  /** 计算单个 DisplayRow 占用的行数 — 不再拆行，每行就是1 */
   private calcRowSplitCount(row: HljldDisplayRow): number {
-    // amount 先按 | 拆分，再按列宽拆行
-    const splitAmount = (text: string, maxLen: number) => {
-      const truncated = truncateText(text, maxLen);
-      const parts = truncated.includes('|') ? truncated.split('|') : [truncated];
-      return parts.flatMap(p => splitText(p, maxLen));
-    };
-    return Math.max(
-      // 药物治疗列
-      splitText(truncateText(row.medication?.name || '', COL_MAX_CHARS.medName), COL_MAX_CHARS.medName).length,
-      splitAmount(row.medication?.amount || '', COL_MAX_CHARS.medAmount).length,
-      splitText(truncateText(row.medication?.route || '', COL_MAX_CHARS.medRoute), COL_MAX_CHARS.medRoute).length,
-      // 胃肠摄入列
-      splitText(truncateText(row.enteral?.name || '', COL_MAX_CHARS.enteralName), COL_MAX_CHARS.enteralName).length,
-      splitAmount(row.enteral?.amount || '', COL_MAX_CHARS.enteralAmount).length,
-      splitText(truncateText(row.enteral?.route || '', COL_MAX_CHARS.enteralRoute), COL_MAX_CHARS.enteralRoute).length,
-      // 尿量、净超滤量
-      splitText(truncateText(row.urine || '', COL_MAX_CHARS.urine), COL_MAX_CHARS.urine).length,
-      splitText(truncateText(row.ultrafiltration || '', COL_MAX_CHARS.ultrafiltration), COL_MAX_CHARS.ultrafiltration).length,
-      // 排出物
-      splitText(truncateText(row.output?.name || '', COL_MAX_CHARS.outputName), COL_MAX_CHARS.outputName).length,
-      splitAmount(row.output?.amount || '', COL_MAX_CHARS.outputAmount).length,
-      // 引流液
-      splitText(truncateText(row.drain?.name || '', COL_MAX_CHARS.drainName), COL_MAX_CHARS.drainName).length,
-      splitAmount(row.drain?.amount || '', COL_MAX_CHARS.drainAmount).length,
-      // 检查、治疗、基础护理、健康教育
-      splitText(truncateText(row.examination || '', COL_MAX_CHARS.check), COL_MAX_CHARS.check).length,
-      splitText(truncateText(row.treatment || '', COL_MAX_CHARS.treatment), COL_MAX_CHARS.treatment).length,
-      splitText(truncateText(row.basicCare || '', COL_MAX_CHARS.basicCare), COL_MAX_CHARS.basicCare).length,
-      splitText(truncateText(row.healthEducation || '', COL_MAX_CHARS.health), COL_MAX_CHARS.health).length,
-      // 护理记录
-      splitText(truncateText(row.nursingRecord || '', COL_MAX_CHARS.nursing), COL_MAX_CHARS.nursing).length,
-      // 签名
-      splitText(truncateText(row.signature || '', COL_MAX_CHARS.sign), COL_MAX_CHARS.sign).length,
-      1,
-    );
+    return 1;
   }
 
   /** 将 timeline items 扁平化为 FixedRow 数组（长文本拆行） */
@@ -652,80 +614,54 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
             return parts.flatMap(p => splitText(p, maxLen));
           };
 
-          // 对所有列进行拆行（时间不拆分，保持完整）
-          // 长文本字段先截断到列宽，避免拆行导致分页行数虚高
+          // 不再拆行，每个 displayRow 就是1行，CSS 自动换行
           const timeLines = [row.timeText || ''];
-          const medNameLines = splitText(truncateText(row.medication?.name || '', COL_MAX_CHARS.medName), COL_MAX_CHARS.medName);
-          const medAmtLines = splitAmount(truncateText(row.medication?.amount || '', COL_MAX_CHARS.medAmount), COL_MAX_CHARS.medAmount);
-          const medRouteLines = splitText(truncateText(row.medication?.route || '', COL_MAX_CHARS.medRoute), COL_MAX_CHARS.medRoute);
-          const entNameLines = splitText(truncateText(row.enteral?.name || '', COL_MAX_CHARS.enteralName), COL_MAX_CHARS.enteralName);
-          const entAmtLines = splitAmount(truncateText(row.enteral?.amount || '', COL_MAX_CHARS.enteralAmount), COL_MAX_CHARS.enteralAmount);
-          const entRouteLines = splitText(truncateText(row.enteral?.route || '', COL_MAX_CHARS.enteralRoute), COL_MAX_CHARS.enteralRoute);
-          const urineLines = splitText(truncateText(row.urine || '', COL_MAX_CHARS.urine), COL_MAX_CHARS.urine);
-          const ultraLines = splitText(truncateText(row.ultrafiltration || '', COL_MAX_CHARS.ultrafiltration), COL_MAX_CHARS.ultrafiltration);
-          const outNameLines = splitText(truncateText(row.output?.name || '', COL_MAX_CHARS.outputName), COL_MAX_CHARS.outputName);
-          const outAmtLines = splitAmount(truncateText(row.output?.amount || '', COL_MAX_CHARS.outputAmount), COL_MAX_CHARS.outputAmount);
-          const drainNameLines = splitText(truncateText(row.drain?.name || '', COL_MAX_CHARS.drainName), COL_MAX_CHARS.drainName);
-          const drainAmtLines = splitAmount(truncateText(row.drain?.amount || '', COL_MAX_CHARS.drainAmount), COL_MAX_CHARS.drainAmount);
-          const checkLines = splitText(truncateText(row.examination || '', COL_MAX_CHARS.check), COL_MAX_CHARS.check);
-          const treatLines = splitText(truncateText(row.treatment || '', COL_MAX_CHARS.treatment), COL_MAX_CHARS.treatment);
-          const basicLines = splitText(truncateText(row.basicCare || '', COL_MAX_CHARS.basicCare), COL_MAX_CHARS.basicCare);
-          const healthLines = splitText(truncateText(row.healthEducation || '', COL_MAX_CHARS.health), COL_MAX_CHARS.health);
-          const nursLines = splitText(truncateText(row.nursingRecord || '', COL_MAX_CHARS.nursing), COL_MAX_CHARS.nursing);
-          const signLines = splitText(truncateText(row.signature || '', COL_MAX_CHARS.sign), COL_MAX_CHARS.sign);
+          const medNameLines = [row.medication?.name || ''];
+          const medAmtLines = [row.medication?.amount || ''];
+          const medRouteLines = [row.medication?.route || ''];
+          const entNameLines = [row.enteral?.name || ''];
+          const entAmtLines = [row.enteral?.amount || ''];
+          const entRouteLines = [row.enteral?.route || ''];
+          const urineLines = [row.urine || ''];
+          const ultraLines = [row.ultrafiltration || ''];
+          const outNameLines = [row.output?.name || ''];
+          const outAmtLines = [row.output?.amount || ''];
+          const drainNameLines = [row.drain?.name || ''];
+          const drainAmtLines = [row.drain?.amount || ''];
+          const checkLines = [row.examination || ''];
+          const treatLines = [row.treatment || ''];
+          const basicLines = [row.basicCare || ''];
+          const healthLines = [row.healthEducation || ''];
+          const nursLines = [row.nursingRecord || ''];
+          const signLines = [row.signature || ''];
 
-          // 取最大行数
-          const maxLines = Math.max(
-            timeLines.length,
-            medNameLines.length, medAmtLines.length, medRouteLines.length,
-            entNameLines.length, entAmtLines.length, entRouteLines.length,
-            urineLines.length, ultraLines.length,
-            outNameLines.length, outAmtLines.length,
-            drainNameLines.length, drainAmtLines.length,
-            checkLines.length, treatLines.length, basicLines.length, healthLines.length,
-            nursLines.length, signLines.length,
-            1,
-          );
-
-          // 生成每行数据，跳过所有列都为空的行
-          for (let i = 0; i < maxLines; i++) {
-            // 检查该行是否有内容（至少一列有非空值）
-            const hasContent = timeLines[i] || medNameLines[i] || medAmtLines[i] || medRouteLines[i]
-              || entNameLines[i] || entAmtLines[i] || entRouteLines[i]
-              || urineLines[i] || ultraLines[i]
-              || outNameLines[i] || outAmtLines[i]
-              || drainNameLines[i] || drainAmtLines[i]
-              || checkLines[i] || treatLines[i] || basicLines[i] || healthLines[i]
-              || nursLines[i] || signLines[i];
-            if (!hasContent) { continue; }
-
-            result.push({
-              kind: 'data',
-              timeText: timeLines[i] || '',
-              medication: {
-                name: medNameLines[i] || '',
-                amount: medAmtLines[i] || '',
-                route: medRouteLines[i] || '',
-              },
-              enteral: {
-                name: entNameLines[i] || '',
-                amount: entAmtLines[i] || '',
-                route: entRouteLines[i] || '',
-              },
-              urine: urineLines[i] || '',
-              ultrafiltration: ultraLines[i] || '',
-              output: { name: outNameLines[i] || '', amount: outAmtLines[i] || '' },
-              drain: { name: drainNameLines[i] || '', amount: drainAmtLines[i] || '' },
-              examination: checkLines[i] || '',
-              treatment: treatLines[i] || '',
-              basicCare: basicLines[i] || '',
-              healthEducation: healthLines[i] || '',
-              nursingRecord: nursLines[i] || '',
-              signature: signLines[i] || '',
+          // 每个 displayRow 直接生成1个 FlatRow，CSS 负责自动换行
+          result.push({
+            kind: 'data',
+            timeText: timeLines[0] || '',
+            medication: {
+              name: medNameLines[0] || '',
+              amount: medAmtLines[0] || '',
+              route: medRouteLines[0] || '',
+            },
+            enteral: {
+              name: entNameLines[0] || '',
+              amount: entAmtLines[0] || '',
+              route: entRouteLines[0] || '',
+            },
+            urine: urineLines[0] || '',
+            ultrafiltration: ultraLines[0] || '',
+              output: { name: outNameLines[0] || '', amount: outAmtLines[0] || '' },
+              drain: { name: drainNameLines[0] || '', amount: drainAmtLines[0] || '' },
+              examination: checkLines[0] || '',
+              treatment: treatLines[0] || '',
+              basicCare: basicLines[0] || '',
+              healthEducation: healthLines[0] || '',
+              nursingRecord: nursLines[0] || '',
+              signature: signLines[0] || '',
               groupKey: row.groupKey,
-              continuation: i > 0,
+              continuation: false,
             });
-          }
         }
       } else {
         // 小结/总结行，保持原样
