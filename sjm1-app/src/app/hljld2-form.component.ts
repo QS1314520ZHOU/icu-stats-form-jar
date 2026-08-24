@@ -613,8 +613,8 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
             return parts.flatMap(p => splitText(p, maxLen));
           };
 
-          // 对所有列进行拆行
-          const timeLines = splitText(row.timeText || '', COL_MAX_CHARS.time);
+          // 对所有列进行拆行（时间不拆分，保持完整）
+          const timeLines = [row.timeText || ''];
           const medNameLines = splitText(row.medication?.name || '', COL_MAX_CHARS.medName);
           const medAmtLines = splitAmount(row.medication?.amount || '', COL_MAX_CHARS.medAmount);
           const medRouteLines = splitText(row.medication?.route || '', COL_MAX_CHARS.medRoute);
