@@ -1665,18 +1665,16 @@ export function buildRows(
         }
       }
 
-      // 单次给药 stop 时间点：累积 quickAdd 量 == liquidAmount 时才展示
+      // 单次给药 stop 时间点：累积 quickAdd 量 + stop 的 quickAddAmount == liquidAmount 时才展示
       {
-        const hasStopAtTime = (execution.drugActionList ?? []).some(a =>
+        const stopAction = (execution.drugActionList ?? []).find(a =>
           String(a.action ?? '').trim().toLowerCase() === 'stop' && minuteKey(a.time) === key
         );
-        if (hasStopAtTime) {
+        if (stopAction) {
           const execStartMs = toMs(String(execution.startTime ?? ''));
-          const stopAction = (execution.drugActionList ?? []).find(a =>
-            String(a.action ?? '').trim().toLowerCase() === 'stop' && minuteKey(a.time) === key
-          );
-          const stopMs = toMs(String(stopAction?.time ?? ''));
+          const stopMs = toMs(String(stopAction.time ?? ''));
           if (Number.isFinite(execStartMs) && Number.isFinite(stopMs)) {
+            // 累积 stop 之前的所有 quickAdd 量
             let cumulativeQuickAdd = 0;
             for (const a of (execution.drugActionList ?? [])) {
               if (String(a.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
@@ -1685,6 +1683,8 @@ export function buildRows(
                 cumulativeQuickAdd += parseAmount(a.quickAddAmount);
               }
             }
+            // 加上 stop 自身的 quickAddAmount
+            cumulativeQuickAdd += parseAmount(stopAction.quickAddAmount);
             const liquidCap = resolveLiquidCap(execution);
             if (Math.abs(cumulativeQuickAdd - liquidCap) < 0.05) {
               const cell = drugToCell(execution, method, isEnteral, stopMs);
