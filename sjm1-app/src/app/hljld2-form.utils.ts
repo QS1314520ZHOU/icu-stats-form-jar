@@ -1839,35 +1839,16 @@ const COL_MAX_CHARS: Record<string, number> = {
   sign: 5,         // 2.5% = 37px - 签名（减少到5字符）
 };
 
-/** 在标点/空格处自然断句拆分文本 */
-export function splitTextToLines(text: string, maxChars: number, skipSpace = false): string[] {
+/** 按字符数硬断拆分文本 */
+export function splitTextToLines(text: string, maxChars: number, _skipSpace = false): string[] {
   const trimmed = (text || '').trimEnd();
   if (!trimmed) { return ['']; }
-  const delims = skipSpace
-    ? ['、', '，', '；', '：', ';', ',']
-    : ['、', '，', '；', '：', ';', ','];
   const lines: string[] = [];
   let remaining = trimmed;
   while (remaining.length > 0) {
-    remaining = remaining.trimStart();
     if (remaining.length <= maxChars) { lines.push(remaining); break; }
-    // 找标点断点
-    let breakAt = -1;
-    for (const delim of delims) {
-      const pos = remaining.lastIndexOf(delim, maxChars);
-      if (pos > 0) { breakAt = pos + 1; break; }
-    }
-    // 无标点则在 maxChars 处硬断（amount 不允许被拆行时，不硬断）
-    if (breakAt <= 0) {
-      if (skipSpace) {
-        // 无标点可断，整行返回
-        lines.push(remaining);
-        break;
-      }
-      breakAt = maxChars;
-    }
-    lines.push(remaining.substring(0, breakAt));
-    remaining = remaining.substring(breakAt);
+    lines.push(remaining.substring(0, maxChars));
+    remaining = remaining.substring(maxChars);
   }
   return lines.filter(l => l.length > 0);
 }

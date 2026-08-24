@@ -58,31 +58,16 @@ interface FlatRow {
   printGroupKey?: string;
 }
 
-/** 拆分文本为固定长度的行 */
+/** 拆分文本为固定长度的行（按字符数硬断） */
 function splitText(text: string, maxLen: number): string[] {
   const trimmed = (text || '').trimEnd();
   if (!trimmed) { return ['']; }
   const lines: string[] = [];
   let remaining = trimmed;
   while (remaining.length > 0) {
-    remaining = remaining.trimStart();
     if (remaining.length <= maxLen) { lines.push(remaining); break; }
-    // 找标点断点（空格不参与断行）
-    let breakAt = -1;
-    for (const delim of ['、', '，', '；', '：', ';', ',']) {
-      const pos = remaining.lastIndexOf(delim, maxLen);
-      if (pos > 0) {
-        // 检查标点后是否有足够内容，避免产生过短的行
-        const afterDelim = remaining.substring(pos + 1).trimStart();
-        if (afterDelim.length > 3) {
-          breakAt = pos + 1;
-          break;
-        }
-      }
-    }
-    if (breakAt <= 0) { breakAt = maxLen; }
-    lines.push(remaining.substring(0, breakAt));
-    remaining = remaining.substring(breakAt);
+    lines.push(remaining.substring(0, maxLen));
+    remaining = remaining.substring(maxLen);
   }
   return lines.filter(l => l.length > 0);
 }

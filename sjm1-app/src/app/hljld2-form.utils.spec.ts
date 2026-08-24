@@ -24,28 +24,28 @@ describe('splitTextToLines', () => {
     expect(splitTextToLines('12345', 10)).toEqual(['12345']);
   });
 
-  it('文本长度超过 maxChars 在标点处拆行', () => {
+  it('文本长度超过 maxChars 按字符数硬断', () => {
     const result = splitTextToLines('中心静脉导管:置入长度15管道状态:在位通畅;', 20);
     expect(result.length).toBeGreaterThanOrEqual(2);
-    expect(result[0].length).toBeLessThanOrEqual(20);
+    expect(result[0].length).toBe(20);
   });
 
   // --- 空格处理 ---
-  it('含空格的文本不在空格处拆行（skipSpace=false时也只在标点处断）', () => {
+  it('含空格的长文本按字符数硬断', () => {
     const result = splitTextToLines('续用 剩余量 13.0 实用量', 9);
-    // 空格不再是断行符，整个文本作为一行返回（除非超过maxChars在标点处断）
-    expect(result.length).toBe(1);
-    expect(result[0]).toBe('续用 剩余量 13.0 实用量');
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe('续用 剩余量');
+    expect(result[1]).toBe(' 13.0 实用');
+    expect(result[2]).toBe('量');
   });
 
-  it('skipSpace=true 时不在空格处拆行，无标点则不拆', () => {
+  it('skipSpace 参数不再影响行为，统一硬断', () => {
     const result = splitTextToLines('续用 剩余量 13.0 实用量', 9, true);
-    // skipSpace=true: 无标点可断，不硬断，整行返回
-    expect(result.length).toBe(1);
-    expect(result[0]).toBe('续用 剩余量 13.0 实用量');
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe('续用 剩余量');
   });
 
-  it('含标点的长文本在标点处断行', () => {
+  it('含标点的长文本按字符数硬断', () => {
     const text = '管道状态:在位通畅;导管护理:二次固定;敷料:干燥';
     const result = splitTextToLines(text, 15);
     expect(result.length).toBeGreaterThanOrEqual(2);
@@ -67,42 +67,54 @@ describe('splitTextToLines', () => {
   });
 
   // --- 中文标点 ---
-  it('中文逗号 、 作为断行符', () => {
+  it('中文逗号 、 不再作为断行符，统一硬断', () => {
     const result = splitTextToLines('检查A、治疗B、护理C', 8);
-    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.length).toBe(2);
+    expect(result[0]).toBe('检查A、治疗B');
+    expect(result[1]).toBe('、护理C');
   });
 
-  it('中文分号 ； 作为断行符', () => {
+  it('中文分号 ； 不再作为断行符，统一硬断', () => {
     const result = splitTextToLines('项目一；项目二；项目三', 8);
-    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe('项目一；项目');
+    expect(result[1]).toBe('二；项目三');
   });
 
-  it('中文冒号 ： 作为断行符', () => {
+  it('中文冒号 ： 不再作为断行符，统一硬断', () => {
     const result = splitTextToLines('名称：测试项目说明', 8);
-    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe('名称：测试');
+    expect(result[1]).toBe('项目说明');
   });
 
   // --- 英文标点 ---
-  it('英文分号 ; 作为断行符', () => {
+  it('英文分号 ; 不再作为断行符，统一硬断', () => {
     const result = splitTextToLines('item1;item2;item3', 8);
-    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe('item1;it');
+    expect(result[1]).toBe('em2;item');
+    expect(result[2]).toBe('3');
   });
 
-  it('英文逗号 , 作为断行符', () => {
+  it('英文逗号 , 不再作为断行符，统一硬断', () => {
     const result = splitTextToLines('item1,item2,item3', 8);
-    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe('item1,ite');
+    expect(result[1]).toBe('m2,item3');
   });
 
-  // --- 硬断行（无标点时） ---
-  it('无标点时在 maxChars 处硬断（skipSpace=false）', () => {
+  // --- 硬断行 ---
+  it('所有文本统一在 maxChars 处硬断', () => {
     const result = splitTextToLines('这是一段很长的没有标点的中文文本测试', 8);
     expect(result.length).toBeGreaterThanOrEqual(2);
     expect(result[0].length).toBe(8);
   });
 
-  it('无标点且 skipSpace=true 时不硬断，整行返回', () => {
+  it('skipSpace 参数不影响硬断行为', () => {
     const result = splitTextToLines('这是一段很长的没有标点的中文文本测试', 8, true);
-    expect(result.length).toBe(1);
+    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result[0].length).toBe(8);
   });
 
   // --- 实际业务场景 ---
@@ -128,10 +140,10 @@ describe('splitTextToLines', () => {
     expect(result.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('amount含空格不拆行', () => {
+  it('amount含空格按字符数硬断', () => {
     const result = splitTextToLines('续用 剩余量 13.0 实用量', 9, true);
-    expect(result.length).toBe(1);
-    expect(result[0]).toBe('续用 剩余量 13.0 实用量');
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe('续用 剩余量');
   });
 
   it('amount只有数字不拆行', () => {
