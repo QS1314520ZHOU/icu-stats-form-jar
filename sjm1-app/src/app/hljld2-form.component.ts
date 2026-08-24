@@ -59,6 +59,13 @@ interface FlatRow {
 }
 
 /** 拆分文本为固定长度的行（按字符数硬断） */
+/** 截断文本，超出 maxLen 时加 … */
+function truncateText(text: string, maxLen: number): string {
+  const trimmed = (text || '').trimEnd();
+  if (!trimmed || trimmed.length <= maxLen) { return trimmed; }
+  return trimmed.substring(0, maxLen - 1) + '…';
+}
+
 function splitText(text: string, maxLen: number): string[] {
   const trimmed = (text || '').trimEnd();
   if (!trimmed) { return ['']; }
@@ -594,40 +601,41 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     return count;
   }
 
-  /** 计算单个 DisplayRow 拆分后的行数 */
+  /** 计算单个 DisplayRow 拆分后的行数（与 flattenPageItems 一致：先截断再拆行） */
   private calcRowSplitCount(row: HljldDisplayRow): number {
     // amount 先按 | 拆分，再按列宽拆行
     const splitAmount = (text: string, maxLen: number) => {
-      const parts = text.includes('|') ? text.split('|') : [text];
+      const truncated = truncateText(text, maxLen);
+      const parts = truncated.includes('|') ? truncated.split('|') : [truncated];
       return parts.flatMap(p => splitText(p, maxLen));
     };
     return Math.max(
       // 药物治疗列
-      splitText(row.medication?.name || '', COL_MAX_CHARS.medName).length,
+      splitText(truncateText(row.medication?.name || '', COL_MAX_CHARS.medName), COL_MAX_CHARS.medName).length,
       splitAmount(row.medication?.amount || '', COL_MAX_CHARS.medAmount).length,
-      splitText(row.medication?.route || '', COL_MAX_CHARS.medRoute).length,
+      splitText(truncateText(row.medication?.route || '', COL_MAX_CHARS.medRoute), COL_MAX_CHARS.medRoute).length,
       // 胃肠摄入列
-      splitText(row.enteral?.name || '', COL_MAX_CHARS.enteralName).length,
+      splitText(truncateText(row.enteral?.name || '', COL_MAX_CHARS.enteralName), COL_MAX_CHARS.enteralName).length,
       splitAmount(row.enteral?.amount || '', COL_MAX_CHARS.enteralAmount).length,
-      splitText(row.enteral?.route || '', COL_MAX_CHARS.enteralRoute).length,
+      splitText(truncateText(row.enteral?.route || '', COL_MAX_CHARS.enteralRoute), COL_MAX_CHARS.enteralRoute).length,
       // 尿量、净超滤量
-      splitText(row.urine || '', COL_MAX_CHARS.urine).length,
-      splitText(row.ultrafiltration || '', COL_MAX_CHARS.ultrafiltration).length,
+      splitText(truncateText(row.urine || '', COL_MAX_CHARS.urine), COL_MAX_CHARS.urine).length,
+      splitText(truncateText(row.ultrafiltration || '', COL_MAX_CHARS.ultrafiltration), COL_MAX_CHARS.ultrafiltration).length,
       // 排出物
-      splitText(row.output?.name || '', COL_MAX_CHARS.outputName).length,
+      splitText(truncateText(row.output?.name || '', COL_MAX_CHARS.outputName), COL_MAX_CHARS.outputName).length,
       splitAmount(row.output?.amount || '', COL_MAX_CHARS.outputAmount).length,
       // 引流液
-      splitText(row.drain?.name || '', COL_MAX_CHARS.drainName).length,
+      splitText(truncateText(row.drain?.name || '', COL_MAX_CHARS.drainName), COL_MAX_CHARS.drainName).length,
       splitAmount(row.drain?.amount || '', COL_MAX_CHARS.drainAmount).length,
       // 检查、治疗、基础护理、健康教育
-      splitText(row.examination || '', COL_MAX_CHARS.check).length,
-      splitText(row.treatment || '', COL_MAX_CHARS.treatment).length,
-      splitText(row.basicCare || '', COL_MAX_CHARS.basicCare).length,
-      splitText(row.healthEducation || '', COL_MAX_CHARS.health).length,
+      splitText(truncateText(row.examination || '', COL_MAX_CHARS.check), COL_MAX_CHARS.check).length,
+      splitText(truncateText(row.treatment || '', COL_MAX_CHARS.treatment), COL_MAX_CHARS.treatment).length,
+      splitText(truncateText(row.basicCare || '', COL_MAX_CHARS.basicCare), COL_MAX_CHARS.basicCare).length,
+      splitText(truncateText(row.healthEducation || '', COL_MAX_CHARS.health), COL_MAX_CHARS.health).length,
       // 护理记录
-      splitText(row.nursingRecord || '', COL_MAX_CHARS.nursing).length,
+      splitText(truncateText(row.nursingRecord || '', COL_MAX_CHARS.nursing), COL_MAX_CHARS.nursing).length,
       // 签名
-      splitText(row.signature || '', COL_MAX_CHARS.sign).length,
+      splitText(truncateText(row.signature || '', COL_MAX_CHARS.sign), COL_MAX_CHARS.sign).length,
       1,
     );
   }
@@ -645,25 +653,26 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
           };
 
           // 对所有列进行拆行（时间不拆分，保持完整）
+          // 长文本字段先截断到列宽，避免拆行导致分页行数虚高
           const timeLines = [row.timeText || ''];
-          const medNameLines = splitText(row.medication?.name || '', COL_MAX_CHARS.medName);
-          const medAmtLines = splitAmount(row.medication?.amount || '', COL_MAX_CHARS.medAmount);
-          const medRouteLines = splitText(row.medication?.route || '', COL_MAX_CHARS.medRoute);
-          const entNameLines = splitText(row.enteral?.name || '', COL_MAX_CHARS.enteralName);
-          const entAmtLines = splitAmount(row.enteral?.amount || '', COL_MAX_CHARS.enteralAmount);
-          const entRouteLines = splitText(row.enteral?.route || '', COL_MAX_CHARS.enteralRoute);
-          const urineLines = splitText(row.urine || '', COL_MAX_CHARS.urine);
-          const ultraLines = splitText(row.ultrafiltration || '', COL_MAX_CHARS.ultrafiltration);
-          const outNameLines = splitText(row.output?.name || '', COL_MAX_CHARS.outputName);
-          const outAmtLines = splitAmount(row.output?.amount || '', COL_MAX_CHARS.outputAmount);
-          const drainNameLines = splitText(row.drain?.name || '', COL_MAX_CHARS.drainName);
-          const drainAmtLines = splitAmount(row.drain?.amount || '', COL_MAX_CHARS.drainAmount);
-          const checkLines = splitText(row.examination || '', COL_MAX_CHARS.check);
-          const treatLines = splitText(row.treatment || '', COL_MAX_CHARS.treatment);
-          const basicLines = splitText(row.basicCare || '', COL_MAX_CHARS.basicCare);
-          const healthLines = splitText(row.healthEducation || '', COL_MAX_CHARS.health);
-          const nursLines = splitText(row.nursingRecord || '', COL_MAX_CHARS.nursing);
-          const signLines = splitText(row.signature || '', COL_MAX_CHARS.sign);
+          const medNameLines = splitText(truncateText(row.medication?.name || '', COL_MAX_CHARS.medName), COL_MAX_CHARS.medName);
+          const medAmtLines = splitAmount(truncateText(row.medication?.amount || '', COL_MAX_CHARS.medAmount), COL_MAX_CHARS.medAmount);
+          const medRouteLines = splitText(truncateText(row.medication?.route || '', COL_MAX_CHARS.medRoute), COL_MAX_CHARS.medRoute);
+          const entNameLines = splitText(truncateText(row.enteral?.name || '', COL_MAX_CHARS.enteralName), COL_MAX_CHARS.enteralName);
+          const entAmtLines = splitAmount(truncateText(row.enteral?.amount || '', COL_MAX_CHARS.enteralAmount), COL_MAX_CHARS.enteralAmount);
+          const entRouteLines = splitText(truncateText(row.enteral?.route || '', COL_MAX_CHARS.enteralRoute), COL_MAX_CHARS.enteralRoute);
+          const urineLines = splitText(truncateText(row.urine || '', COL_MAX_CHARS.urine), COL_MAX_CHARS.urine);
+          const ultraLines = splitText(truncateText(row.ultrafiltration || '', COL_MAX_CHARS.ultrafiltration), COL_MAX_CHARS.ultrafiltration);
+          const outNameLines = splitText(truncateText(row.output?.name || '', COL_MAX_CHARS.outputName), COL_MAX_CHARS.outputName);
+          const outAmtLines = splitAmount(truncateText(row.output?.amount || '', COL_MAX_CHARS.outputAmount), COL_MAX_CHARS.outputAmount);
+          const drainNameLines = splitText(truncateText(row.drain?.name || '', COL_MAX_CHARS.drainName), COL_MAX_CHARS.drainName);
+          const drainAmtLines = splitAmount(truncateText(row.drain?.amount || '', COL_MAX_CHARS.drainAmount), COL_MAX_CHARS.drainAmount);
+          const checkLines = splitText(truncateText(row.examination || '', COL_MAX_CHARS.check), COL_MAX_CHARS.check);
+          const treatLines = splitText(truncateText(row.treatment || '', COL_MAX_CHARS.treatment), COL_MAX_CHARS.treatment);
+          const basicLines = splitText(truncateText(row.basicCare || '', COL_MAX_CHARS.basicCare), COL_MAX_CHARS.basicCare);
+          const healthLines = splitText(truncateText(row.healthEducation || '', COL_MAX_CHARS.health), COL_MAX_CHARS.health);
+          const nursLines = splitText(truncateText(row.nursingRecord || '', COL_MAX_CHARS.nursing), COL_MAX_CHARS.nursing);
+          const signLines = splitText(truncateText(row.signature || '', COL_MAX_CHARS.sign), COL_MAX_CHARS.sign);
 
           // 取最大行数
           const maxLines = Math.max(
