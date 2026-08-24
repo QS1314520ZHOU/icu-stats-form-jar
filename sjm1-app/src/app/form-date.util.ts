@@ -75,13 +75,20 @@ function parseLegacyCstString(raw: string): Date | null {
 function getShanghaiParts(value?: string | number | null): Record<string,string> | null {
   const d = parseDatabaseUtcTime(value);
   if (!d) return null;
-  const fmt = new Intl.DateTimeFormat('zh-CN', {
-    timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit',
-    hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'
-  });
-  const r: Record<string,string> = {};
-  fmt.formatToParts(d).forEach(p => { if (p.type !== 'literal') r[p.type] = p.value; });
-  return r;
+  // 使用 toLocaleString 获取上海时间，然后手动解析
+  const shanghaiTime = d.toLocaleString('zh-CN', { timeZone: TZ });
+  // 格式：2026/8/24 12:41:00 或 2026/08/24 12:41:00
+  const match = shanghaiTime.match(/(\d{4})[\/年](\d{1,2})[\/月](\d{1,2})[日\s]+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (!match) return null;
+  const pad = (s: string) => s.padStart(2, '0');
+  return {
+    year: match[1],
+    month: pad(match[2]),
+    day: pad(match[3]),
+    hour: pad(match[4]),
+    minute: match[5],
+    second: match[6],
+  };
 }
 
 /** 返回绝对毫秒，解析失败返回 NaN */
