@@ -1679,6 +1679,37 @@ export function buildRows(
           if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
         }
       }
+
+      // 单次给药 stop 时间点：累积 quickAdd 量 == liquidAmount 时才展示
+      {
+        const hasStopAtTime = (execution.drugActionList ?? []).some(a =>
+          String(a.action ?? '').trim().toLowerCase() === 'stop' && minuteKey(a.time) === key
+        );
+        if (hasStopAtTime) {
+          const execStartMs = toMs(String(execution.startTime ?? ''));
+          const stopAction = (execution.drugActionList ?? []).find(a =>
+            String(a.action ?? '').trim().toLowerCase() === 'stop' && minuteKey(a.time) === key
+          );
+          const stopMs = toMs(String(stopAction?.time ?? ''));
+          if (Number.isFinite(execStartMs) && Number.isFinite(stopMs)) {
+            let cumulativeQuickAdd = 0;
+            for (const a of (execution.drugActionList ?? [])) {
+              if (String(a.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
+              const aMs = toMs(String(a.time ?? ''));
+              if (Number.isFinite(aMs) && aMs >= execStartMs && aMs <= stopMs) {
+                cumulativeQuickAdd += parseAmount(a.quickAddAmount);
+              }
+            }
+            const liquidCap = resolveLiquidCap(execution);
+            if (Math.abs(cumulativeQuickAdd - liquidCap) < 0.05) {
+              const cell = drugToCell(execution, method, isEnteral, stopMs);
+              cell.amount = cumulativeQuickAdd > 0 ? `${cumulativeQuickAdd.toFixed(1)}` : '';
+              cell.numericAmount = cumulativeQuickAdd;
+              if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
+            }
+          }
+        }
+      }
     });
 
     bedside
