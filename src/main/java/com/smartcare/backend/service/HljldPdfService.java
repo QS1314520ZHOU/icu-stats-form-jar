@@ -104,6 +104,29 @@ public class HljldPdfService {
     private static final Color COLOR_24H_SUMMARY     = new Color(237, 246, 238); // #edf6ee
     private static final Color COLOR_DISCHARGE_SUMMARY = new Color(232, 240, 254); // #e8f0fe
 
+    // ── 床旁数据编码白名单（与前端 DISPLAY_BEDSIDE_CODES 对齐） ──
+    private static final java.util.Set<String> DISPLAY_BEDSIDE_CODES = new java.util.HashSet<>(java.util.Arrays.asList(
+        "param_带入药量", "param_kouFu", "param_biSi",           // 胃肠摄入
+        "param_niaoLiang", "param_chaoLvLiang",                  // 尿量、净超滤量
+        "param_daBianAmount", "param_造瘘口量", "param_outuwuliang", "param_咯血", "param_tanLiang", // 排出物
+        "param_外出检查", "param_物理治疗", "param_基础护理1", "param_健康教育"
+    ));
+
+    // ── 历史引流编码白名单 ──
+    private static final java.util.Set<String> LEGACY_DRAIN_CODES = new java.util.HashSet<>(java.util.Arrays.asList(
+        "param_tube_胃肠减压"
+    ));
+
+    // ── 排出物编码名称映射（与前端 OUTPUT_CODE_NAMES 对齐） ──
+    private static final java.util.Map<String, String> OUTPUT_CODE_NAMES = new java.util.HashMap<>();
+    static {
+        OUTPUT_CODE_NAMES.put("param_daBianAmount", "大便量");
+        OUTPUT_CODE_NAMES.put("param_造瘘口量", "造瘘口量");
+        OUTPUT_CODE_NAMES.put("param_outuwuliang", "呕吐物量");
+        OUTPUT_CODE_NAMES.put("param_咯血", "咯血");
+        OUTPUT_CODE_NAMES.put("param_tanLiang", "痰液量");
+    }
+
     @Autowired
     public HljldPdfService(MongoTemplate mongoTemplate, FormPageIndexRepository pageIndexRepository) {
         this.mongoTemplate = mongoTemplate;
@@ -223,9 +246,9 @@ public class HljldPdfService {
         org.bson.Document patient = getPatientInfo(pid);
         NursingDayData dayData = loadNursingDayData(pid, date);
         int startPageNo = getStartPageNo(pid, date);
-        log.info("PDF数据加载完成: patient={}, vitals={}, drugExe={}, nurseRecords={}, tubeRecords={}, startPageNo={}",
+        log.info("PDF数据加载完成: patient={}, vitals={}, drugExe={}, nurseRecords={}, startPageNo={}",
             patient.getString("name"), dayData.getVitals().size(), dayData.getDrugExecutions().size(),
-            dayData.getNurseRecords().size(), dayData.getTubeRecords().size(), startPageNo);
+            dayData.getNurseRecords().size(), startPageNo);
 
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -327,9 +350,9 @@ public class HljldPdfService {
     public int calculatePageCount(String pid, String date) {
         initFont();
         NursingDayData dayData = loadNursingDayData(pid, date);
-        log.info("计算页数: pid={}, date={}, vitals={}, drugExe={}, nurseRecords={}, tubeRecords={}",
+        log.info("计算页数: pid={}, date={}, vitals={}, drugExe={}, nurseRecords={}",
             pid, date, dayData.getVitals().size(), dayData.getDrugExecutions().size(),
-            dayData.getNurseRecords().size(), dayData.getTubeRecords().size());
+            dayData.getNurseRecords().size());
         // 使用 BufferedImage 获取 FontMetrics（仅用于分页估算）
         try {
             java.awt.image.BufferedImage tmpImg = new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
@@ -734,11 +757,15 @@ public class HljldPdfService {
         Date startTime = Date.from(localDate.atTime(7, 0).atZone(zone).toInstant());
         Date endTime = Date.from(localDate.plusDays(1).atTime(7, 0).atZone(zone).toInstant());
 
+        log.info("加载护理日数据: pid={}, date={}, startTime={}, endTime={}", pid, date, startTime, endTime);
+
         NursingDayData data = new NursingDayData();
         data.setVitals(loadVitals(pid, startTime, endTime));
         data.setDrugExecutions(loadDrugExecutions(pid, startTime, endTime));
         data.setNurseRecords(loadNurseRecords(pid, startTime, endTime));
-        data.setTubeRecords(loadTubeRecords(pid, startTime, endTime));
+
+        log.info("护理日数据加载完成: vitals={}, drugExe={}, nurseRecords={}",
+            data.getVitals().size(), data.getDrugExecutions().size(), data.getNurseRecords().size());
         return data;
     }
 
@@ -767,13 +794,6 @@ public class HljldPdfService {
         return mongoTemplate.find(q, org.bson.Document.class, "nurseRecords");
     }
 
-    private List<org.bson.Document> loadTubeRecords(String pid, Date start, Date end) {
-        Query q = new Query(Criteria.where("pid").is(pid).and("valid").ne(false)
-            .and("status").ne("invalid").and("tubeRecordList").ne(null));
-        q.with(Sort.by(Sort.Direction.ASC, "startTime"));
-        return mongoTemplate.find(q, org.bson.Document.class, "tubeExe");
-    }
-
     private org.bson.Document getPatientInfo(String pid) {
         Query q = new Query(new Criteria().orOperator(
             Criteria.where("_id").is(pid), Criteria.where("pid").is(pid)));
@@ -783,7 +803,78 @@ public class HljldPdfService {
             p.put("name", "未知"); p.put("bedNo", ""); p.put("mrn", "");
             p.put("sex", ""); p.put("age", ""); p.put("diagnosis", "");
         }
+
+        // 字段别名处理（与前端 toPatientContext 对齐）
+        // bedNo: 优先 hisBed，其次 bedNo，最后 bedCode
+        if (isEmpty(p, "bedNo")) {
+            String bedNo = getFirstNonEmpty(p, "hisBed", "bedCode");
+            if (!bedNo.isEmpty()) p.put("bedNo", bedNo);
+        }
+        // name: 优先 name，其次 patientName
+        if (isEmpty(p, "name")) {
+            String name = getFirstNonEmpty(p, "patientName");
+            if (!name.isEmpty()) p.put("name", name);
+        }
+        // mrn: 优先 mrn，其次 hospitalNo
+        if (isEmpty(p, "mrn")) {
+            String mrn = getFirstNonEmpty(p, "hospitalNo");
+            if (!mrn.isEmpty()) p.put("mrn", mrn);
+        }
+        // sex: 性别文本转换
+        String rawSex = str(p, "sex");
+        if (rawSex.isEmpty()) rawSex = str(p, "gender");
+        p.put("sex", convertGenderText(rawSex));
+        // diagnosis: 截断到第一个分号
+        String diagnosis = str(p, "diagnosis");
+        if (diagnosis.isEmpty()) diagnosis = str(p, "clinicalDiagnosis");
+        p.put("diagnosis", truncateDiagnosis(diagnosis));
+
+        log.info("患者信息: pid={}, name={}, bedNo={}, mrn={}, sex={}, age={}, diagnosis={}",
+            pid, str(p, "name"), str(p, "bedNo"), str(p, "mrn"),
+            str(p, "sex"), str(p, "age"), str(p, "diagnosis"));
         return p;
+    }
+
+    /** 判断文档字段是否为空 */
+    private boolean isEmpty(org.bson.Document doc, String key) {
+        Object v = doc.get(key);
+        return v == null || v.toString().trim().isEmpty();
+    }
+
+    /** 获取第一个非空字段值 */
+    private String getFirstNonEmpty(org.bson.Document doc, String... keys) {
+        for (String key : keys) {
+            Object v = doc.get(key);
+            if (v != null) {
+                String val = v.toString().trim();
+                if (!val.isEmpty()) return val;
+            }
+        }
+        return "";
+    }
+
+    /** 性别文本转换（与前端 genderText 对齐） */
+    private String convertGenderText(String gender) {
+        if (gender == null) return "";
+        String value = gender.trim();
+        if ("Male".equalsIgnoreCase(value) || "M".equalsIgnoreCase(value) || "男".equals(value)) return "男";
+        if ("Female".equalsIgnoreCase(value) || "F".equalsIgnoreCase(value) || "女".equals(value)) return "女";
+        return value;
+    }
+
+    /** 诊断文本截断（与前端 formatDiagnosis 对齐，截断到第一个分号） */
+    private String truncateDiagnosis(String diagnosis) {
+        if (diagnosis == null) return "";
+        String value = diagnosis.trim();
+        if (value.isEmpty()) return "";
+        int idx = -1;
+        for (char sep : new char[]{';', '；', ',', '，'}) {
+            int cur = value.indexOf(sep);
+            if (cur >= 0 && (idx < 0 || cur < idx)) {
+                idx = cur;
+            }
+        }
+        return idx >= 0 ? value.substring(0, idx).trim() : value;
     }
 
     private int getStartPageNo(String pid, String date) {
@@ -804,59 +895,81 @@ public class HljldPdfService {
         SimpleDateFormat tf = new SimpleDateFormat("HH:mm");
         TreeMap<Date, Map<String, Object>> timeMap = new TreeMap<>();
 
-        log.info("数据转换: vitals={}, drugExe={}, nurseRecords={}, tubeRecords={}",
+        log.info("数据转换开始: vitals={}, drugExe={}, nurseRecords={}",
             dayData.getVitals().size(), dayData.getDrugExecutions().size(),
-            dayData.getNurseRecords().size(), dayData.getTubeRecords().size());
+            dayData.getNurseRecords().size());
 
-        // 1. 床旁数据
+        // 1. 床旁数据（使用与前端一致的过滤逻辑）
+        int bedsideRendered = 0;
+        int bedsideSkipped = 0;
         for (org.bson.Document v : dayData.getVitals()) {
+            if (!isRenderableBedsideRecord(v)) {
+                bedsideSkipped++;
+                continue;
+            }
             Date t = v.getDate("time");
             if (t == null) continue;
             String code = str(v, "code");
             String val = str(v, "strVal");
             String remark = str(v, "remark");
 
-            if ("param_Yishi".equals(code)) continue;
-            if (val == null || val.trim().isEmpty()) continue;
-
             Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
             row.put("timeText", tf.format(t));
 
             switch (code) {
                 case "param_niaoLiang":
-                    row.put("urine", val); break;
+                    row.put("urine", val);
+                    log.debug("床旁-尿量: time={}, val={}", tf.format(t), val);
+                    break;
                 case "param_chaoLvLiang":
-                    row.put("ultrafiltration", val); break;
+                    row.put("ultrafiltration", val);
+                    log.debug("床旁-净超滤量: time={}, val={}", tf.format(t), val);
+                    break;
                 case "param_daBianAmount": case "param_造瘘口量": case "param_outuwuliang":
                 case "param_咯血": case "param_tanLiang":
                     row.put("outputName", getOutputName(code));
-                    row.put("outputAmount", val); break;
+                    row.put("outputAmount", val);
+                    log.debug("床旁-排出物: time={}, name={}, val={}", tf.format(t), getOutputName(code), val);
+                    break;
                 case "param_带入药量": case "param_kouFu": case "param_biSi":
                     String route = "param_带入药量".equals(code) ? "带入" :
                                    "param_kouFu".equals(code) ? "po" : "鼻饲";
                     row.put("enteralName", remark != null ? remark.trim() : "");
                     row.put("enteralAmount", val);
-                    row.put("enteralRoute", route); break;
+                    row.put("enteralRoute", route);
+                    log.debug("床旁-胃肠摄入: time={}, name={}, val={}, route={}", tf.format(t), remark, val, route);
+                    break;
                 case "param_外出检查":
-                    row.put("examination", val); break;
+                    row.put("examination", val);
+                    log.debug("床旁-检查: time={}, val={}", tf.format(t), val);
+                    break;
                 case "param_物理治疗":
-                    row.put("treatment", val); break;
+                    row.put("treatment", val);
+                    log.debug("床旁-治疗: time={}, val={}", tf.format(t), val);
+                    break;
                 case "param_基础护理1":
-                    row.put("basicCare", val); break;
+                    row.put("basicCare", val);
+                    log.debug("床旁-基础护理: time={}, val={}", tf.format(t), val);
+                    break;
                 case "param_健康教育":
-                    row.put("healthEducation", val); break;
+                    row.put("healthEducation", val);
+                    log.debug("床旁-健康教育: time={}, val={}", tf.format(t), val);
+                    break;
                 default:
-                    if (code.contains("引流")) {
-                        String drainName = code.replace("param_tube_", "").replace("param_", "");
-                        drainName = drainName.endsWith("管") ? drainName.substring(0, drainName.length() - 1) + "液" : drainName;
+                    if (isDrainCode(code)) {
+                        String drainName = drainDisplayName(code);
                         row.put("drainName", drainName);
                         row.put("drainAmount", val);
+                        log.debug("床旁-引流: time={}, name={}, val={}", tf.format(t), drainName, val);
                     }
                     break;
             }
+            bedsideRendered++;
         }
+        log.info("床旁数据处理完成: 总数={}, 渲染={}, 跳过={}", dayData.getVitals().size(), bedsideRendered, bedsideSkipped);
 
         // 2. 护理记录
+        int nurseRendered = 0;
         for (org.bson.Document r : dayData.getNurseRecords()) {
             Date t = r.getDate("time");
             if (t == null) continue;
@@ -868,56 +981,61 @@ public class HljldPdfService {
             String existing = mapStr(row, "nursingRecord");
             row.put("nursingRecord", existing.isEmpty() ? desc : existing + "\n" + desc);
 
-            String signature = str(r, "accountId");
-            if (signature != null && !signature.isEmpty()) {
+            // 签名处理：优先 username/trueName，其次 userId/editUser
+            String signature = resolveNurseSignature(r);
+            if (!signature.isEmpty()) {
                 row.put("signature", signature);
             }
+            nurseRendered++;
+            log.debug("护理记录: time={}, desc={}, signature={}", tf.format(t), desc.substring(0, Math.min(desc.length(), 50)), signature);
         }
+        log.info("护理记录处理完成: 总数={}, 渲染={}", dayData.getNurseRecords().size(), nurseRendered);
 
         // 3. 药物执行
+        int drugRendered = 0;
         for (org.bson.Document d : dayData.getDrugExecutions()) {
             Date t = d.getDate("startTime");
             if (t == null) continue;
             Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
             row.put("timeText", tf.format(t));
 
+            // 解析药物列表
             @SuppressWarnings("unchecked")
             List<org.bson.Document> drugList = (List<org.bson.Document>) d.get("drugList");
             if (drugList != null && !drugList.isEmpty()) {
                 StringBuilder drugNames = new StringBuilder();
                 for (org.bson.Document drug : drugList) {
                     String name = str(drug, "name");
+                    String unit = str(drug, "unit");
                     if (!name.isEmpty()) {
                         if (drugNames.length() > 0) drugNames.append("、");
-                        drugNames.append(name);
+                        // 与前端对齐：名称(剂量单位)
+                        Object doseObj = drug.get("dose");
+                        if (doseObj != null && !unit.isEmpty()) {
+                            drugNames.append(name).append("(").append(doseObj).append(unit).append(")");
+                        } else {
+                            drugNames.append(name);
+                        }
                     }
                 }
                 if (drugNames.length() > 0) row.put("medName", drugNames.toString());
             }
 
-            Object doseObj = d.get("dose");
-            if (doseObj != null) row.put("medAmount", doseObj.toString());
+            // 剂量处理：优先取顶层 liquidAmount，其次 drugList 求和
+            String medAmount = resolveDrugAmount(d);
+            if (!medAmount.isEmpty()) {
+                row.put("medAmount", medAmount);
+            }
 
+            // 途径处理
             String route = str(d, "route");
             if (!route.isEmpty()) row.put("medRoute", route);
-        }
 
-        // 4. 管路记录
-        for (org.bson.Document tube : dayData.getTubeRecords()) {
-            @SuppressWarnings("unchecked")
-            List<org.bson.Document> recordList = (List<org.bson.Document>) tube.get("tubeRecordList");
-            if (recordList == null) continue;
-            for (org.bson.Document record : recordList) {
-                Date t = record.getDate("time");
-                if (t == null) continue;
-                Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
-                row.put("timeText", tf.format(t));
-                String name = str(record, "name");
-                String amount = str(record, "strVal");
-                if (!name.isEmpty()) row.put("drainName", name);
-                if (!amount.isEmpty()) row.put("drainAmount", amount);
-            }
+            drugRendered++;
+            log.debug("药物执行: time={}, name={}, amount={}, route={}", tf.format(t),
+                row.get("medName"), medAmount, route);
         }
+        log.info("药物执行处理完成: 总数={}, 渲染={}", dayData.getDrugExecutions().size(), drugRendered);
 
         rows.addAll(timeMap.values());
         log.info("数据转换完成: 合并后总行数={}", rows.size());
@@ -927,6 +1045,96 @@ public class HljldPdfService {
     // ══════════════════════════════════════════════════════════
     //  工具方法
     // ══════════════════════════════════════════════════════════
+
+    /** 判断是否为引流编码（与前端 isDrainCode 对齐） */
+    private boolean isDrainCode(String code) {
+        if (code == null) return false;
+        String normalizedCode = code.trim();
+        return LEGACY_DRAIN_CODES.contains(normalizedCode) || normalizedCode.contains("引流");
+    }
+
+    /** 判断床旁记录是否可渲染（与前端 isRenderableBedsideRecord 对齐） */
+    private boolean isRenderableBedsideRecord(org.bson.Document record) {
+        if (record == null) return false;
+        String time = str(record, "time");
+        String code = str(record, "code");
+        if (time.isEmpty() || code.isEmpty()) return false;
+        // valid !== false 且 status !== 'invalid'
+        Object validObj = record.get("valid");
+        if (validObj != null && validObj.equals(false)) return false;
+        String status = str(record, "status").toLowerCase();
+        if ("invalid".equals(status)) return false;
+        // 排除意识记录
+        if ("param_Yishi".equals(code)) return false;
+        // 必须在白名单或为引流编码
+        if (!DISPLAY_BEDSIDE_CODES.contains(code) && !isDrainCode(code)) return false;
+        // 必须有值
+        String strVal = str(record, "strVal");
+        String remark = str(record, "remark");
+        return !strVal.trim().isEmpty() || !remark.trim().isEmpty();
+    }
+
+    /** 引流编码显示名称（与前端 drainName 对齐） */
+    private String drainDisplayName(String code) {
+        if (code == null) return "";
+        String normalizedCode = code.trim();
+        // 兼容历史编码
+        if ("param_tube_胃肠减压".equals(normalizedCode)) {
+            return "胃管负压引流量";
+        }
+        String stripped = normalizedCode.replace("param_tube_", "").replace("param_", "");
+        if (stripped.endsWith("管")) {
+            return stripped.substring(0, stripped.length() - 1) + "液";
+        }
+        return stripped.replace("管", "液");
+    }
+
+    /** 解析药物剂量（与前端 resolveLiquidCap 对齐） */
+    private String resolveDrugAmount(org.bson.Document execution) {
+        // 优先取顶层 liquidAmount
+        Object topAmount = execution.get("liquidAmount");
+        if (topAmount != null) {
+            String val = topAmount.toString().trim();
+            if (!val.isEmpty() && !"0".equals(val)) {
+                return val;
+            }
+        }
+        // 回退到 drugList 求和
+        @SuppressWarnings("unchecked")
+        List<org.bson.Document> drugList = (List<org.bson.Document>) execution.get("drugList");
+        if (drugList != null) {
+            double total = 0;
+            for (org.bson.Document drug : drugList) {
+                Object liquidAmount = drug.get("liquidAmount");
+                if (liquidAmount != null) {
+                    try {
+                        total += Double.parseDouble(liquidAmount.toString());
+                    } catch (NumberFormatException e) {
+                        // 忽略
+                    }
+                }
+            }
+            if (total > 0) {
+                return String.valueOf(total);
+            }
+        }
+        return "";
+    }
+
+    /** 护理记录签名处理（与前端 resolveNurseSignature 对齐） */
+    private String resolveNurseSignature(org.bson.Document record) {
+        // 优先取 username
+        String username = str(record, "username").trim();
+        if (!username.isEmpty()) return username;
+        // 其次取 trueName
+        String trueName = str(record, "trueName").trim();
+        if (!trueName.isEmpty()) return trueName;
+        // 最后取 userId 或 editUser（需要账户映射，这里简化处理）
+        String userId = str(record, "userId").trim();
+        if (userId.isEmpty()) userId = str(record, "editUser").trim();
+        // TODO: 需要查询账户映射获取真实姓名
+        return userId;
+    }
 
     private String getOutputName(String code) {
         switch (code) {
@@ -981,7 +1189,6 @@ public class HljldPdfService {
         private List<org.bson.Document> vitals = new ArrayList<>();
         private List<org.bson.Document> drugExecutions = new ArrayList<>();
         private List<org.bson.Document> nurseRecords = new ArrayList<>();
-        private List<org.bson.Document> tubeRecords = new ArrayList<>();
 
         boolean isEmpty() { return vitals.isEmpty() && drugExecutions.isEmpty() && nurseRecords.isEmpty(); }
         List<org.bson.Document> getVitals() { return vitals; }
@@ -990,7 +1197,5 @@ public class HljldPdfService {
         void setDrugExecutions(List<org.bson.Document> v) { this.drugExecutions = v; }
         List<org.bson.Document> getNurseRecords() { return nurseRecords; }
         void setNurseRecords(List<org.bson.Document> v) { this.nurseRecords = v; }
-        List<org.bson.Document> getTubeRecords() { return tubeRecords; }
-        void setTubeRecords(List<org.bson.Document> v) { this.tubeRecords = v; }
     }
 }
