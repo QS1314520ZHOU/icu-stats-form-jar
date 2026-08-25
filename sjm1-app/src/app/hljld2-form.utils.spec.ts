@@ -215,24 +215,24 @@ describe('inNursingRange', () => {
   const start = new Date('2026-08-23T07:00:00+08:00');
   const end = new Date('2026-08-24T07:00:00+08:00');
 
-  it('范围内（左开右闭）返回true', () => {
-    expect(inNursingRange('2026-08-23T08:00:00+08:00', start, end, true)).toBe(true);
+  it('范围内（左闭右开）返回true', () => {
+    expect(inNursingRange('2026-08-23T08:00:00+08:00', start, end)).toBe(true);
   });
 
-  it('等于start（左开）返回false', () => {
-    expect(inNursingRange('2026-08-23T07:00:00+08:00', start, end, true)).toBe(false);
+  it('等于start（左闭）返回true', () => {
+    expect(inNursingRange('2026-08-23T07:00:00+08:00', start, end)).toBe(true);
   });
 
-  it('等于end（右闭）返回true', () => {
-    expect(inNursingRange('2026-08-24T07:00:00+08:00', start, end, true)).toBe(true);
+  it('等于end（右开）返回false', () => {
+    expect(inNursingRange('2026-08-24T07:00:00+08:00', start, end)).toBe(false);
   });
 
   it('范围外返回false', () => {
-    expect(inNursingRange('2026-08-22T08:00:00+08:00', start, end, true)).toBe(false);
+    expect(inNursingRange('2026-08-22T08:00:00+08:00', start, end)).toBe(false);
   });
 
-  it('startExclusive=false时包含start', () => {
-    expect(inNursingRange('2026-08-23T07:00:00+08:00', start, end, false)).toBe(true);
+  it('startExclusive=true时排除start', () => {
+    expect(inNursingRange('2026-08-23T07:00:00+08:00', start, end, true)).toBe(false);
   });
 });
 

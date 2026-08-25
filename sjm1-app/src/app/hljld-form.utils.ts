@@ -97,14 +97,14 @@ export const DEFAULT_REMARK_LINES = [
 
 /* ---- 护理日时间范围 ---- */
 
-/** 护理日左端点：当日 07:00，本身不计入（区间左开） */
+/** 护理日左端点：当日 07:00，本身计入（区间左闭） */
 export function startOfNursingDay(selectedDate: Date): Date {
   const d = new Date(selectedDate);
   d.setHours(7, 0, 0, 0);
   return d;
 }
 
-/** 护理日右端点：次日 07:00，本身计入（区间右闭） */
+/** 护理日右端点：次日 07:00，本身不计入（区间右开） */
 export function endOfNursingDay(selectedDate: Date): Date {
   const d = startOfNursingDay(selectedDate);
   d.setDate(d.getDate() + 1);
@@ -162,10 +162,10 @@ export function resolveActiveStayRange(
     dischargeClipped = true;
   }
 
-  // 右闭：入科时间正好等于次日 07:00 时仍属于本护理日最后一分钟
+  // 右开：入科时间正好等于次日 07:00 时不属于本护理日
   const beforeAdmission = !!admissionTime && minuteInstant(admissionTime) > dayEndMinute;
-  // 左开：出科时间正好等于当日 07:00 时本护理日已无有效区间
-  const afterDischarge = !!dischargeTime && minuteInstant(dischargeTime) <= dayStartMinute;
+  // 左闭：出科时间正好等于当日 07:00 时仍属于本护理日
+  const afterDischarge = !!dischargeTime && minuteInstant(dischargeTime) < dayStartMinute;
 
   const startExclusive = !admissionClipped;
   const startMinute = minuteInstant(effectiveStart);
@@ -465,25 +465,25 @@ export function minuteInstant(value: string | Date | number): number {
 }
 
 /**
- * 护理日统计区间判断，默认左开右闭 (start, end]。
+ * 护理日统计区间判断，默认左闭右开 [start, end)。
  *
- * 07:00 归属上一护理日的最后一分钟，07:01 起属于当前护理日，
- * 次日 07:00 为当前护理日的最后一分钟，即 07:01—次日07:00。
+ * 07:00 起属于当前护理日，次日 07:00 不属于当前护理日，
+ * 即 [07:00, 次日07:00)。
  *
- * startExclusive = false 用于入科截断场景：入科当分钟必须计入，区间为 [start, end]。
+ * startExclusive = true 用于特殊场景：区间为 (start, end)。
  */
 export function inNursingRange(
   value: string | Date | number,
   start: Date | number,
   end: Date | number,
-  startExclusive = true,
+  startExclusive = false,
 ): boolean {
   const ts = minuteInstant(value);
   if (!Number.isFinite(ts)) { return false; }
   const startMs = minuteInstant(start);
   const endMs = minuteInstant(end);
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) { return false; }
-  return (startExclusive ? ts > startMs : ts >= startMs) && ts <= endMs;
+  return (startExclusive ? ts > startMs : ts >= startMs) && ts < endMs;
 }
 
 function sumBedsideByCodes(records: BedsideRecord[], codes: readonly string[]): number {
