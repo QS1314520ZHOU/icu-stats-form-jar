@@ -1697,8 +1697,9 @@ export function buildRows(
           const liquidCap = resolveLiquidCap(execution);
           if (Math.abs(cumulativeQuickAdd - liquidCap) < 0.05) {
             const cell = drugToCell(execution, method, isEnteral, stopMs);
-            cell.amount = cumulativeQuickAdd > 0 ? `${cumulativeQuickAdd.toFixed(1)}` : '';
-            cell.numericAmount = cumulativeQuickAdd;
+            const stopAmount = parseAmount(stopAction.quickAddAmount);
+            cell.amount = stopAmount > 0 ? `${stopAmount.toFixed(1)}` : '';
+            cell.numericAmount = stopAmount;
             if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
           }
         }
