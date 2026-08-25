@@ -1857,28 +1857,101 @@ export function buildRows(
 
 /* ---- 文本按列宽拆行 ---- */
 
-/** 各列最大字符数（基于1480px表格宽度、11px字体估算） */
-const COL_MAX_CHARS: Record<string, number> = {
-  time: 14,        // 7% = 104px
-  medName: 23,     // 11% = 163px - 药物名称（增加空间）
-  medAmount: 9,    // 4.5% = 67px
-  medRoute: 7,     // 3.5% = 52px
-  enteralName: 20, // 10% = 148px - 胃肠名称（增加空间）
-  enteralAmount: 8, // 4% = 59px
-  enteralRoute: 7,  // 3.5% = 52px
-  urine: 7,        // 3.5% = 52px
-  ultrafiltration: 7, // 3.5% = 52px
-  outputName: 10,  // 3.5% = 52px
-  outputAmount: 6, // 3% = 44px
-  drainName: 10,   // 3.5% = 52px
-  drainAmount: 6,  // 3% = 44px
-  check: 6,        // 3% = 44px
-  treatment: 6,    // 3% = 44px
-  basicCare: 6,    // 3% = 44px
-  health: 6,       // 3% = 44px
-  nursing: 34,     // 16% = 237px
-  sign: 5,         // 2.5% = 37px - 签名（减少到5字符）
+/** 各列最大字符数配置 */
+export interface ColMaxCharsConfig {
+  time: number;
+  medName: number;
+  medAmount: number;
+  medRoute: number;
+  enteralName: number;
+  enteralAmount: number;
+  enteralRoute: number;
+  urine: number;
+  ultrafiltration: number;
+  outputName: number;
+  outputAmount: number;
+  drainName: number;
+  drainAmount: number;
+  check: number;
+  treatment: number;
+  basicCare: number;
+  health: number;
+  nursing: number;
+  sign: number;
+}
+
+/** 各列宽度百分比（与 CSS 保持一致） */
+const COL_WIDTH_PERCENT: Record<string, number> = {
+  time: 7,
+  medName: 11,
+  medAmount: 4.5,
+  medRoute: 3.5,
+  enteralName: 10,
+  enteralAmount: 4,
+  enteralRoute: 3.5,
+  urine: 3.5,
+  ultrafiltration: 3.5,
+  outputName: 3.5,
+  outputAmount: 3,
+  drainName: 3.5,
+  drainAmount: 3,
+  check: 3,
+  treatment: 3,
+  basicCare: 3,
+  health: 3,
+  nursing: 16,
+  sign: 2.5,
 };
+
+/**
+ * 根据实际表格宽度动态计算每列最大字符数
+ * @param tableWidth 表格实际宽度（px）
+ * @param fontSize 字体大小（px），默认 11
+ * @param padding 每列左右 padding 总和（px），默认 6
+ * @param minChars 每列最小字符数，默认 2
+ */
+export function calculateColMaxChars(
+  tableWidth: number,
+  fontSize: number = 11,
+  padding: number = 6,
+  minChars: number = 2,
+): ColMaxCharsConfig {
+  // 中文字符宽度 ≈ 字体大小，半角字符宽度 ≈ 字体大小 * 0.6
+  // 保守估计，按中文字符计算（每个字符占 fontSize px）
+  const charWidth = fontSize;
+
+  const calc = (percent: number, min: number = minChars): number => {
+    const colWidthPx = (tableWidth * percent) / 100 - padding;
+    const chars = Math.floor(colWidthPx / charWidth);
+    return Math.max(chars, min);
+  };
+
+  return {
+    time: calc(COL_WIDTH_PERCENT.time),
+    medName: calc(COL_WIDTH_PERCENT.medName),
+    medAmount: calc(COL_WIDTH_PERCENT.medAmount),
+    medRoute: calc(COL_WIDTH_PERCENT.medRoute),
+    enteralName: calc(COL_WIDTH_PERCENT.enteralName),
+    enteralAmount: calc(COL_WIDTH_PERCENT.enteralAmount),
+    enteralRoute: calc(COL_WIDTH_PERCENT.enteralRoute),
+    urine: calc(COL_WIDTH_PERCENT.urine),
+    ultrafiltration: calc(COL_WIDTH_PERCENT.ultrafiltration),
+    outputName: calc(COL_WIDTH_PERCENT.outputName),
+    outputAmount: calc(COL_WIDTH_PERCENT.outputAmount),
+    drainName: calc(COL_WIDTH_PERCENT.drainName),
+    drainAmount: calc(COL_WIDTH_PERCENT.drainAmount),
+    check: calc(COL_WIDTH_PERCENT.check),
+    treatment: calc(COL_WIDTH_PERCENT.treatment),
+    basicCare: calc(COL_WIDTH_PERCENT.basicCare),
+    health: calc(COL_WIDTH_PERCENT.health),
+    nursing: calc(COL_WIDTH_PERCENT.nursing),
+    // 签名至少 5 个字符
+    sign: Math.max(calc(COL_WIDTH_PERCENT.sign), 5),
+  };
+}
+
+/** 默认字符数配置（基于 1100px 表格宽度） */
+export const DEFAULT_COL_MAX_CHARS: ColMaxCharsConfig = calculateColMaxChars(1100);
 
 /** 按字符数硬断拆分文本 */
 export function splitTextToLines(text: string, maxChars: number, _skipSpace = false): string[] {
@@ -1938,7 +2011,9 @@ function splitTextArray(arr: string[], maxChars: number): string[] {
 
 /* ---- 时间组展开 ---- */
 
-export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[] {
+export function buildDisplayGroups(sourceRows: HljldTimeRow[], colMaxChars?: ColMaxCharsConfig): HljldTimeGroup[] {
+  const chars = colMaxChars ?? DEFAULT_COL_MAX_CHARS;
+
   const sortedRows = [...sourceRows].sort((a, b) => {
     const da = minuteInstant(a.time);
     const db = minuteInstant(b.time);
@@ -1955,19 +2030,19 @@ export function buildDisplayGroups(sourceRows: HljldTimeRow[]): HljldTimeGroup[]
     const rawDrains = row.drains.filter(hasAmountValue);
 
     // 按列宽拆行：结构化列
-    const medications = splitNameAmountItems(rawMeds, COL_MAX_CHARS.medName, COL_MAX_CHARS.medAmount);
-    const enteral = splitNameAmountItems(rawEnteral, COL_MAX_CHARS.enteralName, COL_MAX_CHARS.enteralAmount);
-    const outputs = splitNameAmountOnlyItems(rawOutputs, COL_MAX_CHARS.outputName, COL_MAX_CHARS.outputAmount);
-    const drains = splitNameAmountOnlyItems(rawDrains, COL_MAX_CHARS.drainName, COL_MAX_CHARS.drainAmount);
+    const medications = splitNameAmountItems(rawMeds, chars.medName, chars.medAmount);
+    const enteral = splitNameAmountItems(rawEnteral, chars.enteralName, chars.enteralAmount);
+    const outputs = splitNameAmountOnlyItems(rawOutputs, chars.outputName, chars.outputAmount);
+    const drains = splitNameAmountOnlyItems(rawDrains, chars.drainName, chars.drainAmount);
 
     // 按列宽拆行：字符串列
-    const urines = splitTextArray(row.urines.filter(hasText), COL_MAX_CHARS.urine);
-    const ultrafiltrations = splitTextArray(row.ultrafiltrations.filter(hasText), COL_MAX_CHARS.ultrafiltration);
-    const examination = splitTextArray(row.examination.filter(hasText), COL_MAX_CHARS.check);
-    const treatment = splitTextArray(row.treatment.filter(hasText), COL_MAX_CHARS.treatment);
-    const basicCare = splitTextArray(row.basicCare.filter(hasText), COL_MAX_CHARS.basicCare);
-    const healthEducation = splitTextArray(row.healthEducation.filter(hasText), COL_MAX_CHARS.health);
-    const nursingRecords = splitTextArray(row.nursingRecords.filter(hasText), COL_MAX_CHARS.nursing);
+    const urines = splitTextArray(row.urines.filter(hasText), chars.urine);
+    const ultrafiltrations = splitTextArray(row.ultrafiltrations.filter(hasText), chars.ultrafiltration);
+    const examination = splitTextArray(row.examination.filter(hasText), chars.check);
+    const treatment = splitTextArray(row.treatment.filter(hasText), chars.treatment);
+    const basicCare = splitTextArray(row.basicCare.filter(hasText), chars.basicCare);
+    const healthEducation = splitTextArray(row.healthEducation.filter(hasText), chars.health);
+    const nursingRecords = splitTextArray(row.nursingRecords.filter(hasText), chars.nursing);
 
     const lineCount = Math.max(
       medications.length, enteral.length,

@@ -1,38 +1,15 @@
-﻿import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
+﻿import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, AfterViewInit } from '@angular/core';
 import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { Hljld2FormService } from './hljld2-form.service';
 import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTimelineItem, HljldViewModel, PatientContext, SummaryTextToken } from './hljld2-form.models';
-import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld2-form.utils';
+import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay, calculateColMaxChars, ColMaxCharsConfig, DEFAULT_COL_MAX_CHARS } from './hljld2-form.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljld2Record, printAllViaIframe2 } from "./hljld2-print.util";
 
 /** 每页最大数据行数（不含表头和备注） */
 const MAX_ROWS_PER_PAGE = 23;
-
-/** 各列最大字符数（基于1480px表格宽度、11px字体估算） */
-const COL_MAX_CHARS = {
-  time: 14,        // 7%
-  medName: 22,     // 11% - 药物名称（减1字符防截断）
-  medAmount: 9,    // 4.5%
-  medRoute: 7,     // 3.5%
-  enteralName: 20, // 10% - 胃肠名称（增加空间）
-  enteralAmount: 8, // 4%
-  enteralRoute: 7, // 3.5%
-  urine: 7,        // 3.5%
-  ultrafiltration: 7, // 3.5%
-  outputName: 10,  // 3.5%
-  outputAmount: 6, // 3%
-  drainName: 10,   // 3.5%
-  drainAmount: 6,  // 3%
-  check: 6,        // 3%
-  treatment: 6,    // 3%
-  basicCare: 6,    // 3%
-  health: 6,       // 3%
-  nursing: 33,     // 16% - 护理记录（减1字符防截断）
-  sign: 5,         // 2.5% - 签名（减少到5字符）
-};
 
 /** 扁平行：长文本拆分后的一行，固定18px行高 */
 interface FlatRow {
@@ -115,6 +92,9 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   pages: FlatRow[][] = [];
   pageRowCounts: number[] = [];
 
+  /** 动态计算的列字符数配置 */
+  colMaxChars: ColMaxCharsConfig = DEFAULT_COL_MAX_CHARS;
+
   constructor(
     private service: Hljld2FormService,
     private hostPatient: HostPatientService,
@@ -123,6 +103,16 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    // 初始化时计算列字符数
+    this.updateColMaxChars();
+
+    // 监听窗口大小变化，重新计算列字符数
+    if (typeof window !== 'undefined') {
+      const resizeHandler = () => this.updateColMaxChars();
+      window.addEventListener('resize', resizeHandler);
+      this.destroy$.subscribe(() => window.removeEventListener('resize', resizeHandler));
+    }
+
     this.dateChange$.pipe(
       takeUntil(this.destroy$),
       map(() => ({ pid: this.patient.pid, date: new Date(this.selectedDate) })),
@@ -274,6 +264,20 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  /**
+   * 根据实际表格宽度动态计算每列最大字符数
+   */
+  private updateColMaxChars(): void {
+    if (typeof document === 'undefined') { return; }
+    const table = this.elementRef.nativeElement.querySelector('.record-table') as HTMLElement | null;
+    if (!table) { return; }
+    const tableWidth = table.offsetWidth;
+    if (tableWidth > 0) {
+      this.colMaxChars = calculateColMaxChars(tableWidth);
+      this.cdr.markForCheck();
+    }
   }
 
   previousDay(): void {
@@ -840,7 +844,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     const rows = nursingDayStay.hasValidRange
       ? buildRows(source, nursingDayStay.effectiveStart, nextMorning, accountMap, nursingDayStay.startExclusive)
       : [];
-    const timeGroups = buildDisplayGroups(rows);
+    const timeGroups = buildDisplayGroups(rows, this.colMaxChars);
 
     const drainNames = nursingDayStay.hasValidRange
       ? collectDrainNames(source.bedside, nursingDayStay.effectiveStart, nextMorning, nursingDayStay.startExclusive)
