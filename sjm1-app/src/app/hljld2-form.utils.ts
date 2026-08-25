@@ -1625,14 +1625,13 @@ export function buildRows(
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
       if (!method) { return; }
       const isEnteral = String(method.group ?? '').trim() === '胃肠';
+      const drugName = drugDisplayName(execution);
+      const isTargetEnteral = isEnteral && (drugName.includes('SP') || drugName.includes('TP')
+          || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能'));
 
       // 检查当前时间点是否有 quickAdd（用于跳过总量行）
       let hasQuickAddAtTime = false;
-      if (isEnteral) {
-        const drugName = drugDisplayName(execution);
-        const isTargetEnteral = drugName.includes('SP') || drugName.includes('TP')
-          || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能');
-        if (isTargetEnteral) {
+      if (isTargetEnteral) {
           for (const action of (execution.drugActionList ?? [])) {
             if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
             if (minuteKey(action.time) !== key) { continue; }
@@ -1641,7 +1640,6 @@ export function buildRows(
             hasQuickAddAtTime = true;
             break;
           }
-        }
       }
 
       // 持续药物：仅在开始时间列展示医嘱液体量（resolveLiquidCap），后续时间列按段内累计
@@ -1680,8 +1678,8 @@ export function buildRows(
         }
       }
 
-      // 单次给药 stop 时间点：累积 quickAdd 量 + stop 的 quickAddAmount == liquidAmount 时才展示
-      {
+      // 单次给药 stop 时间点：仅瑞素/瑞高/短肽/瑞能，累积 quickAdd 量 + stop 的 quickAddAmount == liquidAmount 时才展示
+      if (isTargetEnteral) {
         const stopAction = (execution.drugActionList ?? []).find(a =>
           String(a.action ?? '').trim().toLowerCase() === 'stop' && minuteKey(a.time) === key
         );
