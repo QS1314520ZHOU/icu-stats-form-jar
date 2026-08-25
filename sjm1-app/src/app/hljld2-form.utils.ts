@@ -947,10 +947,11 @@ function sumDrugAmountsByChannel(
       const isTargetEnteral = drugName.includes('SP') || drugName.includes('TP')
         || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能');
       if (isTargetEnteral) {
-        // 只计算在统计区间内的 quickAdd 量
+        // 计算在统计区间内的 quickAdd 和 stop 的 quickAddAmount 量
         let quickAddTotal = 0;
         for (const action of (execution.drugActionList ?? [])) {
-          if (String(action.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
+          const act = String(action.action ?? '').trim().toLowerCase();
+          if (act !== 'quickadd' && act !== 'stop') { continue; }
           const actionTime = databaseTimeValue(action.time);
           if (!Number.isFinite(actionTime)) { continue; }
           if (inNursingRange(action.time, start, end, startExclusive)) {
