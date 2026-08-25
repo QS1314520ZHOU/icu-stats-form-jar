@@ -1664,37 +1664,46 @@ export function buildRows(
         }
       }
 
-      // 单次给药 stop 时间点：仅瑞素/瑞高/短肽/瑞能，累积 quickAdd 量 + stop 的 quickAddAmount == liquidAmount 时才展示
-      if (isTargetEnteral) {
-        const stopAction = (execution.drugActionList ?? []).find(a =>
-          String(a.action ?? '').trim().toLowerCase() === 'stop' && minuteKey(a.time) === key
-        );
-        if (stopAction) {
-          const execStartMs = toMs(String(execution.startTime ?? ''));
-          const stopMs = toMs(String(stopAction.time ?? ''));
-          if (Number.isFinite(execStartMs) && Number.isFinite(stopMs)) {
-            // 累积 stop 之前的所有 quickAdd 量
-            let cumulativeQuickAdd = 0;
-            for (const a of (execution.drugActionList ?? [])) {
-              if (String(a.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
-              const aMs = toMs(String(a.time ?? ''));
-              if (Number.isFinite(aMs) && aMs >= execStartMs && aMs <= stopMs) {
-                cumulativeQuickAdd += parseAmount(a.quickAddAmount);
-              }
+    });
+
+    // 单次给药 stop 时间点：仅瑞素/瑞高/短肽/瑞能，累积 quickAdd 量 + stop 的 quickAddAmount == liquidAmount 时才展示
+    for (const execution of drugsInPeriod) {
+      const method = findDrugMethod(execution.methodCode, source.drugMethods);
+      if (!method) { continue; }
+      const isEnteral = String(method.group ?? '').trim() === '胃肠';
+      const drugName = drugDisplayName(execution);
+      const isTargetEnteral = isEnteral && (drugName.includes('SP') || drugName.includes('TP')
+          || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能'));
+      if (!isTargetEnteral) { continue; }
+
+      const stopAction = (execution.drugActionList ?? []).find(a =>
+        String(a.action ?? '').trim().toLowerCase() === 'stop' && minuteKey(a.time) === key
+      );
+      if (stopAction) {
+        const execStartMs = toMs(String(execution.startTime ?? ''));
+        const stopMs = toMs(String(stopAction.time ?? ''));
+        if (Number.isFinite(execStartMs) && Number.isFinite(stopMs)) {
+          // 累积 stop 之前的所有 quickAdd 量
+          let cumulativeQuickAdd = 0;
+          for (const a of (execution.drugActionList ?? [])) {
+            if (String(a.action ?? '').trim().toLowerCase() !== 'quickadd') { continue; }
+            const aMs = toMs(String(a.time ?? ''));
+            if (Number.isFinite(aMs) && aMs >= execStartMs && aMs <= stopMs) {
+              cumulativeQuickAdd += parseAmount(a.quickAddAmount);
             }
-            // 加上 stop 自身的 quickAddAmount
-            cumulativeQuickAdd += parseAmount(stopAction.quickAddAmount);
-            const liquidCap = resolveLiquidCap(execution);
-            if (Math.abs(cumulativeQuickAdd - liquidCap) < 0.05) {
-              const cell = drugToCell(execution, method, isEnteral, stopMs);
-              cell.amount = cumulativeQuickAdd > 0 ? `${cumulativeQuickAdd.toFixed(1)}` : '';
-              cell.numericAmount = cumulativeQuickAdd;
-              if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
-            }
+          }
+          // 加上 stop 自身的 quickAddAmount
+          cumulativeQuickAdd += parseAmount(stopAction.quickAddAmount);
+          const liquidCap = resolveLiquidCap(execution);
+          if (Math.abs(cumulativeQuickAdd - liquidCap) < 0.05) {
+            const cell = drugToCell(execution, method, isEnteral, stopMs);
+            cell.amount = cumulativeQuickAdd > 0 ? `${cumulativeQuickAdd.toFixed(1)}` : '';
+            cell.numericAmount = cumulativeQuickAdd;
+            if (hasNameOrAmount(cell)) { (isEnteral ? enteral : medications).push(cell); }
           }
         }
       }
-    });
+    }
 
     bedside
       .filter(item => item.code === CODE_BROUGHT)
