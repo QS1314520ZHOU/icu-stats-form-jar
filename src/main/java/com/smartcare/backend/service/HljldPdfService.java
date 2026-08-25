@@ -61,11 +61,21 @@ public class HljldPdfService {
     private static final int   DATA_ROW_HEIGHT   = 18;   // 数据行最小高度
     private static final float LINE_SPACING      = 10f;   // 多行文本行间距
 
-    // ── 19 列宽度（pt），与 hljld2-form CSS 百分比对齐 ──
-    // 7%, 7.5%, 4%, 3.5%, 6.5%, 4%, 3.5%, 3.5%, 3.5%, 5%, 3.5%, 5%, 3.5%, 4%, 4%, 4%, 4%, 17%, 5.5%
+    // ── 19 列宽度（pt） ──
     private static final float[] COL_WIDTHS = {
-        56f, 60f, 32f, 28f, 52f, 32f, 28f, 28f, 28f,
-        40f, 28f, 40f, 28f, 32f, 32f, 32f, 32f, 136f, 44f
+        56f,  // 日期时间
+        40f, 12f, 8f,   // 药物治疗: 名称、量/ml、途径
+        36f, 10f, 6f,   // 胃肠摄入: 名称、量/ml、途径
+        28f,            // 尿量(ml)
+        28f,            // 净超滤量(ml)
+        32f, 12f,       // 排出物: 名称、量/ml
+        32f, 12f,       // 引流液: 名称、量/ml
+        28f,            // 检查
+        28f,            // 治疗
+        28f,            // 基础护理
+        28f,            // 健康教育
+        136f,           // 护理记录
+        44f             // 签名
     };
 
     // ── 字体 ──
@@ -97,12 +107,6 @@ public class HljldPdfService {
         "名称", "量/ml",              // 排出物
         "名称", "量/ml",              // 引流液
     };
-
-    // ── 小结背景色 ──
-    private static final Color COLOR_DAY_SUMMARY     = new Color(247, 243, 223); // #f7f3df
-    private static final Color COLOR_SHIFT_SUMMARY   = new Color(244, 241, 227); // #f4f1e3
-    private static final Color COLOR_24H_SUMMARY     = new Color(237, 246, 238); // #edf6ee
-    private static final Color COLOR_DISCHARGE_SUMMARY = new Color(232, 240, 254); // #e8f0fe
 
     // ── 床旁数据编码白名单（与前端 DISPLAY_BEDSIDE_CODES 对齐） ──
     private static final java.util.Set<String> DISPLAY_BEDSIDE_CODES = new java.util.HashSet<>(java.util.Arrays.asList(
@@ -411,8 +415,9 @@ public class HljldPdfService {
 
         // ===== 4. 数据行 =====
         float dataTop = headerTop + 2 * HEADER_ROW_HEIGHT;
-        float remarkAreaHeight = 55f;  // 备注区域高度
-        float maxDataY = PAGE_HEIGHT - MARGIN - remarkAreaHeight;
+        // 备注行固定在页面底部，数据行填满上方空间
+        float remarkTop = PAGE_HEIGHT - MARGIN - REMARK_TOTAL_HEIGHT;
+        float maxDataY = remarkTop;
         float dy = dataTop;
 
         g2d.setColor(Color.BLACK);
@@ -437,9 +442,8 @@ public class HljldPdfService {
             g2d.drawString(msg, lx + (TABLE_WIDTH - fmMsg.stringWidth(msg)) / 2, (dataTop + maxDataY) / 2);
         }
 
-        // ===== 6. 底部备注区（4 行） =====
-        float remarkTop = maxDataY;
-        drawRemarkArea(g2d, lx, remarkTop, TABLE_WIDTH, remarkAreaHeight);
+        // ===== 6. 底部备注行（rowspan=4，表格最后一行） =====
+        drawRemarkRow(g2d, lx, remarkTop, TABLE_WIDTH);
 
         // ===== 7. 页码 =====
         g2d.setFont(getFont(10f));
@@ -507,14 +511,14 @@ public class HljldPdfService {
             COL_WIDTHS[11], COL_WIDTHS[12],                // 引流液
         };
         float[] subGroupStartX = {
-            x + COL_WIDTHS[0],
-            x + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] + COL_WIDTHS[3],
+            x + COL_WIDTHS[0],                                                          // 药物治疗起始
+            x + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] + COL_WIDTHS[3],         // 胃肠摄入起始
             x + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] + COL_WIDTHS[3]
                 + COL_WIDTHS[4] + COL_WIDTHS[5] + COL_WIDTHS[6]
-                + COL_WIDTHS[7] + COL_WIDTHS[8],
+                + COL_WIDTHS[7] + COL_WIDTHS[8],                                        // 排出物起始
             x + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] + COL_WIDTHS[3]
                 + COL_WIDTHS[4] + COL_WIDTHS[5] + COL_WIDTHS[6]
-                + COL_WIDTHS[7] + COL_WIDTHS[8] + COL_WIDTHS[9] + COL_WIDTHS[10],
+                + COL_WIDTHS[7] + COL_WIDTHS[8] + COL_WIDTHS[9] + COL_WIDTHS[10],      // 引流液起始
         };
         float sx = subGroupStartX[0];
         int groupIdx = 0;
@@ -621,52 +625,81 @@ public class HljldPdfService {
         }
 
         // 行边框
-        g2d.setColor(new Color(180, 180, 180));
-        g2d.setStroke(new BasicStroke(0.3f));
-        g2d.draw(new Rectangle2D.Float(x, y, tableWidth, rowH));
         g2d.setColor(Color.BLACK);
+        g2d.setStroke(new BasicStroke(0.5f));
+        g2d.draw(new Rectangle2D.Float(x, y, tableWidth, rowH));
 
         // 列分隔线
         float vx = x;
         for (int i = 0; i < COL_WIDTHS.length - 1; i++) {
             vx += COL_WIDTHS[i];
-            g2d.setColor(new Color(180, 180, 180));
+            g2d.setColor(Color.BLACK);
+            g2d.setStroke(new BasicStroke(0.3f));
             g2d.drawLine((int) vx, (int) y, (int) vx, (int) (y + rowH));
         }
-        g2d.setColor(Color.BLACK);
     }
 
     // ══════════════════════════════════════════════════════════
-    //  备注区（4 行固定）
+    //  备注区（4 行固定，rowspan=4，与前端 tfoot 对齐）
     // ══════════════════════════════════════════════════════════
 
-    private void drawRemarkArea(Graphics2D g2d, float x, float y, float tableWidth, float areaHeight) {
-        int lineCount = 4;
-        float lineH = areaHeight / lineCount;
+    private static final String[] REMARK_LINES = {
+        "检查：A：CT    B：核磁共振    C：胃镜    D：肠镜    E：超声检查    F：床旁胸片    G：心电图",
+        "治疗：A：机械辅助排痰    B：气压治疗    C：雾化吸入    D：支气管镜灌洗    E：TDP照射    F：针灸治疗    G：运动治疗    H：肺复张",
+        "基础护理：A：口腔护理    B：动/静脉置管护理    C：擦浴    D：会阴擦洗    E：肛周护理    F：更换引流袋    G：膀胱冲洗    H：压疮护理    I：床上洗头",
+        "健康教育：A：入院指导    B：入科指导    C：疾病知识    D：药物指导    E：饮食指导    F：肢体活动指导    G：检查指导    H：安全指导    I：心理指导    J：术前指导    K：术后指导    L：转科/出院指导    M：用氧注意事项    N：通气配合指导    O：康复指导    P：VTE预防指导",
+    };
 
-        // "备注" 标签（跨 4 行）
-        g2d.setFont(getFont(7f));
+    /** 备注区总高度（4行 × 14pt） */
+    static final float REMARK_TOTAL_HEIGHT = 56f;
+
+    /**
+     * 绘制备注行（rowspan=4 表格行，集成到表格内）。
+     * 结构：第一列"备注"居中 + 剩余18列合并显示4行内容。
+     */
+    private void drawRemarkRow(Graphics2D g2d, float x, float y, float tableWidth) {
+        int lineCount = REMARK_LINES.length;
+        float lineH = REMARK_TOTAL_HEIGHT / lineCount;
+        float firstColW = COL_WIDTHS[0]; // 日期时间列宽 = 56pt
+        float contentX = x + firstColW;
+        float contentW = tableWidth - firstColW;
+
         g2d.setColor(Color.BLACK);
-        FontMetrics fm = g2d.getFontMetrics();
-        float labelW = COL_WIDTHS[0]; // 用第一列宽度作为备注标签宽度
-        float labelY = y + (areaHeight - fm.getHeight()) / 2 + fm.getAscent();
-        g2d.drawString("备注", x + (labelW - fm.stringWidth("备注")) / 2, labelY);
 
-        // 标签右边框
-        g2d.setColor(new Color(180, 180, 180));
-        g2d.setStroke(new BasicStroke(0.3f));
-        g2d.drawLine((int) (x + labelW), (int) y, (int) (x + labelW), (int) (y + areaHeight));
-
-        // 外边框
-        g2d.setColor(new Color(180, 180, 180));
+        // ── 外边框（整个备注区域） ──
         g2d.setStroke(new BasicStroke(0.5f));
-        g2d.draw(new Rectangle2D.Float(x, y, tableWidth, areaHeight));
+        g2d.draw(new Rectangle2D.Float(x, y, tableWidth, REMARK_TOTAL_HEIGHT));
 
-        // 行分隔线
-        g2d.setStroke(new BasicStroke(0.3f));
-        for (int i = 1; i < lineCount; i++) {
-            float ly = y + i * lineH;
-            g2d.drawLine((int) x, (int) ly, (int) (x + tableWidth), (int) ly);
+        // ── 第一列："备注" 居中（rowspan=4） ──
+        Font labelFont = getFont(8f);
+        g2d.setFont(labelFont);
+        FontMetrics fmLabel = g2d.getFontMetrics();
+        String label = "备注";
+        float labelTx = x + (firstColW - fmLabel.stringWidth(label)) / 2;
+        float labelTy = y + (REMARK_TOTAL_HEIGHT - fmLabel.getHeight()) / 2 + fmLabel.getAscent();
+        g2d.drawString(label, labelTx, labelTy);
+
+        // ── 第一列右侧垂直分隔线 ──
+        g2d.setStroke(new BasicStroke(0.5f));
+        g2d.drawLine((int) contentX, (int) y, (int) contentX, (int) (y + REMARK_TOTAL_HEIGHT));
+
+        // ── 4 行内容 ──
+        Font contentFont = getFont(7f);
+        g2d.setFont(contentFont);
+        FontMetrics fmContent = g2d.getFontMetrics();
+
+        for (int i = 0; i < lineCount; i++) {
+            float rowY = y + i * lineH;
+
+            // 行分隔线（除最后一行外）
+            if (i > 0) {
+                g2d.setStroke(new BasicStroke(0.3f));
+                g2d.drawLine((int) x, (int) rowY, (int) (x + tableWidth), (int) rowY);
+            }
+
+            // 内容文本（左对齐）
+            float textY = rowY + (lineH - fmContent.getHeight()) / 2 + fmContent.getAscent();
+            g2d.drawString(REMARK_LINES[i], contentX + 4, textY);
         }
     }
 
@@ -717,31 +750,27 @@ public class HljldPdfService {
     //  分页
     // ══════════════════════════════════════════════════════════
 
-    /** 按动态行高分页（需要 Graphics2D 获取准确的 FontMetrics） */
+    /** 每页固定最大行数 */
+    private static final int MAX_ROWS_PER_PAGE = 25;
+
+    /** 按固定行数分页（每页最多23行） */
     private List<PageRows> paginateData(NursingDayData dayData, FontMetrics fm) {
         List<Map<String, Object>> allRows = convertToRows(dayData);
-        log.info("分页计算: 总行数={}", allRows.size());
+        log.info("分页计算: 总行数={}, 每页最大行数={}", allRows.size(), MAX_ROWS_PER_PAGE);
+
         List<PageRows> pages = new ArrayList<>();
         List<Map<String, Object>> current = new ArrayList<>();
-        float usedH = 0;
-
-        // 可用高度 = 页面高度 - 上边距 - 标题区(50) - 表头(28) - 备注区(55) - 下边距(20)
-        float maxH = PAGE_HEIGHT - MARGIN - 50 - 2 * HEADER_ROW_HEIGHT - 55 - MARGIN;
 
         for (Map<String, Object> row : allRows) {
-            int rowLines = calcMaxLines(row, fm);
-            float rowH = Math.max(DATA_ROW_HEIGHT, (float) Math.ceil(rowLines * LINE_SPACING));
-
-            if (usedH + rowH > maxH && !current.isEmpty()) {
+            current.add(row);
+            if (current.size() >= MAX_ROWS_PER_PAGE) {
                 pages.add(new PageRows(current));
                 current = new ArrayList<>();
-                usedH = 0;
             }
-            current.add(row);
-            usedH += rowH;
         }
         if (!current.isEmpty()) pages.add(new PageRows(current));
         if (pages.isEmpty()) pages.add(new PageRows(Collections.emptyList()));
+
         log.info("分页完成: 页数={}, 每页行数={}", pages.size(),
             pages.stream().mapToInt(p -> p.rows.size()).toArray());
         return pages;
@@ -824,6 +853,12 @@ public class HljldPdfService {
         String rawSex = str(p, "sex");
         if (rawSex.isEmpty()) rawSex = str(p, "gender");
         p.put("sex", convertGenderText(rawSex));
+        // age: 通过 birthday 计算年龄
+        String age = str(p, "age");
+        if (age.isEmpty()) {
+            age = calculateAgeFromBirthday(p);
+            if (!age.isEmpty()) p.put("age", age);
+        }
         // diagnosis: 截断到第一个分号
         String diagnosis = str(p, "diagnosis");
         if (diagnosis.isEmpty()) diagnosis = str(p, "clinicalDiagnosis");
@@ -877,6 +912,37 @@ public class HljldPdfService {
         return idx >= 0 ? value.substring(0, idx).trim() : value;
     }
 
+    /** 通过 birthday 计算年龄 */
+    private String calculateAgeFromBirthday(org.bson.Document patient) {
+        // 尝试多种字段名
+        String birthdayStr = str(patient, "birthday");
+        if (birthdayStr.isEmpty()) birthdayStr = str(patient, "birthDate");
+        if (birthdayStr.isEmpty()) birthdayStr = str(patient, "birth");
+        if (birthdayStr.isEmpty()) return "";
+
+        try {
+            java.time.Instant instant;
+            // 处理 ISODate 格式 (UTC)
+            if (birthdayStr.contains("T") && birthdayStr.endsWith("Z")) {
+                instant = java.time.Instant.parse(birthdayStr);
+            } else if (birthdayStr.contains("-")) {
+                // 处理 yyyy-MM-dd 格式
+                java.time.LocalDate birthDate = java.time.LocalDate.parse(birthdayStr.substring(0, 10));
+                instant = birthDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+            } else {
+                return "";
+            }
+
+            java.time.LocalDate birthDate = java.time.LocalDate.ofInstant(instant, java.time.ZoneId.of("Asia/Shanghai"));
+            java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"));
+            int age = java.time.Period.between(birthDate, today).getYears();
+            return String.valueOf(age);
+        } catch (Exception e) {
+            log.warn("计算年龄失败: birthday={}, error={}", birthdayStr, e.getMessage());
+            return "";
+        }
+    }
+
     private int getStartPageNo(String pid, String date) {
         return pageIndexRepository.findByPidAndFormType(pid, "hljld2")
             .flatMap(idx -> idx.getDailyPages().stream()
@@ -892,7 +958,9 @@ public class HljldPdfService {
 
     private List<Map<String, Object>> convertToRows(NursingDayData dayData) {
         List<Map<String, Object>> rows = new ArrayList<>();
-        SimpleDateFormat tf = new SimpleDateFormat("HH:mm");
+        // 使用上海时区，格式 yyyy-MM-dd HH:mm
+        SimpleDateFormat tf = new SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA);
+        tf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
         TreeMap<Date, Map<String, Object>> timeMap = new TreeMap<>();
 
         log.info("数据转换开始: vitals={}, drugExe={}, nurseRecords={}",
