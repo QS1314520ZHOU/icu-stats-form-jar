@@ -2,6 +2,8 @@ package com.smartcare.backend.controller;
 
 import com.smartcare.backend.service.FormPageIndexService;
 import com.smartcare.backend.service.HljldPdfService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -18,6 +20,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/icu/hljld")
 public class HljldPdfController {
+
+    private static final Logger log = LoggerFactory.getLogger(HljldPdfController.class);
 
     private final HljldPdfService pdfService;
     private final FormPageIndexService pageIndexService;
@@ -38,6 +42,7 @@ public class HljldPdfController {
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
+            log.error("生成PDF失败: pid={}, date={}", pid, date, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -52,6 +57,7 @@ public class HljldPdfController {
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
+            log.error("生成全部PDF失败: pid={}", pid, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -72,6 +78,7 @@ public class HljldPdfController {
             response.put("status", result.getStatus());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            log.error("获取页码信息失败: pid={}, date={}, formType={}", pid, date, formType, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

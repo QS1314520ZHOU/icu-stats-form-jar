@@ -62,6 +62,27 @@
     </dependencies>
 
     <build>
+        <resources>
+            <!-- 默认资源（application.yml、static/ 等） -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <excludes>
+                    <exclude>**/*.ttc</exclude>
+                    <exclude>**/*.ttf</exclude>
+                    <exclude>**/*.otf</exclude>
+                </excludes>
+            </resource>
+            <!-- 字体文件单独包含，避免被过滤掉 -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>**/*.ttc</include>
+                    <include>**/*.ttf</include>
+                    <include>**/*.otf</include>
+                </includes>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

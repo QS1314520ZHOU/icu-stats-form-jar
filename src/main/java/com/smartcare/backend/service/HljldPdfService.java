@@ -119,31 +119,58 @@ public class HljldPdfService {
         fontInitialized = true;
         fontMapper = new DefaultFontMapper();
 
-        String[] fontPaths = {
+        log.info("========== 字体初始化开始 ==========");
+
+        // 1. 优先使用 classpath 字体（部署到服务器时确保字体可用）
+        String[] fontResources = {
             "/fonts/simsun.ttc", "/fonts/simsun.ttf", "/fonts/simsunb.ttf",
             "/fonts/SimsunExtG.ttf", "/fonts/Microsoft YaHei.ttf",
             "/fonts/NotoSansCJKsc-Regular.otf"
         };
 
-        for (String fontPath : fontPaths) {
-            try (InputStream is = getClass().getResourceAsStream(fontPath)) {
-                if (is != null) {
-                    BaseFont bf = BaseFont.createFont(fontPath + ",0", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-                    String bfName = bf.getFullFontName()[0][3];
-                    DefaultFontMapper.BaseFontParameters params = new DefaultFontMapper.BaseFontParameters(fontPath + ",0");
-                    params.encoding = BaseFont.IDENTITY_H;
-                    params.embedded = BaseFont.EMBEDDED;
-                    fontMapper.putName(bfName.toLowerCase(), params);
-                    fontMapper.putAlias(bfName, bfName.toLowerCase());
-                    chineseFont = new Font(bfName, Font.PLAIN, 12);
-                    log.info("字体加载成功(classpath): {}, BaseFont名称={}", fontPath, bfName);
-                    return;
-                }
+        for (String resPath : fontResources) {
+            try {
+                org.springframework.core.io.Resource resource = new org.springframework.core.io.ClassPathResource(resPath);
+                if (!resource.exists()) continue;
+
+                // 从 jar 包读取字体，写入临时文件
+                byte[] fontBytes = resource.getInputStream().readAllBytes();
+                log.info("classpath字体读取成功: {}, 字节数={}", resPath, fontBytes.length);
+
+                String suffix = resPath.substring(resPath.lastIndexOf('.'));
+                java.io.File tempFont = java.io.File.createTempFile("icu_font_", suffix);
+                tempFont.deleteOnExit();
+                java.nio.file.Files.write(tempFont.toPath(), fontBytes);
+                log.info("字体已写入临时文件: {}, 大小={}bytes", tempFont.getAbsolutePath(), tempFont.length());
+
+                // .ttc 文件必须加索引（,0 或 ,1，先试 ,0）
+                String indexedPath = tempFont.getAbsolutePath() + ",0";
+
+                // 验证 BaseFont 能正确加载
+                BaseFont bf = BaseFont.createFont(indexedPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                log.info("BaseFont验证: name={}, charExists(中)={}", bf.getPostscriptFontName(), bf.charExists('中'));
+
+                // 注册到 fontMapper（用 putName 注册，key 必须和 AWT Font 名一致）
+                DefaultFontMapper.BaseFontParameters params = new DefaultFontMapper.BaseFontParameters(indexedPath);
+                params.encoding = BaseFont.IDENTITY_H;
+                params.embedded = BaseFont.EMBEDDED;
+                fontMapper.putName("SimSun", params);
+                fontMapper.putName("宋体", params);
+                fontMapper.putName("simsun", params);
+
+                // 创建 AWT Font（new Font("SimSun", ...) 的名字必须和 putName 的 key 一致）
+                Font awtFont = new Font("SimSun", Font.PLAIN, 12);
+                chineseFont = awtFont;
+
+                log.info("classpath字体加载成功: name={}, family={}", chineseFont.getFontName(), chineseFont.getFamily());
+                log.info("========== 字体初始化完成(classpath) ==========");
+                return;
             } catch (Exception e) {
-                log.warn("classpath字体加载失败 {}: {}", fontPath, e.getMessage());
+                log.warn("classpath字体加载失败 {}: {}", resPath, e.getMessage());
             }
         }
 
+        // 2. 回退：系统字体（本地开发时可能用到）
         String os = System.getProperty("os.name", "").toLowerCase();
         String[] sysFontPaths = os.contains("windows")
             ? new String[]{ "C:/Windows/Fonts/simsun.ttc", "C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simhei.ttf" }
@@ -153,18 +180,29 @@ public class HljldPdfService {
             try {
                 java.io.File fontFile = new java.io.File(fontPath);
                 if (fontFile.exists()) {
-                    fontMapper.insertFile(fontFile);
-                    Font awtFont = Font.createFont(Font.TRUETYPE_FONT, fontFile);
-                    GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(awtFont);
-                    chineseFont = awtFont.deriveFont(Font.PLAIN, 12f);
-                    log.info("字体加载成功(系统): {}", fontPath);
+                    log.info("找到系统字体: {}, 大小={}bytes", fontPath, fontFile.length());
+                    String indexedPath = fontPath.endsWith(".ttc") ? fontPath + ",0" : fontPath;
+
+                    BaseFont bf = BaseFont.createFont(indexedPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                    log.info("BaseFont验证: name={}, charExists(中)={}", bf.getPostscriptFontName(), bf.charExists('中'));
+
+                    DefaultFontMapper.BaseFontParameters params = new DefaultFontMapper.BaseFontParameters(indexedPath);
+                    params.encoding = BaseFont.IDENTITY_H;
+                    params.embedded = BaseFont.EMBEDDED;
+                    fontMapper.putName("SimSun", params);
+                    fontMapper.putName("宋体", params);
+
+                    Font awtFont = new Font("SimSun", Font.PLAIN, 12);
+                    chineseFont = awtFont;
+                    log.info("系统字体加载成功: name={}, family={}", chineseFont.getFontName(), chineseFont.getFamily());
+                    log.info("========== 字体初始化完成(系统字体) ==========");
                     return;
                 }
             } catch (Exception e) {
                 log.warn("系统字体加载失败 {}: {}", fontPath, e.getMessage());
             }
         }
-        log.error("所有中文字体加载失败，PDF中文将无法正常显示！");
+        log.error("========== 所有中文字体加载失败！PDF中文将无法正常显示 ==========");
     }
 
     private Font getFont(float size) {
@@ -185,6 +223,9 @@ public class HljldPdfService {
         org.bson.Document patient = getPatientInfo(pid);
         NursingDayData dayData = loadNursingDayData(pid, date);
         int startPageNo = getStartPageNo(pid, date);
+        log.info("PDF数据加载完成: patient={}, vitals={}, drugExe={}, nurseRecords={}, tubeRecords={}, startPageNo={}",
+            patient.getString("name"), dayData.getVitals().size(), dayData.getDrugExecutions().size(),
+            dayData.getNurseRecords().size(), dayData.getTubeRecords().size(), startPageNo);
 
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -201,11 +242,13 @@ public class HljldPdfService {
             measureG2d.dispose();
 
             if (dayData.isEmpty()) {
+                log.info("PDF: 无数据，生成空白页");
                 Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h, fontMapper);
                 renderPage(g2d, patient, Collections.emptyList(), startPageNo, 1, date);
                 g2d.dispose();
             } else {
                 List<PageRows> pages = paginateData(dayData, fm);
+                log.info("PDF: 分页完成，共{}页", pages.size());
                 for (int i = 0; i < pages.size(); i++) {
                     if (i > 0) pdfDoc.newPage();
                     Graphics2D g2d = new PdfGraphics2D(writer.getDirectContent(), w, h, fontMapper);
@@ -284,13 +327,23 @@ public class HljldPdfService {
     public int calculatePageCount(String pid, String date) {
         initFont();
         NursingDayData dayData = loadNursingDayData(pid, date);
+        log.info("计算页数: pid={}, date={}, vitals={}, drugExe={}, nurseRecords={}, tubeRecords={}",
+            pid, date, dayData.getVitals().size(), dayData.getDrugExecutions().size(),
+            dayData.getNurseRecords().size(), dayData.getTubeRecords().size());
         // 使用 BufferedImage 获取 FontMetrics（仅用于分页估算）
-        java.awt.image.BufferedImage tmpImg = new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-        Graphics2D tmpG2d = tmpImg.createGraphics();
-        tmpG2d.setFont(getFont(7f));
-        FontMetrics fm = tmpG2d.getFontMetrics();
-        tmpG2d.dispose();
-        return paginateData(dayData, fm).size();
+        try {
+            java.awt.image.BufferedImage tmpImg = new java.awt.image.BufferedImage(1, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            Graphics2D tmpG2d = tmpImg.createGraphics();
+            tmpG2d.setFont(getFont(7f));
+            FontMetrics fm = tmpG2d.getFontMetrics();
+            tmpG2d.dispose();
+            int pageCount = paginateData(dayData, fm).size();
+            log.info("页数计算完成: pid={}, date={}, pageCount={}", pid, date, pageCount);
+            return pageCount;
+        } catch (Exception e) {
+            log.error("计算页数失败: pid={}, date={}", pid, date, e);
+            return 1; // 默认返回1页
+        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -385,8 +438,8 @@ public class HljldPdfService {
 
         float totalH = 2 * HEADER_ROW_HEIGHT;
 
-        // 表头背景
-        g2d.setColor(new Color(229, 237, 242)); // #e5edf2
+        // 表头背景（白色）
+        g2d.setColor(Color.WHITE);
         g2d.fill(new Rectangle2D.Float(x, topY, TABLE_WIDTH, totalH));
 
         // 外边框
@@ -407,15 +460,16 @@ public class HljldPdfService {
                 spanW += COL_WIDTHS[startCol + c];
             }
 
+            float textW = fm.stringWidth(label);
             if (isRowspan) {
                 // rowspan=2：垂直居中
                 float ty = topY + (totalH - fm.getHeight()) / 2 + fm.getAscent();
-                float tx = cx + (spanW - fm.stringWidth(label)) / 2;
+                float tx = cx + (spanW - textW) / 2;
                 g2d.drawString(label, tx, ty);
             } else {
                 // colspan>1：水平居中在第一行高度内
                 float ty = topY + (HEADER_ROW_HEIGHT - fm.getHeight()) / 2 + fm.getAscent();
-                float tx = cx + (spanW - fm.stringWidth(label)) / 2;
+                float tx = cx + (spanW - textW) / 2;
                 g2d.drawString(label, tx, ty);
             }
 
@@ -423,29 +477,26 @@ public class HljldPdfService {
         }
 
         // ── 第二行子列标签 ──
-        // 药物治疗(col1-3), 胃肠摄入(col4-6), 排出物(col9-10), 引流液(col11-12)
-        // 注意：col7(尿量)和col8(净超滤量)是 rowspan=2，第二行被占用，需要跳过
         float[] subColWidths = {
             COL_WIDTHS[1], COL_WIDTHS[2], COL_WIDTHS[3],  // 药物治疗
             COL_WIDTHS[4], COL_WIDTHS[5], COL_WIDTHS[6],  // 胃肠摄入
             COL_WIDTHS[9], COL_WIDTHS[10],                 // 排出物
             COL_WIDTHS[11], COL_WIDTHS[12],                // 引流液
         };
-        // 计算每个子列组的起始x坐标
         float[] subGroupStartX = {
-            x + COL_WIDTHS[0],                                        // 药物治疗: 跳过日期时间
-            x + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] + COL_WIDTHS[3],  // 胃肠摄入: 跳过日期时间+药物治疗3列
+            x + COL_WIDTHS[0],
+            x + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] + COL_WIDTHS[3],
             x + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] + COL_WIDTHS[3]
                 + COL_WIDTHS[4] + COL_WIDTHS[5] + COL_WIDTHS[6]
-                + COL_WIDTHS[7] + COL_WIDTHS[8],                            // 排出物: 跳过前面所有+尿量+净超滤量
+                + COL_WIDTHS[7] + COL_WIDTHS[8],
             x + COL_WIDTHS[0] + COL_WIDTHS[1] + COL_WIDTHS[2] + COL_WIDTHS[3]
                 + COL_WIDTHS[4] + COL_WIDTHS[5] + COL_WIDTHS[6]
-                + COL_WIDTHS[7] + COL_WIDTHS[8] + COL_WIDTHS[9] + COL_WIDTHS[10], // 引流液
+                + COL_WIDTHS[7] + COL_WIDTHS[8] + COL_WIDTHS[9] + COL_WIDTHS[10],
         };
         float sx = subGroupStartX[0];
         int groupIdx = 0;
         int colsPerGroup = 0;
-        int[] groupCols = {3, 3, 2, 2}; // 每组子列数
+        int[] groupCols = {3, 3, 2, 2};
         for (int i = 0; i < HEADER_ROW2.length; i++) {
             float sw = subColWidths[i];
             String label = HEADER_ROW2[i];

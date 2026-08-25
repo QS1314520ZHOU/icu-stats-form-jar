@@ -7,6 +7,15 @@
 set -e
 
 # ============================================================
+# 工具路径配置（避免每次搜索）
+# ============================================================
+export PATH="/d/Program Files/nodejs:/c/nodejs/node_global:$PATH"
+NODE="D:/Program Files/nodejs/node.exe"
+NPM="D:/Program Files/nodejs/npm.cmd"
+MVN="F:/maven/apache-maven-3.6.0-bin/apache-maven-3.6.0/bin/mvn.cmd"
+GIT="F:/Git/Git/cmd/git.exe"
+
+# ============================================================
 # 自动生成提交说明（用户未手动指定时）
 # ============================================================
 auto_commit_msg() {
@@ -73,7 +82,7 @@ echo "提交说明: $COMMIT_MSG"
 
 echo "=== 步骤1: 编译Angular前端 ==="
 cd sjm1-app
-npm run build
+$NODE node_modules/@angular/cli/bin/ng.js build
 cd ..
 
 echo ""
@@ -85,7 +94,7 @@ echo "已同步: index.html, main-*.js, polyfills-*.js, styles-*.css"
 
 echo ""
 echo "=== 步骤3: Maven打包 ==="
-mvn clean package -DskipTests
+$MVN clean package -DskipTests
 
 echo ""
 echo "=== 步骤4: 验证JAR包 ==="
@@ -99,13 +108,13 @@ fi
 
 echo ""
 echo "=== 步骤5: Git提交推送 ==="
-git add -A
-git commit -m "$COMMIT_MSG"
-git push origin master
+$GIT add -A
+$GIT commit -m "$COMMIT_MSG"
+$GIT push origin master
 
 echo ""
 echo "=== 构建完成 ==="
-echo "提交: $(git log --oneline -1)"
+echo "提交: $($GIT log --oneline -1)"
 echo "JAR包: target/backend-from-0.0.1.jar"
 echo "大小: $(ls -lh target/backend-from-0.0.1.jar | awk '{print $5}')"
 echo "SHA-256: $(sha256sum target/backend-from-0.0.1.jar | cut -d' ' -f1 | head -c 16)..."
