@@ -1435,14 +1435,14 @@ export function buildRows(
       || drugName.includes('瑞素') || drugName.includes('瑞高') || drugName.includes('瑞能');
     if (!isTargetEnteral) { continue; }
 
-    // 收集 quickAdd 和 stop 动作的时间点
+    // 收集 quickAdd 和 stop 动作的时间点（不限制在护理区间内，后续循环中会判断）
     for (const action of (execution.drugActionList ?? [])) {
       const act = String(action.action ?? '').trim().toLowerCase();
       if (act !== 'quickadd' && act !== 'stop') { continue; }
       const actionTime = databaseTimeValue(action.time);
       if (!Number.isFinite(actionTime)) { continue; }
       const actionKey = minuteKey(action.time);
-      if (Number.isFinite(actionKey) && inNursingRange(action.time, start, end, startExclusive)) {
+      if (Number.isFinite(actionKey)) {
         enteralQuickAddKeys.push(actionKey);
       }
     }
