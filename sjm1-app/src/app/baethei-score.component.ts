@@ -79,9 +79,9 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
                    [placeholder]="auditorName || '搜索并选择'"
                    (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
             <ul class="auditor-menu" *ngIf="auditorOpen">
-              <li class="auditor-opt empty-opt" (mousedown)="clearAuditor()">（空）</li>
+              <li class="auditor-opt empty-opt" (mousedown)="onClearAuditorMouseDown($event)">（空）</li>
               <li class="auditor-opt" *ngFor="let a of filteredAccounts"
-                  (mousedown)="selectAuditor(a)">{{ a.accountName }}</li>
+                  (mousedown)="onAuditorOptionMouseDown($event, a)">{{ a.accountName }}</li>
               <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
             </ul>
           </span>
@@ -523,12 +523,19 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadAccountList(): void {
     this.http.get<any[]>(this.API_ACCOUNT_ALL).subscribe({
       next: (list) => {
+        const seen = new Set<string>();
         this.accountList = (Array.isArray(list) ? list : [])
           .map(a => ({
-            accountId: a?.accountId || a?.username || a?.id || '',
-            accountName: a?.accountName || a?.trueName || '',
+            accountId: a?.accountId || a?.username || a?.id || a?._id || '',
+            accountName: a?.accountName || a?.trueName || a?.name || '',
           }))
-          .filter(a => a.accountName);
+          .filter(a => a.accountName)
+          .filter(a => {
+            const key = (a.accountId || '') + '|' + a.accountName;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
         this.cdr.detectChanges();
       },
       error: (err) => { console.error('[baethei] loadAccountList failed', err); },
@@ -597,6 +604,18 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     }, 150);
   }
 
+  onAuditorOptionMouseDown(event: MouseEvent, account: { accountId: string; accountName: string }): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectAuditor(account);
+  }
+
+  onClearAuditorMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clearAuditor();
+  }
+
   selectAuditor(a: { accountId: string; accountName: string }): void {
     this.auditorName = a.accountName;
     this.auditorId = a.accountId;
@@ -618,7 +637,10 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     this.http.post(this.API_EXTRA_SAVE, {
       pid: this.pid, formCode: 'baetheiForm',
       auditorId: this.auditorId, auditorName: this.auditorName,
-    }).subscribe({ next: () => {}, error: (e) => console.error('[baethei] saveExtra failed', e) });
+    }).subscribe({
+      next: () => {},
+      error: (e) => console.error('[baethei] saveAuditor failed', { formCode: 'baetheiForm', pid: this.pid, auditorId: this.auditorId, error: e }),
+    });
   }
 
   private calcAge(birthday?: string): number | null {

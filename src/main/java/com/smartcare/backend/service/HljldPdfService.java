@@ -59,9 +59,9 @@ public class HljldPdfService {
     private static final float PAGE_HEIGHT = 595f;  // 210mm
     private static final float MARGIN = 10f;
 
-    // ── 字体 ──
-    private PdfFont baseFont;
-    private boolean fontInitialized = false;
+    // ── 字体（只缓存路径，不缓存 PdfFont 实例） ──
+    private volatile String cachedFontPath;
+    private volatile boolean fontPathResolved = false;
 
     // ── 表格样式常量 ──
     private static final float HEADER_FONT_SIZE = 7f;
@@ -130,14 +130,18 @@ public class HljldPdfService {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  字体初始化
+    //  字体路径解析（只缓存路径，每次 PDF 生成创建新 PdfFont）
     // ══════════════════════════════════════════════════════════
 
-    private synchronized void initFont() {
-        if (fontInitialized) return;
-        fontInitialized = true;
+    /**
+     * 解析并缓存字体文件路径。只执行一次（线程安全）。
+     * 缓存的是文件路径，不是 PdfFont 实例。
+     */
+    private synchronized void resolveFontPath() {
+        if (fontPathResolved) return;
+        fontPathResolved = true;
 
-        log.info("========== 字体初始化开始 ==========");
+        log.info("========== 字体路径解析开始 ==========");
 
         String[] fontResources = {
             "/fonts/simsun.ttc", "/fonts/simsun.ttf", "/fonts/simsunb.ttf",
@@ -159,18 +163,11 @@ public class HljldPdfService {
                 java.nio.file.Files.write(tempFont.toPath(), fontBytes);
                 log.info("字体已写入临时文件: {}, 大小={}bytes", tempFont.getAbsolutePath(), tempFont.length());
 
-                // .ttc 文件需要指定索引
-                String fontPath = tempFont.getAbsolutePath();
-                if (fontPath.endsWith(".ttc")) {
-                    baseFont = PdfFontFactory.createFont(fontPath + ",0", PdfEncodings.IDENTITY_H);
-                } else {
-                    baseFont = PdfFontFactory.createFont(fontPath, PdfEncodings.IDENTITY_H);
-                }
-                log.info("字体加载成功: name={}", baseFont.getFontProgram().getFontNames().getFontName());
-                log.info("========== 字体初始化完成 ==========");
+                cachedFontPath = tempFont.getAbsolutePath();
+                log.info("========== 字体路径解析完成 ==========");
                 return;
             } catch (Exception e) {
-                log.warn("classpath字体加载失败 {}: {}", resPath, e.getMessage());
+                log.warn("classpath字体读取失败 {}: {}", resPath, e.getMessage());
             }
         }
 
@@ -184,21 +181,36 @@ public class HljldPdfService {
             try {
                 java.io.File fontFile = new java.io.File(fontPath);
                 if (!fontFile.exists()) continue;
-
-                if (fontPath.endsWith(".ttc")) {
-                    baseFont = PdfFontFactory.createFont(fontPath + ",0", PdfEncodings.IDENTITY_H);
-                } else {
-                    baseFont = PdfFontFactory.createFont(fontPath, PdfEncodings.IDENTITY_H);
-                }
-                log.info("系统字体加载成功: {}", fontPath);
-                log.info("========== 字体初始化完成(系统字体) ==========");
+                cachedFontPath = fontPath;
+                log.info("========== 字体路径解析完成(系统字体): {} ==========", fontPath);
                 return;
             } catch (Exception e) {
-                log.warn("系统字体加载失败 {}: {}", fontPath, e.getMessage());
+                log.warn("系统字体检查失败 {}: {}", fontPath, e.getMessage());
             }
         }
 
         log.error("========== 所有中文字体加载失败！PDF中文将无法正常显示 ==========");
+    }
+
+    /**
+     * 每次调用创建一个全新的 PdfFont 实例。
+     * PdfFont 的生命周期仅属于当前 PdfDocument，禁止跨文档共享。
+     */
+    private PdfFont createPdfFont() {
+        resolveFontPath();
+        if (cachedFontPath == null) {
+            throw new IllegalStateException("未找到可用的中文字体文件");
+        }
+        try {
+            String path = cachedFontPath;
+            if (path.endsWith(".ttc")) {
+                return PdfFontFactory.createFont(path + ",0", PdfEncodings.IDENTITY_H);
+            } else {
+                return PdfFontFactory.createFont(path, PdfEncodings.IDENTITY_H);
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("创建PdfFont失败: " + cachedFontPath, e);
+        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -208,7 +220,7 @@ public class HljldPdfService {
     /** 生成指定日期的护理记录 PDF */
     public byte[] generateDailyPdf(String pid, String date) {
         log.info("生成PDF: pid={}, date={}", pid, date);
-        initFont();
+        PdfFont font = createPdfFont();
 
         org.bson.Document patient = getPatientInfo(pid);
 
@@ -233,14 +245,14 @@ public class HljldPdfService {
             List<Map<String, Object>> printableRows = timelineToPrintableRows(viewModel);
 
             if (printableRows.isEmpty()) {
-                addPageContent(doc, pdfDoc, patient, Collections.emptyList(), startPageNo, 1, date);
+                addPageContent(doc, pdfDoc, patient, Collections.emptyList(), startPageNo, 1, date, font);
             } else {
                 // 统一分页
                 List<List<Map<String, Object>>> pages = paginateRowsFromMaps(printableRows);
                 log.info("PDF: 分页完成，共{}页", pages.size());
                 for (int i = 0; i < pages.size(); i++) {
                     if (i > 0) pdfDoc.addNewPage();
-                    addPageContent(doc, pdfDoc, patient, pages.get(i), startPageNo + i, pages.size(), date);
+                    addPageContent(doc, pdfDoc, patient, pages.get(i), startPageNo + i, pages.size(), date, font);
                 }
             }
 
@@ -255,7 +267,7 @@ public class HljldPdfService {
     /** 生成全部记录的 PDF */
     public byte[] generateAllPagesPdf(String pid) {
         log.info("生成全部PDF: pid={}", pid);
-        initFont();
+        PdfFont font = createPdfFont();
 
         Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, "hljld2");
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
@@ -283,13 +295,13 @@ public class HljldPdfService {
                 if (printableRows.isEmpty()) {
                     if (!firstPage) pdfDoc.addNewPage();
                     firstPage = false;
-                    addPageContent(doc, pdfDoc, patient, Collections.emptyList(), dailyPage.getStartPageNo(), 1, dailyPage.getDate());
+                    addPageContent(doc, pdfDoc, patient, Collections.emptyList(), dailyPage.getStartPageNo(), 1, dailyPage.getDate(), font);
                 } else {
                     List<List<Map<String, Object>>> pages = paginateRowsFromMaps(printableRows);
                     for (int i = 0; i < pages.size(); i++) {
                         if (!firstPage) pdfDoc.addNewPage();
                         firstPage = false;
-                        addPageContent(doc, pdfDoc, patient, pages.get(i), dailyPage.getStartPageNo() + i, pages.size(), dailyPage.getDate());
+                        addPageContent(doc, pdfDoc, patient, pages.get(i), dailyPage.getStartPageNo() + i, pages.size(), dailyPage.getDate(), font);
                     }
                 }
             }
@@ -304,7 +316,6 @@ public class HljldPdfService {
 
     /** 计算某天的页数，使用与实际 PDF 生成一致的 timeline 行计数 */
     public int calculatePageCount(String pid, String date) {
-        initFont();
         // 使用 timeline 行计数，与 generateDailyPdf 一致
         HljldPdfDataAssembler.HljldViewModel viewModel = dataAssembler.buildPrintViewModel(date, pid, pid);
         List<Map<String, Object>> printableRows = timelineToPrintableRows(viewModel);
@@ -320,10 +331,11 @@ public class HljldPdfService {
     // ══════════════════════════════════════════════════════════
 
     private void addPageContent(Document doc, PdfDocument pdfDoc, org.bson.Document patient,
-                                List<Map<String, Object>> rows, int pageNo, int totalPages, String date) {
+                                List<Map<String, Object>> rows, int pageNo, int totalPages, String date,
+                                PdfFont font) {
         // ===== 1. 标题 =====
         Paragraph titlePara = new Paragraph("重钢总医院重症医学科护理记录单")
-            .setFont(baseFont)
+            .setFont(font)
             .setFontSize(TITLE_FONT_SIZE)
             .setTextAlignment(TextAlignment.CENTER)
             .setMarginBottom(2f);
@@ -334,18 +346,18 @@ public class HljldPdfService {
             str(patient, "bedNo"), str(patient, "name"), str(patient, "mrn"),
             str(patient, "sex"), str(patient, "age"), str(patient, "diagnosis"));
         Paragraph infoPara = new Paragraph(info)
-            .setFont(baseFont)
+            .setFont(font)
             .setFontSize(INFO_FONT_SIZE)
             .setMarginBottom(4f);
         doc.add(infoPara);
 
         // ===== 3. 表格（表头 + 数据 + 备注区） =====
-        Table mainTable = buildMainTable(rows);
+        Table mainTable = buildMainTable(rows, font);
         doc.add(mainTable);
 
         // ===== 4. 页码 =====
         Paragraph pagePara = new Paragraph(String.format("第 %d 页", pageNo))
-            .setFont(baseFont)
+            .setFont(font)
             .setFontSize(PAGE_NUM_FONT_SIZE)
             .setTextAlignment(TextAlignment.CENTER)
             .setMarginTop(8f);
@@ -356,7 +368,7 @@ public class HljldPdfService {
     //  构建主表格（表头 + 数据行 + 备注区）
     // ══════════════════════════════════════════════════════════
 
-    private Table buildMainTable(List<Map<String, Object>> rows) {
+    private Table buildMainTable(List<Map<String, Object>> rows, PdfFont font) {
         // 创建19列表格，使用精确列宽
         Table table = new Table(UnitValue.createPointArray(COL_WIDTHS_PT));
         table.setWidth(UnitValue.createPointValue(820f));
@@ -365,23 +377,23 @@ public class HljldPdfService {
         table.setBorder(new SolidBorder(ColorConstants.BLACK, 0.5f));
 
         // ── 表头（2行） ──
-        addTableHeader(table);
+        addTableHeader(table, font);
 
         // ── 数据行（固定19行） ──
         int rowCount = 0;
         for (Map<String, Object> row : rows) {
             if (rowCount >= MAX_ROWS_PER_PAGE) break;
-            addDataRow(table, row);
+            addDataRow(table, row, font);
             rowCount++;
         }
         // 补充空行
         while (rowCount < MAX_ROWS_PER_PAGE) {
-            addDataRow(table, null);
+            addDataRow(table, null, font);
             rowCount++;
         }
 
         // ── 备注区（rowspan=4，集成在表格最后一行） ──
-        addRemarkRow(table);
+        addRemarkRow(table, font);
 
         return table;
     }
@@ -390,70 +402,70 @@ public class HljldPdfService {
     //  表头构建（层级 colspan + rowspan）
     // ══════════════════════════════════════════════════════════
 
-    private void addTableHeader(Table table) {
+    private void addTableHeader(Table table, PdfFont font) {
         // ── 第一行 ──
         // 日期时间: rowspan=2 (1列)
-        addHeaderCell(table, "日期时间", 1, 2);
+        addHeaderCell(table, "日期时间", 1, 2, font);
 
         // 药物治疗: colspan=3, 无rowspan（有子列）
-        addHeaderCell(table, "药物治疗", 3, 1);
+        addHeaderCell(table, "药物治疗", 3, 1, font);
 
         // 胃肠摄入: colspan=3, 无rowspan（有子列）
-        addHeaderCell(table, "胃肠摄入", 3, 1);
+        addHeaderCell(table, "胃肠摄入", 3, 1, font);
 
         // 尿量: rowspan=2 (1列)，支持换行
-        addHeaderCellWrap(table, "尿量(ml)", 1, 2);
+        addHeaderCellWrap(table, "尿量(ml)", 1, 2, font);
 
         // 净超滤量: rowspan=2 (1列)，支持换行
-        addHeaderCellWrap(table, "净超滤量(ml)", 1, 2);
+        addHeaderCellWrap(table, "净超滤量(ml)", 1, 2, font);
 
         // 排出物: colspan=2, 无rowspan（有子列）
-        addHeaderCell(table, "排出物", 2, 1);
+        addHeaderCell(table, "排出物", 2, 1, font);
 
         // 引流液: colspan=2, 无rowspan（有子列）
-        addHeaderCell(table, "引流液", 2, 1);
+        addHeaderCell(table, "引流液", 2, 1, font);
 
         // 检查: rowspan=2 (1列)
-        addHeaderCell(table, "检查", 1, 2);
+        addHeaderCell(table, "检查", 1, 2, font);
 
         // 治疗: rowspan=2 (1列)
-        addHeaderCell(table, "治疗", 1, 2);
+        addHeaderCell(table, "治疗", 1, 2, font);
 
         // 基础护理: rowspan=2 (1列)，支持换行
-        addHeaderCellWrap(table, "基础护理", 1, 2);
+        addHeaderCellWrap(table, "基础护理", 1, 2, font);
 
         // 健康教育: rowspan=2 (1列)，支持换行
-        addHeaderCellWrap(table, "健康教育", 1, 2);
+        addHeaderCellWrap(table, "健康教育", 1, 2, font);
 
         // 护理记录: rowspan=2 (1列)
-        addHeaderCell(table, "护理记录", 1, 2);
+        addHeaderCell(table, "护理记录", 1, 2, font);
 
         // 签名: rowspan=2 (1列)
-        addHeaderCell(table, "签名", 1, 2);
+        addHeaderCell(table, "签名", 1, 2, font);
 
         // ── 第二行（仅药物治疗、胃肠摄入、排出物、引流液有子列） ──
         // 药物治疗子列
-        addSubHeaderCell(table, "名称");
-        addSubHeaderCell(table, "量/ml");
-        addSubHeaderCell(table, "途径");
+        addSubHeaderCell(table, "名称", font);
+        addSubHeaderCell(table, "量/ml", font);
+        addSubHeaderCell(table, "途径", font);
 
         // 胃肠摄入子列
-        addSubHeaderCell(table, "名称");
-        addSubHeaderCell(table, "量/ml");
-        addSubHeaderCell(table, "途径");
+        addSubHeaderCell(table, "名称", font);
+        addSubHeaderCell(table, "量/ml", font);
+        addSubHeaderCell(table, "途径", font);
 
         // 排出物子列
-        addSubHeaderCell(table, "名称");
-        addSubHeaderCell(table, "量/ml");
+        addSubHeaderCell(table, "名称", font);
+        addSubHeaderCell(table, "量/ml", font);
 
         // 引流液子列
-        addSubHeaderCell(table, "名称");
-        addSubHeaderCell(table, "量/ml");
+        addSubHeaderCell(table, "名称", font);
+        addSubHeaderCell(table, "量/ml", font);
     }
 
-    private void addHeaderCell(Table table, String text, int colspan, int rowspan) {
+    private void addHeaderCell(Table table, String text, int colspan, int rowspan, PdfFont font) {
         Cell cell = new Cell(rowspan, colspan)
-            .add(new Paragraph(text).setFont(baseFont).setFontSize(HEADER_FONT_SIZE))
+            .add(new Paragraph(text).setFont(font).setFontSize(HEADER_FONT_SIZE))
             .setTextAlignment(TextAlignment.CENTER)
             .setVerticalAlignment(VerticalAlignment.MIDDLE)
             .setHeight(16f)
@@ -462,10 +474,10 @@ public class HljldPdfService {
         table.addHeaderCell(cell);
     }
 
-    private void addHeaderCellWrap(Table table, String text, int colspan, int rowspan) {
+    private void addHeaderCellWrap(Table table, String text, int colspan, int rowspan, PdfFont font) {
         // 不设置固定高度，让内容自动撑开实现换行
         Cell cell = new Cell(rowspan, colspan)
-            .add(new Paragraph(text).setFont(baseFont).setFontSize(HEADER_FONT_SIZE))
+            .add(new Paragraph(text).setFont(font).setFontSize(HEADER_FONT_SIZE))
             .setTextAlignment(TextAlignment.CENTER)
             .setVerticalAlignment(VerticalAlignment.MIDDLE)
             .setBorder(new SolidBorder(ColorConstants.BLACK, 0.5f))
@@ -473,9 +485,9 @@ public class HljldPdfService {
         table.addHeaderCell(cell);
     }
 
-    private void addSubHeaderCell(Table table, String text) {
+    private void addSubHeaderCell(Table table, String text, PdfFont font) {
         Cell cell = new Cell()
-            .add(new Paragraph(text).setFont(baseFont).setFontSize(HEADER_FONT_SIZE - 0.5f))
+            .add(new Paragraph(text).setFont(font).setFontSize(HEADER_FONT_SIZE - 0.5f))
             .setTextAlignment(TextAlignment.CENTER)
             .setVerticalAlignment(VerticalAlignment.MIDDLE)
             .setHeight(18f)
@@ -488,7 +500,7 @@ public class HljldPdfService {
     //  数据行
     // ══════════════════════════════════════════════════════════
 
-    private void addDataRow(Table table, Map<String, Object> row) {
+    private void addDataRow(Table table, Map<String, Object> row, PdfFont font) {
         // 19列数据字段映射
         String[] dataKeys = {
             "timeText",                      // 0: 日期时间
@@ -517,7 +529,7 @@ public class HljldPdfService {
             String text = (row != null) ? mapStr(row, key) : "";
 
             Cell cell = new Cell(1, 1)
-                .add(new Paragraph(text).setFont(baseFont).setFontSize(DATA_FONT_SIZE))
+                .add(new Paragraph(text).setFont(font).setFontSize(DATA_FONT_SIZE))
                 .setVerticalAlignment(VerticalAlignment.TOP)
                 .setHeight(18f)
                 .setBorder(new SolidBorder(ColorConstants.BLACK, 0.3f));
@@ -536,10 +548,10 @@ public class HljldPdfService {
     //  备注区（rowspan=4）
     // ══════════════════════════════════════════════════════════
 
-    private void addRemarkRow(Table table) {
+    private void addRemarkRow(Table table, PdfFont font) {
         // 备注：第一列rowspan=4
         Cell labelCell = new Cell(4, 1)
-            .add(new Paragraph("备注").setFont(baseFont).setFontSize(8f))
+            .add(new Paragraph("备注").setFont(font).setFontSize(8f))
             .setTextAlignment(TextAlignment.CENTER)
             .setVerticalAlignment(VerticalAlignment.MIDDLE)
             .setHeight(14f)
@@ -550,7 +562,7 @@ public class HljldPdfService {
         // 4行备注内容，每行18列（19-1=18）
         for (String line : REMARK_LINES) {
             Cell contentCell = new Cell(1, 18)
-                .add(new Paragraph(line).setFont(baseFont).setFontSize(REMARK_FONT_SIZE))
+                .add(new Paragraph(line).setFont(font).setFontSize(REMARK_FONT_SIZE))
                 .setTextAlignment(TextAlignment.LEFT)
                 .setVerticalAlignment(VerticalAlignment.MIDDLE)
                 .setHeight(14f)
@@ -900,7 +912,7 @@ public class HljldPdfService {
     }
 
     private byte[] generateEmptyPagePdf(String pid, String date) {
-        initFont();
+        PdfFont font = createPdfFont();
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             PdfWriter writer = new PdfWriter(baos);
@@ -910,7 +922,7 @@ public class HljldPdfService {
 
             org.bson.Document patient = getPatientInfo(pid);
             int startPageNo = getStartPageNo(pid, date);
-            addPageContent(doc, pdfDoc, patient, Collections.emptyList(), startPageNo, 1, date);
+            addPageContent(doc, pdfDoc, patient, Collections.emptyList(), startPageNo, 1, date, font);
 
             doc.close();
             return baos.toByteArray();

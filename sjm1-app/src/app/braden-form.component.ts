@@ -50,7 +50,7 @@ const FOOT_NOTES = [
 interface ScoreRecord { time?: any; scoreType?: string; total?: number; conclusion?: string; valid?: boolean; inputUserId?: string; inputUser?: string; ohter?: string; nurseMeasureList?: any[]; bradenScore?: Record<string, any>; }
 interface BradenRow { time: string; bradenScore: Record<BradenItem['field'], number | null>; total: number | null; risk: string; other: string; nurseMeasureList: any[]; signUserId?: string; signName?: string; }
 interface RenderPage { index: number; rows: BradenRow[]; }
-interface PageExtraData { id: string | null; result: string; resultDate: string; happened: '' | '是' | '否'; loaded: boolean; loading: boolean; }
+interface FinalExtraData { id: string | null; result: string; resultDate: string; happened: '' | '是' | '否'; loaded: boolean; loading: boolean; }
 
 @Component({
   standalone: false,
@@ -65,8 +65,8 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
                    [placeholder]="auditorName || '搜索并选择'"
                    (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
             <ul class="auditor-menu" *ngIf="auditorOpen">
-              <li class="auditor-opt empty-opt" (mousedown)="clearAuditor()">（空）</li>
-              <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="selectAuditor(a)">{{ a.accountName }}</li>
+              <li class="auditor-opt empty-opt" (mousedown)="onClearAuditorMouseDown($event)">（空）</li>
+              <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="onAuditorOptionMouseDown($event, a)">{{ a.accountName }}</li>
               <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
             </ul>
           </span>
@@ -132,23 +132,23 @@ interface PageExtraData { id: string | null; result: string; resultDate: string;
           </tbody>
         </table>
 
-        <div class="result-line">
+        <div class="result-line" *ngIf="page.index === pages.length">
           <label class="rl-item">
             <span>结果：</span>
-            <input class="result-combo screen-only" type="text" [attr.list]="'braden-result-options-' + page.index" [(ngModel)]="pageExtra(page.index).result" (ngModelChange)="scheduleSavePageExtra(page.index)" placeholder="请选择或输入" autocomplete="off" />
-            <datalist [id]="'braden-result-options-' + page.index"><option value="出院"></option><option value="死亡"></option><option value="转出"></option></datalist>
-            <span class="fill-val print-only">{{ pageExtra(page.index).result }}</span>
+            <input class="result-combo screen-only" type="text" list="braden-result-options" [(ngModel)]="finalExtra.result" (ngModelChange)="scheduleSaveFinalExtra()" placeholder="请选择或输入" autocomplete="off" />
+            <datalist id="braden-result-options"><option value="出院"></option><option value="死亡"></option><option value="转出"></option></datalist>
+            <span class="fill-val print-only">{{ finalExtra.result }}</span>
           </label>
           <label class="rl-item">
             <span>时间：</span>
-            <input class="result-datetime screen-only" type="datetime-local" [(ngModel)]="pageExtra(page.index).resultDate" (ngModelChange)="scheduleSavePageExtra(page.index)" />
-            <span class="fill-val print-only">{{ pageExtra(page.index).resultDate ? pageExtra(page.index).resultDate.replace('T', ' ') : '' }}</span>
+            <input class="result-datetime screen-only" type="datetime-local" [(ngModel)]="finalExtra.resultDate" (ngModelChange)="scheduleSaveFinalExtra()" />
+            <span class="fill-val print-only">{{ finalExtra.resultDate ? finalExtra.resultDate.replace('T', ' ') : '' }}</span>
           </label>
           <div class="rl-item pressure-radio">
             <span>发生院内压力性损伤：</span>
-            <label class="screen-only"><input type="radio" [name]="'braden-pressure-' + page.index" value="是" [(ngModel)]="pageExtra(page.index).happened" (ngModelChange)="scheduleSavePageExtra(page.index)" /> 是</label>
-            <label class="screen-only"><input type="radio" [name]="'braden-pressure-' + page.index" value="否" [(ngModel)]="pageExtra(page.index).happened" (ngModelChange)="scheduleSavePageExtra(page.index)" /> 否</label>
-            <span class="print-only">是 {{ pageExtra(page.index).happened === '是' ? '☑' : '☐' }}&nbsp;&nbsp;否 {{ pageExtra(page.index).happened === '否' ? '☑' : '☐' }}</span>
+            <label class="screen-only"><input type="radio" name="braden-pressure-happened" [checked]="finalExtra.happened === '是'" (click)="toggleHappened($event, '是')" /> 是</label>
+            <label class="screen-only"><input type="radio" name="braden-pressure-happened" [checked]="finalExtra.happened === '否'" (click)="toggleHappened($event, '否')" /> 否</label>
+            <span class="print-only">是 {{ finalExtra.happened === '是' ? '☑' : '☐' }}&nbsp;&nbsp;否 {{ finalExtra.happened === '否' ? '☑' : '☐' }}</span>
           </div>
         </div>
 
@@ -273,8 +273,8 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
 
   readonly resultOptions = ['出院', '死亡', '转出'];
-  private pageExtraMap = new Map<number, PageExtraData>();
-  private pageSaveTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  finalExtra: FinalExtraData = { id: null, result: '', resultDate: '', happened: '', loaded: false, loading: false };
+  private finalExtraSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   private pid = '';
   private destroy$ = new Subject<void>();
@@ -336,10 +336,15 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void { window.removeEventListener('message', this.bradenHostMessageHandler); this.destroy$.next(); this.destroy$.complete(); }
+  ngOnDestroy(): void {
+    window.removeEventListener('message', this.bradenHostMessageHandler);
+    if (this.finalExtraSaveTimer) { clearTimeout(this.finalExtraSaveTimer); this.finalExtraSaveTimer = null; }
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
 
   private getPatientPid(p: any): string {
-    return String(p?.id ?? p?._id ?? p?.pid ?? p?.patientId ?? p?.patientID ?? p?.patient?.id ?? p?.patient?._id ?? '').trim();
+    return String(p?.id ?? p?._id ?? p?.pid ?? p?.patientId ?? p?.patientID ?? '').trim();
   }
 
   private activatePatient(patient: any, pid: string) {
@@ -349,6 +354,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     this.diagnosisDisplay = this.formatDiagnosis(patient?.clinicalDiagnosis || patient?.diagnosis);
     this.resetPatientData();
     this.loadAuditor();
+    this.loadFinalExtra();
     this.ensureBlankPage();
     this.loading = true;
     this.cdr.detectChanges();
@@ -363,9 +369,8 @@ export class BradenFormComponent implements OnInit, OnDestroy {
 
   private resetPatientData(): void {
     this.rows = []; this.pages = []; this.selectedPrintPages = [];
-    this.pageSaveTimers.forEach(timer => clearTimeout(timer));
-    this.pageSaveTimers.clear();
-    this.pageExtraMap.clear();
+    if (this.finalExtraSaveTimer) { clearTimeout(this.finalExtraSaveTimer); this.finalExtraSaveTimer = null; }
+    this.finalExtra = { id: null, result: '', resultDate: '', happened: '', loaded: false, loading: false };
     this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false;
   }
 
@@ -487,73 +492,116 @@ export class BradenFormComponent implements OnInit, OnDestroy {
       });
   }
 
-  private loadPageExtra(pageIndex: number): void {
+  private loadFinalExtra(): void {
     if (!this.pid) return;
-    const extra = this.pageExtra(pageIndex);
-    if (extra.loaded || extra.loading) return;
+    if (this.finalExtra.loaded || this.finalExtra.loading) return;
     const requestPid = this.pid;
-    const formCode = this.pageFormCode(pageIndex);
-    extra.loading = true;
+    const formCode = `${FORM_CODE}:result`;
+    this.finalExtra.loading = true;
     this.http.get<any>(API_EXTRA_LATEST, { params: { pid: requestPid, formCode } })
       .pipe(
         catchError(error => {
-          console.error('[bradenForm] load page extra failed', { pid: requestPid, pageIndex, formCode, error });
+          console.error('[bradenForm] load final extra failed', { pid: requestPid, formCode, error });
           return of(null);
         }),
         finalize(() => {
           if (requestPid !== this.pid) return;
-          const current = this.pageExtraMap.get(pageIndex);
-          if (current) { current.loading = false; current.loaded = true; }
+          this.finalExtra.loading = false;
+          this.finalExtra.loaded = true;
           this.cdr.detectChanges();
         }),
         takeUntil(this.destroy$),
       )
       .subscribe(data => {
         if (requestPid !== this.pid) return;
-        const current = this.pageExtra(pageIndex);
-        current.id = data?.id ? String(data.id) : null;
-        current.result = String(data?.result ?? '');
-        current.resultDate = this.normalizeDateTimeInput(data?.resultDate);
+        if (!data) {
+          // 尝试从旧 :page:N 数据迁移
+          this.migrateFromLegacyPages(requestPid);
+          return;
+        }
+        this.finalExtra.id = data?.id ? String(data.id) : null;
+        this.finalExtra.result = String(data?.result ?? '');
+        this.finalExtra.resultDate = this.normalizeDateTimeInput(data?.resultDate);
         const happened = String(data?.fell ?? '');
-        current.happened = happened === '是' || happened === '否' ? happened : '';
+        this.finalExtra.happened = happened === '是' || happened === '否' ? happened : '';
       });
   }
 
-  scheduleSavePageExtra(pageIndex: number): void {
-    if (!this.pid) return;
-    const oldTimer = this.pageSaveTimers.get(pageIndex);
-    if (oldTimer) clearTimeout(oldTimer);
-    const timer = setTimeout(() => {
-      this.pageSaveTimers.delete(pageIndex);
-      this.savePageExtra(pageIndex);
-    }, 500);
-    this.pageSaveTimers.set(pageIndex, timer);
+  private migrateFromLegacyPages(requestPid: string): void {
+    const maxPage = this.pages.length;
+    if (maxPage <= 0) return;
+    // 从最后一页向前查找旧数据
+    let foundLegacy = false;
+    let legacyIndex = maxPage;
+    const tryLoad = (pageIndex: number): void => {
+      if (foundLegacy || pageIndex < 1) return;
+      const formCode = `${FORM_CODE}:page:${pageIndex}`;
+      this.http.get<any>(API_EXTRA_LATEST, { params: { pid: requestPid, formCode } })
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (data) => {
+            if (requestPid !== this.pid || foundLegacy) return;
+            const result = String(data?.result ?? '');
+            const resultDate = String(data?.resultDate ?? '');
+            const fell = String(data?.fell ?? '');
+            if (result || resultDate || fell === '是' || fell === '否') {
+              foundLegacy = true;
+              this.finalExtra.id = data?.id ? String(data.id) : null;
+              this.finalExtra.result = result;
+              this.finalExtra.resultDate = this.normalizeDateTimeInput(resultDate);
+              this.finalExtra.happened = fell === '是' || fell === '否' ? fell : '';
+              // 迁移到新 formCode
+              this.saveFinalExtra();
+            } else {
+              tryLoad(pageIndex - 1);
+            }
+          },
+          error: () => tryLoad(pageIndex - 1),
+        });
+    };
+    tryLoad(maxPage);
   }
 
-  private savePageExtra(pageIndex: number): void {
+  scheduleSaveFinalExtra(): void {
     if (!this.pid) return;
-    const extra = this.pageExtra(pageIndex);
-    if (extra.loading) return;
+    if (this.finalExtraSaveTimer) clearTimeout(this.finalExtraSaveTimer);
+    this.finalExtraSaveTimer = setTimeout(() => {
+      this.finalExtraSaveTimer = null;
+      this.saveFinalExtra();
+    }, 500);
+  }
+
+  toggleHappened(event: MouseEvent, value: '是' | '否'): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.finalExtra.happened = this.finalExtra.happened === value ? '' : value;
+    this.scheduleSaveFinalExtra();
+  }
+
+  private saveFinalExtra(): void {
+    if (!this.pid) return;
+    if (this.finalExtra.loading) return;
     const requestPid = this.pid;
+    const formCode = `${FORM_CODE}:result`;
     const body: any = {
       pid: requestPid,
-      formCode: this.pageFormCode(pageIndex),
-      result: extra.result.trim(),
-      resultDate: extra.resultDate || '',
-      fell: extra.happened || '',
+      formCode,
+      result: this.finalExtra.result.trim(),
+      resultDate: this.finalExtra.resultDate || '',
+      fell: this.finalExtra.happened || '',
     };
-    if (extra.id) body.id = extra.id;
+    if (this.finalExtra.id) body.id = this.finalExtra.id;
     this.http.post<any>(API_EXTRA_SAVE, body)
       .pipe(
         catchError(error => {
-          console.error('[bradenForm] save page extra failed', { pageIndex, body, error });
+          console.error('[bradenForm] save final extra failed', { formCode, pid: requestPid, body, error });
           return of(null);
         }),
         takeUntil(this.destroy$),
       )
       .subscribe(response => {
         if (requestPid !== this.pid) return;
-        if (response?.id) this.pageExtra(pageIndex).id = String(response.id);
+        if (response?.id) this.finalExtra.id = String(response.id);
       });
   }
 
@@ -579,17 +627,12 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
   pagePaddedRows(page: RenderPage): (BradenRow | null)[] { const r: (BradenRow | null)[] = page.rows.slice(0, this.maxRowsPerPage); while (r.length < this.maxRowsPerPage) r.push(null); return r; }
 
-  pageExtra(pageIndex: number): PageExtraData {
-    let data = this.pageExtraMap.get(pageIndex);
-    if (!data) {
-      data = { id: null, result: '', resultDate: '', happened: '', loaded: false, loading: false };
-      this.pageExtraMap.set(pageIndex, data);
-    }
-    return data;
+  pageExtra(pageIndex: number): FinalExtraData {
+    return this.finalExtra;
   }
 
   private pageFormCode(pageIndex: number): string {
-    return `${FORM_CODE}:page:${pageIndex}`;
+    return `${FORM_CODE}:result`;
   }
 
   private paginate(): void {
@@ -599,23 +642,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     else { for (let i = 0; i < this.rows.length; i += per) { pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) }); } }
     this.pages = pages;
     this.normalizeSelectedPrintPages(pages.length);
-    this.syncPageExtras();
-  }
-
-  private syncPageExtras(): void {
-    const validPageIndexes = new Set(this.pages.map(page => page.index));
-    for (const pageIndex of [...this.pageExtraMap.keys()]) {
-      if (!validPageIndexes.has(pageIndex)) {
-        const timer = this.pageSaveTimers.get(pageIndex);
-        if (timer) clearTimeout(timer);
-        this.pageSaveTimers.delete(pageIndex);
-        this.pageExtraMap.delete(pageIndex);
-      }
-    }
-    for (const page of this.pages) {
-      this.pageExtra(page.index);
-      this.loadPageExtra(page.index);
-    }
+    this.loadFinalExtra();
   }
 
   fmtDate(time: string): string { return formatShanghaiDate(time); }
@@ -657,6 +684,16 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
   onAuditorFocus(): void { if (this.blurTimer) { clearTimeout(this.blurTimer); this.blurTimer = null; } this.auditorOpen = true; this.auditorQuery = ''; }
   onAuditorBlur(): void { this.blurTimer = setTimeout(() => { this.auditorOpen = false; this.auditorQuery = this.auditorName; this.cdr.detectChanges(); }, 150); }
+  onAuditorOptionMouseDown(event: MouseEvent, account: { accountId: string; accountName: string }): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.selectAuditor(account);
+  }
+  onClearAuditorMouseDown(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.clearAuditor();
+  }
   selectAuditor(a: { accountId: string; accountName: string }): void { this.auditorName = a.accountName; this.auditorId = a.accountId; this.auditorQuery = a.accountName; this.auditorOpen = false; this.saveAuditor(); }
   clearAuditor(): void { this.auditorName = ''; this.auditorId = ''; this.auditorQuery = ''; this.auditorOpen = false; this.saveAuditor(); }
   private saveAuditor(): void {
@@ -664,7 +701,10 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     this.http.post(API_EXTRA_SAVE, {
       pid: this.pid, formCode: FORM_CODE,
       auditorId: this.auditorId, auditorName: this.auditorName,
-    }).subscribe({ next: () => {}, error: (e) => console.error('[braden] saveAuditor failed', e) });
+    }).subscribe({
+      next: () => {},
+      error: (e) => console.error('[bradenForm] saveAuditor failed', { formCode: FORM_CODE, pid: this.pid, auditorId: this.auditorId, error: e }),
+    });
   }
   private loadAuditor(): void {
     if (!this.pid) return;
@@ -680,9 +720,16 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   private loadAccountList(): void {
     this.http.get<any[]>(this.API_ACCOUNT_ALL).subscribe({
       next: (list) => {
+        const seen = new Set<string>();
         this.accountList = (Array.isArray(list) ? list : [])
-          .map(a => ({ accountId: a?.accountId || a?.username || a?.id || '', accountName: a?.accountName || a?.trueName || '' }))
-          .filter(a => a.accountName);
+          .map(a => ({ accountId: a?.accountId || a?.username || a?.id || a?._id || '', accountName: a?.accountName || a?.trueName || a?.name || '' }))
+          .filter(a => a.accountName)
+          .filter(a => {
+            const key = (a.accountId || '') + '|' + a.accountName;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
         this.cdr.detectChanges();
       },
       error: (e) => console.error('[braden] loadAccountList failed', e),
