@@ -2,14 +2,12 @@ package com.smartcare.backend.service;
 
 import com.itextpdf.io.font.PdfEncodings;
 import com.itextpdf.kernel.colors.ColorConstants;
-import com.itextpdf.kernel.colors.DeviceGray;
 import com.itextpdf.kernel.font.PdfFont;
 import com.itextpdf.kernel.font.PdfFontFactory;
 import com.itextpdf.kernel.geom.PageSize;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
-import com.itextpdf.layout.borders.Border;
 import com.itextpdf.layout.borders.SolidBorder;
 import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.element.Paragraph;
@@ -19,11 +17,11 @@ import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.entity.FormPageIndex;
+import com.smartcare.backend.hljld.*;
 import com.smartcare.backend.repository.FormPageIndexRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -52,9 +50,7 @@ public class HljldPdfService {
 
     private final MongoTemplate mongoTemplate;
     private final FormPageIndexRepository pageIndexRepository;
-
-    // 样式测试模式：只渲染表格结构，不渲染数据
-    private static final boolean STYLE_TEST_MODE = true;
+    private final HljldPdfDataAssembler dataAssembler;
 
     // ── A4 横向尺寸 ──
     private static final float PAGE_WIDTH  = 842f;  // 297mm
@@ -124,9 +120,11 @@ public class HljldPdfService {
     };
 
     @Autowired
-    public HljldPdfService(MongoTemplate mongoTemplate, FormPageIndexRepository pageIndexRepository) {
+    public HljldPdfService(MongoTemplate mongoTemplate, FormPageIndexRepository pageIndexRepository,
+                           HljldPdfDataAssembler dataAssembler) {
         this.mongoTemplate = mongoTemplate;
         this.pageIndexRepository = pageIndexRepository;
+        this.dataAssembler = dataAssembler;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -211,19 +209,16 @@ public class HljldPdfService {
         initFont();
 
         org.bson.Document patient = getPatientInfo(pid);
-        NursingDayData dayData;
 
-        if (STYLE_TEST_MODE) {
-            log.info("PDF样式测试模式：使用空数据");
-            dayData = new NursingDayData();
-        } else {
-            dayData = loadNursingDayData(pid, date);
-        }
+        // 使用新的数据组装器获取完整数据
+        HljldPdfDataAssembler.HljldViewModel viewModel = dataAssembler.buildPrintViewModel(date, pid, pid);
 
         int startPageNo = getStartPageNo(pid, date);
-        log.info("PDF数据加载完成: patient={}, vitals={}, drugExe={}, nurseRecords={}, startPageNo={}",
-            patient.getString("name"), dayData.getVitals().size(), dayData.getDrugExecutions().size(),
-            dayData.getNurseRecords().size(), startPageNo);
+        log.info("PDF数据加载完成: patient={}, displayGroups={}, daySummary={}, startPageNo={}",
+            patient.getString("name"),
+            viewModel.getDisplayGroups().size(),
+            viewModel.getDaySummary() != null,
+            startPageNo);
 
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -232,14 +227,20 @@ public class HljldPdfService {
             Document doc = new Document(pdfDoc, PageSize.A4.rotate());
             doc.setMargins(MARGIN, MARGIN, MARGIN, MARGIN);
 
-            if (dayData.isEmpty()) {
+            // 将 HljldDisplayRow 转换为分页数据
+            List<HljldDisplayRow> allRows = viewModel.getDisplayGroups().stream()
+                .flatMap(g -> g.getRows().stream())
+                .collect(java.util.stream.Collectors.toList());
+
+            if (allRows.isEmpty()) {
                 addPageContent(doc, pdfDoc, patient, Collections.emptyList(), startPageNo, 1, date);
             } else {
-                List<PageRows> pages = paginateData(dayData);
+                // 分页
+                List<List<Map<String, Object>>> pages = paginateRows(allRows);
                 log.info("PDF: 分页完成，共{}页", pages.size());
                 for (int i = 0; i < pages.size(); i++) {
                     if (i > 0) pdfDoc.addNewPage();
-                    addPageContent(doc, pdfDoc, patient, pages.get(i).rows, startPageNo + i, pages.size(), date);
+                    addPageContent(doc, pdfDoc, patient, pages.get(i), startPageNo + i, pages.size(), date);
                 }
             }
 
@@ -255,11 +256,6 @@ public class HljldPdfService {
     public byte[] generateAllPagesPdf(String pid) {
         log.info("生成全部PDF: pid={}", pid);
         initFont();
-
-        if (STYLE_TEST_MODE) {
-            log.info("PDF样式测试模式：生成空白页");
-            return generateEmptyPagePdf(pid, "全部");
-        }
 
         Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, "hljld2");
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
@@ -278,17 +274,24 @@ public class HljldPdfService {
 
             boolean firstPage = true;
             for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
-                NursingDayData dayData = loadNursingDayData(pid, dailyPage.getDate());
-                if (dayData.isEmpty()) {
+                // 使用新的数据组装器
+                HljldPdfDataAssembler.HljldViewModel viewModel =
+                    dataAssembler.buildPrintViewModel(dailyPage.getDate(), pid, pid);
+
+                List<HljldDisplayRow> allRows = viewModel.getDisplayGroups().stream()
+                    .flatMap(g -> g.getRows().stream())
+                    .collect(java.util.stream.Collectors.toList());
+
+                if (allRows.isEmpty()) {
                     if (!firstPage) pdfDoc.addNewPage();
                     firstPage = false;
                     addPageContent(doc, pdfDoc, patient, Collections.emptyList(), dailyPage.getStartPageNo(), 1, dailyPage.getDate());
                 } else {
-                    List<PageRows> pages = paginateData(dayData);
+                    List<List<Map<String, Object>>> pages = paginateRows(allRows);
                     for (int i = 0; i < pages.size(); i++) {
                         if (!firstPage) pdfDoc.addNewPage();
                         firstPage = false;
-                        addPageContent(doc, pdfDoc, patient, pages.get(i).rows, dailyPage.getStartPageNo() + i, pages.size(), dailyPage.getDate());
+                        addPageContent(doc, pdfDoc, patient, pages.get(i), dailyPage.getStartPageNo() + i, pages.size(), dailyPage.getDate());
                     }
                 }
             }
@@ -304,11 +307,7 @@ public class HljldPdfService {
     /** 计算某天的页数 */
     public int calculatePageCount(String pid, String date) {
         initFont();
-        NursingDayData dayData = loadNursingDayData(pid, date);
-        log.info("计算页数: pid={}, date={}, vitals={}, drugExe={}, nurseRecords={}",
-            pid, date, dayData.getVitals().size(), dayData.getDrugExecutions().size(),
-            dayData.getNurseRecords().size());
-        int pageCount = paginateData(dayData).size();
+        int pageCount = dataAssembler.calculatePageCount(date, pid, pid, MAX_ROWS_PER_PAGE);
         log.info("页数计算完成: pid={}, date={}, pageCount={}", pid, date, pageCount);
         return pageCount;
     }
@@ -559,76 +558,80 @@ public class HljldPdfService {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  分页
+    //  分页（新的 HljldDisplayRow 分页方法）
     // ══════════════════════════════════════════════════════════
 
-    private List<PageRows> paginateData(NursingDayData dayData) {
-        List<Map<String, Object>> allRows = convertToRows(dayData);
+    private List<List<Map<String, Object>>> paginateRows(List<HljldDisplayRow> allRows) {
         log.info("分页计算: 总行数={}, 每页最大行数={}", allRows.size(), MAX_ROWS_PER_PAGE);
 
-        List<PageRows> pages = new ArrayList<>();
+        List<List<Map<String, Object>>> pages = new ArrayList<>();
         List<Map<String, Object>> current = new ArrayList<>();
 
-        for (Map<String, Object> row : allRows) {
-            current.add(row);
+        for (HljldDisplayRow row : allRows) {
+            current.add(displayRowToMap(row));
             if (current.size() >= MAX_ROWS_PER_PAGE) {
-                pages.add(new PageRows(current));
+                pages.add(current);
                 current = new ArrayList<>();
             }
         }
-        if (!current.isEmpty()) pages.add(new PageRows(current));
-        if (pages.isEmpty()) pages.add(new PageRows(Collections.emptyList()));
+        if (!current.isEmpty()) pages.add(current);
+        if (pages.isEmpty()) pages.add(Collections.emptyList());
 
         log.info("分页完成: 页数={}, 每页行数={}", pages.size(),
-            pages.stream().mapToInt(p -> p.rows.size()).toArray());
+            pages.stream().mapToInt(List::size).toArray());
         return pages;
     }
 
-    // ══════════════════════════════════════════════════════════
-    //  数据加载（保留原有逻辑）
-    // ══════════════════════════════════════════════════════════
+    /**
+     * 将 HljldDisplayRow 转换为 Map，保持与原有 addDataRow 兼容。
+     */
+    private Map<String, Object> displayRowToMap(HljldDisplayRow row) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("timeText", row.getTimeText() != null ? row.getTimeText() : "");
 
-    private NursingDayData loadNursingDayData(String pid, String date) {
-        LocalDate localDate = LocalDate.parse(date, DateTimeFormatter.ISO_LOCAL_DATE);
-        ZoneId zone = ZoneId.systemDefault();
-        Date startTime = Date.from(localDate.atTime(7, 0).atZone(zone).toInstant());
-        Date endTime = Date.from(localDate.plusDays(1).atTime(7, 0).atZone(zone).toInstant());
+        // 药物治疗
+        if (row.getMedication() != null && row.getMedication().hasNameOrAmount()) {
+            map.put("medName", row.getMedication().getName());
+            map.put("medAmount", row.getMedication().getAmount());
+            map.put("medRoute", row.getMedication().getRoute());
+        }
 
-        log.info("加载护理日数据: pid={}, date={}, startTime={}, endTime={}", pid, date, startTime, endTime);
+        // 胃肠摄入
+        if (row.getEnteral() != null && row.getEnteral().hasNameOrAmount()) {
+            map.put("enteralName", row.getEnteral().getName());
+            map.put("enteralAmount", row.getEnteral().getAmount());
+            map.put("enteralRoute", row.getEnteral().getRoute());
+        }
 
-        NursingDayData data = new NursingDayData();
-        data.setVitals(loadVitals(pid, startTime, endTime));
-        data.setDrugExecutions(loadDrugExecutions(pid, startTime, endTime));
-        data.setNurseRecords(loadNurseRecords(pid, startTime, endTime));
+        // 尿量
+        map.put("urine", row.getUrine() != null ? row.getUrine() : "");
+        // 净超滤量
+        map.put("ultrafiltration", row.getUltrafiltration() != null ? row.getUltrafiltration() : "");
 
-        log.info("护理日数据加载完成: vitals={}, drugExe={}, nurseRecords={}",
-            data.getVitals().size(), data.getDrugExecutions().size(), data.getNurseRecords().size());
-        return data;
-    }
+        // 排出物
+        if (row.getOutput() != null && row.getOutput().hasAmountValue()) {
+            map.put("outputName", row.getOutput().getName());
+            map.put("outputAmount", row.getOutput().getAmount());
+        }
 
-    private List<org.bson.Document> loadVitals(String pid, Date start, Date end) {
-        Query q = new Query(Criteria.where("pid").is(pid).and("time").gte(start).lt(end));
-        q.with(Sort.by(Sort.Direction.ASC, "time"));
-        return mongoTemplate.find(q, org.bson.Document.class, "bedside");
-    }
+        // 引流液
+        if (row.getDrain() != null && row.getDrain().hasAmountValue()) {
+            map.put("drainName", row.getDrain().getName());
+            map.put("drainAmount", row.getDrain().getAmount());
+        }
 
-    private List<org.bson.Document> loadDrugExecutions(String pid, Date start, Date end) {
-        Criteria overlap = new Criteria().andOperator(
-            Criteria.where("startTime").lte(end),
-            new Criteria().orOperator(
-                Criteria.where("endTime").exists(false),
-                Criteria.where("endTime").is(null),
-                Criteria.where("endTime").gt(start)));
-        Query q = new Query(Criteria.where("pid").is(pid).and("status").ne("invalid").andOperator(overlap));
-        q.with(Sort.by(Sort.Direction.ASC, "startTime"));
-        return mongoTemplate.find(q, org.bson.Document.class, "drugExe");
-    }
+        // 检查、治疗、基础护理、健康教育
+        map.put("examination", row.getExamination() != null ? row.getExamination() : "");
+        map.put("treatment", row.getTreatment() != null ? row.getTreatment() : "");
+        map.put("basicCare", row.getBasicCare() != null ? row.getBasicCare() : "");
+        map.put("healthEducation", row.getHealthEducation() != null ? row.getHealthEducation() : "");
 
-    private List<org.bson.Document> loadNurseRecords(String pid, Date start, Date end) {
-        Query q = new Query(Criteria.where("pid").is(pid.trim()).and("time").gte(start).lt(end)
-            .and("valid").ne(false).and("desc").nin(null, ""));
-        q.with(Sort.by(Sort.Direction.ASC, "time"));
-        return mongoTemplate.find(q, org.bson.Document.class, "nurseRecords");
+        // 护理记录
+        map.put("nursingRecord", row.getNursingRecord() != null ? row.getNursingRecord() : "");
+        // 签名
+        map.put("signature", row.getSignature() != null ? row.getSignature() : "");
+
+        return map;
     }
 
     private org.bson.Document getPatientInfo(String pid) {
@@ -690,216 +693,8 @@ public class HljldPdfService {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  数据转换（保留原有逻辑）
+    //  工具方法（保留用于 PDF 渲染）
     // ══════════════════════════════════════════════════════════
-
-    private List<Map<String, Object>> convertToRows(NursingDayData dayData) {
-        List<Map<String, Object>> rows = new ArrayList<>();
-        SimpleDateFormat tf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA);
-        tf.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
-        TreeMap<Date, Map<String, Object>> timeMap = new TreeMap<>();
-
-        log.info("数据转换开始: vitals={}, drugExe={}, nurseRecords={}",
-            dayData.getVitals().size(), dayData.getDrugExecutions().size(),
-            dayData.getNurseRecords().size());
-
-        // 1. 床旁数据
-        int bedsideRendered = 0;
-        int bedsideSkipped = 0;
-        for (org.bson.Document v : dayData.getVitals()) {
-            if (!isRenderableBedsideRecord(v)) {
-                bedsideSkipped++;
-                continue;
-            }
-            Date t = v.getDate("time");
-            if (t == null) continue;
-            String code = str(v, "code");
-            String val = str(v, "strVal");
-            String remark = str(v, "remark");
-
-            Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
-            row.put("timeText", tf.format(t));
-
-            switch (code) {
-                case "param_niaoLiang":
-                    row.put("urine", val);
-                    break;
-                case "param_chaoLvLiang":
-                    row.put("ultrafiltration", val);
-                    break;
-                case "param_daBianAmount": case "param_造瘘口量": case "param_outuwuliang":
-                case "param_咯血": case "param_tanLiang":
-                    row.put("outputName", getOutputName(code));
-                    row.put("outputAmount", val);
-                    break;
-                case "param_带入药量": case "param_kouFu": case "param_biSi":
-                    String route = "param_带入药量".equals(code) ? "带入" :
-                                   "param_kouFu".equals(code) ? "po" : "鼻饲";
-                    row.put("enteralName", remark != null ? remark.trim() : "");
-                    row.put("enteralAmount", val);
-                    row.put("enteralRoute", route);
-                    break;
-                case "param_外出检查":
-                    row.put("examination", val);
-                    break;
-                case "param_物理治疗":
-                    row.put("treatment", val);
-                    break;
-                case "param_基础护理1":
-                    row.put("basicCare", val);
-                    break;
-                case "param_健康教育":
-                    row.put("healthEducation", val);
-                    break;
-                default:
-                    if (isDrainCode(code)) {
-                        row.put("drainName", drainDisplayName(code));
-                        row.put("drainAmount", val);
-                    }
-                    break;
-            }
-            bedsideRendered++;
-        }
-        log.info("床旁数据处理完成: 总数={}, 渲染={}, 跳过={}", dayData.getVitals().size(), bedsideRendered, bedsideSkipped);
-
-        // 2. 护理记录
-        int nurseRendered = 0;
-        for (org.bson.Document r : dayData.getNurseRecords()) {
-            Date t = r.getDate("time");
-            if (t == null) continue;
-            String desc = str(r, "desc");
-            if (desc == null || desc.trim().isEmpty()) continue;
-
-            Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
-            row.put("timeText", tf.format(t));
-            String existing = mapStr(row, "nursingRecord");
-            row.put("nursingRecord", existing.isEmpty() ? desc : existing + "\n" + desc);
-
-            String signature = resolveNurseSignature(r);
-            if (!signature.isEmpty()) row.put("signature", signature);
-            nurseRendered++;
-        }
-        log.info("护理记录处理完成: 总数={}, 渲染={}", dayData.getNurseRecords().size(), nurseRendered);
-
-        // 3. 药物执行
-        int drugRendered = 0;
-        for (org.bson.Document d : dayData.getDrugExecutions()) {
-            Date t = d.getDate("startTime");
-            if (t == null) continue;
-            Map<String, Object> row = timeMap.computeIfAbsent(t, k -> new LinkedHashMap<>());
-            row.put("timeText", tf.format(t));
-
-            @SuppressWarnings("unchecked")
-            List<org.bson.Document> drugList = (List<org.bson.Document>) d.get("drugList");
-            if (drugList != null && !drugList.isEmpty()) {
-                StringBuilder drugNames = new StringBuilder();
-                for (org.bson.Document drug : drugList) {
-                    String name = str(drug, "name");
-                    String unit = str(drug, "unit");
-                    if (!name.isEmpty()) {
-                        if (drugNames.length() > 0) drugNames.append("、");
-                        Object doseObj = drug.get("dose");
-                        if (doseObj != null && !unit.isEmpty()) {
-                            drugNames.append(name).append("(").append(doseObj).append(unit).append(")");
-                        } else {
-                            drugNames.append(name);
-                        }
-                    }
-                }
-                if (drugNames.length() > 0) row.put("medName", drugNames.toString());
-            }
-
-            String medAmount = resolveDrugAmount(d);
-            if (!medAmount.isEmpty()) row.put("medAmount", medAmount);
-
-            String route = str(d, "route");
-            if (!route.isEmpty()) row.put("medRoute", route);
-            drugRendered++;
-        }
-        log.info("药物执行处理完成: 总数={}, 渲染={}", dayData.getDrugExecutions().size(), drugRendered);
-
-        rows.addAll(timeMap.values());
-        log.info("数据转换完成: 合并后总行数={}", rows.size());
-        return rows;
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  工具方法（保留原有逻辑）
-    // ══════════════════════════════════════════════════════════
-
-    private boolean isDrainCode(String code) {
-        if (code == null) return false;
-        String normalizedCode = code.trim();
-        return LEGACY_DRAIN_CODES.contains(normalizedCode) || normalizedCode.contains("引流");
-    }
-
-    private boolean isRenderableBedsideRecord(org.bson.Document record) {
-        if (record == null) return false;
-        String time = str(record, "time");
-        String code = str(record, "code");
-        if (time.isEmpty() || code.isEmpty()) return false;
-        Object validObj = record.get("valid");
-        if (validObj != null && validObj.equals(false)) return false;
-        String status = str(record, "status").toLowerCase();
-        if ("invalid".equals(status)) return false;
-        if ("param_Yishi".equals(code)) return false;
-        if (!DISPLAY_BEDSIDE_CODES.contains(code) && !isDrainCode(code)) return false;
-        String strVal = str(record, "strVal");
-        String remark = str(record, "remark");
-        return !strVal.trim().isEmpty() || !remark.trim().isEmpty();
-    }
-
-    private String drainDisplayName(String code) {
-        if (code == null) return "";
-        String normalizedCode = code.trim();
-        if ("param_tube_胃肠减压".equals(normalizedCode)) return "胃管负压引流量";
-        String stripped = normalizedCode.replace("param_tube_", "").replace("param_", "");
-        if (stripped.endsWith("管")) return stripped.substring(0, stripped.length() - 1) + "液";
-        return stripped.replace("管", "液");
-    }
-
-    private String resolveDrugAmount(org.bson.Document execution) {
-        Object topAmount = execution.get("liquidAmount");
-        if (topAmount != null) {
-            String val = topAmount.toString().trim();
-            if (!val.isEmpty() && !"0".equals(val)) return val;
-        }
-        @SuppressWarnings("unchecked")
-        List<org.bson.Document> drugList = (List<org.bson.Document>) execution.get("drugList");
-        if (drugList != null) {
-            double total = 0;
-            for (org.bson.Document drug : drugList) {
-                Object liquidAmount = drug.get("liquidAmount");
-                if (liquidAmount != null) {
-                    try { total += Double.parseDouble(liquidAmount.toString()); }
-                    catch (NumberFormatException e) { /* ignore */ }
-                }
-            }
-            if (total > 0) return String.valueOf(total);
-        }
-        return "";
-    }
-
-    private String resolveNurseSignature(org.bson.Document record) {
-        String username = str(record, "username").trim();
-        if (!username.isEmpty()) return username;
-        String trueName = str(record, "trueName").trim();
-        if (!trueName.isEmpty()) return trueName;
-        String userId = str(record, "userId").trim();
-        if (userId.isEmpty()) userId = str(record, "editUser").trim();
-        return userId;
-    }
-
-    private String getOutputName(String code) {
-        switch (code) {
-            case "param_daBianAmount": return "大便量";
-            case "param_造瘘口量": return "造瘘口量";
-            case "param_outuwuliang": return "呕吐物量";
-            case "param_咯血": return "咯血";
-            case "param_tanLiang": return "痰液量";
-            default: return "";
-        }
-    }
 
     private boolean isEmpty(org.bson.Document doc, String key) {
         Object v = doc.get(key);
@@ -1002,24 +797,4 @@ public class HljldPdfService {
         }
     }
 
-    // ── 内部类 ──
-
-    private static class PageRows {
-        final List<Map<String, Object>> rows;
-        PageRows(List<Map<String, Object>> rows) { this.rows = rows; }
-    }
-
-    private static class NursingDayData {
-        private List<org.bson.Document> vitals = new ArrayList<>();
-        private List<org.bson.Document> drugExecutions = new ArrayList<>();
-        private List<org.bson.Document> nurseRecords = new ArrayList<>();
-
-        boolean isEmpty() { return vitals.isEmpty() && drugExecutions.isEmpty() && nurseRecords.isEmpty(); }
-        List<org.bson.Document> getVitals() { return vitals; }
-        void setVitals(List<org.bson.Document> v) { this.vitals = v; }
-        List<org.bson.Document> getDrugExecutions() { return drugExecutions; }
-        void setDrugExecutions(List<org.bson.Document> v) { this.drugExecutions = v; }
-        List<org.bson.Document> getNurseRecords() { return nurseRecords; }
-        void setNurseRecords(List<org.bson.Document> v) { this.nurseRecords = v; }
-    }
 }
