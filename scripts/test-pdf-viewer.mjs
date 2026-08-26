@@ -52,44 +52,47 @@ const mainBundle = readFileSync(join(DIST_DIR, mainFiles[0]), 'utf-8');
 console.log(`Main bundle: ${mainFiles[0]}`);
 
 // 3. 验证Worker URL配置
-check('Worker URL使用绝对路径', mainBundle.includes('/form/assets/pdf.worker.min.mjs'));
+check('Worker URL使用绝对路径(.js)', mainBundle.includes('/form/assets/pdf.worker.min.js'));
+check('Worker URL不使用.mjs路径', !mainBundle.includes('/form/assets/pdf.worker.min.mjs'));
 check('Worker URL不使用裸模块路径', !mainBundle.includes("'assets/pdf.worker.min.mjs'"));
-check('Worker URL不使用相对路径', !mainBundle.includes("./assets/pdf.worker.min.mjs"));
+check('Worker URL不使用相对路径', !mainBundle.includes("./assets/pdf.worker.min.js"));
 
 // 4. 验证PDF.js配置
 check('包含pdfjsLib配置', mainBundle.includes('GlobalWorkerOptions'));
 check('包含getDocument方法', mainBundle.includes('getDocument'));
 
 // 5. 验证页面组件
-const hljldFormPdfDir = join(SJM1_APP, 'src', 'app', 'pages', 'hljld-form-pdf');
-if (existsSync(hljldFormPdfDir)) {
-  const componentFiles = readdirSync(hljldFormPdfDir);
-  const htmlFile = componentFiles.find(f => f.endsWith('.html'));
+const hljldFormPdfTs = join(SJM1_APP, 'src', 'app', 'hljld-form-pdf.component.ts');
+const hljldFormPdfHtml = join(SJM1_APP, 'src', 'app', 'hljld-form-pdf.component.html');
 
-  if (htmlFile) {
-    const htmlContent = readFileSync(join(hljldFormPdfDir, htmlFile), 'utf-8');
+if (existsSync(hljldFormPdfHtml)) {
+  const htmlContent = readFileSync(hljldFormPdfHtml, 'utf-8');
 
-    // 验证没有下载按钮
-    check('页面没有download按钮', !htmlContent.includes('download'));
-    check('页面没有"下载当日"按钮', !htmlContent.includes('下载当日'));
-    check('页面没有"下载全部"按钮', !htmlContent.includes('下载全部'));
+  // 验证没有下载按钮
+  check('页面没有download按钮', !htmlContent.includes('download'));
+  check('页面没有"下载当日"按钮', !htmlContent.includes('下载当日'));
+  check('页面没有"下载全部"按钮', !htmlContent.includes('下载全部'));
 
-    // 验证打印按钮存在
-    check('页面有打印当日按钮', htmlContent.includes('打印当日') || htmlContent.includes('print'));
-    check('页面有一键打印全部按钮', htmlContent.includes('一键打印全部') || htmlContent.includes('打印全部'));
-  }
+  // 验证打印按钮存在
+  check('页面有打印当日按钮', htmlContent.includes('打印当日') || htmlContent.includes('print'));
+  check('页面有一键打印全部按钮', htmlContent.includes('一键打印全部') || htmlContent.includes('打印全部'));
+} else {
+  console.log(`⚠ 组件HTML不存在: ${hljldFormPdfHtml}`);
 }
 
 // 6. 验证Worker文件在dist中
-const workerDist = join(DIST_DIR, 'assets', 'pdf.worker.min.mjs');
-check('Worker文件在dist中', existsSync(workerDist));
+const workerDist = join(DIST_DIR, 'assets', 'pdf.worker.min.js');
+check('Worker文件在dist中(.js)', existsSync(workerDist));
 
-// 7. 验证index.html引用正确
+// 7. 验证旧.mjs文件不存在于dist
+const workerDistMjs = join(DIST_DIR, 'assets', 'pdf.worker.min.mjs');
+check('dist中不存在旧.mjs文件', !existsSync(workerDistMjs));
+
+// 8. 验证index.html引用正确
 const indexHtml = readFileSync(join(DIST_DIR, 'index.html'), 'utf-8');
 check('index.html引用main bundle', indexHtml.includes('main-'));
 
-// 8. 验证没有使用fake worker
-// PDF.js内部可能包含fake worker相关代码，但业务代码不应主动使用
+// 9. 验证没有使用fake worker
 // 检查业务代码是否设置了workerSrc为无效路径
 const businessCode = mainBundle.substring(mainBundle.indexOf('GlobalWorkerOptions'));
 const hasInvalidWorkerSrc = businessCode.includes("'assets/pdf.worker.min.mjs'") ||

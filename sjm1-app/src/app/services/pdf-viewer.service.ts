@@ -1,13 +1,12 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, Subject } from 'rxjs';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // PDF.js ES Module Worker，使用/form下随应用发布的本地静态资源
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  '/form/assets/pdf.worker.min.mjs',
+const PDF_WORKER_URL = new URL(
+  '/form/assets/pdf.worker.min.js',
   window.location.origin,
 ).toString();
+pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL;
 
 export interface PdfPageRender {
   pageNumber: number;
@@ -29,7 +28,7 @@ export interface PdfDocument {
 @Injectable({ providedIn: 'root' })
 export class PdfViewerService {
 
-  constructor(private http: HttpClient) {}
+  constructor() {}
 
   /**
    * 加载PDF文档
