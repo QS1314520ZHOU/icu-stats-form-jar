@@ -187,7 +187,6 @@
 
 .refresh-button,
 .recalculate-button,
-.download-button,
 .print-button {
   height: 32px;
   padding: 0 12px;
@@ -201,7 +200,6 @@
 
 .refresh-button:hover:not(:disabled),
 .recalculate-button:hover:not(:disabled),
-.download-button:hover:not(:disabled),
 .print-button:hover:not(:disabled) {
   background: #f0f0f0;
   border-color: #999;
@@ -209,7 +207,6 @@
 
 .refresh-button:disabled,
 .recalculate-button:disabled,
-.download-button:disabled,
 .print-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -222,15 +219,6 @@
 
 .recalculate-button:hover:not(:disabled) {
   background: #ffe0b2;
-}
-
-.download-all-button {
-  background: #e8f5e9;
-  border-color: #81c784;
-}
-
-.download-all-button:hover:not(:disabled) {
-  background: #c8e6c9;
 }
 
 .print-all-button {
@@ -247,7 +235,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 .loading-banner,
-.error-banner {
+.error-banner,
+.warning-banner {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -265,6 +254,11 @@
 .error-banner {
   background: #ffebee;
   color: #c62828;
+}
+
+.warning-banner {
+  background: #fff3e0;
+  color: #e65100;
 }
 
 .close-button {

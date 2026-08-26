@@ -173,10 +173,19 @@ public class HljldFlowPdfService {
 
         // 正确计算边距：CONTENT_TOP是从页面底部算起的Y坐标，topMargin是从页面顶部算起的距离
         float topMargin = HljldFlowPageEventHandler.PAGE_HEIGHT - HljldFlowPageEventHandler.CONTENT_TOP;
+        float bottomMargin = HljldFlowPageEventHandler.CONTENT_BOTTOM;
+        float availableHeight = HljldFlowPageEventHandler.PAGE_HEIGHT - topMargin - bottomMargin;
+
+        if (availableHeight <= 0) {
+            throw new IllegalStateException(String.format(
+                "Flow PDF布局常量配置错误: PAGE_HEIGHT=%.1f, topMargin=%.1f, bottomMargin=%.1f, availableHeight=%.1f",
+                HljldFlowPageEventHandler.PAGE_HEIGHT, topMargin, bottomMargin, availableHeight));
+        }
+
         doc.setMargins(
             topMargin,
             HljldFlowPageEventHandler.MARGIN_RIGHT,
-            HljldFlowPageEventHandler.CONTENT_BOTTOM,
+            bottomMargin,
             HljldFlowPageEventHandler.MARGIN_LEFT
         );
 

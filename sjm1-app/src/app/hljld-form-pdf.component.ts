@@ -51,6 +51,7 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
   isLoadingAllPdf = false;
   printError = '';
   error = '';
+  pageWarning = '';
   recalculating = false;
   calculatingProgress = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -154,6 +155,7 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     this.isLoadingPdf = true;
     this.isRenderingPdf = false;
     this.error = '';
+    this.pageWarning = '';
     this.stopPolling();
     this.cdr.markForCheck();
 
@@ -177,20 +179,18 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
       this.pageIndex = info;
 
       if (info.status === 'calculating') {
-        this.pageState = 'calculating';
-        this.isLoadingPdf = false;
-        this.calculatingProgress = 0;
-        this.cdr.markForCheck();
-        this.startPolling();
-        return;
-      }
-
-      if (info.status === 'failed') {
-        this.pageState = 'error';
-        this.error = '页码计算失败，请点击「纠正页码」重试';
-        this.isLoadingPdf = false;
-        this.cdr.markForCheck();
-        return;
+        // 正在计算页码，使用临时页码加载PDF
+        this.pageIndex = { startPageNo: 1, pageCount: 1, status: 'calculating' };
+        this.pageWarning = '全住院期页码正在计算中，当前预览使用临时页码';
+        this.updatePageOptions();
+      } else if (info.status === 'failed') {
+        // 页码计算失败，使用临时页码加载PDF，显示非阻塞警告
+        this.pageIndex = { startPageNo: 1, pageCount: 1, status: 'failed' };
+        this.pageWarning = '全住院期页码计算失败，当前预览使用临时页码，可点击纠正页码重试';
+        this.updatePageOptions();
+      } else {
+        // 页码正常，更新页码选项
+        this.updatePageOptions();
       }
 
       // 获取PDF URL（使用flow布局）
@@ -444,49 +444,6 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     } finally {
       this.isLoadingAllPdf = false;
       this.isPrinting = false;
-      this.cdr.markForCheck();
-    }
-  }
-
-  /**
-   * 下载当前日PDF
-   */
-  downloadCurrentDay(): void {
-    if (!this.pdfDocument) {
-      return;
-    }
-
-    const link = document.createElement('a');
-    link.href = this.pdfDocument.objectUrl;
-    link.download = `护理记录_${this.patient.name}_${this.dateInput}.pdf`;
-    link.click();
-  }
-
-  /**
-   * 下载全部PDF
-   */
-  async downloadAll(): Promise<void> {
-    if (!this.patient.pid) {
-      return;
-    }
-
-    try {
-      const pdfUrl = this.pdfService.getAllPdfsUrl(this.patient.pid, this.pdfLayout);
-      const allPdfDoc = await this.pdfViewerService.loadPdf(pdfUrl);
-
-      const link = document.createElement('a');
-      link.href = allPdfDoc.objectUrl;
-      link.download = `护理记录_全部_${this.patient.name}.pdf`;
-      link.click();
-
-      // 延迟清理
-      setTimeout(() => {
-        this.pdfViewerService.revokeObjectUrl(allPdfDoc.objectUrl);
-        this.pdfViewerService.destroyPdfDocument(allPdfDoc.pdfDoc);
-      }, 1000);
-    } catch (err: any) {
-      console.error('[HLJLD] 下载全部失败', err);
-      this.error = err.message || '下载全部失败';
       this.cdr.markForCheck();
     }
   }

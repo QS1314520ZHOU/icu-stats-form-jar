@@ -109,22 +109,6 @@
 
       <button
         type="button"
-        class="download-button"
-        [disabled]="!pdfDocument || isLoadingPdf"
-        (click)="downloadCurrentDay()"
-        title="下载当前日"
-      >下载当日</button>
-
-      <button
-        type="button"
-        class="download-button download-all-button"
-        [disabled]="!patient.pid || isLoadingAllPdf"
-        (click)="downloadAll()"
-        title="下载全部"
-      >下载全部</button>
-
-      <button
-        type="button"
         class="print-button"
         [disabled]="!pdfDocument || isPrinting"
         (click)="printCurrentDay()"
@@ -153,6 +137,12 @@
   <div class="error-banner" *ngIf="printError">
     <span>{{ printError }}</span>
     <button type="button" class="close-button" (click)="printError = ''">×</button>
+  </div>
+
+  <!-- 页码警告（非阻塞） -->
+  <div class="warning-banner" *ngIf="pageWarning">
+    <span>{{ pageWarning }}</span>
+    <button type="button" class="close-button" (click)="pageWarning = ''">×</button>
   </div>
 
   <!-- PDF查看器 -->
