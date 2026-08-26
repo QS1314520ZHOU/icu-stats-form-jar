@@ -23,30 +23,92 @@ public final class HljldPdfLayoutConstants {
     public static final float MARGIN_LEFT   = 10f;
     /** 右边距 */
     public static final float MARGIN_RIGHT  = 10f;
-    /** 上边距 = 标题区域高度 + 患者信息区域高度 + 间距 */
-    public static final float MARGIN_TOP    = 46f;
-    /** 下边距 = 备注区高度 + 页码高度 + 间距 */
-    public static final float MARGIN_BOTTOM = 72f;
+
+    // ══════════════════════════════════════════════════════════
+    //  顶部区域坐标（由上到下推导）
+    // ══════════════════════════════════════════════════════════
+    /** 页面顶部到标题之间的安全边距 */
+    public static final float PAGE_TOP_PADDING = 8f;
+    /** 标题区域高度 */
+    public static final float TITLE_AREA_HEIGHT = 18f;
+    /** 标题与患者信息之间的间距 */
+    public static final float TITLE_INFO_GAP = 2f;
+    /** 患者信息区域高度 */
+    public static final float INFO_AREA_HEIGHT = 11f;
+    /** 患者信息与表格顶部之间的间距 */
+    public static final float INFO_TABLE_GAP = 2f;
+
+    /** 顶部固定区域总高度 = PAGE_TOP_PADDING + TITLE_AREA_HEIGHT + TITLE_INFO_GAP + INFO_AREA_HEIGHT + INFO_TABLE_GAP */
+    public static final float TOP_FIXED_HEIGHT =
+        PAGE_TOP_PADDING
+        + TITLE_AREA_HEIGHT
+        + TITLE_INFO_GAP
+        + INFO_AREA_HEIGHT
+        + INFO_TABLE_GAP;
+
+    /** 上边距 = 顶部固定区域总高度 */
+    public static final float MARGIN_TOP = TOP_FIXED_HEIGHT;  // 41pt
+
+    // ══════════════════════════════════════════════════════════
+    //  底部区域坐标（由下到上推导）
+    // ══════════════════════════════════════════════════════════
+    /** 页面底部到页码之间的安全边距 */
+    public static final float PAGE_BOTTOM_PADDING = 2f;
+    /** 页码区域高度 */
+    public static final float PAGE_NUMBER_HEIGHT = 14f;
+    /** 页码与备注区之间的间距 */
+    public static final float PAGE_NUMBER_REMARK_GAP = 2f;
+
+    /** 页码中心Y坐标 = PAGE_BOTTOM_PADDING + PAGE_NUMBER_HEIGHT / 2 */
+    public static final float PAGE_NUM_Y =
+        PAGE_BOTTOM_PADDING
+        + PAGE_NUMBER_HEIGHT / 2f;  // 9f
+
+    /** 备注区底部Y坐标 = PAGE_BOTTOM_PADDING + PAGE_NUMBER_HEIGHT + PAGE_NUMBER_REMARK_GAP */
+    public static final float REMARK_BOTTOM =
+        PAGE_BOTTOM_PADDING
+        + PAGE_NUMBER_HEIGHT
+        + PAGE_NUMBER_REMARK_GAP;  // 18f
+
+    /** 备注每行高度 */
+    public static final float REMARK_ROW_HEIGHT = 13f;
+    /** 备注行数 */
+    public static final int REMARK_ROWS = 4;
+    /** 备注区总高度 = 行数 * 行高 */
+    public static final float REMARK_TOTAL_HEIGHT = REMARK_ROW_HEIGHT * REMARK_ROWS; // 52
+
+    /** 备注区顶部Y坐标 = REMARK_BOTTOM + REMARK_TOTAL_HEIGHT */
+    public static final float REMARK_TOP =
+        REMARK_BOTTOM
+        + REMARK_TOTAL_HEIGHT;  // 70
+
+    /** 下边距 = REMARK_TOP */
+    public static final float MARGIN_BOTTOM = REMARK_TOP;  // 70
 
     // ══════════════════════════════════════════════════════════
     //  内容区域边界（页面坐标系，(0,0) 在页面左下角）
     // ══════════════════════════════════════════════════════════
     /** 内容区域顶部 Y 坐标 = PAGE_HEIGHT - MARGIN_TOP */
-    public static final float CONTENT_TOP    = PAGE_HEIGHT - MARGIN_TOP;  // 549
-    /** 内容区域底部 Y 坐标 = MARGIN_BOTTOM */
-    public static final float CONTENT_BOTTOM = MARGIN_BOTTOM;             // 72
+    public static final float CONTENT_TOP    = PAGE_HEIGHT - MARGIN_TOP;  // 554
+    /** 内容区域底部 Y 坐标 = MARGIN_BOTTOM = REMARK_TOP */
+    public static final float CONTENT_BOTTOM = MARGIN_BOTTOM;             // 70
 
     // ══════════════════════════════════════════════════════════
     //  页眉区域（标题 + 患者信息，由事件处理器绘制）
     // ══════════════════════════════════════════════════════════
     /** 标题字号 */
     public static final float TITLE_FONT_SIZE = 14f;
-    /** 标题 Y 偏移（从页面顶部向下） */
-    public static final float TITLE_Y_OFFSET = 14f;
     /** 患者信息字号 */
     public static final float INFO_FONT_SIZE = 9f;
-    /** 患者信息 Y 偏移（从页面顶部向下） */
-    public static final float INFO_Y_OFFSET = 32f;
+
+    /** 标题顶部Y坐标 = PAGE_HEIGHT - PAGE_TOP_PADDING */
+    public static final float TITLE_TOP = PAGE_HEIGHT - PAGE_TOP_PADDING;  // 587
+    /** 标题底部Y坐标 = TITLE_TOP - TITLE_AREA_HEIGHT */
+    public static final float TITLE_BOTTOM = TITLE_TOP - TITLE_AREA_HEIGHT;  // 569
+    /** 患者信息顶部Y坐标 = TITLE_BOTTOM - TITLE_INFO_GAP */
+    public static final float INFO_TOP = TITLE_BOTTOM - TITLE_INFO_GAP;  // 567
+    /** 患者信息底部Y坐标 = INFO_TOP - INFO_AREA_HEIGHT */
+    public static final float INFO_BOTTOM = INFO_TOP - INFO_AREA_HEIGHT;  // 556
 
     // ══════════════════════════════════════════════════════════
     //  数据表头
@@ -85,20 +147,12 @@ public final class HljldPdfLayoutConstants {
     public static final float REMARK_FONT_SIZE = 6.5f;
     /** 备注标签字号 */
     public static final float REMARK_LABEL_FONT_SIZE = 8f;
-    /** 备注每行高度 */
-    public static final float REMARK_ROW_HEIGHT = 13f;
-    /** 备注行数 */
-    public static final int REMARK_ROWS = 4;
-    /** 备注区总高度 = 行数 * 行高 + 间距 */
-    public static final float REMARK_TOTAL_HEIGHT = REMARK_ROW_HEIGHT * REMARK_ROWS + 4f; // 56
 
     // ══════════════════════════════════════════════════════════
     //  页码
     // ══════════════════════════════════════════════════════════
     /** 页码字号 */
     public static final float PAGE_NUM_FONT_SIZE = 10f;
-    /** 页码 Y 坐标（从页面底部向上） */
-    public static final float PAGE_NUM_Y = 4f;
 
     // ══════════════════════════════════════════════════════════
     //  19 列宽度（pt）
@@ -146,7 +200,7 @@ public final class HljldPdfLayoutConstants {
     /** 小结/总结边框 */
     public static final float BORDER_SUMMARY = 0.5f;
     /** 备注区边框 */
-    public static final float BORDER_REMARK = 0.3f;
+    public static final float BORDER_REMARK = 0.5f;
 
     // ══════════════════════════════════════════════════════════
     //  备注内容
@@ -181,4 +235,35 @@ public final class HljldPdfLayoutConstants {
     public static final java.util.Set<Integer> LEFT_ALIGN_FIELDS = java.util.Set.of(
         0, 1, 4, 9, 11, 17
     );
+
+    // ══════════════════════════════════════════════════════════
+    //  静态校验
+    // ══════════════════════════════════════════════════════════
+    static {
+        // 验证顶部区域坐标
+        assert TOP_FIXED_HEIGHT == PAGE_TOP_PADDING + TITLE_AREA_HEIGHT + TITLE_INFO_GAP + INFO_AREA_HEIGHT + INFO_TABLE_GAP
+            : "TOP_FIXED_HEIGHT must equal sum of top area components";
+        assert CONTENT_TOP == PAGE_HEIGHT - MARGIN_TOP
+            : "CONTENT_TOP must equal PAGE_HEIGHT - MARGIN_TOP";
+
+        // 验证底部区域坐标
+        assert CONTENT_BOTTOM == REMARK_TOP
+            : "CONTENT_BOTTOM must equal REMARK_TOP";
+        assert MARGIN_BOTTOM == REMARK_TOP
+            : "MARGIN_BOTTOM must equal REMARK_TOP";
+        assert PAGE_NUM_Y < REMARK_BOTTOM
+            : "PAGE_NUM_Y must be less than REMARK_BOTTOM";
+        assert REMARK_TOP == REMARK_BOTTOM + REMARK_TOTAL_HEIGHT
+            : "REMARK_TOP must equal REMARK_BOTTOM + REMARK_TOTAL_HEIGHT";
+
+        // 验证表格宽度
+        float colSum = 0;
+        for (float w : COL_WIDTHS_PT) colSum += w;
+        assert Math.abs(colSum - TABLE_WIDTH) < 0.01f
+            : "Sum of column widths must equal TABLE_WIDTH";
+
+        // 验证表格不超出页面
+        assert MARGIN_LEFT + TABLE_WIDTH <= PAGE_WIDTH - MARGIN_RIGHT
+            : "Table must not exceed page right boundary";
+    }
 }

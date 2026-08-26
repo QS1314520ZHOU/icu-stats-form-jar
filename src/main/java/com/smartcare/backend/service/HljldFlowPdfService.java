@@ -8,31 +8,27 @@ import com.itextpdf.kernel.font.PdfFontFactory;
 import com.itextpdf.kernel.geom.PageSize;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
-import com.itextpdf.layout.Document;
 import com.itextpdf.layout.borders.SolidBorder;
 import com.itextpdf.layout.element.AreaBreak;
 import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
-import com.itextpdf.layout.properties.HorizontalAlignment;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.entity.FormPageIndex;
 import com.smartcare.backend.hljld.*;
 import com.smartcare.backend.hljld.HljldPdfDataAssembler.HljldViewModel;
-import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
 import com.smartcare.backend.repository.FormPageIndexRepository;
+import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
 
@@ -51,20 +47,24 @@ public class HljldFlowPdfService {
 
     private static final Logger log = LoggerFactory.getLogger(HljldFlowPdfService.class);
 
-    private final MongoTemplate mongoTemplate;
+    /** 统一时区：Asia/Shanghai */
+    private static final ZoneId SHANGHAI_ZONE = ZoneId.of("Asia/Shanghai");
+
     private final FormPageIndexRepository pageIndexRepository;
     private final HljldPdfDataAssembler dataAssembler;
+    private final HljldPatientResolver patientResolver;
 
     // ── 字体（只缓存路径） ──
     private volatile String cachedFontPath;
     private volatile boolean fontPathResolved = false;
 
     @Autowired
-    public HljldFlowPdfService(MongoTemplate mongoTemplate, FormPageIndexRepository pageIndexRepository,
-                               HljldPdfDataAssembler dataAssembler) {
-        this.mongoTemplate = mongoTemplate;
+    public HljldFlowPdfService(FormPageIndexRepository pageIndexRepository,
+                               HljldPdfDataAssembler dataAssembler,
+                               HljldPatientResolver patientResolver) {
         this.pageIndexRepository = pageIndexRepository;
         this.dataAssembler = dataAssembler;
+        this.patientResolver = patientResolver;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -159,6 +159,7 @@ public class HljldFlowPdfService {
      * @param output        输出流（finalRender=true 时使用）
      * @param finalRender   是否正式渲染
      * @param pid           患者ID
+     * @param referenceDate 参考日期（护理日日期）
      * @return 渲染结果
      */
     private FlowPdfRenderResult renderFlowPdf(
@@ -166,17 +167,15 @@ public class HljldFlowPdfService {
             int startPageNo,
             OutputStream output,
             boolean finalRender,
-            String pid) {
+            String pid,
+            LocalDate referenceDate) {
 
         PdfFont font = createPdfFont();
-        org.bson.Document patient = getPatientInfo(pid);
-        String patientInfo = String.format("床号：%s  姓名：%s  住院号：%s  性别：%s  年龄：%s  诊断：%s",
-            str(patient, "bedNo"), str(patient, "name"), str(patient, "mrn"),
-            str(patient, "sex"), str(patient, "age"), str(patient, "diagnosis"));
+        String patientInfo = getPatientInfoString(pid, referenceDate);
 
         PdfWriter writer = finalRender ? new PdfWriter(output) : new PdfWriter(new ByteArrayOutputStream());
         PdfDocument pdfDoc = new PdfDocument(writer);
-        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+        com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
 
         // 设置边距：精确匹配事件处理器绘制区域
         // topMargin = 标题+患者信息高度 → 内容从 CONTENT_TOP 开始
@@ -224,17 +223,18 @@ public class HljldFlowPdfService {
     public byte[] generateDailyPdf(String pid, String date) {
         log.info("Flow PDF 生成: pid={}, date={}", pid, date);
 
+        LocalDate referenceDate = LocalDate.parse(date);
         List<PrintableItem> items = buildPrintableItems(date, pid);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
         int startPageNo = getStartPageNo(pid, date, "hljld2-flow");
 
         // 第一遍：计算页数
-        FlowPdfRenderResult pass1 = renderFlowPdf(itemsPerDay, startPageNo, null, false, pid);
+        FlowPdfRenderResult pass1 = renderFlowPdf(itemsPerDay, startPageNo, null, false, pid, referenceDate);
         log.info("Flow PDF pass1: pageCount={}", pass1.pageCount);
 
         // 第二遍：正式渲染
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        renderFlowPdf(itemsPerDay, startPageNo, baos, true, pid);
+        renderFlowPdf(itemsPerDay, startPageNo, baos, true, pid, referenceDate);
 
         log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}", pid, date, pass1.pageCount, items.size());
         return baos.toByteArray();
@@ -253,8 +253,10 @@ public class HljldFlowPdfService {
 
         FormPageIndex index = indexOpt.get();
         List<List<PrintableItem>> itemsPerDay = new ArrayList<>();
+        List<LocalDate> dates = new ArrayList<>();
 
         for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
+            dates.add(LocalDate.parse(dailyPage.getDate()));
             itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid));
         }
 
@@ -263,12 +265,15 @@ public class HljldFlowPdfService {
             startPageNo = index.getDailyPages().get(0).getStartPageNo();
         }
 
+        // 使用第一个护理日作为参考日期
+        LocalDate referenceDate = dates.isEmpty() ? LocalDate.now() : dates.get(0);
+
         // 第一遍
-        FlowPdfRenderResult pass1 = renderFlowPdf(itemsPerDay, startPageNo, null, false, pid);
+        FlowPdfRenderResult pass1 = renderFlowPdf(itemsPerDay, startPageNo, null, false, pid, referenceDate);
 
         // 第二遍
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        renderFlowPdf(itemsPerDay, startPageNo, baos, true, pid);
+        renderFlowPdf(itemsPerDay, startPageNo, baos, true, pid, referenceDate);
 
         log.info("Flow PDF 全部完成: pid={}, days={}, pageCount={}", pid, itemsPerDay.size(), pass1.pageCount);
         return baos.toByteArray();
@@ -276,9 +281,10 @@ public class HljldFlowPdfService {
 
     /** 计算某天的页数（使用真实渲染） */
     public int calculateFlowPageCount(String pid, String date) {
+        LocalDate referenceDate = LocalDate.parse(date);
         List<PrintableItem> items = buildPrintableItems(date, pid);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
-        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, null, false, pid);
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, null, false, pid, referenceDate);
         log.info("Flow PDF 页数: pid={}, date={}, pageCount={}", pid, date, result.pageCount);
         return result.pageCount;
     }
@@ -290,7 +296,7 @@ public class HljldFlowPdfService {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             PdfWriter writer = new PdfWriter(baos);
             PdfDocument pdfDoc = new PdfDocument(writer);
-            Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+            com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
 
             doc.setMargins(
                 HljldPdfLayoutConstants.MARGIN_TOP,
@@ -299,10 +305,8 @@ public class HljldFlowPdfService {
                 HljldPdfLayoutConstants.MARGIN_LEFT
             );
 
-            org.bson.Document patient = getPatientInfo(pid);
-            String patientInfo = String.format("床号：%s  姓名：%s  住院号：%s  性别：%s  年龄：%s  诊断：%s",
-                str(patient, "bedNo"), str(patient, "name"), str(patient, "mrn"),
-                str(patient, "sex"), str(patient, "age"), str(patient, "diagnosis"));
+            LocalDate referenceDate = "全部".equals(date) ? LocalDate.now() : LocalDate.parse(date);
+            String patientInfo = getPatientInfoString(pid, referenceDate);
 
             // 空数据：添加一行空数据行
             Table table = buildNormalDataTable(Collections.emptyList(), font);
@@ -327,7 +331,7 @@ public class HljldFlowPdfService {
      * 按时间轴顺序输出普通行和小结/总结。
      * 普通行累积到一个 Table 中，遇到小结/总结时结束当前 Table 并输出独立的 keep-together Table。
      */
-    private void addFlowContent(Document doc, List<PrintableItem> items, PdfFont font) {
+    private void addFlowContent(com.itextpdf.layout.Document doc, List<PrintableItem> items, PdfFont font) {
         List<PrintableItem> normalBuffer = new ArrayList<>();
 
         for (PrintableItem item : items) {
@@ -419,7 +423,7 @@ public class HljldFlowPdfService {
                     .setMargin(0))
                 .setTextAlignment(TextAlignment.LEFT)
                 .setVerticalAlignment(VerticalAlignment.MIDDLE)
-                .setHeight(14f)
+                .setMinHeight(14f)
                 .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
             table.addCell(contentCell);
         }
@@ -639,43 +643,30 @@ public class HljldFlowPdfService {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  工具方法
+    //  患者信息
     // ══════════════════════════════════════════════════════════
 
-    private org.bson.Document getPatientInfo(String pid) {
-        Query q = new Query(new Criteria().orOperator(
-            Criteria.where("_id").is(pid), Criteria.where("pid").is(pid)));
-        org.bson.Document p = mongoTemplate.findOne(q, org.bson.Document.class, "patient");
-        if (p == null) {
-            p = new org.bson.Document();
-            p.put("name", "未知"); p.put("bedNo", ""); p.put("mrn", "");
-            p.put("sex", ""); p.put("age", ""); p.put("diagnosis", "");
+    /**
+     * 获取患者信息字符串。
+     *
+     * @param pid           患者标识
+     * @param referenceDate 参考日期（护理日日期）
+     * @return 格式化的患者信息字符串
+     */
+    private String getPatientInfoString(String pid, LocalDate referenceDate) {
+        Document patient = patientResolver.findPatient(pid);
+        if (patient == null) {
+            patient = new Document();
+            patient.put("name", "未知");
+            patient.put("bedNo", "");
+            patient.put("mrn", "");
+            patient.put("sex", "");
+            patient.put("age", "");
+            patient.put("diagnosis", "");
         }
-        if (isEmpty(p, "bedNo")) { String v = getFirstNonEmpty(p, "hisBed", "bedCode"); if (!v.isEmpty()) p.put("bedNo", v); }
-        if (isEmpty(p, "name")) { String v = getFirstNonEmpty(p, "patientName"); if (!v.isEmpty()) p.put("name", v); }
-        if (isEmpty(p, "mrn")) { String v = getFirstNonEmpty(p, "hospitalNo"); if (!v.isEmpty()) p.put("mrn", v); }
-        String rawSex = str(p, "sex");
-        if (rawSex.isEmpty()) rawSex = str(p, "gender");
-        p.put("sex", convertGenderText(rawSex));
-        String age = calculateAgeFromBirthday(p);
-        if (!age.isEmpty()) p.put("age", age);
-        else {
-            String ea = str(p, "age");
-            if (ea.isEmpty()) {
-                for (String f : new String[]{"patientBirthday", "birthDay", "birthdayStr"}) {
-                    String b = str(p, f);
-                    if (!b.isEmpty()) {
-                        p.put("birthday", b);
-                        age = calculateAgeFromBirthday(p);
-                        if (!age.isEmpty()) { p.put("age", age); break; }
-                    }
-                }
-            }
-        }
-        String diag = str(p, "diagnosis");
-        if (diag.isEmpty()) diag = str(p, "clinicalDiagnosis");
-        p.put("diagnosis", truncateDiagnosis(diag));
-        return p;
+
+        String age = HljldPatientAgeResolver.resolveAge(patient, referenceDate);
+        return patientResolver.buildPatientInfo(patient, age);
     }
 
     int getStartPageNo(String pid, String date, String formType) {
@@ -687,36 +678,8 @@ public class HljldFlowPdfService {
             .orElse(1);
     }
 
-    boolean isEmpty(org.bson.Document doc, String key) { Object v = doc.get(key); return v == null || v.toString().trim().isEmpty(); }
-    String getFirstNonEmpty(org.bson.Document doc, String... keys) { for (String k : keys) { Object v = doc.get(k); if (v != null) { String val = v.toString().trim(); if (!val.isEmpty()) return val; }} return ""; }
-    String str(org.bson.Document doc, String key) { Object v = doc.get(key); return v != null ? v.toString() : ""; }
-    String mapStr(Map<String, Object> map, String key) { Object v = map.get(key); return v != null ? v.toString() : ""; }
-
-    private String convertGenderText(String g) {
-        if (g == null) return ""; String v = g.trim();
-        if ("Male".equalsIgnoreCase(v)||"M".equalsIgnoreCase(v)||"男".equals(v)) return "男";
-        if ("Female".equalsIgnoreCase(v)||"F".equalsIgnoreCase(v)||"女".equals(v)) return "女";
-        return v;
-    }
-
-    private String truncateDiagnosis(String d) {
-        if (d == null) return ""; String v = d.trim(); if (v.isEmpty()) return "";
-        int idx = -1;
-        for (char sep : new char[]{';', '；', ',', '，'}) { int c = v.indexOf(sep); if (c >= 0 && (idx < 0 || c < idx)) idx = c; }
-        return idx >= 0 ? v.substring(0, idx).trim() : v;
-    }
-
-    private String calculateAgeFromBirthday(org.bson.Document patient) {
-        String bs = str(patient, "birthday"); if (bs.isEmpty()) bs = str(patient, "birthDate"); if (bs.isEmpty()) bs = str(patient, "birth");
-        if (bs.isEmpty()) return "";
-        try {
-            java.time.Instant instant;
-            if (bs.contains("T") && bs.endsWith("Z")) instant = java.time.Instant.parse(bs);
-            else if (bs.contains("-")) { java.time.LocalDate bd = java.time.LocalDate.parse(bs.substring(0, 10)); instant = bd.atStartOfDay(ZoneId.systemDefault()).toInstant(); }
-            else return "";
-            java.time.LocalDate bd = java.time.LocalDate.ofInstant(instant, ZoneId.of("Asia/Shanghai"));
-            java.time.LocalDate today = java.time.LocalDate.now(ZoneId.of("Asia/Shanghai"));
-            return String.valueOf(java.time.Period.between(bd, today).getYears());
-        } catch (Exception e) { return ""; }
+    String mapStr(Map<String, Object> map, String key) {
+        Object v = map.get(key);
+        return v != null ? v.toString() : "";
     }
 }

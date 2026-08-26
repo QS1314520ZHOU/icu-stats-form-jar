@@ -1,12 +1,10 @@
 package com.smartcare.backend.service;
 
-import com.itextpdf.io.font.PdfEncodings;
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.events.Event;
 import com.itextpdf.kernel.events.IEventHandler;
 import com.itextpdf.kernel.events.PdfDocumentEvent;
 import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
 import com.itextpdf.kernel.geom.Rectangle;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfPage;
@@ -22,7 +20,7 @@ import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
  *
  * 在每页 END_PAGE 时绘制：
  * 1. 页眉：标题（居中）+ 患者信息（左对齐）
- * 2. 备注区：19列表格结构，4行，与数据表共享列宽
+ * 2. 备注区：左侧"备注"纵向合并4行 + 右侧4行每行合并18列
  * 3. 页码："第 N 页"
  *
  * 使用 PdfCanvas 绘制边框和线条，使用 Canvas 绘制文字。
@@ -49,7 +47,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
      */
     public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo) {
         this.font = font;
-        this.patientInfo = truncate(patientInfo, 120);
+        this.patientInfo = patientInfo == null ? "" : patientInfo;
         this.startPageNo = startPageNo;
     }
 
@@ -86,23 +84,23 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     // ══════════════════════════════════════════════════════════
 
     private void drawHeader(Canvas canvas, float pw, float ph) {
-        // 标题：水平居中
-        float titleY = ph - HljldPdfLayoutConstants.TITLE_Y_OFFSET;
+        // 标题：水平居中，垂直居中于标题区域
+        float titleCenterY = HljldPdfLayoutConstants.TITLE_BOTTOM + HljldPdfLayoutConstants.TITLE_AREA_HEIGHT / 2f;
         canvas.showTextAligned(
             new Paragraph("重钢总医院重症医学科护理记录单")
                 .setFont(font)
                 .setFontSize(HljldPdfLayoutConstants.TITLE_FONT_SIZE)
                 .setMargin(0),
-            pw / 2, titleY, TextAlignment.CENTER);
+            pw / 2, titleCenterY, TextAlignment.CENTER, VerticalAlignment.MIDDLE);
 
-        // 患者信息：整体左对齐，从表格左边界开始
-        float infoY = ph - HljldPdfLayoutConstants.INFO_Y_OFFSET;
+        // 患者信息：整体左对齐，垂直居中于患者信息区域，左边缘与表格左边缘对齐
+        float infoCenterY = HljldPdfLayoutConstants.INFO_BOTTOM + HljldPdfLayoutConstants.INFO_AREA_HEIGHT / 2f;
         canvas.showTextAligned(
             new Paragraph(patientInfo)
                 .setFont(font)
                 .setFontSize(HljldPdfLayoutConstants.INFO_FONT_SIZE)
                 .setMargin(0),
-            ML, infoY, TextAlignment.LEFT);
+            ML, infoCenterY, TextAlignment.LEFT, VerticalAlignment.MIDDLE);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -110,32 +108,41 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     // ══════════════════════════════════════════════════════════
 
     private void drawRemarksText(Canvas canvas, float pw) {
-        float remarksBottom = 0;
+        float remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
         float leftX = ML;
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
 
         // "备注"文字：水平居中、垂直居中于4行
-        float labelCenterY = HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT / 2;
+        float labelCenterY = remarksBottom + HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT / 2f;
         canvas.showTextAligned(
             new Paragraph("备注")
                 .setFont(font)
                 .setFontSize(HljldPdfLayoutConstants.REMARK_LABEL_FONT_SIZE)
                 .setMargin(0),
-            leftX + col0Width / 2, labelCenterY,
+            leftX + col0Width / 2f, labelCenterY,
             TextAlignment.CENTER, VerticalAlignment.MIDDLE);
 
-        // 4行备注内容文字
+        // 4行备注内容文字（从上到下：检查、治疗、基础护理、健康教育）
         for (int i = 0; i < REMARKS.length; i++) {
-            float rowBottom = i * HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
-            float textY = rowBottom + HljldPdfLayoutConstants.REMARK_ROW_HEIGHT / 2;
-            canvas.showTextAligned(
-                new Paragraph(REMARKS[i])
-                    .setFont(font)
-                    .setFontSize(HljldPdfLayoutConstants.REMARK_FONT_SIZE)
-                    .setMargin(0),
-                contentX + 2, textY,
-                TextAlignment.LEFT, VerticalAlignment.MIDDLE);
+            // 从上到下绘制：第一行在最上面，第四行在最下面
+            float rowBottom = remarksBottom + (REMARKS.length - 1 - i) * HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
+            float textY = rowBottom + HljldPdfLayoutConstants.REMARK_ROW_HEIGHT / 2f;
+
+            // 使用矩形区域绘制文字，避免长文本超出右边框
+            float textX = contentX + 2f;
+            float availableWidth = TABLE_W - col0Width - 4f;
+            Rectangle textRect = new Rectangle(textX, rowBottom, availableWidth, HljldPdfLayoutConstants.REMARK_ROW_HEIGHT);
+
+            try (Canvas rowCanvas = new Canvas(canvas.getPdfCanvas(), textRect)) {
+                rowCanvas.showTextAligned(
+                    new Paragraph(REMARKS[i])
+                        .setFont(font)
+                        .setFontSize(HljldPdfLayoutConstants.REMARK_FONT_SIZE)
+                        .setMargin(0),
+                    0, HljldPdfLayoutConstants.REMARK_ROW_HEIGHT / 2f,
+                    TextAlignment.LEFT, VerticalAlignment.MIDDLE);
+            }
         }
     }
 
@@ -144,17 +151,17 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     // ══════════════════════════════════════════════════════════
 
     private void drawRemarksBorders(PdfCanvas pdfCanvas, float pw) {
-        float remarksBottom = 0;
-        float remarksTop = HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
+        float remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
+        float remarksTop = HljldPdfLayoutConstants.REMARK_TOP;
         float leftX = ML;
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
 
         pdfCanvas.setStrokeColor(ColorConstants.BLACK);
-        pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_OUTER);
 
         // ── 外边框 ──
-        pdfCanvas.rectangle(leftX, remarksBottom, TABLE_W, remarksTop);
+        pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_OUTER);
+        pdfCanvas.rectangle(leftX, remarksBottom, TABLE_W, HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT);
         pdfCanvas.stroke();
 
         // ── "备注"标签单元格右边线（纵向4行合并） ──
@@ -163,9 +170,9 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         pdfCanvas.lineTo(contentX, remarksTop);
         pdfCanvas.stroke();
 
-        // ── 右侧4行备注内容的横线（从第一列右边界开始） ──
+        // ── 右侧4行备注内容的横线（从第一列右边界开始，不穿过左侧"备注"单元格） ──
         for (int i = 1; i < REMARKS.length; i++) {
-            float lineY = i * HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
+            float lineY = remarksBottom + i * HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
             pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_REMARK);
             pdfCanvas.moveTo(contentX, lineY);
             pdfCanvas.lineTo(leftX + TABLE_W, lineY);
@@ -184,14 +191,5 @@ public class HljldFlowPageEventHandler implements IEventHandler {
                 .setFontSize(HljldPdfLayoutConstants.PAGE_NUM_FONT_SIZE)
                 .setMargin(0),
             pw / 2, HljldPdfLayoutConstants.PAGE_NUM_Y, TextAlignment.CENTER);
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  工具方法
-    // ══════════════════════════════════════════════════════════
-
-    private static String truncate(String text, int maxLen) {
-        if (text == null) return "";
-        return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...";
     }
 }
