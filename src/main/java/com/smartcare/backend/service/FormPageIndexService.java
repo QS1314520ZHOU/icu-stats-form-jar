@@ -27,14 +27,17 @@ public class FormPageIndexService {
     private final MongoTemplate mongoTemplate;
     private final FormPageIndexRepository pageIndexRepository;
     private final HljldPdfService pdfService;
+    private final HljldFlowPdfService flowPdfService;
 
     @Autowired
     public FormPageIndexService(MongoTemplate mongoTemplate,
                                  FormPageIndexRepository pageIndexRepository,
-                                 HljldPdfService pdfService) {
+                                 HljldPdfService pdfService,
+                                 HljldFlowPdfService flowPdfService) {
         this.mongoTemplate = mongoTemplate;
         this.pageIndexRepository = pageIndexRepository;
         this.pdfService = pdfService;
+        this.flowPdfService = flowPdfService;
     }
 
     /**
@@ -178,7 +181,12 @@ public class FormPageIndexService {
             while (!cal.getTime().after(endDate)) {
                 String dateStr = dateFormat.format(cal.getTime());
                 log.info("计算日期页码: date={}", dateStr);
-                int pageCount = pdfService.calculatePageCount(pid, dateStr);
+                int pageCount;
+                if ("hljld2-flow".equals(formType)) {
+                    pageCount = flowPdfService.calculateFlowPageCount(pid, dateStr);
+                } else {
+                    pageCount = pdfService.calculatePageCount(pid, dateStr);
+                }
                 log.info("日期页码结果: date={}, pageCount={}", dateStr, pageCount);
 
                 FormPageIndex.DailyPageInfo dailyInfo = new FormPageIndex.DailyPageInfo();

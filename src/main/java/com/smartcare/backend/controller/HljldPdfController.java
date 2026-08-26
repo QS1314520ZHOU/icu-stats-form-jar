@@ -83,14 +83,17 @@ public class HljldPdfController {
 
     /**
      * 获取页码信息（通用：formType=hljld2 表示护理记录单独立版）
+     * layout=flow 时使用 hljld2-flow formType
      */
     @GetMapping("/page-index/{pid}")
     public ResponseEntity<Map<String, Object>> getPageIndex(
             @PathVariable String pid,
             @RequestParam String date,
-            @RequestParam(defaultValue = "hljld2") String formType) {
+            @RequestParam(defaultValue = "hljld2") String formType,
+            @RequestParam(required = false) String layout) {
         try {
-            FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, formType, date);
+            String actualFormType = "flow".equals(layout) ? "hljld2-flow" : formType;
+            FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, actualFormType, date);
             Map<String, Object> response = new HashMap<>();
             response.put("startPageNo", result.getStartPageNo());
             response.put("pageCount", result.getPageCount());
@@ -104,13 +107,16 @@ public class HljldPdfController {
 
     /**
      * 重新计算页码
+     * layout=flow 时使用 hljld2-flow formType
      */
     @PostMapping("/recalculate/{pid}")
     public ResponseEntity<Map<String, String>> recalculatePageIndexes(
             @PathVariable String pid,
-            @RequestParam(defaultValue = "hljld2") String formType) {
+            @RequestParam(defaultValue = "hljld2") String formType,
+            @RequestParam(required = false) String layout) {
         try {
-            pageIndexService.recalculatePageIndexes(pid, formType);
+            String actualFormType = "flow".equals(layout) ? "hljld2-flow" : formType;
+            pageIndexService.recalculatePageIndexes(pid, actualFormType);
             Map<String, String> response = new HashMap<>();
             response.put("status", "started");
             response.put("message", "页码重新计算已开始");
