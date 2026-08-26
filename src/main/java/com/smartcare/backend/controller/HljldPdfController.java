@@ -1,6 +1,7 @@
 package com.smartcare.backend.controller;
 
 import com.smartcare.backend.service.FormPageIndexService;
+import com.smartcare.backend.service.HljldFlowPdfService;
 import com.smartcare.backend.service.HljldPdfService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,40 +25,58 @@ public class HljldPdfController {
     private static final Logger log = LoggerFactory.getLogger(HljldPdfController.class);
 
     private final HljldPdfService pdfService;
+    private final HljldFlowPdfService flowPdfService;
     private final FormPageIndexService pageIndexService;
 
     @Autowired
-    public HljldPdfController(HljldPdfService pdfService, FormPageIndexService pageIndexService) {
+    public HljldPdfController(HljldPdfService pdfService, HljldFlowPdfService flowPdfService,
+                              FormPageIndexService pageIndexService) {
         this.pdfService = pdfService;
+        this.flowPdfService = flowPdfService;
         this.pageIndexService = pageIndexService;
     }
 
     @GetMapping("/pdf/{pid}/{date}")
-    public ResponseEntity<byte[]> getPdf(@PathVariable String pid, @PathVariable String date) {
+    public ResponseEntity<byte[]> getPdf(
+            @PathVariable String pid,
+            @PathVariable String date,
+            @RequestParam(defaultValue = "legacy") String layout) {
         try {
-            byte[] pdfData = pdfService.generateDailyPdf(pid, date);
+            byte[] pdfData;
+            if ("flow".equals(layout)) {
+                pdfData = flowPdfService.generateDailyPdf(pid, date);
+            } else {
+                pdfData = pdfService.generateDailyPdf(pid, date);
+            }
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
-            log.error("生成PDF失败: pid={}, date={}", pid, date, e);
+            log.error("生成PDF失败: pid={}, date={}, layout={}", pid, date, layout, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     @GetMapping("/pdf-all/{pid}")
-    public ResponseEntity<byte[]> getAllPdfs(@PathVariable String pid) {
+    public ResponseEntity<byte[]> getAllPdfs(
+            @PathVariable String pid,
+            @RequestParam(defaultValue = "legacy") String layout) {
         try {
-            byte[] pdfData = pdfService.generateAllPagesPdf(pid);
+            byte[] pdfData;
+            if ("flow".equals(layout)) {
+                pdfData = flowPdfService.generateAllPagesPdf(pid);
+            } else {
+                pdfData = pdfService.generateAllPagesPdf(pid);
+            }
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
-            log.error("生成全部PDF失败: pid={}", pid, e);
+            log.error("生成全部PDF失败: pid={}, layout={}", pid, layout, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
