@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   护理记录单PDF查看器 - 自定义PDF.js渲染
+   护理记录单PDF查看器 - 浏览器原生PDF查看器
    ═══════════════════════════════════════════════════════════════ */
 
 :host {
@@ -101,56 +101,18 @@
   color: #1976d2;
 }
 
-/* 缩放控制 */
+/* 缩放提示 */
 .zoom-tools {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.zoom-button {
-  width: 28px;
-  height: 28px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: #fff;
-  cursor: pointer;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s;
-}
-
-.zoom-button:hover:not(:disabled) {
-  background: #f0f0f0;
-}
-
-.zoom-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .zoom-label {
   min-width: 50px;
   text-align: center;
   font-size: 14px;
-  color: #333;
-}
-
-.zoom-reset-button {
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: #fff;
-  cursor: pointer;
-  font-size: 12px;
-  transition: background-color 0.2s;
-}
-
-.zoom-reset-button:hover {
-  background: #f0f0f0;
+  color: #666;
 }
 
 /* 页码选择 */
@@ -279,35 +241,33 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PDF查看器容器
+   PDF查看器容器 - 浏览器原生iframe
    ═══════════════════════════════════════════════════════════════ */
 
-.pdf-viewer-container {
+.pdf-container {
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
+  position: relative;
 }
 
-.pdf-scroll-container {
+.pdf-viewer {
+  display: block;
   width: 100%;
   height: 100%;
-  overflow: auto;
-  background: #3f3f3f;
+  border: 0;
+  background: #f3f4f6;
 }
 
-.pdf-pages-container {
+.loading-overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 16px;
-  min-height: 100%;
-}
-
-/* PDF页面Canvas */
-:host ::ng-deep .pdf-page-canvas {
-  display: block;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  justify-content: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  z-index: 10;
 }
 
 /* ═══════════════════════════════════════════════════════════════

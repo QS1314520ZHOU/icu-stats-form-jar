@@ -1,144 +1,16 @@
 import { Injectable } from '@angular/core';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// PDF.js ES Module Worker，使用/form下随应用发布的本地静态资源
-const PDF_WORKER_URL = new URL(
-  '/form/assets/pdf.worker.min.js',
-  window.location.origin,
-).toString();
-pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER_URL;
-
-export interface PdfPageRender {
-  pageNumber: number;
-  canvas: HTMLCanvasElement;
-  scale: number;
-}
-
-export interface PdfDocument {
-  pdfDoc: pdfjsLib.PDFDocumentProxy;
-  objectUrl: string;
-  blob: Blob;
-  totalPages: number;
-}
 
 /**
- * PDF查看器服务
- * 封装PDF.js操作，用于渲染和打印
+ * PDF打印服务
+ * 封装Blob获取和打印操作，不再使用PDF.js
  */
 @Injectable({ providedIn: 'root' })
-export class PdfViewerService {
+export class PdfPrintService {
 
   constructor() {}
 
   /**
-   * 加载PDF文档
-   */
-  async loadPdf(url: string): Promise<PdfDocument> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`加载PDF失败: ${response.status}`);
-    }
-
-    const blob = await response.blob();
-
-    // 验证是PDF文件
-    if (blob.type !== 'application/pdf') {
-      const header = await blob.slice(0, 5).text();
-      if (header !== '%PDF-') {
-        throw new Error('返回的文件不是有效的PDF');
-      }
-    }
-
-    const arrayBuffer = await blob.arrayBuffer();
-    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const objectUrl = URL.createObjectURL(blob);
-
-    return {
-      pdfDoc,
-      objectUrl,
-      blob,
-      totalPages: pdfDoc.numPages,
-    };
-  }
-
-  /**
-   * 获取PDF页面视口
-   */
-  async getPageViewport(pdfDoc: pdfjsLib.PDFDocumentProxy, pageNumber: number, scale: number): Promise<any> {
-    const page = await pdfDoc.getPage(pageNumber);
-    const viewport = page.getViewport({ scale });
-    return viewport;
-  }
-
-  /**
-   * 渲染PDF页面到Canvas
-   */
-  async renderPage(
-    pdfDoc: pdfjsLib.PDFDocumentProxy,
-    pageNumber: number,
-    canvas: HTMLCanvasElement,
-    scale: number,
-    abortSignal?: AbortSignal,
-  ): Promise<void> {
-    const page = await pdfDoc.getPage(pageNumber);
-    const viewport = page.getViewport({ scale });
-
-    // 高DPI支持
-    const outputScale = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(viewport.width * outputScale);
-    canvas.height = Math.floor(viewport.height * outputScale);
-    canvas.style.width = `${viewport.width}px`;
-    canvas.style.height = `${viewport.height}px`;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('无法创建Canvas上下文');
-    }
-
-    ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-
-    // 检查是否已取消
-    if (abortSignal?.aborted) {
-      throw new Error('渲染已取消');
-    }
-
-    await page.render({
-      canvasContext: ctx,
-      viewport,
-    }).promise;
-  }
-
-  /**
-   * 渲染PDF所有页面到Canvas数组
-   */
-  async renderAllPages(
-    pdfDoc: pdfjsLib.PDFDocumentProxy,
-    container: HTMLElement,
-    scale: number,
-    abortSignal?: AbortSignal,
-  ): Promise<HTMLCanvasElement[]> {
-    const canvases: HTMLCanvasElement[] = [];
-    const totalPages = pdfDoc.numPages;
-
-    for (let i = 1; i <= totalPages; i++) {
-      // 检查是否已取消
-      if (abortSignal?.aborted) {
-        throw new Error('渲染已取消');
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.className = 'pdf-page-canvas';
-      container.appendChild(canvas);
-
-      await this.renderPage(pdfDoc, i, canvas, scale, abortSignal);
-      canvases.push(canvas);
-    }
-
-    return canvases;
-  }
-
-  /**
-   * 通过隐藏iframe打印PDF
+   * 通过隐藏iframe打印PDF Blob
    */
   async printPdfBlob(pdfBlob: Blob): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -180,19 +52,21 @@ export class PdfViewerService {
   }
 
   /**
-   * 验证PDF Blob
+   * 获取PDF Blob
    */
-  async validatePdfBlob(blob: Blob): Promise<boolean> {
-    if (blob.size === 0) {
-      return false;
+  async fetchPdfBlob(url: string): Promise<Blob> {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`加载PDF失败: ${response.status}`);
     }
-
+    const blob = await response.blob();
     if (blob.type !== 'application/pdf') {
       const header = await blob.slice(0, 5).text();
-      return header === '%PDF-';
+      if (header !== '%PDF-') {
+        throw new Error('返回的文件不是有效的PDF');
+      }
     }
-
-    return true;
+    return blob;
   }
 
   /**
@@ -201,19 +75,6 @@ export class PdfViewerService {
   revokeObjectUrl(url: string): void {
     if (url) {
       URL.revokeObjectURL(url);
-    }
-  }
-
-  /**
-   * 销毁PDF文档
-   */
-  async destroyPdfDocument(pdfDoc: pdfjsLib.PDFDocumentProxy | null): Promise<void> {
-    if (pdfDoc) {
-      try {
-        await pdfDoc.destroy();
-      } catch (e) {
-        console.warn('销毁PDF文档时出错:', e);
-      }
     }
   }
 }

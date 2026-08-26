@@ -46,29 +46,9 @@
       >今天</button>
     </div>
 
-    <!-- 缩放控制 -->
+    <!-- 缩放提示 -->
     <div class="zoom-tools">
-      <button
-        type="button"
-        class="zoom-button"
-        (click)="zoomOut()"
-        [disabled]="displayScale <= 0.5"
-        title="缩小"
-      >-</button>
-      <span class="zoom-label">{{ (displayScale * 100) | number:'1.0-0' }}%</span>
-      <button
-        type="button"
-        class="zoom-button"
-        (click)="zoomIn()"
-        [disabled]="displayScale >= 3"
-        title="放大"
-      >+</button>
-      <button
-        type="button"
-        class="zoom-reset-button"
-        (click)="resetZoom()"
-        title="重置缩放"
-      >重置</button>
+      <span class="zoom-label">默认135%（使用浏览器原生缩放）</span>
     </div>
 
     <!-- 页码选择 -->
@@ -110,7 +90,7 @@
       <button
         type="button"
         class="print-button"
-        [disabled]="!pdfDocument || isPrinting"
+        [disabled]="!basePdfUrl || isPrinting"
         (click)="printCurrentDay()"
       >
         {{ isPrinting ? '打印中...' : '打印当日' }}
@@ -145,13 +125,19 @@
     <button type="button" class="close-button" (click)="pageWarning = ''">×</button>
   </div>
 
-  <!-- PDF查看器 -->
+  <!-- PDF查看器 - 使用浏览器原生PDF iframe -->
   <ng-container *ngIf="pageState === 'ready'; else statePanel">
-    <div class="pdf-viewer-container">
-      <div class="pdf-scroll-container">
-        <div class="pdf-pages-container" #pdfPagesContainer>
-          <!-- Canvas由PDF.js动态渲染 -->
-        </div>
+    <div class="pdf-container" *ngIf="pdfViewerUrl">
+      <iframe
+        *ngIf="!isLoadingPdf"
+        class="pdf-viewer"
+        [src]="pdfViewerUrl | domSafe"
+        frameborder="0"
+        title="护理记录PDF预览"
+      ></iframe>
+      <div *ngIf="isLoadingPdf" class="loading-overlay">
+        <div class="spinner" aria-hidden="true"></div>
+        <span>正在加载PDF...</span>
       </div>
     </div>
   </ng-container>
@@ -159,7 +145,7 @@
   <!-- 状态面板 -->
   <ng-template #statePanel>
     <div class="state-panel" [class.error]="pageState === 'error'">
-      <div *ngIf="pageState === 'loading' || pageState === 'calculating' || isLoadingPdf || isRenderingPdf" class="spinner" aria-hidden="true"></div>
+      <div *ngIf="pageState === 'loading' || pageState === 'calculating' || isLoadingPdf" class="spinner" aria-hidden="true"></div>
       <strong>
         <ng-container [ngSwitch]="pageState">
           <ng-container *ngSwitchCase="'waiting-patient'">等待患者信息...</ng-container>
@@ -170,9 +156,6 @@
             首次加载，正在计算页码... {{ calculatingProgress > 0 ? calculatingProgress + '%' : '' }}
           </ng-container>
           <ng-container *ngSwitchCase="'error'">{{ error || '加载失败，请重试' }}</ng-container>
-          <ng-container *ngSwitchCase="'ready'">
-            {{ isRenderingPdf ? '正在渲染PDF页面...' : '' }}
-          </ng-container>
         </ng-container>
       </strong>
     </div>

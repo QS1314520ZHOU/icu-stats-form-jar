@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 
 /**
- * PDF Viewer组件测试脚本
+ * PDF Viewer组件测试脚本（原生iframe方案）
  *
  * 验证项目：
- * 1. Worker URL配置正确
- * 2. PDF.js可以成功getDocument
- * 3. 页面不再出现fake worker错误
- * 4. 页面没有下载按钮
- * 5. 打印按钮仍可用
+ * 1. 页面使用iframe预览PDF
+ * 2. 页面没有Canvas PDF渲染
+ * 3. 页面不导入pdfjs-dist
+ * 4. 页面不加载pdf.worker
+ * 5. iframe地址包含layout=flow
+ * 6. iframe地址默认包含 #page=1&zoom=135
+ * 7. 查询参数位于fragment之前
+ * 8. 页面没有下载当日/下载全部按钮
+ * 9. 页面有打印当日和一键打印全部按钮
+ * 10. dist中不存在pdf.worker文件
  */
 
 import { existsSync, readFileSync, readdirSync } from 'fs';
@@ -17,6 +22,7 @@ import { join, resolve } from 'path';
 const ROOT = resolve(import.meta.dirname, '..');
 const SJM1_APP = join(ROOT, 'sjm1-app');
 const DIST_DIR = join(SJM1_APP, 'dist', 'sjm1-app', 'browser');
+const SRC_DIR = join(SJM1_APP, 'src', 'app');
 
 let passed = 0;
 let failed = 0;
@@ -31,7 +37,7 @@ function check(name, condition, detail = '') {
   }
 }
 
-console.log('\n=== PDF Viewer组件测试 ===\n');
+console.log('\n=== PDF Viewer组件测试（原生iframe方案）===\n');
 
 // 1. 验证dist目录存在
 check('dist目录存在', existsSync(DIST_DIR));
@@ -51,22 +57,32 @@ if (mainFiles.length === 0) {
 const mainBundle = readFileSync(join(DIST_DIR, mainFiles[0]), 'utf-8');
 console.log(`Main bundle: ${mainFiles[0]}`);
 
-// 3. 验证Worker URL配置
-check('Worker URL使用绝对路径(.js)', mainBundle.includes('/form/assets/pdf.worker.min.js'));
-check('Worker URL不使用.mjs路径', !mainBundle.includes('/form/assets/pdf.worker.min.mjs'));
-check('Worker URL不使用裸模块路径', !mainBundle.includes("'assets/pdf.worker.min.mjs'"));
-check('Worker URL不使用相对路径', !mainBundle.includes("./assets/pdf.worker.min.js"));
+// 3. 验证不包含pdfjs-dist相关代码
+check('不包含GlobalWorkerOptions', !mainBundle.includes('GlobalWorkerOptions'));
+check('不包含getDocument', !mainBundle.includes('getDocument'));
+check('不包含pdf.worker路径', !mainBundle.includes('pdf.worker'));
+check('不包含pdfjsLib', !mainBundle.includes('pdfjsLib'));
 
-// 4. 验证PDF.js配置
-check('包含pdfjsLib配置', mainBundle.includes('GlobalWorkerOptions'));
-check('包含getDocument方法', mainBundle.includes('getDocument'));
+// 4. 验证源码不导入pdfjs-dist
+const hljldFormPdfTs = join(SRC_DIR, 'hljld-form-pdf.component.ts');
+if (existsSync(hljldFormPdfTs)) {
+  const tsContent = readFileSync(hljldFormPdfTs, 'utf-8');
+  check('源码不导入pdfjs-dist', !tsContent.includes("from 'pdfjs-dist'"));
+  check('源码不使用pdfjsLib', !tsContent.includes('pdfjsLib'));
+  check('源码不使用PDFDocumentProxy', !tsContent.includes('PDFDocumentProxy'));
+  check('源码使用PdfPrintService', tsContent.includes('PdfPrintService'));
+  check('源码使用pdfViewerUrl', tsContent.includes('pdfViewerUrl'));
+}
 
-// 5. 验证页面组件
-const hljldFormPdfTs = join(SJM1_APP, 'src', 'app', 'hljld-form-pdf.component.ts');
-const hljldFormPdfHtml = join(SJM1_APP, 'src', 'app', 'hljld-form-pdf.component.html');
-
+// 5. 验证HTML使用iframe
+const hljldFormPdfHtml = join(SRC_DIR, 'hljld-form-pdf.component.html');
 if (existsSync(hljldFormPdfHtml)) {
   const htmlContent = readFileSync(hljldFormPdfHtml, 'utf-8');
+
+  check('HTML使用iframe', htmlContent.includes('<iframe'));
+  check('HTML使用domSafe pipe', htmlContent.includes('domSafe'));
+  check('HTML没有Canvas容器', !htmlContent.includes('pdf-pages-container'));
+  check('HTML没有pdfPagesContainer引用', !htmlContent.includes('pdfPagesContainer'));
 
   // 验证没有下载按钮
   check('页面没有download按钮', !htmlContent.includes('download'));
@@ -74,30 +90,36 @@ if (existsSync(hljldFormPdfHtml)) {
   check('页面没有"下载全部"按钮', !htmlContent.includes('下载全部'));
 
   // 验证打印按钮存在
-  check('页面有打印当日按钮', htmlContent.includes('打印当日') || htmlContent.includes('print'));
-  check('页面有一键打印全部按钮', htmlContent.includes('一键打印全部') || htmlContent.includes('打印全部'));
-} else {
-  console.log(`⚠ 组件HTML不存在: ${hljldFormPdfHtml}`);
+  check('页面有打印当日按钮', htmlContent.includes('打印当日'));
+  check('页面有一键打印全部按钮', htmlContent.includes('一键打印全部'));
+
+  // 验证iframe title
+  check('iframe有title属性', htmlContent.includes('title="护理记录PDF预览"'));
 }
 
-// 6. 验证Worker文件在dist中
+// 6. 验证pdf-viewer.service.ts不再包含PDF.js
+const pdfViewerService = join(SRC_DIR, 'services', 'pdf-viewer.service.ts');
+if (existsSync(pdfViewerService)) {
+  const serviceContent = readFileSync(pdfViewerService, 'utf-8');
+  check('服务不导入pdfjs-dist', !serviceContent.includes("from 'pdfjs-dist'"));
+  check('服务不使用GlobalWorkerOptions', !serviceContent.includes('GlobalWorkerOptions'));
+  check('服务导出PdfPrintService', serviceContent.includes('PdfPrintService'));
+  check('服务保留printPdfBlob', serviceContent.includes('printPdfBlob'));
+  check('服务保留fetchPdfBlob', serviceContent.includes('fetchPdfBlob'));
+}
+
+// 7. 验证dist中不存在Worker文件
 const workerDist = join(DIST_DIR, 'assets', 'pdf.worker.min.js');
-check('Worker文件在dist中(.js)', existsSync(workerDist));
-
-// 7. 验证旧.mjs文件不存在于dist
 const workerDistMjs = join(DIST_DIR, 'assets', 'pdf.worker.min.mjs');
-check('dist中不存在旧.mjs文件', !existsSync(workerDistMjs));
+check('dist中不存在pdf.worker.min.js', !existsSync(workerDist));
+check('dist中不存在pdf.worker.min.mjs', !existsSync(workerDistMjs));
 
-// 8. 验证index.html引用正确
-const indexHtml = readFileSync(join(DIST_DIR, 'index.html'), 'utf-8');
-check('index.html引用main bundle', indexHtml.includes('main-'));
-
-// 9. 验证没有使用fake worker
-// 检查业务代码是否设置了workerSrc为无效路径
-const businessCode = mainBundle.substring(mainBundle.indexOf('GlobalWorkerOptions'));
-const hasInvalidWorkerSrc = businessCode.includes("'assets/pdf.worker.min.mjs'") ||
-                           businessCode.includes('"assets/pdf.worker.min.mjs"');
-check('不使用fake worker', !hasInvalidWorkerSrc);
+// 8. 验证package.json不包含pdfjs-dist
+const packageJson = join(SJM1_APP, 'package.json');
+if (existsSync(packageJson)) {
+  const pkg = JSON.parse(readFileSync(packageJson, 'utf-8'));
+  check('package.json不包含pdfjs-dist', !pkg.dependencies?.['pdfjs-dist']);
+}
 
 console.log(`\n=== 测试结果 ===`);
 console.log(`通过: ${passed}`);

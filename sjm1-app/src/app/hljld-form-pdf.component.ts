@@ -1,13 +1,12 @@
-import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subject } from 'rxjs';
 import { takeUntil, catchError } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService } from './hljld-form.service';
 import { HljldPdfService, PageIndexInfo, PdfLayoutMode } from './hljld-pdf.service';
-import { PdfViewerService, PdfDocument } from './services/pdf-viewer.service';
+import { PdfPrintService } from './services/pdf-viewer.service';
 import { PatientContext } from './hljld-form.models';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
-import * as pdfjsLib from 'pdfjs-dist';
 
 @Component({
   standalone: false,
@@ -16,11 +15,8 @@ import * as pdfjsLib from 'pdfjs-dist';
   styleUrls: ['./hljld-form-pdf.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
+export class HljldFormPdfComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
-  private renderAbort$ = new Subject<void>();
-
-  @ViewChild('pdfPagesContainer') pdfPagesContainer!: ElementRef<HTMLDivElement>;
 
   patient: PatientContext = { pid: '' };
   selectedDate = new Date();
@@ -30,14 +26,10 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly pdfLayout: PdfLayoutMode = 'flow';
 
   // 默认显示缩放 135%
-  readonly defaultDisplayScale = 1.35;
-  displayScale = this.defaultDisplayScale;
+  readonly defaultZoom = 135;
 
-  // PDF 文档
-  pdfDocument: PdfDocument | null = null;
-  pdfDoc: pdfjsLib.PDFDocumentProxy | null = null;
-  totalPages = 0;
-  currentPage = 1;
+  // PDF 预览URL（使用浏览器原生PDF查看器）
+  pdfViewerUrl = '';
 
   // 页码信息
   pageIndex: PageIndexInfo = { startPageNo: 1, pageCount: 0, status: 'completed' };
@@ -46,7 +38,6 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // 状态
   isLoadingPdf = false;
-  isRenderingPdf = false;
   isPrinting = false;
   isLoadingAllPdf = false;
   printError = '';
@@ -61,16 +52,15 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
   minDateInput = '';
   maxDateInput = '';
 
-  // Canvas 列表
-  private canvases: HTMLCanvasElement[] = [];
+  // 当前PDF基础URL（不含fragment）
+  basePdfUrl = '';
 
   constructor(
     private readonly hostPatient: HostPatientService,
     private readonly hljldService: HljldFormService,
     private readonly pdfService: HljldPdfService,
-    private readonly pdfViewerService: PdfViewerService,
+    private readonly pdfPrintService: PdfPrintService,
     private readonly cdr: ChangeDetectorRef,
-    private readonly elementRef: ElementRef,
   ) {}
 
   ngOnInit(): void {
@@ -107,53 +97,21 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  ngAfterViewInit(): void {
-    // 初始化
-  }
-
   ngOnDestroy(): void {
     this.stopPolling();
-    this.cleanupPdf();
     this.destroy$.next();
     this.destroy$.complete();
   }
 
   /**
-   * 清理PDF资源
+   * 加载PDF - 只设置iframe URL，由浏览器原生查看器加载
    */
-  private async cleanupPdf(): Promise<void> {
-    // 取消渲染任务
-    this.renderAbort$.next();
-
-    // 清理Canvas
-    this.canvases.forEach(c => c.remove());
-    this.canvases = [];
-
-    // 销毁PDF文档
-    if (this.pdfDoc) {
-      await this.pdfViewerService.destroyPdfDocument(this.pdfDoc);
-      this.pdfDoc = null;
-    }
-
-    // 释放Object URL
-    if (this.pdfDocument) {
-      this.pdfViewerService.revokeObjectUrl(this.pdfDocument.objectUrl);
-      this.pdfDocument = null;
-    }
-  }
-
-  /**
-   * 加载 PDF
-   */
-  private async loadPdf(): Promise<void> {
+  private loadPdf(): void {
     if (!this.patient.pid) {
       return;
     }
 
-    await this.cleanupPdf();
-
     this.isLoadingPdf = true;
-    this.isRenderingPdf = false;
     this.error = '';
     this.pageWarning = '';
     this.stopPolling();
@@ -161,146 +119,65 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const dateStr = this.toDateString(this.selectedDate);
 
-    try {
-      // 获取页码信息（使用flow布局）
-      const info = await this.pdfService.getPageIndex(this.patient.pid, dateStr, this.pdfLayout)
-        .pipe(
-          catchError(err => {
-            console.error('[HLJLD] 获取页码信息失败', err);
-            return [{ startPageNo: 1, pageCount: 1, status: 'completed' as const }];
-          }),
-        )
-        .toPromise();
-
+    // 获取页码信息（使用flow布局）
+    this.pdfService.getPageIndex(this.patient.pid, dateStr, this.pdfLayout).pipe(
+      catchError(err => {
+        console.error('[HLJLD] 获取页码信息失败', err);
+        return [{ startPageNo: 1, pageCount: 1, status: 'completed' as const }];
+      }),
+    ).subscribe(info => {
       if (!info) {
-        throw new Error('获取页码信息失败');
+        this.error = '获取页码信息失败';
+        this.pageState = 'error';
+        this.isLoadingPdf = false;
+        this.cdr.markForCheck();
+        return;
       }
 
       this.pageIndex = info;
 
       if (info.status === 'calculating') {
-        // 正在计算页码，使用临时页码加载PDF
         this.pageIndex = { startPageNo: 1, pageCount: 1, status: 'calculating' };
         this.pageWarning = '全住院期页码正在计算中，当前预览使用临时页码';
         this.updatePageOptions();
       } else if (info.status === 'failed') {
-        // 页码计算失败，使用临时页码加载PDF，显示非阻塞警告
         this.pageIndex = { startPageNo: 1, pageCount: 1, status: 'failed' };
         this.pageWarning = '全住院期页码计算失败，当前预览使用临时页码，可点击纠正页码重试';
         this.updatePageOptions();
       } else {
-        // 页码正常，更新页码选项
         this.updatePageOptions();
       }
 
-      // 获取PDF URL（使用flow布局）
-      const pdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr, this.pdfLayout);
+      // 生成PDF URL（使用flow布局）
+      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr, this.pdfLayout);
 
-      // 加载PDF文档
-      this.pdfDocument = await this.pdfViewerService.loadPdf(pdfUrl);
-      this.pdfDoc = this.pdfDocument.pdfDoc;
-      this.totalPages = this.pdfDocument.totalPages;
-
-      // 更新页码选项
-      this.updatePageOptions();
-
-      // 渲染PDF
-      await this.renderAllPages();
+      // 默认显示第1页，缩放135%
+      this.updateViewerUrl();
 
       this.isLoadingPdf = false;
       this.pageState = 'ready';
       this.cdr.markForCheck();
-
-    } catch (err: any) {
-      console.error('[HLJLD] 加载PDF失败', err);
-      this.error = err.message || '加载PDF失败，请重试';
-      this.pageState = 'error';
-      this.isLoadingPdf = false;
-      this.cdr.markForCheck();
-    }
+    });
   }
 
   /**
-   * 渲染所有PDF页面
+   * 更新iframe预览URL
    */
-  private async renderAllPages(): Promise<void> {
-    if (!this.pdfDoc || !this.pdfPagesContainer) {
+  private updateViewerUrl(): void {
+    if (!this.basePdfUrl) {
+      this.pdfViewerUrl = '';
       return;
     }
-
-    this.isRenderingPdf = true;
-    this.cdr.markForCheck();
-
-    // 清理旧的Canvas
-    this.canvases.forEach(c => c.remove());
-    this.canvases = [];
-
-    const container = this.pdfPagesContainer.nativeElement;
-
-    try {
-      this.canvases = await this.pdfViewerService.renderAllPages(
-        this.pdfDoc,
-        container,
-        this.displayScale,
-        this.renderAbort$.asObservable().pipe(
-          // 将Subject转换为AbortSignal
-        ) as any,
-      );
-      this.isRenderingPdf = false;
-      this.cdr.markForCheck();
-    } catch (err: any) {
-      if (err.message !== '渲染已取消') {
-        console.error('[HLJLD] 渲染PDF失败', err);
-        this.error = err.message || '渲染PDF失败';
-        this.isRenderingPdf = false;
-        this.cdr.markForCheck();
-      }
-    }
+    const localPage = this.getSelectedLocalPage();
+    this.pdfViewerUrl = `${this.basePdfUrl}#page=${localPage}&zoom=${this.defaultZoom}`;
   }
 
   /**
-   * 开始轮询计算状态
+   * 计算当前选中页码对应的单日PDF内部页码
    */
-  private startPolling(): void {
-    this.pollTimer = setInterval(() => {
-      if (!this.patient.pid) {
-        this.stopPolling();
-        return;
-      }
-
-      // 使用flow布局查询状态
-      this.pdfService.getRecalculateStatus(this.patient.pid, this.pdfLayout).subscribe({
-        next: (status) => {
-          this.calculatingProgress = status.progress || 0;
-          this.cdr.markForCheck();
-
-          if (status.status === 'completed') {
-            this.stopPolling();
-            this.recalculating = false;
-            this.loadPdf(); // 重新加载
-          } else if (status.status === 'failed') {
-            this.stopPolling();
-            this.recalculating = false;
-            this.pageState = 'error';
-            this.error = '页码计算失败，请点击「纠正页码」重试';
-            this.cdr.markForCheck();
-          }
-        },
-        error: () => {
-          // 轮询出错不停止，继续尝试
-        }
-      });
-    }, 2000); // 每2秒轮询一次
-  }
-
-  /**
-   * 停止轮询
-   */
-  private stopPolling(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
+  private getSelectedLocalPage(): number {
+    const localPage = this.selectedPageNo - this.pageIndex.startPageNo + 1;
+    return Math.max(1, Math.min(localPage, this.pageIndex.pageCount || 1));
   }
 
   /**
@@ -315,9 +192,18 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
+   * 选择页码 - 只修改fragment，不重新请求后端PDF
+   */
+  onPageSelect(pageNo: number): void {
+    this.selectedPageNo = pageNo;
+    this.updateViewerUrl();
+    this.cdr.markForCheck();
+  }
+
+  /**
    * 日期变化
    */
-  async onDateInput(dateStr: string): Promise<void> {
+  onDateInput(dateStr: string): void {
     if (!dateStr) {
       return;
     }
@@ -328,31 +214,13 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.selectedDate = date;
-    await this.loadPdf();
-  }
-
-  /**
-   * 选择页码
-   */
-  onPageSelect(pageNo: number): void {
-    this.selectedPageNo = pageNo;
-    this.scrollToPage(pageNo - this.pageIndex.startPageNo + 1);
-  }
-
-  /**
-   * 滚动到指定页
-   */
-  private scrollToPage(pageNumber: number): void {
-    const container = this.pdfPagesContainer?.nativeElement;
-    if (container && this.canvases[pageNumber - 1]) {
-      this.canvases[pageNumber - 1].scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    this.loadPdf();
   }
 
   /**
    * 纠正页码
    */
-  async recalculatePageIndexes(): Promise<void> {
+  recalculatePageIndexes(): void {
     if (!this.patient.pid || this.recalculating) {
       return;
     }
@@ -367,16 +235,60 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     this.calculatingProgress = 0;
     this.cdr.markForCheck();
 
-    try {
-      // 使用flow布局重新计算
-      await this.pdfService.recalculatePageIndexes(this.patient.pid, this.pdfLayout).toPromise();
-      // 后端异步处理，开始轮询
-      this.startPolling();
-    } catch (err: any) {
-      alert('页码计算启动失败：' + (err.message || '请重试'));
-      this.recalculating = false;
-      this.pageState = 'ready';
-      this.cdr.markForCheck();
+    this.pdfService.recalculatePageIndexes(this.patient.pid, this.pdfLayout).subscribe({
+      next: () => {
+        this.startPolling();
+      },
+      error: (err) => {
+        alert('页码计算启动失败：' + (err.message || '请重试'));
+        this.recalculating = false;
+        this.pageState = 'ready';
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  /**
+   * 开始轮询计算状态
+   */
+  private startPolling(): void {
+    this.pollTimer = setInterval(() => {
+      if (!this.patient.pid) {
+        this.stopPolling();
+        return;
+      }
+
+      this.pdfService.getRecalculateStatus(this.patient.pid, this.pdfLayout).subscribe({
+        next: (status) => {
+          this.calculatingProgress = status.progress || 0;
+          this.cdr.markForCheck();
+
+          if (status.status === 'completed') {
+            this.stopPolling();
+            this.recalculating = false;
+            this.loadPdf();
+          } else if (status.status === 'failed') {
+            this.stopPolling();
+            this.recalculating = false;
+            this.pageWarning = '页码计算失败，请点击「纠正页码」重试';
+            this.pageState = 'ready';
+            this.cdr.markForCheck();
+          }
+        },
+        error: () => {
+          // 轮询出错不停止，继续尝试
+        }
+      });
+    }, 2000);
+  }
+
+  /**
+   * 停止轮询
+   */
+  private stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
     }
   }
 
@@ -384,7 +296,7 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
    * 打印当前日PDF
    */
   async printCurrentDay(): Promise<void> {
-    if (!this.pdfDocument || this.isPrinting) {
+    if (!this.basePdfUrl || this.isPrinting) {
       return;
     }
 
@@ -393,7 +305,8 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      await this.pdfViewerService.printPdfBlob(this.pdfDocument.blob);
+      const blob = await this.pdfPrintService.fetchPdfBlob(this.basePdfUrl);
+      await this.pdfPrintService.printPdfBlob(blob);
     } catch (err: any) {
       console.error('[HLJLD] 打印失败', err);
       this.printError = err.message || '打印失败';
@@ -421,19 +334,9 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      // 获取全部PDF URL（使用flow布局）
       const pdfUrl = this.pdfService.getAllPdfsUrl(this.patient.pid, this.pdfLayout);
-
-      // 加载全部PDF
-      const allPdfDoc = await this.pdfViewerService.loadPdf(pdfUrl);
-
-      // 打印
-      await this.pdfViewerService.printPdfBlob(allPdfDoc.blob);
-
-      // 清理
-      this.pdfViewerService.revokeObjectUrl(allPdfDoc.objectUrl);
-      await this.pdfViewerService.destroyPdfDocument(allPdfDoc.pdfDoc);
-
+      const blob = await this.pdfPrintService.fetchPdfBlob(pdfUrl);
+      await this.pdfPrintService.printPdfBlob(blob);
     } catch (err: any) {
       console.error('[HLJLD] 一键打印失败', err);
       this.printError = err.message || '一键打印失败';
@@ -451,38 +354,14 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
   /**
    * 刷新PDF
    */
-  async refreshPdf(): Promise<void> {
-    await this.loadPdf();
-  }
-
-  /**
-   * 缩放+
-   */
-  zoomIn(): void {
-    this.displayScale = Math.min(this.displayScale + 0.1, 3);
-    this.renderAllPages();
-  }
-
-  /**
-   * 缩放-
-   */
-  zoomOut(): void {
-    this.displayScale = Math.max(this.displayScale - 0.1, 0.5);
-    this.renderAllPages();
-  }
-
-  /**
-   * 重置缩放
-   */
-  resetZoom(): void {
-    this.displayScale = this.defaultDisplayScale;
-    this.renderAllPages();
+  refreshPdf(): void {
+    this.loadPdf();
   }
 
   /**
    * 前一天
    */
-  async previousDay(): Promise<void> {
+  previousDay(): void {
     const date = new Date(this.selectedDate);
     date.setDate(date.getDate() - 1);
     if (this.minDateInput && date < new Date(this.minDateInput)) {
@@ -490,13 +369,13 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.selectedDate = date;
     this.dateInput = this.toDateString(date);
-    await this.loadPdf();
+    this.loadPdf();
   }
 
   /**
    * 后一天
    */
-  async nextDay(): Promise<void> {
+  nextDay(): void {
     const date = new Date(this.selectedDate);
     date.setDate(date.getDate() + 1);
     if (this.maxDateInput && date > new Date(this.maxDateInput)) {
@@ -504,16 +383,16 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.selectedDate = date;
     this.dateInput = this.toDateString(date);
-    await this.loadPdf();
+    this.loadPdf();
   }
 
   /**
    * 今天
    */
-  async today(): Promise<void> {
+  today(): void {
     this.selectedDate = new Date();
     this.dateInput = this.toDateString(this.selectedDate);
-    await this.loadPdf();
+    this.loadPdf();
   }
 
   /**
@@ -593,8 +472,8 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
   private resetPatientData(): void {
     this.stopPolling();
     this.patient = { pid: '' };
-    this.pdfDocument = null;
-    this.pdfDoc = null;
+    this.basePdfUrl = '';
+    this.pdfViewerUrl = '';
     this.totalPages = 0;
     this.currentPage = 1;
     this.pageIndex = { startPageNo: 1, pageCount: 0, status: 'completed' };
@@ -602,9 +481,11 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     this.selectedPageNo = 1;
     this.minDateInput = '';
     this.maxDateInput = '';
-    this.canvases.forEach(c => c.remove());
-    this.canvases = [];
   }
+
+  // 保留totalPages和currentPage用于模板状态显示
+  totalPages = 0;
+  currentPage = 1;
 
   /**
    * 转换患者上下文
