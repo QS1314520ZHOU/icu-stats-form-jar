@@ -170,8 +170,11 @@ public class HljldFlowPdfService {
         PdfWriter writer = finalRender ? new PdfWriter(output) : new PdfWriter(new ByteArrayOutputStream());
         PdfDocument pdfDoc = new PdfDocument(writer);
         Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+
+        // 正确计算边距：CONTENT_TOP是从页面底部算起的Y坐标，topMargin是从页面顶部算起的距离
+        float topMargin = HljldFlowPageEventHandler.PAGE_HEIGHT - HljldFlowPageEventHandler.CONTENT_TOP;
         doc.setMargins(
-            HljldFlowPageEventHandler.CONTENT_TOP,
+            topMargin,
             HljldFlowPageEventHandler.MARGIN_RIGHT,
             HljldFlowPageEventHandler.CONTENT_BOTTOM,
             HljldFlowPageEventHandler.MARGIN_LEFT
@@ -283,8 +286,11 @@ public class HljldFlowPdfService {
             PdfWriter writer = new PdfWriter(baos);
             PdfDocument pdfDoc = new PdfDocument(writer);
             Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+
+            // 正确计算边距
+            float topMargin = HljldFlowPageEventHandler.PAGE_HEIGHT - HljldFlowPageEventHandler.CONTENT_TOP;
             doc.setMargins(
-                HljldFlowPageEventHandler.CONTENT_TOP,
+                topMargin,
                 HljldFlowPageEventHandler.MARGIN_RIGHT,
                 HljldFlowPageEventHandler.CONTENT_BOTTOM,
                 HljldFlowPageEventHandler.MARGIN_LEFT

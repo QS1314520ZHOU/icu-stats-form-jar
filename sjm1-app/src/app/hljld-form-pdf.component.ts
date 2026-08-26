@@ -4,7 +4,7 @@ import { Subject, EMPTY } from 'rxjs';
 import { takeUntil, switchMap, filter, distinctUntilChanged, catchError } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService } from './hljld-form.service';
-import { HljldPdfService, PageIndexInfo } from './hljld-pdf.service';
+import { HljldPdfService, PageIndexInfo, PdfLayoutMode } from './hljld-pdf.service';
 import { PatientContext } from './hljld-form.models';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 
@@ -17,6 +17,9 @@ import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 })
 export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
+
+  /** 固定使用流式分页布局 */
+  readonly pdfLayout: PdfLayoutMode = 'flow';
 
   patient: PatientContext = { pid: '' };
   selectedDate = new Date();
@@ -106,8 +109,8 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const dateStr = this.toDateString(this.selectedDate);
 
-    // 获取页码信息
-    this.pdfService.getPageIndex(this.patient.pid, dateStr).pipe(
+    // 获取页码信息（使用flow布局）
+    this.pdfService.getPageIndex(this.patient.pid, dateStr, this.pdfLayout).pipe(
       catchError(err => {
         console.error('[HLJLD] 获取页码信息失败', err);
         return [{ startPageNo: 1, pageCount: 1, status: 'completed' as const }];
@@ -133,9 +136,9 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
 
-      // 正常加载
+      // 正常加载（使用flow布局）
       this.updatePageOptions();
-      this.pdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr);
+      this.pdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr, this.pdfLayout);
       this.loading = false;
       this.pageState = 'ready';
       this.cdr.markForCheck();
@@ -152,7 +155,8 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
 
-      this.pdfService.getRecalculateStatus(this.patient.pid).subscribe({
+      // 使用flow布局查询状态
+      this.pdfService.getRecalculateStatus(this.patient.pid, this.pdfLayout).subscribe({
         next: (status) => {
           this.calculatingProgress = status.progress || 0;
           this.cdr.markForCheck();
@@ -250,7 +254,8 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     this.calculatingProgress = 0;
     this.cdr.markForCheck();
 
-    this.pdfService.recalculatePageIndexes(this.patient.pid).subscribe({
+    // 使用flow布局重新计算
+    this.pdfService.recalculatePageIndexes(this.patient.pid, this.pdfLayout).subscribe({
       next: () => {
         // 后端异步处理，开始轮询
         this.startPolling();
@@ -281,7 +286,8 @@ export class HljldFormPdfComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.patient.pid) {
       return;
     }
-    window.open(this.pdfService.getAllPdfsUrl(this.patient.pid), '_blank');
+    // 使用flow布局打印全部
+    window.open(this.pdfService.getAllPdfsUrl(this.patient.pid, this.pdfLayout), '_blank');
   }
 
   /**

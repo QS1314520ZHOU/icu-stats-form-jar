@@ -1,6 +1,11 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+
+/**
+ * PDF布局模式
+ */
+export type PdfLayoutMode = 'legacy' | 'flow';
 
 /**
  * 页码信息
@@ -33,40 +38,49 @@ export class HljldPdfService {
   /**
    * 获取指定日期的 PDF URL
    */
-  getPdfUrl(pid: string, date: string): string {
-    return `${this.baseUrl}/pdf/${pid}/${date}`;
+  getPdfUrl(pid: string, date: string, layout: PdfLayoutMode = 'legacy'): string {
+    const base = `${this.baseUrl}/pdf/${encodeURIComponent(pid)}/${encodeURIComponent(date)}`;
+    const params = new URLSearchParams({ layout });
+    return `${base}?${params.toString()}`;
   }
 
   /**
    * 获取全部记录的 PDF URL
    */
-  getAllPdfsUrl(pid: string): string {
-    return `${this.baseUrl}/pdf-all/${pid}`;
+  getAllPdfsUrl(pid: string, layout: PdfLayoutMode = 'legacy'): string {
+    const base = `${this.baseUrl}/pdf-all/${encodeURIComponent(pid)}`;
+    const params = new URLSearchParams({ layout });
+    return `${base}?${params.toString()}`;
   }
 
   /**
    * 获取页码信息
    */
-  getPageIndex(pid: string, date: string): Observable<PageIndexInfo> {
-    return this.http.get<PageIndexInfo>(`${this.baseUrl}/page-index/${pid}`, {
-      params: { date }
-    });
+  getPageIndex(pid: string, date: string, layout: PdfLayoutMode = 'legacy'): Observable<PageIndexInfo> {
+    const params = new HttpParams()
+      .set('date', date)
+      .set('layout', layout);
+    return this.http.get<PageIndexInfo>(`${this.baseUrl}/page-index/${encodeURIComponent(pid)}`, { params });
   }
 
   /**
    * 重新计算页码
    */
-  recalculatePageIndexes(pid: string): Observable<{ status: string; message: string }> {
+  recalculatePageIndexes(pid: string, layout: PdfLayoutMode = 'legacy'): Observable<{ status: string; message: string }> {
+    const params = new HttpParams().set('layout', layout);
     return this.http.post<{ status: string; message: string }>(
-      `${this.baseUrl}/recalculate/${pid}`,
-      {}
+      `${this.baseUrl}/recalculate/${encodeURIComponent(pid)}`,
+      {},
+      { params }
     );
   }
 
   /**
    * 查询重新计算状态
    */
-  getRecalculateStatus(pid: string): Observable<RecalculateStatus> {
-    return this.http.get<RecalculateStatus>(`${this.baseUrl}/recalculate-status/${pid}`);
+  getRecalculateStatus(pid: string, layout: PdfLayoutMode = 'legacy'): Observable<RecalculateStatus> {
+    const formType = layout === 'flow' ? 'hljld2-flow' : 'hljld2';
+    const params = new HttpParams().set('formType', formType);
+    return this.http.get<RecalculateStatus>(`${this.baseUrl}/recalculate-status/${encodeURIComponent(pid)}`, { params });
   }
 }
