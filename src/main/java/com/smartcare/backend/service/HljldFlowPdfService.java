@@ -14,12 +14,14 @@ import com.itextpdf.layout.element.AreaBreak;
 import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
+import com.itextpdf.layout.properties.HorizontalAlignment;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.entity.FormPageIndex;
 import com.smartcare.backend.hljld.*;
 import com.smartcare.backend.hljld.HljldPdfDataAssembler.HljldViewModel;
+import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
 import com.smartcare.backend.repository.FormPageIndexRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,14 +39,12 @@ import java.util.*;
 /**
  * ICU 护理记录单 PDF 生成服务（流式分页版）
  *
- * 核心特性：
- * - iText 原生跨页，不固定每页行数
- * - 动态行高：setMinHeight() 代替 setHeight()
- * - 两遍渲染获取可靠页数
- * - 每页：页眉+表头+备注+页码
- * - 单条超长记录允许跨页
- * - 多护理日用 AreaBreak 分隔
- * - 保留 legacy 模式不变
+ * 架构：
+ * - 标题、患者信息、备注、页码由 HljldFlowPageEventHandler 在每页绘制
+ * - 数据表（表头+数据行）在 Document 中流式布局
+ * - 小结和总结作为独立的 keep-together 表格插入流中
+ * - 文档边距精确匹配事件处理器坐标，保证表格边框连续
+ * - 两遍渲染：第一遍计数页数，第二遍正式渲染
  */
 @Service
 public class HljldFlowPdfService {
@@ -59,24 +59,27 @@ public class HljldFlowPdfService {
     private volatile String cachedFontPath;
     private volatile boolean fontPathResolved = false;
 
-    // ── 表格样式 ──
-    private static final float HEADER_FONT_SIZE = 7f;
-    private static final float DATA_FONT_SIZE = 7f;
-    private static final float DATA_ROW_MIN_HEIGHT = 18f;
-
-    // ── 19列宽度 ──
-    static final float[] COL_WIDTHS_PT = {
-        50f, 100f, 30f, 30f, 100f, 30f, 30f, 30f, 30f,
-        30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f, 150f, 30f
-    };
-    static final float TABLE_WIDTH = 820f;
-
     @Autowired
     public HljldFlowPdfService(MongoTemplate mongoTemplate, FormPageIndexRepository pageIndexRepository,
                                HljldPdfDataAssembler dataAssembler) {
         this.mongoTemplate = mongoTemplate;
         this.pageIndexRepository = pageIndexRepository;
         this.dataAssembler = dataAssembler;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  可打印项模型
+    // ══════════════════════════════════════════════════════════
+
+    enum PrintableItemType { NORMAL_ROW, DAY_SUMMARY, FULL_DAY_SUMMARY }
+
+    static class PrintableItem {
+        long sortTime;
+        int sortPriority;
+        String stableId;
+        PrintableItemType type;
+        Map<String, Object> normalRow;
+        HljldSummary summary;
     }
 
     // ══════════════════════════════════════════════════════════
@@ -132,7 +135,7 @@ public class HljldFlowPdfService {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  统一渲染核心（两遍共用）
+    //  渲染结果
     // ══════════════════════════════════════════════════════════
 
     static class FlowPdfRenderResult {
@@ -144,18 +147,22 @@ public class HljldFlowPdfService {
         }
     }
 
+    // ══════════════════════════════════════════════════════════
+    //  统一渲染核心（两遍共用）
+    // ══════════════════════════════════════════════════════════
+
     /**
      * 统一渲染入口。finalRender=false 时只计算页数，finalRender=true 时写入 OutputStream。
      *
-     * @param printableRowsPerDay 每个护理日的数据行列表（有序）
-     * @param startPageNo         全局起始页码
-     * @param output              输出流（finalRender=true 时使用）
-     * @param finalRender         是否正式渲染
-     * @param pid                 患者ID
+     * @param itemsPerDay   每个护理日的可打印项列表（有序，包含普通行和小结/总结）
+     * @param startPageNo   全局起始页码
+     * @param output        输出流（finalRender=true 时使用）
+     * @param finalRender   是否正式渲染
+     * @param pid           患者ID
      * @return 渲染结果
      */
     private FlowPdfRenderResult renderFlowPdf(
-            List<List<Map<String, Object>>> printableRowsPerDay,
+            List<List<PrintableItem>> itemsPerDay,
             int startPageNo,
             OutputStream output,
             boolean finalRender,
@@ -171,46 +178,39 @@ public class HljldFlowPdfService {
         PdfDocument pdfDoc = new PdfDocument(writer);
         Document doc = new Document(pdfDoc, PageSize.A4.rotate());
 
-        // 正确计算边距：CONTENT_TOP是从页面底部算起的Y坐标，topMargin是从页面顶部算起的距离
-        float topMargin = HljldFlowPageEventHandler.PAGE_HEIGHT - HljldFlowPageEventHandler.CONTENT_TOP;
-        float bottomMargin = HljldFlowPageEventHandler.CONTENT_BOTTOM;
-        float availableHeight = HljldFlowPageEventHandler.PAGE_HEIGHT - topMargin - bottomMargin;
-
-        if (availableHeight <= 0) {
-            throw new IllegalStateException(String.format(
-                "Flow PDF布局常量配置错误: PAGE_HEIGHT=%.1f, topMargin=%.1f, bottomMargin=%.1f, availableHeight=%.1f",
-                HljldFlowPageEventHandler.PAGE_HEIGHT, topMargin, bottomMargin, availableHeight));
-        }
-
+        // 设置边距：精确匹配事件处理器绘制区域
+        // topMargin = 标题+患者信息高度 → 内容从 CONTENT_TOP 开始
+        // bottomMargin = 备注+页码高度 → 内容到 CONTENT_BOTTOM 结束
         doc.setMargins(
-            topMargin,
-            HljldFlowPageEventHandler.MARGIN_RIGHT,
-            bottomMargin,
-            HljldFlowPageEventHandler.MARGIN_LEFT
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
         );
 
         int totalRowCount = 0;
         boolean firstDay = true;
 
-        for (List<Map<String, Object>> dayRows : printableRowsPerDay) {
+        for (List<PrintableItem> dayItems : itemsPerDay) {
             if (!firstDay) {
                 doc.add(new AreaBreak());
             }
             firstDay = false;
 
-            Table table = buildContinuousTable(dayRows, font);
-            doc.add(table);
-            totalRowCount += dayRows.size();
+            // 构建并添加流式表格（普通行 + 小结/总结交错输出）
+            addFlowContent(doc, dayItems, font);
+            totalRowCount += dayItems.size();
         }
 
-        // 获取真实页数（doc.close之前）
+        // 获取真实页数（doc.close 之前）
         int pageCount = pdfDoc.getNumberOfPages();
 
-        // 注册页事件处理器（在doc.close之前）
-        HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(font, patientInfo, pageCount, startPageNo);
+        // 注册页事件处理器（在 doc.close 之前）
+        HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
+            font, patientInfo, pageCount, startPageNo);
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
 
-        // 关闭文档（触发END_PAGE事件，绘制页眉/备注/页码）
+        // 关闭文档（触发 END_PAGE 事件，绘制页眉/备注/页码）
         doc.close();
 
         return new FlowPdfRenderResult(pageCount, totalRowCount);
@@ -224,20 +224,19 @@ public class HljldFlowPdfService {
     public byte[] generateDailyPdf(String pid, String date) {
         log.info("Flow PDF 生成: pid={}, date={}", pid, date);
 
-        HljldViewModel viewModel = dataAssembler.buildPrintViewModel(date, pid, pid);
-        List<Map<String, Object>> rows = timelineToPrintableRows(viewModel);
-        List<List<Map<String, Object>>> rowsPerDay = Collections.singletonList(rows);
+        List<PrintableItem> items = buildPrintableItems(date, pid);
+        List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
         int startPageNo = getStartPageNo(pid, date, "hljld2-flow");
 
         // 第一遍：计算页数
-        FlowPdfRenderResult pass1 = renderFlowPdf(rowsPerDay, startPageNo, null, false, pid);
+        FlowPdfRenderResult pass1 = renderFlowPdf(itemsPerDay, startPageNo, null, false, pid);
         log.info("Flow PDF pass1: pageCount={}", pass1.pageCount);
 
         // 第二遍：正式渲染
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        renderFlowPdf(rowsPerDay, startPageNo, baos, true, pid);
+        renderFlowPdf(itemsPerDay, startPageNo, baos, true, pid);
 
-        log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, rows={}", pid, date, pass1.pageCount, rows.size());
+        log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}", pid, date, pass1.pageCount, items.size());
         return baos.toByteArray();
     }
 
@@ -254,11 +253,10 @@ public class HljldFlowPdfService {
         }
 
         FormPageIndex index = indexOpt.get();
-        List<List<Map<String, Object>>> rowsPerDay = new ArrayList<>();
+        List<List<PrintableItem>> itemsPerDay = new ArrayList<>();
 
         for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
-            HljldViewModel viewModel = dataAssembler.buildPrintViewModel(dailyPage.getDate(), pid, pid);
-            rowsPerDay.add(timelineToPrintableRows(viewModel));
+            itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid));
         }
 
         int startPageNo = 1;
@@ -267,22 +265,21 @@ public class HljldFlowPdfService {
         }
 
         // 第一遍
-        FlowPdfRenderResult pass1 = renderFlowPdf(rowsPerDay, startPageNo, null, false, pid);
+        FlowPdfRenderResult pass1 = renderFlowPdf(itemsPerDay, startPageNo, null, false, pid);
 
         // 第二遍
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        renderFlowPdf(rowsPerDay, startPageNo, baos, true, pid);
+        renderFlowPdf(itemsPerDay, startPageNo, baos, true, pid);
 
-        log.info("Flow PDF 全部完成: pid={}, days={}, pageCount={}", pid, rowsPerDay.size(), pass1.pageCount);
+        log.info("Flow PDF 全部完成: pid={}, days={}, pageCount={}", pid, itemsPerDay.size(), pass1.pageCount);
         return baos.toByteArray();
     }
 
     /** 计算某天的页数（使用真实渲染） */
     public int calculateFlowPageCount(String pid, String date) {
-        HljldViewModel viewModel = dataAssembler.buildPrintViewModel(date, pid, pid);
-        List<Map<String, Object>> rows = timelineToPrintableRows(viewModel);
-        List<List<Map<String, Object>>> rowsPerDay = Collections.singletonList(rows);
-        FlowPdfRenderResult result = renderFlowPdf(rowsPerDay, 1, null, false, pid);
+        List<PrintableItem> items = buildPrintableItems(date, pid);
+        List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, null, false, pid);
         log.info("Flow PDF 页数: pid={}, date={}, pageCount={}", pid, date, result.pageCount);
         return result.pageCount;
     }
@@ -296,24 +293,25 @@ public class HljldFlowPdfService {
             PdfDocument pdfDoc = new PdfDocument(writer);
             Document doc = new Document(pdfDoc, PageSize.A4.rotate());
 
-            // 正确计算边距
-            float topMargin = HljldFlowPageEventHandler.PAGE_HEIGHT - HljldFlowPageEventHandler.CONTENT_TOP;
             doc.setMargins(
-                topMargin,
-                HljldFlowPageEventHandler.MARGIN_RIGHT,
-                HljldFlowPageEventHandler.CONTENT_BOTTOM,
-                HljldFlowPageEventHandler.MARGIN_LEFT
+                HljldPdfLayoutConstants.MARGIN_TOP,
+                HljldPdfLayoutConstants.MARGIN_RIGHT,
+                HljldPdfLayoutConstants.MARGIN_BOTTOM,
+                HljldPdfLayoutConstants.MARGIN_LEFT
             );
 
             org.bson.Document patient = getPatientInfo(pid);
-            String patientInfo = String.format("床号：%s  姓名：%s  住院号：%s",
-                str(patient, "bedNo"), str(patient, "name"), str(patient, "mrn"));
+            String patientInfo = String.format("床号：%s  姓名：%s  住院号：%s  性别：%s  年龄：%s  诊断：%s",
+                str(patient, "bedNo"), str(patient, "name"), str(patient, "mrn"),
+                str(patient, "sex"), str(patient, "age"), str(patient, "diagnosis"));
 
-            Table table = buildContinuousTable(Collections.emptyList(), font);
+            // 空数据：添加一行空数据行
+            Table table = buildNormalDataTable(Collections.emptyList(), font);
             doc.add(table);
 
             int pageCount = pdfDoc.getNumberOfPages();
-            HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(font, patientInfo, pageCount, 1);
+            HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+                font, patientInfo, pageCount, 1);
             pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
             doc.close();
 
@@ -324,46 +322,161 @@ public class HljldFlowPdfService {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  构建连续表格
+    //  流式内容输出（普通行 + 小结/总结交错）
     // ══════════════════════════════════════════════════════════
 
-    Table buildContinuousTable(List<Map<String, Object>> rows, PdfFont font) {
-        Table table = new Table(UnitValue.createPointArray(COL_WIDTHS_PT));
-        table.setWidth(UnitValue.createPointValue(TABLE_WIDTH));
-        table.setBorder(new SolidBorder(ColorConstants.BLACK, 0.5f));
-        table.setKeepTogether(false);
+    /**
+     * 按时间轴顺序输出普通行和小结/总结。
+     * 普通行累积到一个 Table 中，遇到小结/总结时结束当前 Table 并输出独立的 keep-together Table。
+     */
+    private void addFlowContent(Document doc, List<PrintableItem> items, PdfFont font) {
+        List<PrintableItem> normalBuffer = new ArrayList<>();
 
-        addTableHeader(table, font);
-
-        if (rows.isEmpty()) {
-            addDataRow(table, null, font);
-        } else {
-            for (Map<String, Object> row : rows) {
-                addDataRow(table, row, font);
+        for (PrintableItem item : items) {
+            if (item.type == PrintableItemType.NORMAL_ROW) {
+                normalBuffer.add(item);
+            } else {
+                // 遇到小结/总结：先输出累积的普通行
+                if (!normalBuffer.isEmpty()) {
+                    doc.add(buildNormalDataTable(normalBuffer, font));
+                    normalBuffer.clear();
+                }
+                // 输出小结/总结（4行，keep-together）
+                doc.add(buildSummaryTable(item, font));
             }
         }
+        // 输出剩余的普通行
+        if (!normalBuffer.isEmpty()) {
+            doc.add(buildNormalDataTable(normalBuffer, font));
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  构建普通数据表（表头 + 数据行）
+    // ══════════════════════════════════════════════════════════
+
+    Table buildNormalDataTable(List<PrintableItem> items, PdfFont font) {
+        float[] widths = HljldPdfLayoutConstants.COL_WIDTHS_PT;
+        Table table = new Table(UnitValue.createPointArray(widths));
+        table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
+        table.setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_OUTER));
+        table.setKeepTogether(false);
+
+        // 双层表头
+        addTableHeader(table, font);
+
+        // 数据行
+        if (items.isEmpty()) {
+            addDataRow(table, null, font);
+        } else {
+            for (PrintableItem item : items) {
+                addDataRow(table, item.normalRow, font);
+            }
+        }
+
         return table;
     }
 
     // ══════════════════════════════════════════════════════════
-    //  表头
+    //  构建小结/总结表（4行，keep-together）
+    // ══════════════════════════════════════════════════════════
+
+    Table buildSummaryTable(PrintableItem item, PdfFont font) {
+        float[] widths = HljldPdfLayoutConstants.COL_WIDTHS_PT;
+        Table table = new Table(UnitValue.createPointArray(widths));
+        table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
+        table.setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
+        table.setKeepTogether(true);  // 4行不可拆页
+        table.setMarginTop(0);
+        table.setMarginBottom(0);
+
+        HljldSummary summary = item.summary;
+        String title = (item.type == PrintableItemType.DAY_SUMMARY) ? "日间小结" : "24小时总结";
+
+        // 构建内容行
+        String line2 = buildSummaryLine2(summary);
+        String line3 = buildSummaryLine3(summary);
+        String line4 = buildSummaryLine4(summary);
+
+        // 第1行：标题，合并19列，居中
+        Cell titleCell = new Cell(1, 19)
+            .add(new Paragraph(title)
+                .setFont(font)
+                .setFontSize(HljldPdfLayoutConstants.SUMMARY_TITLE_FONT_SIZE)
+                .setTextAlignment(TextAlignment.CENTER)
+                .setMargin(0))
+            .setTextAlignment(TextAlignment.CENTER)
+            .setVerticalAlignment(VerticalAlignment.MIDDLE)
+            .setHeight(14f)
+            .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
+        table.addCell(titleCell);
+
+        // 第2~4行：内容，合并19列，左对齐
+        for (String line : new String[]{line2, line3, line4}) {
+            Cell contentCell = new Cell(1, 19)
+                .add(new Paragraph(line)
+                    .setFont(font)
+                    .setFontSize(HljldPdfLayoutConstants.SUMMARY_FONT_SIZE)
+                    .setTextAlignment(TextAlignment.LEFT)
+                    .setMargin(0))
+                .setTextAlignment(TextAlignment.LEFT)
+                .setVerticalAlignment(VerticalAlignment.MIDDLE)
+                .setHeight(14f)
+                .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
+            table.addCell(contentCell);
+        }
+
+        return table;
+    }
+
+    /** 构建小结/总结第2行：入量相关 */
+    private String buildSummaryLine2(HljldSummary s) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("总入量：").append(formatVal(s.getInputSum())).append(" ml");
+        sb.append("；药物治疗：").append(formatVal(s.getMedicationSum())).append(" ml");
+        sb.append("；胃肠摄入：").append(formatVal(s.getEnteralSum())).append(" ml");
+        return sb.toString();
+    }
+
+    /** 构建小结/总结第3行：出量相关 */
+    private String buildSummaryLine3(HljldSummary s) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("总出量：").append(formatVal(s.getOutputSum())).append(" ml");
+        sb.append("；尿量：").append(formatVal(s.getUrineSum())).append(" ml");
+        sb.append("；净超滤量：").append(formatVal(s.getUltrafiltrationSum())).append(" ml");
+        return sb.toString();
+    }
+
+    /** 构建小结/总结第4行：平衡量 */
+    private String buildSummaryLine4(HljldSummary s) {
+        return "平衡量：" + String.format("%.1f", s.getBalance()) + " ml";
+    }
+
+    private String formatVal(double v) {
+        return String.format("%.1f", v);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  表头构建（层级 colspan + rowspan）
     // ══════════════════════════════════════════════════════════
 
     private void addTableHeader(Table table, PdfFont font) {
+        // ── 第一行 ──
         addHeaderCell(table, "日期时间", 1, 2, font);
         addHeaderCell(table, "药物治疗", 3, 1, font);
         addHeaderCell(table, "胃肠摄入", 3, 1, font);
-        addHeaderCellWrap(table, "尿量(ml)", 1, 2, font);
-        addHeaderCellWrap(table, "净超滤量(ml)", 1, 2, font);
+        addHeaderCell(table, "尿量\n(ml)", 1, 2, font);
+        addHeaderCell(table, "净超滤量\n(ml)", 1, 2, font);
         addHeaderCell(table, "排出物", 2, 1, font);
         addHeaderCell(table, "引流液", 2, 1, font);
         addHeaderCell(table, "检查", 1, 2, font);
         addHeaderCell(table, "治疗", 1, 2, font);
-        addHeaderCellWrap(table, "基础护理", 1, 2, font);
-        addHeaderCellWrap(table, "健康教育", 1, 2, font);
+        addHeaderCell(table, "基础\n护理", 1, 2, font);
+        addHeaderCell(table, "健康\n教育", 1, 2, font);
         addHeaderCell(table, "护理记录", 1, 2, font);
         addHeaderCell(table, "签名", 1, 2, font);
 
+        // ── 第二行（子列） ──
         addSubHeaderCell(table, "名称", font);
         addSubHeaderCell(table, "量/ml", font);
         addSubHeaderCell(table, "途径", font);
@@ -378,35 +491,30 @@ public class HljldFlowPdfService {
 
     private void addHeaderCell(Table table, String text, int colspan, int rowspan, PdfFont font) {
         Cell cell = new Cell(rowspan, colspan)
-            .add(new Paragraph(text).setFont(font).setFontSize(HEADER_FONT_SIZE)
-                .setMargin(0).setMultipliedLeading(1.0f))
+            .add(new Paragraph(text)
+                .setFont(font)
+                .setFontSize(HljldPdfLayoutConstants.HEADER_FONT_SIZE)
+                .setMargin(0)
+                .setMultipliedLeading(1.0f))
             .setTextAlignment(TextAlignment.CENTER)
             .setVerticalAlignment(VerticalAlignment.MIDDLE)
-            .setHeight(16f)
-            .setBorder(new SolidBorder(ColorConstants.BLACK, 0.5f))
-            .setBackgroundColor(ColorConstants.WHITE);
-        table.addHeaderCell(cell);
-    }
-
-    private void addHeaderCellWrap(Table table, String text, int colspan, int rowspan, PdfFont font) {
-        Cell cell = new Cell(rowspan, colspan)
-            .add(new Paragraph(text).setFont(font).setFontSize(HEADER_FONT_SIZE)
-                .setMargin(0).setMultipliedLeading(1.0f))
-            .setTextAlignment(TextAlignment.CENTER)
-            .setVerticalAlignment(VerticalAlignment.MIDDLE)
-            .setBorder(new SolidBorder(ColorConstants.BLACK, 0.5f))
+            .setHeight(HljldPdfLayoutConstants.HEADER_ROW_HEIGHT)
+            .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_HEADER_INNER))
             .setBackgroundColor(ColorConstants.WHITE);
         table.addHeaderCell(cell);
     }
 
     private void addSubHeaderCell(Table table, String text, PdfFont font) {
         Cell cell = new Cell()
-            .add(new Paragraph(text).setFont(font).setFontSize(HEADER_FONT_SIZE - 0.5f)
-                .setMargin(0).setMultipliedLeading(1.0f))
+            .add(new Paragraph(text)
+                .setFont(font)
+                .setFontSize(HljldPdfLayoutConstants.SUB_HEADER_FONT_SIZE)
+                .setMargin(0)
+                .setMultipliedLeading(1.0f))
             .setTextAlignment(TextAlignment.CENTER)
             .setVerticalAlignment(VerticalAlignment.MIDDLE)
-            .setHeight(18f)
-            .setBorder(new SolidBorder(ColorConstants.BLACK, 0.5f))
+            .setHeight(HljldPdfLayoutConstants.SUB_HEADER_ROW_HEIGHT)
+            .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_HEADER_INNER))
             .setBackgroundColor(ColorConstants.WHITE);
         table.addHeaderCell(cell);
     }
@@ -416,84 +524,88 @@ public class HljldFlowPdfService {
     // ══════════════════════════════════════════════════════════
 
     private void addDataRow(Table table, Map<String, Object> row, PdfFont font) {
-        String[] dataKeys = {
-            "timeText", "medName", "medAmount", "medRoute",
-            "enteralName", "enteralAmount", "enteralRoute",
-            "urine", "ultrafiltration",
-            "outputName", "outputAmount", "drainName", "drainAmount",
-            "examination", "treatment", "basicCare", "healthEducation",
-            "nursingRecord", "signature"
-        };
-
-        Set<Integer> leftAlign = new HashSet<>(Arrays.asList(0, 1, 4, 9, 11, 17));
+        String[] keys = HljldPdfLayoutConstants.DATA_KEYS;
+        Set<Integer> leftAlign = HljldPdfLayoutConstants.LEFT_ALIGN_FIELDS;
 
         for (int i = 0; i < 19; i++) {
-            String text = (row != null) ? mapStr(row, dataKeys[i]) : "";
+            String text = (row != null) ? mapStr(row, keys[i]) : "";
 
             Cell cell = new Cell(1, 1)
-                .add(new Paragraph(text).setFont(font).setFontSize(DATA_FONT_SIZE)
-                    .setMargin(0).setPadding(0).setMultipliedLeading(1.0f))
+                .add(new Paragraph(text)
+                    .setFont(font)
+                    .setFontSize(HljldPdfLayoutConstants.DATA_FONT_SIZE)
+                    .setMargin(0)
+                    .setPadding(0)
+                    .setMultipliedLeading(1.0f))
                 .setVerticalAlignment(VerticalAlignment.TOP)
-                .setMinHeight(DATA_ROW_MIN_HEIGHT)
-                .setBorder(new SolidBorder(ColorConstants.BLACK, 0.3f));
+                .setMinHeight(HljldPdfLayoutConstants.DATA_ROW_MIN_HEIGHT)
+                .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_DATA));
             cell.setKeepTogether(false);
-
             cell.setTextAlignment(leftAlign.contains(i) ? TextAlignment.LEFT : TextAlignment.CENTER);
             table.addCell(cell);
         }
     }
 
     // ══════════════════════════════════════════════════════════
-    //  Timeline → 可打印行
+    //  构建可打印项列表（时间轴交错输出）
     // ══════════════════════════════════════════════════════════
 
-    List<Map<String, Object>> timelineToPrintableRows(HljldViewModel viewModel) {
-        List<Map<String, Object>> rows = new ArrayList<>();
+    List<PrintableItem> buildPrintableItems(String nursingDay, String pid) {
+        HljldViewModel viewModel = dataAssembler.buildPrintViewModel(nursingDay, pid, pid);
+        List<PrintableItem> items = new ArrayList<>();
+
         List<HljldTimelineItem> timeline = viewModel.getTimeline();
-        if (timeline == null) {
+        if (timeline != null) {
+            for (HljldTimelineItem tItem : timeline) {
+                if (tItem.getKind() == HljldTimelineItem.Kind.TIME_GROUP && tItem.getGroup() != null) {
+                    for (HljldDisplayRow row : tItem.getGroup().getRows()) {
+                        PrintableItem pi = new PrintableItem();
+                        pi.sortTime = tItem.getTimestamp();
+                        pi.sortPriority = 20;  // 普通行优先级低
+                        pi.stableId = "row-" + items.size();
+                        pi.type = PrintableItemType.NORMAL_ROW;
+                        pi.normalRow = displayRowToMap(row);
+                        items.add(pi);
+                    }
+                } else if (tItem.getSummary() != null) {
+                    PrintableItem pi = new PrintableItem();
+                    pi.sortTime = tItem.getTimestamp();
+                    pi.sortPriority = 10;  // 小结优先级高，排在同时间普通行之前
+                    pi.stableId = "summary-" + tItem.getKind().name();
+                    if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SUMMARY) {
+                        pi.type = PrintableItemType.DAY_SUMMARY;
+                    } else if (tItem.getKind() == HljldTimelineItem.Kind.FULL_DAY_SUMMARY) {
+                        pi.type = PrintableItemType.FULL_DAY_SUMMARY;
+                    } else {
+                        // SHIFT_SUMMARY、DISCHARGE_SUMMARY 也作为 DAY_SUMMARY 类型处理
+                        pi.type = PrintableItemType.DAY_SUMMARY;
+                    }
+                    pi.summary = tItem.getSummary();
+                    items.add(pi);
+                }
+            }
+        } else {
+            // 回退：使用 displayGroups
             for (HljldTimeGroup group : viewModel.getDisplayGroups()) {
                 for (HljldDisplayRow row : group.getRows()) {
-                    rows.add(displayRowToMap(row));
+                    PrintableItem pi = new PrintableItem();
+                    pi.sortTime = group.getTimestamp();
+                    pi.sortPriority = 20;
+                    pi.stableId = "row-" + items.size();
+                    pi.type = PrintableItemType.NORMAL_ROW;
+                    pi.normalRow = displayRowToMap(row);
+                    items.add(pi);
                 }
             }
-            return rows;
         }
-        for (HljldTimelineItem item : timeline) {
-            if (item.getKind() == HljldTimelineItem.Kind.TIME_GROUP && item.getGroup() != null) {
-                for (HljldDisplayRow row : item.getGroup().getRows()) {
-                    rows.add(displayRowToMap(row));
-                }
-            } else if (item.getSummary() != null) {
-                rows.add(summaryToPrintableRow(item));
-            }
-        }
-        return rows;
-    }
 
-    private Map<String, Object> summaryToPrintableRow(HljldTimelineItem item) {
-        HljldSummary summary = item.getSummary();
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("timeText", getSummaryLabel(item.getKind()));
-        StringBuilder d = new StringBuilder();
-        if (summary.getInputSum() > 0) d.append("总入量：").append(String.format("%.1f", summary.getInputSum())).append(" ml");
-        if (summary.getMedicationSum() > 0) d.append("；药物治疗：").append(String.format("%.1f", summary.getMedicationSum())).append(" ml");
-        if (summary.getEnteralSum() > 0) d.append("；胃肠摄入：").append(String.format("%.1f", summary.getEnteralSum())).append(" ml");
-        if (summary.getOutputSum() > 0) d.append("；总出量：").append(String.format("%.1f", summary.getOutputSum())).append(" ml");
-        if (summary.getUrineSum() > 0) d.append("；尿量：").append(String.format("%.1f", summary.getUrineSum())).append(" ml");
-        if (summary.getUltrafiltrationSum() > 0) d.append("；净超滤量：").append(String.format("%.1f", summary.getUltrafiltrationSum())).append(" ml");
-        d.append("；平衡量：").append(String.format("%.1f", summary.getBalance())).append(" ml");
-        row.put("nursingRecord", d.toString());
-        return row;
-    }
+        // 稳定排序：sortTime → sortPriority → stableId
+        items.sort(Comparator
+            .comparingLong((PrintableItem p) -> p.sortTime)
+            .thenComparingInt((PrintableItem p) -> p.sortPriority)
+            .thenComparing((PrintableItem p) -> p.stableId));
 
-    private String getSummaryLabel(HljldTimelineItem.Kind kind) {
-        switch (kind) {
-            case DAY_SUMMARY: return "日间小结";
-            case SHIFT_SUMMARY: return "班段小结";
-            case FULL_DAY_SUMMARY: return "24小时总结";
-            case DISCHARGE_SUMMARY: return "出科总结";
-            default: return "小结";
-        }
+        return items;
     }
 
     private Map<String, Object> displayRowToMap(HljldDisplayRow row) {
@@ -549,8 +661,21 @@ public class HljldFlowPdfService {
         p.put("sex", convertGenderText(rawSex));
         String age = calculateAgeFromBirthday(p);
         if (!age.isEmpty()) p.put("age", age);
-        else { String ea = str(p, "age"); if (ea.isEmpty()) { for (String f : new String[]{"patientBirthday","birthDay","birthdayStr"}) { String b = str(p,f); if (!b.isEmpty()) { p.put("birthday",b); age = calculateAgeFromBirthday(p); if (!age.isEmpty()) { p.put("age",age); break; }}}}}
-        String diag = str(p, "diagnosis"); if (diag.isEmpty()) diag = str(p, "clinicalDiagnosis");
+        else {
+            String ea = str(p, "age");
+            if (ea.isEmpty()) {
+                for (String f : new String[]{"patientBirthday", "birthDay", "birthdayStr"}) {
+                    String b = str(p, f);
+                    if (!b.isEmpty()) {
+                        p.put("birthday", b);
+                        age = calculateAgeFromBirthday(p);
+                        if (!age.isEmpty()) { p.put("age", age); break; }
+                    }
+                }
+            }
+        }
+        String diag = str(p, "diagnosis");
+        if (diag.isEmpty()) diag = str(p, "clinicalDiagnosis");
         p.put("diagnosis", truncateDiagnosis(diag));
         return p;
     }
@@ -579,7 +704,7 @@ public class HljldFlowPdfService {
     private String truncateDiagnosis(String d) {
         if (d == null) return ""; String v = d.trim(); if (v.isEmpty()) return "";
         int idx = -1;
-        for (char sep : new char[]{';','；',',','，'}) { int c = v.indexOf(sep); if (c >= 0 && (idx < 0 || c < idx)) idx = c; }
+        for (char sep : new char[]{';', '；', ',', '，'}) { int c = v.indexOf(sep); if (c >= 0 && (idx < 0 || c < idx)) idx = c; }
         return idx >= 0 ? v.substring(0, idx).trim() : v;
     }
 
@@ -589,7 +714,7 @@ public class HljldFlowPdfService {
         try {
             java.time.Instant instant;
             if (bs.contains("T") && bs.endsWith("Z")) instant = java.time.Instant.parse(bs);
-            else if (bs.contains("-")) { java.time.LocalDate bd = java.time.LocalDate.parse(bs.substring(0,10)); instant = bd.atStartOfDay(ZoneId.systemDefault()).toInstant(); }
+            else if (bs.contains("-")) { java.time.LocalDate bd = java.time.LocalDate.parse(bs.substring(0, 10)); instant = bd.atStartOfDay(ZoneId.systemDefault()).toInstant(); }
             else return "";
             java.time.LocalDate bd = java.time.LocalDate.ofInstant(instant, ZoneId.of("Asia/Shanghai"));
             java.time.LocalDate today = java.time.LocalDate.now(ZoneId.of("Asia/Shanghai"));

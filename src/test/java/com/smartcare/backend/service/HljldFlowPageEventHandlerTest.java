@@ -17,6 +17,7 @@ import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.itextpdf.layout.properties.VerticalAlignment;
+import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -76,17 +77,17 @@ class HljldFlowPageEventHandlerTest {
         PdfDocument pdfDoc = new PdfDocument(writer);
         Document doc = new Document(pdfDoc, PageSize.A4.rotate());
         doc.setMargins(
-            HljldFlowPageEventHandler.CONTENT_TOP,
-            HljldFlowPageEventHandler.MARGIN_RIGHT,
-            HljldFlowPageEventHandler.CONTENT_BOTTOM,
-            HljldFlowPageEventHandler.MARGIN_LEFT
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
         );
 
         // 创建跨页表格
-        float[] COL_WIDTHS = HljldFlowPdfService.COL_WIDTHS_PT;
+        float[] COL_WIDTHS = HljldPdfLayoutConstants.COL_WIDTHS_PT;
         Table table = new Table(UnitValue.createPointArray(COL_WIDTHS));
-        table.setWidth(UnitValue.createPointValue(HljldFlowPdfService.TABLE_WIDTH));
-        table.setBorder(new SolidBorder(ColorConstants.BLACK, 0.5f));
+        table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
+        table.setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_OUTER));
         table.setKeepTogether(false);
 
         for (int i = 0; i < 50; i++) {
@@ -102,14 +103,12 @@ class HljldFlowPageEventHandlerTest {
         }
         doc.add(table);
 
-        // 获取页数后注册处理器
         int pageCount = pdfDoc.getNumberOfPages();
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "床号：001  姓名：李四  住院号：789012", pageCount, 5);
+            font, "床号：001  姓名：李四  住院号：789012  性别：女  年龄：45  诊断：脑梗死", pageCount, 5);
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
         doc.close();
 
-        // 验证
         byte[] pdfBytes = baos.toByteArray();
         PdfDocument testDoc = new PdfDocument(new PdfReader(new ByteArrayInputStream(pdfBytes)));
         assertTrue(testDoc.getNumberOfPages() >= 2, "50行应生成至少2页");
@@ -120,10 +119,11 @@ class HljldFlowPageEventHandlerTest {
     @Test
     void testPageLayoutConstants() {
         // 验证布局常量一致性
-        assertTrue(HljldFlowPageEventHandler.PAGE_WIDTH == 842f);
-        assertTrue(HljldFlowPageEventHandler.PAGE_HEIGHT == 595f);
-        assertTrue(HljldFlowPageEventHandler.CONTENT_TOP < HljldFlowPageEventHandler.PAGE_HEIGHT);
-        assertTrue(HljldFlowPageEventHandler.CONTENT_BOTTOM > 0);
-        assertEquals(4, HljldFlowPageEventHandler.REMARK_ROWS);
+        assertEquals(842f, HljldPdfLayoutConstants.PAGE_WIDTH, "页面宽度");
+        assertEquals(595f, HljldPdfLayoutConstants.PAGE_HEIGHT, "页面高度");
+        assertTrue(HljldPdfLayoutConstants.CONTENT_TOP < HljldPdfLayoutConstants.PAGE_HEIGHT,
+            "内容区域顶部应在页面高度之下");
+        assertTrue(HljldPdfLayoutConstants.CONTENT_BOTTOM > 0, "内容区域底部应大于0");
+        assertEquals(4, HljldPdfLayoutConstants.REMARK_ROWS, "备注行数");
     }
 }
