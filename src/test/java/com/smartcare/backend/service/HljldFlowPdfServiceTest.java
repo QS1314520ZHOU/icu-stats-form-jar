@@ -133,10 +133,9 @@ class HljldFlowPdfServiceTest {
 
         doc.add(table);
 
-        // 页事件处理器
-        int pageCount = pdfDoc.getNumberOfPages();
+        // 页事件处理器（在添加内容之前注册）
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "床号：001  姓名：测试患者  住院号：123456  性别：男  年龄：65  诊断：重症肺炎", pageCount, 1);
+            font, "床号：001  姓名：测试患者  住院号：123456  性别：男  年龄：65  诊断：重症肺炎", 1);
         pdfDoc.addEventHandler(com.itextpdf.kernel.events.PdfDocumentEvent.END_PAGE, handler);
         doc.close();
 
@@ -297,7 +296,7 @@ class HljldFlowPdfServiceTest {
 
         int pageCountBeforeClose = pdfDoc.getNumberOfPages();
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "测试患者信息", pageCountBeforeClose, 1);
+            font, "测试患者信息", 1);
         pdfDoc.addEventHandler(com.itextpdf.kernel.events.PdfDocumentEvent.END_PAGE, handler);
         doc.close();
 
@@ -369,9 +368,15 @@ class HljldFlowPdfServiceTest {
         assertEquals(19, w.length, "应有19列");
         float sum = 0;
         for (float v : w) sum += v;
-        assertEquals(850f, sum, 0.01f, "19列总宽度应为850pt");
+        assertEquals(HljldPdfLayoutConstants.TABLE_WIDTH, sum, 0.01f, "19列总宽度应等于TABLE_WIDTH");
         assertEquals(50f, w[0], "日期时间列");
-        assertEquals(150f, w[17], "护理记录列");
+        assertEquals(140f, w[17], "护理记录列");
+        // 验证表格宽度不超过页面可用宽度
+        float availableWidth = HljldPdfLayoutConstants.PAGE_WIDTH
+            - HljldPdfLayoutConstants.MARGIN_LEFT
+            - HljldPdfLayoutConstants.MARGIN_RIGHT;
+        assertTrue(HljldPdfLayoutConstants.TABLE_WIDTH <= availableWidth,
+            "表格宽度应不超过页面可用宽度: " + HljldPdfLayoutConstants.TABLE_WIDTH + " <= " + availableWidth);
     }
 
     // ══════════════════════════════════════════════════════════

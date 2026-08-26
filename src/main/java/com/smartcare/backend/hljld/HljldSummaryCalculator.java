@@ -342,7 +342,21 @@ public class HljldSummaryCalculator {
         // 构建 HljldSummary
         HljldSummary summary = new HljldSummary();
         summary.setKind(kind);
-        summary.setTime(new Date(nursingDayStart.getTime()));
+        // 根据类型设置正确的时间锚点
+        switch (kind) {
+            case DAY:
+                // 日间小结：时间锚点为当天17:00
+                summary.setTime(new Date(dayEndMs));
+                break;
+            case FULL_DAY:
+                // 24小时总结：时间锚点为次日07:00
+                summary.setTime(new Date(nursingDayEnd.getTime()));
+                break;
+            default:
+                // 其他类型使用护理日开始时间
+                summary.setTime(new Date(nursingDayStart.getTime()));
+                break;
+        }
         summary.setDayText(buildDayText(daySegments));
         summary.setNightText(buildNightText(nightSegments));
 

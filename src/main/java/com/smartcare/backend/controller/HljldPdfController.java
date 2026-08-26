@@ -40,7 +40,7 @@ public class HljldPdfController {
     public ResponseEntity<byte[]> getPdf(
             @PathVariable String pid,
             @PathVariable String date,
-            @RequestParam(defaultValue = "legacy") String layout) {
+            @RequestParam(defaultValue = "flow") String layout) {
         try {
             byte[] pdfData;
             if ("flow".equals(layout)) {
@@ -62,7 +62,7 @@ public class HljldPdfController {
     @GetMapping("/pdf-all/{pid}")
     public ResponseEntity<byte[]> getAllPdfs(
             @PathVariable String pid,
-            @RequestParam(defaultValue = "legacy") String layout) {
+            @RequestParam(defaultValue = "flow") String layout) {
         try {
             byte[] pdfData;
             if ("flow".equals(layout)) {
@@ -135,8 +135,10 @@ public class HljldPdfController {
     @GetMapping("/recalculate-status/{pid}")
     public ResponseEntity<Map<String, Object>> getRecalculateStatus(
             @PathVariable String pid,
-            @RequestParam(defaultValue = "hljld2") String formType) {
-        Map<String, Object> response = pageIndexService.getCalculationStatus(pid, formType);
+            @RequestParam(defaultValue = "hljld2") String formType,
+            @RequestParam(required = false) String layout) {
+        String actualFormType = "flow".equals(layout) ? "hljld2-flow" : formType;
+        Map<String, Object> response = pageIndexService.getCalculationStatus(pid, actualFormType);
         return ResponseEntity.ok(response);
     }
 }

@@ -38,7 +38,7 @@ export class HljldPdfService {
   /**
    * 获取指定日期的 PDF URL
    */
-  getPdfUrl(pid: string, date: string, layout: PdfLayoutMode = 'legacy'): string {
+  getPdfUrl(pid: string, date: string, layout: PdfLayoutMode = 'flow'): string {
     const base = `${this.baseUrl}/pdf/${encodeURIComponent(pid)}/${encodeURIComponent(date)}`;
     const params = new URLSearchParams({ layout });
     return `${base}?${params.toString()}`;
@@ -47,7 +47,7 @@ export class HljldPdfService {
   /**
    * 获取全部记录的 PDF URL
    */
-  getAllPdfsUrl(pid: string, layout: PdfLayoutMode = 'legacy'): string {
+  getAllPdfsUrl(pid: string, layout: PdfLayoutMode = 'flow'): string {
     const base = `${this.baseUrl}/pdf-all/${encodeURIComponent(pid)}`;
     const params = new URLSearchParams({ layout });
     return `${base}?${params.toString()}`;
@@ -56,7 +56,7 @@ export class HljldPdfService {
   /**
    * 获取页码信息
    */
-  getPageIndex(pid: string, date: string, layout: PdfLayoutMode = 'legacy'): Observable<PageIndexInfo> {
+  getPageIndex(pid: string, date: string, layout: PdfLayoutMode = 'flow'): Observable<PageIndexInfo> {
     const params = new HttpParams()
       .set('date', date)
       .set('layout', layout);
@@ -66,7 +66,7 @@ export class HljldPdfService {
   /**
    * 重新计算页码
    */
-  recalculatePageIndexes(pid: string, layout: PdfLayoutMode = 'legacy'): Observable<{ status: string; message: string }> {
+  recalculatePageIndexes(pid: string, layout: PdfLayoutMode = 'flow'): Observable<{ status: string; message: string }> {
     const params = new HttpParams().set('layout', layout);
     return this.http.post<{ status: string; message: string }>(
       `${this.baseUrl}/recalculate/${encodeURIComponent(pid)}`,
@@ -78,9 +78,8 @@ export class HljldPdfService {
   /**
    * 查询重新计算状态
    */
-  getRecalculateStatus(pid: string, layout: PdfLayoutMode = 'legacy'): Observable<RecalculateStatus> {
-    const formType = layout === 'flow' ? 'hljld2-flow' : 'hljld2';
-    const params = new HttpParams().set('formType', formType);
+  getRecalculateStatus(pid: string, layout: PdfLayoutMode = 'flow'): Observable<RecalculateStatus> {
+    const params = new HttpParams().set('layout', layout);
     return this.http.get<RecalculateStatus>(`${this.baseUrl}/recalculate-status/${encodeURIComponent(pid)}`, { params });
   }
 }

@@ -65,7 +65,7 @@ class HljldFlowPageEventHandlerTest {
     @Test
     void testEventHandlerCreation() throws Exception {
         PdfFont font = createTestFont();
-        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(font, "测试患者", 1, 1);
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(font, "测试患者", 1);
         assertNotNull(handler);
     }
 
@@ -82,6 +82,11 @@ class HljldFlowPageEventHandlerTest {
             HljldPdfLayoutConstants.MARGIN_BOTTOM,
             HljldPdfLayoutConstants.MARGIN_LEFT
         );
+
+        // 先创建并注册事件处理器
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+            font, "床号：001  姓名：李四  住院号：789012  性别：女  年龄：45  诊断：脑梗死", 5);
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
         // 创建跨页表格
         float[] COL_WIDTHS = HljldPdfLayoutConstants.COL_WIDTHS_PT;
@@ -104,9 +109,6 @@ class HljldFlowPageEventHandlerTest {
         doc.add(table);
 
         int pageCount = pdfDoc.getNumberOfPages();
-        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "床号：001  姓名：李四  住院号：789012  性别：女  年龄：45  诊断：脑梗死", pageCount, 5);
-        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
         doc.close();
 
         byte[] pdfBytes = baos.toByteArray();

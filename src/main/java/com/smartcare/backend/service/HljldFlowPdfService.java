@@ -188,6 +188,11 @@ public class HljldFlowPdfService {
             HljldPdfLayoutConstants.MARGIN_LEFT
         );
 
+        // 先创建事件处理器并注册（在添加内容之前）
+        HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
+            font, patientInfo, startPageNo);
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
+
         int totalRowCount = 0;
         boolean firstDay = true;
 
@@ -202,13 +207,8 @@ public class HljldFlowPdfService {
             totalRowCount += dayItems.size();
         }
 
-        // 获取真实页数（doc.close 之前）
+        // 获取真实页数
         int pageCount = pdfDoc.getNumberOfPages();
-
-        // 注册页事件处理器（在 doc.close 之前）
-        HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
-            font, patientInfo, pageCount, startPageNo);
-        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
 
         // 关闭文档（触发 END_PAGE 事件，绘制页眉/备注/页码）
         doc.close();
@@ -246,9 +246,8 @@ public class HljldFlowPdfService {
 
         Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, "hljld2-flow");
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
-            indexOpt = pageIndexRepository.findByPidAndFormType(pid, "hljld2");
-        }
-        if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
+            // flow模式下不回退到legacy，触发flow索引重算
+            log.warn("Flow PDF 索引不存在或为空，触发重算: pid={}", pid);
             return generateEmptyPagePdf(pid, "全部");
         }
 
@@ -309,9 +308,8 @@ public class HljldFlowPdfService {
             Table table = buildNormalDataTable(Collections.emptyList(), font);
             doc.add(table);
 
-            int pageCount = pdfDoc.getNumberOfPages();
             HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-                font, patientInfo, pageCount, 1);
+                font, patientInfo, 1);
             pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
             doc.close();
 
@@ -577,8 +575,8 @@ public class HljldFlowPdfService {
                     } else if (tItem.getKind() == HljldTimelineItem.Kind.FULL_DAY_SUMMARY) {
                         pi.type = PrintableItemType.FULL_DAY_SUMMARY;
                     } else {
-                        // SHIFT_SUMMARY、DISCHARGE_SUMMARY 也作为 DAY_SUMMARY 类型处理
-                        pi.type = PrintableItemType.DAY_SUMMARY;
+                        // SHIFT_SUMMARY、DISCHARGE_SUMMARY 默认跳过，不输出到PDF
+                        continue;
                     }
                     pi.summary = tItem.getSummary();
                     items.add(pi);

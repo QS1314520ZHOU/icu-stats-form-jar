@@ -40,19 +40,16 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     // ── 构造参数 ──
     private final PdfFont font;
     private final String patientInfo;
-    private final int totalPages;
     private final int startPageNo;
 
     /**
      * @param font        当前 PdfDocument 的 PdfFont
      * @param patientInfo 患者信息文本
-     * @param totalPages  PDF 总页数
      * @param startPageNo 全局起始页码
      */
-    public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int totalPages, int startPageNo) {
+    public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo) {
         this.font = font;
         this.patientInfo = truncate(patientInfo, 120);
-        this.totalPages = totalPages;
         this.startPageNo = startPageNo;
     }
 
@@ -152,7 +149,6 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         float leftX = ML;
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
-        float contentWidth = TABLE_W - col0Width;
 
         pdfCanvas.setStrokeColor(ColorConstants.BLACK);
         pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_OUTER);
@@ -161,32 +157,19 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         pdfCanvas.rectangle(leftX, remarksBottom, TABLE_W, remarksTop);
         pdfCanvas.stroke();
 
-        // ── "备注"标签单元格右边线 ──
+        // ── "备注"标签单元格右边线（纵向4行合并） ──
         pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_REMARK);
         pdfCanvas.moveTo(contentX, remarksBottom);
         pdfCanvas.lineTo(contentX, remarksTop);
         pdfCanvas.stroke();
 
-        // ── 4行备注内容的横线 ──
+        // ── 右侧4行备注内容的横线（从第一列右边界开始） ──
         for (int i = 1; i < REMARKS.length; i++) {
             float lineY = i * HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
             pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_REMARK);
-            pdfCanvas.moveTo(leftX, lineY);
+            pdfCanvas.moveTo(contentX, lineY);
             pdfCanvas.lineTo(leftX + TABLE_W, lineY);
             pdfCanvas.stroke();
-        }
-
-        // ── 19列竖线（与数据表列线对齐） ──
-        pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_REMARK);
-        float x = leftX;
-        for (int i = 0; i < COL_W.length; i++) {
-            x += COL_W[i];
-            // 最后一列的右边线已由外边框绘制
-            if (x < leftX + TABLE_W - 0.5f) {
-                pdfCanvas.moveTo(x, remarksBottom);
-                pdfCanvas.lineTo(x, remarksTop);
-                pdfCanvas.stroke();
-            }
         }
     }
 
