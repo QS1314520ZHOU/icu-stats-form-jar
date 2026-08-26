@@ -24,10 +24,10 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * HljldPdfService PDF 字体生命周期回归测试。
+ * PDF 字体生命周期回归测试。
  * 验证 PdfFont 不在不同 PdfDocument 之间共享。
  */
-class HljldPdfServiceTest {
+class PdfFontLifecycleTest {
 
     /** 找到可用的中文字体路径 */
     private static String findChineseFontPath() {

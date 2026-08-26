@@ -3,7 +3,7 @@ import { Subject } from 'rxjs';
 import { takeUntil, catchError } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormService } from './hljld-form.service';
-import { HljldPdfService, PageIndexInfo, PdfLayoutMode } from './hljld-pdf.service';
+import { HljldPdfService, PageIndexInfo } from './hljld-pdf.service';
 import { PdfPrintService } from './services/pdf-viewer.service';
 import { PatientContext } from './hljld-form.models';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
@@ -21,9 +21,6 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   patient: PatientContext = { pid: '' };
   selectedDate = new Date();
   dateInput = this.toDateString(this.selectedDate);
-
-  // PDF 布局模式
-  readonly pdfLayout: PdfLayoutMode = 'flow';
 
   // 默认显示缩放 135%
   readonly defaultZoom = 135;
@@ -119,8 +116,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
 
     const dateStr = this.toDateString(this.selectedDate);
 
-    // 获取页码信息（使用flow布局）
-    this.pdfService.getPageIndex(this.patient.pid, dateStr, this.pdfLayout).pipe(
+    // 获取页码信息
+    this.pdfService.getPageIndex(this.patient.pid, dateStr).pipe(
       catchError(err => {
         console.error('[HLJLD] 获取页码信息失败', err);
         return [{ startPageNo: 1, pageCount: 1, status: 'completed' as const }];
@@ -148,8 +145,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
         this.updatePageOptions();
       }
 
-      // 生成PDF URL（使用flow布局）
-      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr, this.pdfLayout);
+      // 生成PDF URL
+      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr);
 
       // 默认显示第1页，缩放135%
       this.updateViewerUrl();
@@ -235,7 +232,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     this.calculatingProgress = 0;
     this.cdr.markForCheck();
 
-    this.pdfService.recalculatePageIndexes(this.patient.pid, this.pdfLayout).subscribe({
+    this.pdfService.recalculatePageIndexes(this.patient.pid).subscribe({
       next: () => {
         this.startPolling();
       },
@@ -258,7 +255,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
         return;
       }
 
-      this.pdfService.getRecalculateStatus(this.patient.pid, this.pdfLayout).subscribe({
+      this.pdfService.getRecalculateStatus(this.patient.pid).subscribe({
         next: (status) => {
           this.calculatingProgress = status.progress || 0;
           this.cdr.markForCheck();
@@ -334,7 +331,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      const pdfUrl = this.pdfService.getAllPdfsUrl(this.patient.pid, this.pdfLayout);
+      const pdfUrl = this.pdfService.getAllPdfsUrl(this.patient.pid);
       const blob = await this.pdfPrintService.fetchPdfBlob(pdfUrl);
       await this.pdfPrintService.printPdfBlob(blob);
     } catch (err: any) {

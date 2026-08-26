@@ -7,7 +7,9 @@ import com.itextpdf.kernel.font.PdfFont;
 import com.itextpdf.kernel.font.PdfFontFactory;
 import com.itextpdf.kernel.geom.PageSize;
 import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfReader;
 import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.borders.Border;
 import com.itextpdf.layout.borders.SolidBorder;
 import com.itextpdf.layout.element.AreaBreak;
 import com.itextpdf.layout.element.Cell;
@@ -22,25 +24,26 @@ import com.smartcare.backend.hljld.HljldPdfDataAssembler.HljldViewModel;
 import com.smartcare.backend.repository.FormPageIndexRepository;
 import org.bson.Document;
 import org.slf4j.Logger;
+import java.io.ByteArrayInputStream;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
-import java.io.OutputStream;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.*;
 
 /**
  * ICU 护理记录单 PDF 生成服务（流式分页版）
  *
  * 架构：
+ * - 每个护理日创建一张父级流式 Table（19列）
+ * - 两层表头通过 addHeaderCell 添加，跨页自动重复
+ * - 普通数据行和小结/总结容器行交错加入同一张父级 Table
+ * - 小结作为 colspan=19 的容器行嵌入父级 Table，内部包含4行嵌套 Table
  * - 标题、患者信息、备注、页码由 HljldFlowPageEventHandler 在每页绘制
- * - 数据表（表头+数据行）在 Document 中流式布局
- * - 小结和总结作为独立的 keep-together 表格插入流中
  * - 文档边距精确匹配事件处理器坐标，保证表格边框连续
- * - 两遍渲染：第一遍计数页数，第二遍正式渲染
+ * - 页数通过最终关闭后的 PDF 字节数统计
  */
 @Service
 public class HljldFlowPdfService {
@@ -48,7 +51,7 @@ public class HljldFlowPdfService {
     private static final Logger log = LoggerFactory.getLogger(HljldFlowPdfService.class);
 
     /** 统一时区：Asia/Shanghai */
-    private static final ZoneId SHANGHAI_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final java.time.ZoneId SHANGHAI_ZONE = java.time.ZoneId.of("Asia/Shanghai");
 
     private final FormPageIndexRepository pageIndexRepository;
     private final HljldPdfDataAssembler dataAssembler;
@@ -139,41 +142,41 @@ public class HljldFlowPdfService {
     // ══════════════════════════════════════════════════════════
 
     static class FlowPdfRenderResult {
+        final byte[] pdfBytes;
         final int pageCount;
-        final int renderedRowCount;
-        FlowPdfRenderResult(int pageCount, int renderedRowCount) {
+        final int renderedItemCount;
+        FlowPdfRenderResult(byte[] pdfBytes, int pageCount, int renderedItemCount) {
+            this.pdfBytes = pdfBytes;
             this.pageCount = pageCount;
-            this.renderedRowCount = renderedRowCount;
+            this.renderedItemCount = renderedItemCount;
         }
     }
 
     // ══════════════════════════════════════════════════════════
-    //  统一渲染核心（两遍共用）
+    //  统一渲染核心
     // ══════════════════════════════════════════════════════════
 
     /**
-     * 统一渲染入口。finalRender=false 时只计算页数，finalRender=true 时写入 OutputStream。
+     * 统一渲染入口。一次渲染同时得到 bytes 和 pageCount。
+     * 页数通过最终关闭后的 PDF 字节数统计，不从未关闭的布局文档读取。
      *
      * @param itemsPerDay   每个护理日的可打印项列表（有序，包含普通行和小结/总结）
      * @param startPageNo   全局起始页码
-     * @param output        输出流（finalRender=true 时使用）
-     * @param finalRender   是否正式渲染
      * @param pid           患者ID
      * @param referenceDate 参考日期（护理日日期）
-     * @return 渲染结果
+     * @return 渲染结果（包含 pdfBytes 和 pageCount）
      */
     private FlowPdfRenderResult renderFlowPdf(
             List<List<PrintableItem>> itemsPerDay,
             int startPageNo,
-            OutputStream output,
-            boolean finalRender,
             String pid,
             LocalDate referenceDate) {
 
         PdfFont font = createPdfFont();
         String patientInfo = getPatientInfoString(pid, referenceDate);
 
-        PdfWriter writer = finalRender ? new PdfWriter(output) : new PdfWriter(new ByteArrayOutputStream());
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
         PdfDocument pdfDoc = new PdfDocument(writer);
         com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
 
@@ -201,18 +204,27 @@ public class HljldFlowPdfService {
             }
             firstDay = false;
 
-            // 构建并添加流式表格（普通行 + 小结/总结交错输出）
-            addFlowContent(doc, dayItems, font);
+            // 构建并添加单张父级流式 Table（普通行 + 小结/总结容器行交错输出）
+            Table dailyTable = buildDailyStreamingTable(dayItems, font);
+            doc.add(dailyTable);
             totalRowCount += dayItems.size();
         }
-
-        // 获取真实页数
-        int pageCount = pdfDoc.getNumberOfPages();
 
         // 关闭文档（触发 END_PAGE 事件，绘制页眉/备注/页码）
         doc.close();
 
-        return new FlowPdfRenderResult(pageCount, totalRowCount);
+        // 通过最终关闭后的 PDF 字节数统计物理页数
+        byte[] pdfBytes = baos.toByteArray();
+        int pageCount;
+        try (PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
+             PdfDocument rendered = new PdfDocument(reader)) {
+            pageCount = rendered.getNumberOfPages();
+        } catch (Exception e) {
+            log.error("统计PDF页数失败", e);
+            pageCount = 1;
+        }
+
+        return new FlowPdfRenderResult(pdfBytes, pageCount, totalRowCount);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -228,16 +240,9 @@ public class HljldFlowPdfService {
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
         int startPageNo = getStartPageNo(pid, date, "hljld2-flow");
 
-        // 第一遍：计算页数
-        FlowPdfRenderResult pass1 = renderFlowPdf(itemsPerDay, startPageNo, null, false, pid, referenceDate);
-        log.info("Flow PDF pass1: pageCount={}", pass1.pageCount);
-
-        // 第二遍：正式渲染
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        renderFlowPdf(itemsPerDay, startPageNo, baos, true, pid, referenceDate);
-
-        log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}", pid, date, pass1.pageCount, items.size());
-        return baos.toByteArray();
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
+        log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}", pid, date, result.pageCount, items.size());
+        return result.pdfBytes;
     }
 
     /** 生成全部记录的 PDF（流式分页，多护理日用 AreaBreak 分隔） */
@@ -246,8 +251,7 @@ public class HljldFlowPdfService {
 
         Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, "hljld2-flow");
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
-            // flow模式下不回退到legacy，触发flow索引重算
-            log.warn("Flow PDF 索引不存在或为空，触发重算: pid={}", pid);
+            log.warn("Flow PDF 索引不存在或为空: pid={}", pid);
             return generateEmptyPagePdf(pid, "全部");
         }
 
@@ -268,15 +272,9 @@ public class HljldFlowPdfService {
         // 使用第一个护理日作为参考日期
         LocalDate referenceDate = dates.isEmpty() ? LocalDate.now() : dates.get(0);
 
-        // 第一遍
-        FlowPdfRenderResult pass1 = renderFlowPdf(itemsPerDay, startPageNo, null, false, pid, referenceDate);
-
-        // 第二遍
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        renderFlowPdf(itemsPerDay, startPageNo, baos, true, pid, referenceDate);
-
-        log.info("Flow PDF 全部完成: pid={}, days={}, pageCount={}", pid, itemsPerDay.size(), pass1.pageCount);
-        return baos.toByteArray();
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
+        log.info("Flow PDF 全部完成: pid={}, days={}, pageCount={}", pid, itemsPerDay.size(), result.pageCount);
+        return result.pdfBytes;
     }
 
     /** 计算某天的页数（使用真实渲染） */
@@ -284,7 +282,7 @@ public class HljldFlowPdfService {
         LocalDate referenceDate = LocalDate.parse(date);
         List<PrintableItem> items = buildPrintableItems(date, pid);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
-        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, null, false, pid, referenceDate);
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, pid, referenceDate);
         log.info("Flow PDF 页数: pid={}, date={}, pageCount={}", pid, date, result.pageCount);
         return result.pageCount;
     }
@@ -308,8 +306,10 @@ public class HljldFlowPdfService {
             LocalDate referenceDate = "全部".equals(date) ? LocalDate.now() : LocalDate.parse(date);
             String patientInfo = getPatientInfoString(pid, referenceDate);
 
-            // 空数据：添加一行空数据行
-            Table table = buildNormalDataTable(Collections.emptyList(), font);
+            // 空数据：创建带表头的空表格
+            Table table = createMainTable();
+            addTableHeader(table, font);
+            addDataRow(table, null, font);
             doc.add(table);
 
             HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
@@ -324,78 +324,78 @@ public class HljldFlowPdfService {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  流式内容输出（普通行 + 小结/总结交错）
+    //  单张父级流式 Table 架构
     // ══════════════════════════════════════════════════════════
 
     /**
-     * 按时间轴顺序输出普通行和小结/总结。
-     * 普通行累积到一个 Table 中，遇到小结/总结时结束当前 Table 并输出独立的 keep-together Table。
+     * 构建单张父级流式 Table。
+     * 包含两层表头 + 所有普通数据行 + 小结/总结容器行。
+     * 跨页时 iText 自动重复表头。
      */
-    private void addFlowContent(com.itextpdf.layout.Document doc, List<PrintableItem> items, PdfFont font) {
-        List<PrintableItem> normalBuffer = new ArrayList<>();
+    private Table buildDailyStreamingTable(List<PrintableItem> items, PdfFont font) {
+        Table table = createMainTable();
 
-        for (PrintableItem item : items) {
-            if (item.type == PrintableItemType.NORMAL_ROW) {
-                normalBuffer.add(item);
-            } else {
-                // 遇到小结/总结：先输出累积的普通行
-                if (!normalBuffer.isEmpty()) {
-                    doc.add(buildNormalDataTable(normalBuffer, font));
-                    normalBuffer.clear();
-                }
-                // 输出小结/总结（4行，keep-together）
-                doc.add(buildSummaryTable(item, font));
-            }
-        }
-        // 输出剩余的普通行
-        if (!normalBuffer.isEmpty()) {
-            doc.add(buildNormalDataTable(normalBuffer, font));
-        }
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  构建普通数据表（表头 + 数据行）
-    // ══════════════════════════════════════════════════════════
-
-    Table buildNormalDataTable(List<PrintableItem> items, PdfFont font) {
-        float[] widths = HljldPdfLayoutConstants.COL_WIDTHS_PT;
-        Table table = new Table(UnitValue.createPointArray(widths));
-        table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
-        table.setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_OUTER));
-        table.setKeepTogether(false);
-
-        // 双层表头
+        // 双层表头（通过 addHeaderCell 添加，跨页自动重复）
         addTableHeader(table, font);
 
-        // 数据行
-        if (items.isEmpty()) {
-            addDataRow(table, null, font);
-        } else {
-            for (PrintableItem item : items) {
+        // 按时间轴顺序交错输出普通行和小结/总结容器行
+        for (PrintableItem item : items) {
+            if (item.type == PrintableItemType.NORMAL_ROW) {
                 addDataRow(table, item.normalRow, font);
+            } else {
+                addSummaryContainerRow(table, item, font);
             }
         }
 
         return table;
     }
 
+    /**
+     * 创建主表格（19列，统一样式）
+     */
+    private Table createMainTable() {
+        float[] widths = HljldPdfLayoutConstants.COL_WIDTHS_PT;
+        Table table = new Table(UnitValue.createPointArray(widths));
+        table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
+        table.setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_OUTER));
+        table.setKeepTogether(false);
+        return table;
+    }
+
     // ══════════════════════════════════════════════════════════
-    //  构建小结/总结表（4行，keep-together）
+    //  小结/总结容器行（嵌入父级 Table）
     // ══════════════════════════════════════════════════════════
 
-    Table buildSummaryTable(PrintableItem item, PdfFont font) {
+    /**
+     * 将小结/总结作为 colspan=19 的容器行嵌入父级 Table。
+     * 内部包含一个4行嵌套 Table，整体 keep-together。
+     */
+    private void addSummaryContainerRow(Table parentTable, PrintableItem item, PdfFont font) {
+        Table nestedSummary = buildNestedSummaryTable(item, font);
+        Cell wrapper = new Cell(1, 19)
+            .add(nestedSummary)
+            .setPadding(0)
+            .setMargin(0)
+            .setKeepTogether(true)
+            .setBorder(Border.NO_BORDER);
+        parentTable.addCell(wrapper);
+    }
+
+    /**
+     * 构建嵌套小结 Table（4行，keep-together）
+     */
+    private Table buildNestedSummaryTable(PrintableItem item, PdfFont font) {
         float[] widths = HljldPdfLayoutConstants.COL_WIDTHS_PT;
         Table table = new Table(UnitValue.createPointArray(widths));
         table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
         table.setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
-        table.setKeepTogether(true);  // 4行不可拆页
+        table.setKeepTogether(true);
         table.setMarginTop(0);
         table.setMarginBottom(0);
 
         HljldSummary summary = item.summary;
         String title = (item.type == PrintableItemType.DAY_SUMMARY) ? "日间小结" : "24小时总结";
 
-        // 构建内容行
         String line2 = buildSummaryLine2(summary);
         String line3 = buildSummaryLine3(summary);
         String line4 = buildSummaryLine4(summary);
@@ -527,25 +527,39 @@ public class HljldFlowPdfService {
 
     private void addDataRow(Table table, Map<String, Object> row, PdfFont font) {
         String[] keys = HljldPdfLayoutConstants.DATA_KEYS;
-        Set<Integer> leftAlign = HljldPdfLayoutConstants.LEFT_ALIGN_FIELDS;
 
         for (int i = 0; i < 19; i++) {
             String text = (row != null) ? mapStr(row, keys[i]) : "";
 
-            Cell cell = new Cell(1, 1)
-                .add(new Paragraph(text)
-                    .setFont(font)
-                    .setFontSize(HljldPdfLayoutConstants.DATA_FONT_SIZE)
-                    .setMargin(0)
-                    .setPadding(0)
-                    .setMultipliedLeading(1.0f))
-                .setVerticalAlignment(VerticalAlignment.TOP)
-                .setMinHeight(HljldPdfLayoutConstants.DATA_ROW_MIN_HEIGHT)
-                .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_DATA));
-            cell.setKeepTogether(false);
-            cell.setTextAlignment(leftAlign.contains(i) ? TextAlignment.LEFT : TextAlignment.CENTER);
+            Cell cell = createDataCell(text, font, i);
             table.addCell(cell);
         }
+    }
+
+    /**
+     * 创建数据单元格。
+     * - 索引17（护理记录）：LEFT + TOP，自动换行
+     * - 其他18列：CENTER + MIDDLE
+     */
+    private Cell createDataCell(String text, PdfFont font, int columnIndex) {
+        boolean nursingRecord = columnIndex == HljldPdfLayoutConstants.NURSING_RECORD_COLUMN_INDEX;
+        TextAlignment horizontal = nursingRecord ? TextAlignment.LEFT : TextAlignment.CENTER;
+        VerticalAlignment vertical = nursingRecord ? VerticalAlignment.TOP : VerticalAlignment.MIDDLE;
+
+        Cell cell = new Cell(1, 1)
+            .add(new Paragraph(text)
+                .setFont(font)
+                .setFontSize(HljldPdfLayoutConstants.DATA_FONT_SIZE)
+                .setTextAlignment(horizontal)
+                .setMargin(0)
+                .setPadding(0)
+                .setMultipliedLeading(1.0f))
+            .setTextAlignment(horizontal)
+            .setVerticalAlignment(vertical)
+            .setMinHeight(HljldPdfLayoutConstants.DATA_ROW_MIN_HEIGHT)
+            .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_DATA));
+        cell.setKeepTogether(false);
+        return cell;
     }
 
     // ══════════════════════════════════════════════════════════

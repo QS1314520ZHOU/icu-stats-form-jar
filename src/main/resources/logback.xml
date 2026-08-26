@@ -137,7 +137,7 @@
     <logger name="org.springframework.data.mongodb" level="INFO"/>
 
     <!-- 护理记录单PDF生成日志 -->
-    <logger name="com.smartcare.backend.service.HljldPdfService" level="INFO"/>
+    <logger name="com.smartcare.backend.service.HljldFlowPdfService" level="INFO"/>
 
     <!-- ============================ ROOT ============================ -->
     <root level="INFO">

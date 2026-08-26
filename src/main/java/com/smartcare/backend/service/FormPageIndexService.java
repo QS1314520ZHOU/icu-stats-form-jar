@@ -1,14 +1,12 @@
 package com.smartcare.backend.service;
 
 import com.smartcare.backend.entity.FormPageIndex;
+import com.smartcare.backend.hljld.HljldPatientResolver;
 import com.smartcare.backend.repository.FormPageIndexRepository;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -24,20 +22,17 @@ public class FormPageIndexService {
 
     private static final Logger log = LoggerFactory.getLogger(FormPageIndexService.class);
 
-    private final MongoTemplate mongoTemplate;
     private final FormPageIndexRepository pageIndexRepository;
-    private final HljldPdfService pdfService;
     private final HljldFlowPdfService flowPdfService;
+    private final HljldPatientResolver patientResolver;
 
     @Autowired
-    public FormPageIndexService(MongoTemplate mongoTemplate,
-                                 FormPageIndexRepository pageIndexRepository,
-                                 HljldPdfService pdfService,
-                                 HljldFlowPdfService flowPdfService) {
-        this.mongoTemplate = mongoTemplate;
+    public FormPageIndexService(FormPageIndexRepository pageIndexRepository,
+                                 HljldFlowPdfService flowPdfService,
+                                 HljldPatientResolver patientResolver) {
         this.pageIndexRepository = pageIndexRepository;
-        this.pdfService = pdfService;
         this.flowPdfService = flowPdfService;
+        this.patientResolver = patientResolver;
     }
 
     /**
@@ -93,7 +88,7 @@ public class FormPageIndexService {
      */
     private void triggerCalculation(String pid, String formType) {
         try {
-            Document patient = getPatientContext(pid);
+            Document patient = patientResolver.findPatient(pid);
             if (patient == null) {
                 log.error("未找到患者信息: pid={}", pid);
                 return;
@@ -129,7 +124,7 @@ public class FormPageIndexService {
     public void recalculatePageIndexes(String pid, String formType) {
         log.info("开始计算页码: pid={}, formType={}", pid, formType);
 
-        Document patient = getPatientContext(pid);
+        Document patient = patientResolver.findPatient(pid);
         if (patient == null) {
             log.error("页码计算-未找到患者: pid={}", pid);
             markFailed(pid, formType, "未找到患者信息");
@@ -181,12 +176,7 @@ public class FormPageIndexService {
             while (!cal.getTime().after(endDate)) {
                 String dateStr = dateFormat.format(cal.getTime());
                 log.info("计算日期页码: date={}", dateStr);
-                int pageCount;
-                if ("hljld2-flow".equals(formType)) {
-                    pageCount = flowPdfService.calculateFlowPageCount(pid, dateStr);
-                } else {
-                    pageCount = pdfService.calculatePageCount(pid, dateStr);
-                }
+                int pageCount = flowPdfService.calculateFlowPageCount(pid, dateStr);
                 log.info("日期页码结果: date={}, pageCount={}", dateStr, pageCount);
 
                 FormPageIndex.DailyPageInfo dailyInfo = new FormPageIndex.DailyPageInfo();
@@ -233,14 +223,6 @@ public class FormPageIndexService {
             index.setLastUpdated(new Date());
             pageIndexRepository.save(index);
         }
-    }
-
-    private Document getPatientContext(String pid) {
-        Query query = new Query(new Criteria().orOperator(
-            Criteria.where("_id").is(pid),
-            Criteria.where("pid").is(pid)
-        ));
-        return mongoTemplate.findOne(query, Document.class, "patient");
     }
 
     public Map<String, Object> getCalculationStatus(String pid, String formType) {

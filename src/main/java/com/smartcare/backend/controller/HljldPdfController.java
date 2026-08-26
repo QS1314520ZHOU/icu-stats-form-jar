@@ -2,7 +2,6 @@ package com.smartcare.backend.controller;
 
 import com.smartcare.backend.service.FormPageIndexService;
 import com.smartcare.backend.service.HljldFlowPdfService;
-import com.smartcare.backend.service.HljldPdfService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,14 +23,12 @@ public class HljldPdfController {
 
     private static final Logger log = LoggerFactory.getLogger(HljldPdfController.class);
 
-    private final HljldPdfService pdfService;
     private final HljldFlowPdfService flowPdfService;
     private final FormPageIndexService pageIndexService;
 
     @Autowired
-    public HljldPdfController(HljldPdfService pdfService, HljldFlowPdfService flowPdfService,
+    public HljldPdfController(HljldFlowPdfService flowPdfService,
                               FormPageIndexService pageIndexService) {
-        this.pdfService = pdfService;
         this.flowPdfService = flowPdfService;
         this.pageIndexService = pageIndexService;
     }
@@ -39,84 +36,64 @@ public class HljldPdfController {
     @GetMapping("/pdf/{pid}/{date}")
     public ResponseEntity<byte[]> getPdf(
             @PathVariable String pid,
-            @PathVariable String date,
-            @RequestParam(defaultValue = "flow") String layout) {
+            @PathVariable String date) {
         try {
-            byte[] pdfData;
-            if ("flow".equals(layout)) {
-                pdfData = flowPdfService.generateDailyPdf(pid, date);
-            } else {
-                pdfData = pdfService.generateDailyPdf(pid, date);
-            }
+            byte[] pdfData = flowPdfService.generateDailyPdf(pid, date);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
-            log.error("生成PDF失败: pid={}, date={}, layout={}", pid, date, layout, e);
+            log.error("生成PDF失败: pid={}, date={}", pid, date, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     @GetMapping("/pdf-all/{pid}")
     public ResponseEntity<byte[]> getAllPdfs(
-            @PathVariable String pid,
-            @RequestParam(defaultValue = "flow") String layout) {
+            @PathVariable String pid) {
         try {
-            byte[] pdfData;
-            if ("flow".equals(layout)) {
-                pdfData = flowPdfService.generateAllPagesPdf(pid);
-            } else {
-                pdfData = pdfService.generateAllPagesPdf(pid);
-            }
+            byte[] pdfData = flowPdfService.generateAllPagesPdf(pid);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
-            log.error("生成全部PDF失败: pid={}, layout={}", pid, layout, e);
+            log.error("生成全部PDF失败: pid={}", pid, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
-     * 获取页码信息（通用：formType=hljld2 表示护理记录单独立版）
-     * layout=flow 时使用 hljld2-flow formType
+     * 获取页码信息（formType=hljld2-flow 表示护理记录单流式版）
      */
     @GetMapping("/page-index/{pid}")
     public ResponseEntity<Map<String, Object>> getPageIndex(
             @PathVariable String pid,
-            @RequestParam String date,
-            @RequestParam(defaultValue = "hljld2") String formType,
-            @RequestParam(required = false) String layout) {
+            @RequestParam String date) {
         try {
-            String actualFormType = "flow".equals(layout) ? "hljld2-flow" : formType;
-            FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, actualFormType, date);
+            FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, "hljld2-flow", date);
             Map<String, Object> response = new HashMap<>();
             response.put("startPageNo", result.getStartPageNo());
             response.put("pageCount", result.getPageCount());
             response.put("status", result.getStatus());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("获取页码信息失败: pid={}, date={}, formType={}", pid, date, formType, e);
+            log.error("获取页码信息失败: pid={}, date={}", pid, date, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
      * 重新计算页码
-     * layout=flow 时使用 hljld2-flow formType
      */
     @PostMapping("/recalculate/{pid}")
     public ResponseEntity<Map<String, String>> recalculatePageIndexes(
-            @PathVariable String pid,
-            @RequestParam(defaultValue = "hljld2") String formType,
-            @RequestParam(required = false) String layout) {
+            @PathVariable String pid) {
         try {
-            String actualFormType = "flow".equals(layout) ? "hljld2-flow" : formType;
-            pageIndexService.recalculatePageIndexes(pid, actualFormType);
+            pageIndexService.recalculatePageIndexes(pid, "hljld2-flow");
             Map<String, String> response = new HashMap<>();
             response.put("status", "started");
             response.put("message", "页码重新计算已开始");
@@ -134,11 +111,8 @@ public class HljldPdfController {
      */
     @GetMapping("/recalculate-status/{pid}")
     public ResponseEntity<Map<String, Object>> getRecalculateStatus(
-            @PathVariable String pid,
-            @RequestParam(defaultValue = "hljld2") String formType,
-            @RequestParam(required = false) String layout) {
-        String actualFormType = "flow".equals(layout) ? "hljld2-flow" : formType;
-        Map<String, Object> response = pageIndexService.getCalculationStatus(pid, actualFormType);
+            @PathVariable String pid) {
+        Map<String, Object> response = pageIndexService.getCalculationStatus(pid, "hljld2-flow");
         return ResponseEntity.ok(response);
     }
 }

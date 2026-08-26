@@ -231,10 +231,8 @@ public final class HljldPdfLayoutConstants {
         "signature"                      // 18
     };
 
-    /** 左对齐的字段索引 */
-    public static final java.util.Set<Integer> LEFT_ALIGN_FIELDS = java.util.Set.of(
-        0, 1, 4, 9, 11, 17
-    );
+    /** 护理记录列索引（唯一左对齐+顶部对齐的列） */
+    public static final int NURSING_RECORD_COLUMN_INDEX = 17;
 
     // ══════════════════════════════════════════════════════════
     //  静态校验

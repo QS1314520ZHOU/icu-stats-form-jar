@@ -103,7 +103,7 @@ public class HljldPrintController {
         return t;
     }
 
-    // ==================== 数据加载（复用 HljldPdfService 的查询模式）====================
+    // ==================== 数据加载 =====================
 
     private List<Document> loadVitals(String pid, Date start, Date end) {
         Query q = new Query(Criteria.where("pid").is(pid)
@@ -145,7 +145,7 @@ public class HljldPrintController {
         return mongoTemplate.find(q, Document.class, "tubeExe");
     }
 
-    // ==================== 时间轴合并（复用 HljldPdfService.convertToRows 逻辑）====================
+    // ==================== 时间轴合并 =====================
 
     private List<Map<String, Object>> mergeIntoRows(
             List<Document> vitals, List<Document> drugExecutions,
