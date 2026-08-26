@@ -26,6 +26,7 @@ const DIST_DIR = join(SJM1_APP, 'dist', 'sjm1-app', 'browser');
 const PUBLIC_DIR = join(SJM1_APP, 'public');
 const STATIC_FORM = join(ROOT, 'src', 'main', 'resources', 'static', 'form');
 const BUILD_INFO_PATH = join(PUBLIC_DIR, 'build-info.json');
+const WORKER_SRC = join(PUBLIC_DIR, 'assets', 'pdf.worker.min.mjs');
 
 function run(cmd, opts = {}) {
   console.log(`> ${cmd}`);
@@ -66,15 +67,36 @@ if (existsSync(distPath)) {
   console.log(`已清理旧 dist 目录`);
 }
 
-// 4. 执行 Angular production build
+// 4. 验证Worker源文件
+if (!existsSync(WORKER_SRC)) {
+  console.error(`PDF Worker源文件不存在: ${WORKER_SRC}`);
+  process.exit(1);
+}
+const workerSize = readFileSync(WORKER_SRC).length;
+if (workerSize === 0) {
+  console.error(`PDF Worker源文件为空: ${WORKER_SRC}`);
+  process.exit(1);
+}
+console.log(`Worker源文件验证通过: ${WORKER_SRC} (${workerSize} bytes)`);
+
+// 5. 执行 Angular production build
 console.log(`\n=== Angular 生产构建 ===`);
 run('npm run build', { cwd: SJM1_APP });
 
-// 5. 验证构建输出
+// 6. 验证构建输出
 if (!existsSync(DIST_DIR)) {
   console.error(`构建输出目录不存在: ${DIST_DIR}`);
   process.exit(1);
 }
+
+// 验证Worker进入dist
+const workerDist = join(DIST_DIR, 'assets', 'pdf.worker.min.mjs');
+if (!existsSync(workerDist)) {
+  console.error(`构建后Worker文件不存在: ${workerDist}`);
+  process.exit(1);
+}
+const workerDistSize = readFileSync(workerDist).length;
+console.log(`构建后Worker文件验证通过: ${workerDist} (${workerDistSize} bytes)`);
 
 const indexHtml = join(DIST_DIR, 'index.html');
 if (!existsSync(indexHtml)) {
@@ -124,11 +146,27 @@ if (!existsSync(formMainPath)) {
   process.exit(1);
 }
 
+// 验证Worker进入static/form
+const workerForm = join(STATIC_FORM, 'assets', 'pdf.worker.min.mjs');
+if (!existsSync(workerForm)) {
+  console.error(`复制后Worker文件不存在: ${workerForm}`);
+  process.exit(1);
+}
+const workerFormSize = readFileSync(workerForm).length;
+if (workerFormSize === 0) {
+  console.error(`复制后Worker文件为空: ${workerForm}`);
+  process.exit(1);
+}
+console.log(`复制后Worker文件验证通过: ${workerForm} (${workerFormSize} bytes)`);
+
 // 10. 输出结果
 console.log(`\n=== 构建完成 ===`);
 console.log(`Git SHA:        ${gitSha}`);
 console.log(`Build Time:     ${buildTime}`);
 console.log(`Main File:      ${formMainMatch[0]}`);
+console.log(`Worker Source:  ${WORKER_SRC} (${workerSize} bytes)`);
+console.log(`Worker Dist:    ${workerDist} (${workerDistSize} bytes)`);
+console.log(`Worker Form:    ${workerForm} (${workerFormSize} bytes)`);
 console.log(`Target Dir:     ${STATIC_FORM}`);
 console.log(`Build Info:     ${join(STATIC_FORM, 'build-info.json')}`);
 

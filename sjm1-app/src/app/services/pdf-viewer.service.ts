@@ -3,8 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, Subject } from 'rxjs';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// 配置PDF.js worker - 使用内联worker（生产环境离线可用）
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'assets/pdf.worker.min.mjs';
+// PDF.js ES Module Worker，使用/form下随应用发布的本地静态资源
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  '/form/assets/pdf.worker.min.mjs',
+  window.location.origin,
+).toString();
 
 export interface PdfPageRender {
   pageNumber: number;
