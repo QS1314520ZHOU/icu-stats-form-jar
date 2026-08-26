@@ -18,6 +18,7 @@ import com.itextpdf.layout.properties.UnitValue;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.entity.FormPageIndex;
 import com.smartcare.backend.hljld.*;
+import com.smartcare.backend.hljld.HljldPdfDataAssembler.HljldViewModel;
 import com.smartcare.backend.repository.FormPageIndexRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * ICU 护理记录单 PDF 生成服务
@@ -214,9 +216,9 @@ public class HljldPdfService {
         HljldPdfDataAssembler.HljldViewModel viewModel = dataAssembler.buildPrintViewModel(date, pid, pid);
 
         int startPageNo = getStartPageNo(pid, date);
-        log.info("PDF数据加载完成: patient={}, displayGroups={}, daySummary={}, startPageNo={}",
+        log.info("PDF数据加载完成: patient={}, timeline={}, daySummary={}, startPageNo={}",
             patient.getString("name"),
-            viewModel.getDisplayGroups().size(),
+            viewModel.getTimeline() != null ? viewModel.getTimeline().size() : 0,
             viewModel.getDaySummary() != null,
             startPageNo);
 
@@ -227,16 +229,14 @@ public class HljldPdfService {
             Document doc = new Document(pdfDoc, PageSize.A4.rotate());
             doc.setMargins(MARGIN, MARGIN, MARGIN, MARGIN);
 
-            // 将 HljldDisplayRow 转换为分页数据
-            List<HljldDisplayRow> allRows = viewModel.getDisplayGroups().stream()
-                .flatMap(g -> g.getRows().stream())
-                .collect(java.util.stream.Collectors.toList());
+            // 从 timeline 提取可打印行（时间组数据行 + 小结摘要行）
+            List<Map<String, Object>> printableRows = timelineToPrintableRows(viewModel);
 
-            if (allRows.isEmpty()) {
+            if (printableRows.isEmpty()) {
                 addPageContent(doc, pdfDoc, patient, Collections.emptyList(), startPageNo, 1, date);
             } else {
-                // 分页
-                List<List<Map<String, Object>>> pages = paginateRows(allRows);
+                // 统一分页
+                List<List<Map<String, Object>>> pages = paginateRowsFromMaps(printableRows);
                 log.info("PDF: 分页完成，共{}页", pages.size());
                 for (int i = 0; i < pages.size(); i++) {
                     if (i > 0) pdfDoc.addNewPage();
@@ -278,16 +278,14 @@ public class HljldPdfService {
                 HljldPdfDataAssembler.HljldViewModel viewModel =
                     dataAssembler.buildPrintViewModel(dailyPage.getDate(), pid, pid);
 
-                List<HljldDisplayRow> allRows = viewModel.getDisplayGroups().stream()
-                    .flatMap(g -> g.getRows().stream())
-                    .collect(java.util.stream.Collectors.toList());
+                List<Map<String, Object>> printableRows = timelineToPrintableRows(viewModel);
 
-                if (allRows.isEmpty()) {
+                if (printableRows.isEmpty()) {
                     if (!firstPage) pdfDoc.addNewPage();
                     firstPage = false;
                     addPageContent(doc, pdfDoc, patient, Collections.emptyList(), dailyPage.getStartPageNo(), 1, dailyPage.getDate());
                 } else {
-                    List<List<Map<String, Object>>> pages = paginateRows(allRows);
+                    List<List<Map<String, Object>>> pages = paginateRowsFromMaps(printableRows);
                     for (int i = 0; i < pages.size(); i++) {
                         if (!firstPage) pdfDoc.addNewPage();
                         firstPage = false;
@@ -304,11 +302,16 @@ public class HljldPdfService {
         }
     }
 
-    /** 计算某天的页数 */
+    /** 计算某天的页数，使用与实际 PDF 生成一致的 timeline 行计数 */
     public int calculatePageCount(String pid, String date) {
         initFont();
-        int pageCount = dataAssembler.calculatePageCount(date, pid, pid, MAX_ROWS_PER_PAGE);
-        log.info("页数计算完成: pid={}, date={}, pageCount={}", pid, date, pageCount);
+        // 使用 timeline 行计数，与 generateDailyPdf 一致
+        HljldPdfDataAssembler.HljldViewModel viewModel = dataAssembler.buildPrintViewModel(date, pid, pid);
+        List<Map<String, Object>> printableRows = timelineToPrintableRows(viewModel);
+        int totalRows = printableRows.size();
+        int pageCount = (int) Math.ceil((double) totalRows / MAX_ROWS_PER_PAGE);
+        if (pageCount < 1) pageCount = 1;
+        log.info("页数计算完成: pid={}, date={}, totalRows={}, pageCount={}", pid, date, totalRows, pageCount);
         return pageCount;
     }
 
@@ -558,7 +561,126 @@ public class HljldPdfService {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  分页（新的 HljldDisplayRow 分页方法）
+    //  Timeline → 可打印行
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * 将 timeline 转换为可打印行列表。
+     * TIME_GROUP → 19列数据行（与原 displayRowToMap 相同）。
+     * SUMMARY 类型 → 小结摘要行（标签+详情文本）。
+     */
+    private List<Map<String, Object>> timelineToPrintableRows(HljldPdfDataAssembler.HljldViewModel viewModel) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        List<HljldTimelineItem> timeline = viewModel.getTimeline();
+        if (timeline == null) {
+            // 回退：使用 displayGroups
+            for (HljldTimeGroup group : viewModel.getDisplayGroups()) {
+                for (HljldDisplayRow row : group.getRows()) {
+                    rows.add(displayRowToMap(row));
+                }
+            }
+            return rows;
+        }
+
+        for (HljldTimelineItem item : timeline) {
+            if (item.getKind() == HljldTimelineItem.Kind.TIME_GROUP && item.getGroup() != null) {
+                // 数据行
+                for (HljldDisplayRow row : item.getGroup().getRows()) {
+                    rows.add(displayRowToMap(row));
+                }
+            } else if (item.getSummary() != null) {
+                // 小结摘要行
+                rows.add(summaryToPrintableRow(item));
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * 将小结转换为可打印行。
+     * 标签显示在 timeText 列，详情文本显示在 nursingRecord 列。
+     */
+    private Map<String, Object> summaryToPrintableRow(HljldTimelineItem item) {
+        HljldSummary summary = item.getSummary();
+        Map<String, Object> row = new LinkedHashMap<>();
+
+        // 标签：如 "日间小结"、"07:00班段小结" 等
+        String label = getSummaryLabel(item.getKind());
+        row.put("timeText", label);
+
+        // 详情文本：构建完整的出入量摘要
+        StringBuilder detail = new StringBuilder();
+        // 入量
+        if (summary.getInputSum() > 0) {
+            detail.append("总入量：").append(String.format("%.1f", summary.getInputSum())).append(" ml");
+        }
+        // 药物治疗
+        if (summary.getMedicationSum() > 0) {
+            detail.append("；药物治疗：").append(String.format("%.1f", summary.getMedicationSum())).append(" ml");
+        }
+        // 肠内营养
+        if (summary.getEnteralSum() > 0) {
+            detail.append("；胃肠摄入：").append(String.format("%.1f", summary.getEnteralSum())).append(" ml");
+        }
+        // 出量
+        if (summary.getOutputSum() > 0) {
+            detail.append("；总出量：").append(String.format("%.1f", summary.getOutputSum())).append(" ml");
+        }
+        // 尿量
+        if (summary.getUrineSum() > 0) {
+            detail.append("；尿量：").append(String.format("%.1f", summary.getUrineSum())).append(" ml");
+        }
+        // 净超滤量
+        if (summary.getUltrafiltrationSum() > 0) {
+            detail.append("；净超滤量：").append(String.format("%.1f", summary.getUltrafiltrationSum())).append(" ml");
+        }
+        // 平衡量
+        detail.append("；平衡量：").append(String.format("%.1f", summary.getBalance())).append(" ml");
+
+        row.put("nursingRecord", detail.toString());
+        return row;
+    }
+
+    private String getSummaryLabel(HljldTimelineItem.Kind kind) {
+        switch (kind) {
+            case DAY_SUMMARY: return "日间小结";
+            case SHIFT_SUMMARY: return "班段小结";
+            case FULL_DAY_SUMMARY: return "24小时总结";
+            case DISCHARGE_SUMMARY: return "出科总结";
+            default: return "小结";
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  分页（Map 列表分页方法）
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * 将 Map 列表分页，每页最多 MAX_ROWS_PER_PAGE 行。
+     */
+    private List<List<Map<String, Object>>> paginateRowsFromMaps(List<Map<String, Object>> allRows) {
+        log.info("分页计算: 总行数={}, 每页最大行数={}", allRows.size(), MAX_ROWS_PER_PAGE);
+
+        List<List<Map<String, Object>>> pages = new ArrayList<>();
+        List<Map<String, Object>> current = new ArrayList<>();
+
+        for (Map<String, Object> row : allRows) {
+            current.add(row);
+            if (current.size() >= MAX_ROWS_PER_PAGE) {
+                pages.add(current);
+                current = new ArrayList<>();
+            }
+        }
+        if (!current.isEmpty()) pages.add(current);
+        if (pages.isEmpty()) pages.add(Collections.emptyList());
+
+        log.info("分页完成: 页数={}, 每页行数={}", pages.size(),
+            pages.stream().mapToInt(List::size).toArray());
+        return pages;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  分页（旧的 HljldDisplayRow 分页方法，保留兼容）
     // ══════════════════════════════════════════════════════════
 
     private List<List<Map<String, Object>>> paginateRows(List<HljldDisplayRow> allRows) {

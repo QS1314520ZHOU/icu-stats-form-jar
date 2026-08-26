@@ -37,6 +37,15 @@ public class HljldSummaryCalculator {
     public HljldSummaryCalculator() {}
 
     /**
+     * 构建小结（使用当前时间）。
+     */
+    public HljldSummary buildSummary(HljldSummary.Kind kind, HljldSourceData source,
+                                      Date nursingDayStart, Date nursingDayEnd,
+                                      Date nursingDayStartOfYesterday) {
+        return buildSummary(kind, source, nursingDayStart, nursingDayEnd, nursingDayStartOfYesterday, System.currentTimeMillis());
+    }
+
+    /**
      * 构建小结。
      *
      * @param kind          小结类型
@@ -44,12 +53,12 @@ public class HljldSummaryCalculator {
      * @param nursingDayStart 当天护理日开始时间
      * @param nursingDayEnd   当天护理日结束时间
      * @param nursingDayStartOfYesterday 昨天护理日开始时间
+     * @param nowMs         当前时刻毫秒（一次获取，向下传递）
      * @return HljldSummary
      */
     public HljldSummary buildSummary(HljldSummary.Kind kind, HljldSourceData source,
                                       Date nursingDayStart, Date nursingDayEnd,
-                                      Date nursingDayStartOfYesterday) {
-        long nowMs = System.currentTimeMillis();
+                                      Date nursingDayStartOfYesterday, long nowMs) {
 
         // 确定段落
         List<HljldUtils.NursingSegment> segments = HljldUtils.resolveNursingSegments(nursingDayStart);

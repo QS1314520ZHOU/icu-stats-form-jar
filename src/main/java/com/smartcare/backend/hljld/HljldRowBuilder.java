@@ -28,15 +28,23 @@ public class HljldRowBuilder {
     public HljldRowBuilder() {}
 
     /**
+     * 构建时间行列表，对应前端 buildRows（使用当前时间）。
+     */
+    public List<HljldTimeRow> buildRows(HljldSourceData source, Date start, Date end, boolean startExclusive) {
+        return buildRows(source, start, end, startExclusive, System.currentTimeMillis());
+    }
+
+    /**
      * 构建时间行列表，对应前端 buildRows。
      *
      * @param source 原始数据
      * @param start  护理日有效开始时间
      * @param end    护理日结束时间（次日07:00）
      * @param startExclusive 是否排除开始时刻（入科截断时为false）
+     * @param nowMs  当前时刻毫秒（一次获取，向下传递）
      * @return 按时间排序的行列表
      */
-    public List<HljldTimeRow> buildRows(HljldSourceData source, Date start, Date end, boolean startExclusive) {
+    public List<HljldTimeRow> buildRows(HljldSourceData source, Date start, Date end, boolean startExclusive, long nowMs) {
         long startMs = start.getTime();
         long endMs = end.getTime();
 
@@ -55,6 +63,27 @@ public class HljldRowBuilder {
             .filter(item -> HljldUtils.isValidBusinessRecord(item))
             .filter(item -> !HljldUtils.str(item, "desc").isEmpty())
             .filter(item -> HljldUtils.inNursingRange(str(item, "time"), start, end, startExclusive))
+            .collect(Collectors.toList());
+
+        // 肠内营养跨护理日补充：startTime 不在当前护理日但 quickAdd 在当前护理日的药物
+        List<Document> enteralCrossDayDrugs = source.getDrugExecutions().stream()
+            .filter(item -> HljldUtils.isRenderableDrugExecution(item))
+            .filter(item -> !HljldUtils.inNursingRange(str(item, "startTime"), start, end, startExclusive))
+            .filter(item -> {
+                Document method = HljldUtils.findDrugMethod(str(item, "methodCode"), source.getDrugMethods());
+                if (method == null || !"胃肠".equals(str(method, "group"))) return false;
+                String drugName = HljldUtils.drugDisplayName(item);
+                return HljldUtils.isTargetEnteral(drugName);
+            })
+            .filter(item -> {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> actionList = (List<Map<String, Object>>) item.get("drugActionList");
+                if (actionList == null) return false;
+                return actionList.stream().anyMatch(a -> {
+                    String act = str(a, "action").trim().toLowerCase();
+                    return "quickadd".equals(act) && HljldUtils.inNursingRange(str(a, "time"), start, end, startExclusive);
+                });
+            })
             .collect(Collectors.toList());
 
         // 收集所有唯一分钟键
@@ -83,7 +112,7 @@ public class HljldRowBuilder {
         List<HljldTimeRow> rows = new ArrayList<>();
 
         // 表首 carryOver 行：前一护理日仍在执行的续用药物
-        addCarryOverRow(rows, source, startMs, segments);
+        addCarryOverRow(rows, source, startMs, segments, nowMs);
 
         // 追踪是否已添加日间小结后剩余量
         boolean[] daySummaryRemaindersAdded = {false};
@@ -101,8 +130,8 @@ public class HljldRowBuilder {
             List<NameAmountRoute> medications = new ArrayList<>();
             List<NameAmountRoute> enteral = new ArrayList<>();
 
-            // 肠内营养 quickAdd
-            collectEnteralQuickAdd(enteral, source, drugsInPeriod, key);
+            // 肠内营养 quickAdd：遍历区间内药物和跨日药物
+            collectEnteralQuickAdd(enteral, source, drugsInPeriod, enteralCrossDayDrugs, key);
 
             List<Document> drugExecutionsAtKey = drugsInPeriod.stream()
                 .filter(item -> HljldUtils.minuteKey(str(item, "startTime")) == key)
@@ -110,7 +139,7 @@ public class HljldRowBuilder {
 
             // 日间小结（17:00）之后：插入 night 段结算行
             if (!daySummaryRemaindersAdded[0] && timeMs > dayBoundaryMs) {
-                addNightSettlementRow(rows, source, nightSegment);
+                addNightSettlementRow(rows, source, nightSegment, nowMs);
                 daySummaryRemaindersAdded[0] = true;
             }
 
@@ -222,7 +251,7 @@ public class HljldRowBuilder {
         }
 
         // night 段结算行（07:00）：插入到表尾
-        addNightEndSettlementRow(rows, source, nightSegment);
+        addNightEndSettlementRow(rows, source, nightSegment, nowMs);
 
         return rows;
     }
@@ -270,7 +299,8 @@ public class HljldRowBuilder {
                 Math.max(Math.max(urines.size(), ultrafiltrations.size()),
                 Math.max(Math.max(outputs.size(), drains.size()),
                 Math.max(Math.max(examination.size(), treatment.size()),
-                Math.max(basicCare.size(), healthEducation.size())))))));
+                Math.max(Math.max(basicCare.size(), healthEducation.size()),
+                nursingRecords.size())))))));
 
             if (lineCount <= 0) continue;
 
@@ -317,9 +347,9 @@ public class HljldRowBuilder {
     // ══════════════════════════════════════════════════════════
 
     private void addCarryOverRow(List<HljldTimeRow> rows, HljldSourceData source, long dayStartMs,
-                                  List<HljldUtils.NursingSegment> segments) {
-        long nowMs = System.currentTimeMillis();
+                                  List<HljldUtils.NursingSegment> segments, long nowMs) {
         List<NameAmountRoute> carryMeds = new ArrayList<>();
+        List<NameAmountRoute> carryEnteral = new ArrayList<>();
 
         for (Document execution : source.getDrugExecutions()) {
             if (!HljldUtils.isRenderableDrugExecution(execution)) continue;
@@ -341,60 +371,83 @@ public class HljldRowBuilder {
             double usedNow = HljldUtils.round1(HljldUtils.calcDrugUsageUpTo(execution, nowMs));
             double currentUsage = HljldUtils.round1(Math.max(0, usedNow - usedAt0700));
 
-            carryMeds.add(new NameAmountRoute(name,
+            // 根据药物方法配置判断是胃肠还是非胃肠
+            boolean isEnteral = "胃肠".equals(str(method, "group"));
+            String displayName = isEnteral ? HljldUtils.enteralDisplayName(name) : name;
+
+            NameAmountRoute cell = new NameAmountRoute(displayName,
                 "剩余" + String.format("%.1f", remaining) + "|实用" + String.format("%.1f", currentUsage),
-                HljldUtils.routeLabel(str(method, "name")), 0));
+                HljldUtils.routeLabel(str(method, "name")), 0);
+
+            if (isEnteral) {
+                carryEnteral.add(cell);
+            } else {
+                carryMeds.add(cell);
+            }
         }
 
-        if (!carryMeds.isEmpty()) {
+        if (!carryMeds.isEmpty() || !carryEnteral.isEmpty()) {
             HljldTimeRow carryRow = new HljldTimeRow();
             carryRow.setKey("carry-over-" + dayStartMs);
             carryRow.setTime(new Date(dayStartMs));
             carryRow.setTimeText("");
             carryRow.setSortRank(-1);
             carryRow.setMedications(carryMeds);
+            carryRow.setEnteral(carryEnteral);
             rows.add(carryRow);
         }
     }
 
     private void addNightSettlementRow(List<HljldTimeRow> rows, HljldSourceData source,
-                                        HljldUtils.NursingSegment nightSegment) {
-        long nowMs = System.currentTimeMillis();
-        List<NameAmountRoute> settlementMeds = convertSettlements(HljldUtils.buildSegmentSettlements(
-            source.getDrugExecutions(), source.getDrugMethods(), nightSegment, nowMs));
+                                        HljldUtils.NursingSegment nightSegment, long nowMs) {
+        List<HljldUtils.SegmentSettlement> settlements = HljldUtils.buildSegmentSettlements(
+            source.getDrugExecutions(), source.getDrugMethods(), nightSegment, nowMs);
+        List<NameAmountRoute> settlementMeds = new ArrayList<>();
+        List<NameAmountRoute> settlementEnteral = new ArrayList<>();
+        convertSettlements(settlements, settlementMeds, settlementEnteral);
 
-        if (!settlementMeds.isEmpty()) {
+        if (!settlementMeds.isEmpty() || !settlementEnteral.isEmpty()) {
             HljldTimeRow settlementRow = new HljldTimeRow();
             settlementRow.setKey("settlement-day-" + nightSegment.start.getTime());
             settlementRow.setTime(new Date(nightSegment.start.getTime() + 1000));
             settlementRow.setTimeText("");
             settlementRow.setSortRank(2);
             settlementRow.setMedications(settlementMeds);
+            settlementRow.setEnteral(settlementEnteral);
             rows.add(settlementRow);
         }
     }
 
     private void addNightEndSettlementRow(List<HljldTimeRow> rows, HljldSourceData source,
-                                           HljldUtils.NursingSegment nightSegment) {
-        long nowMs = System.currentTimeMillis();
-        List<NameAmountRoute> settlementMeds = convertSettlements(HljldUtils.buildSegmentSettlements(
-            source.getDrugExecutions(), source.getDrugMethods(), nightSegment, nowMs));
+                                           HljldUtils.NursingSegment nightSegment, long nowMs) {
+        List<HljldUtils.SegmentSettlement> settlements = HljldUtils.buildSegmentSettlements(
+            source.getDrugExecutions(), source.getDrugMethods(), nightSegment, nowMs);
+        List<NameAmountRoute> settlementMeds = new ArrayList<>();
+        List<NameAmountRoute> settlementEnteral = new ArrayList<>();
+        convertSettlements(settlements, settlementMeds, settlementEnteral);
 
-        if (!settlementMeds.isEmpty()) {
+        if (!settlementMeds.isEmpty() || !settlementEnteral.isEmpty()) {
             HljldTimeRow settlementRow = new HljldTimeRow();
             settlementRow.setKey("settlement-night-" + nightSegment.end.getTime());
             settlementRow.setTime(new Date(nightSegment.end.getTime() + 1000));
             settlementRow.setTimeText("");
             settlementRow.setSortRank(2);
             settlementRow.setMedications(settlementMeds);
+            settlementRow.setEnteral(settlementEnteral);
             rows.add(settlementRow);
         }
     }
 
     private void collectEnteralQuickAdd(List<NameAmountRoute> enteral, HljldSourceData source,
-                                         List<Document> drugsInPeriod, long key) {
+                                         List<Document> drugsInPeriod,
+                                         List<Document> enteralCrossDayDrugs, long key) {
         Set<String> processedExecutions = new HashSet<>();
-        for (Document execution : drugsInPeriod) {
+        // 合并区间内药物和跨日药物
+        List<Document> allEnteralCandidates = new ArrayList<>();
+        allEnteralCandidates.addAll(drugsInPeriod);
+        allEnteralCandidates.addAll(enteralCrossDayDrugs);
+
+        for (Document execution : allEnteralCandidates) {
             String execId = str(execution, "_id");
             if (processedExecutions.contains(execId)) continue;
             processedExecutions.add(execId);
@@ -583,14 +636,20 @@ public class HljldRowBuilder {
     }
 
     /**
-     * 将 SegmentSettlement 列表转换为 NameAmountRoute 列表。
+     * 将 SegmentSettlement 列表转换为 NameAmountRoute 列表，按 isEnteral 分类。
      */
-    private List<NameAmountRoute> convertSettlements(List<HljldUtils.SegmentSettlement> settlements) {
-        List<NameAmountRoute> result = new ArrayList<>();
+    private void convertSettlements(List<HljldUtils.SegmentSettlement> settlements,
+                                     List<NameAmountRoute> medications,
+                                     List<NameAmountRoute> enteral) {
         for (HljldUtils.SegmentSettlement s : settlements) {
             String amountText = HljldUtils.formatSegmentAmountText(s);
-            result.add(new NameAmountRoute(s.name, amountText, s.route, s.segmentUsed));
+            String displayName = s.isEnteral ? HljldUtils.enteralDisplayName(s.name) : s.name;
+            NameAmountRoute cell = new NameAmountRoute(displayName, amountText, s.route, s.segmentUsed);
+            if (s.isEnteral) {
+                enteral.add(cell);
+            } else {
+                medications.add(cell);
+            }
         }
-        return result;
     }
 }

@@ -167,11 +167,14 @@ export function resolveActiveStayRange(
   // 左闭：出科时间正好等于当日 07:00 时仍属于本护理日
   const afterDischarge = !!dischargeTime && minuteInstant(dischargeTime) < dayStartMinute;
 
-  const startExclusive = !admissionClipped;
+  // 护理日 07:00 始终属于当天（左闭），startExclusive 只在入科裁剪时用于
+  // 标记 effectiveStart 可能不精确到分钟（用于统计差值场景）。
+  // 正常护理日 range 为 [07:00, 次日07:00)，07:00 必须包含。
+  const startExclusive = false;
   const startMinute = minuteInstant(effectiveStart);
   const endMinute = minuteInstant(effectiveEnd);
   const hasValidRange = !beforeAdmission && !afterDischarge
-    && (startExclusive ? endMinute > startMinute : endMinute >= startMinute);
+    && endMinute >= startMinute;
 
   return {
     nursingDayStart,
@@ -299,10 +302,13 @@ export function routeLabel(name: string | undefined): string {
 
 export function enteralDisplayName(rawName: string): string {
   const name = rawName || '';
-  if (name.includes('SP')) { return '短肽'; }
-  if (name.includes('TPF-F') || name.includes('瑞能')) { return '瑞能'; }
-  if (name.includes('TP-HE') || name.includes('瑞高')) { return '瑞高'; }
-  if (name.includes('TP') || name.includes('瑞素')) { return '瑞素'; }
+  const upper = name.toUpperCase();
+  // 匹配顺序必须严格：TP-HE → 瑞高, TPF-T → 瑞能, SP → 短肽, TP → 瑞素
+  // TP 必须最后匹配，因为 TP-HE、TPF-T 都包含 TP
+  if (upper.includes('TP-HE') || name.includes('瑞高')) { return '瑞高'; }
+  if (upper.includes('TPF-T') || name.includes('瑞能')) { return '瑞能'; }
+  if (upper.includes('SP') || name.includes('短肽')) { return '短肽'; }
+  if (upper.includes('TP') || name.includes('瑞素')) { return '瑞素'; }
   return name;
 }
 
@@ -801,6 +807,8 @@ export interface SegmentSettlement {
   partial: boolean;
   /** cumulativeUsed + remainder === cap */
   consistent: boolean;
+  /** 是否为胃肠类药物（用于分类到 enteral 列） */
+  isEnteral: boolean;
 }
 
 /** 获取药物显示名称 */
@@ -867,6 +875,7 @@ export function buildSegmentSettlements(
       route: routeLabel(method.name),
       segmentUsed, cumulativeUsed, remainder, cap,
       ongoing, partial, consistent,
+      isEnteral: String(method.group ?? '').trim() === '胃肠',
     });
   }
 
@@ -1493,12 +1502,12 @@ export function buildRows(
     return undefined;
   }
 
-  // ---- 表首 carryOver 行：前一护理日 night 段仍在执行的续用药物 ----
+  // ---- 表首 carryOver 行：前一护理日仍在执行的续用药物 ----
   {
-    // ---- 表首 carryOver 行：在07:00仍活跃（含已停）的持续药物 ----
     const dayStartMs = start.getTime();
     const nowMs = Date.now();
     const carryMeds: NameAmountRoute[] = [];
+    const carryEnteral: NameAmountRoute[] = [];
     for (const execution of source.drugExecutions) {
       if (!isRenderableDrugExecution(execution)) { continue; }
       const method = findDrugMethod(execution.methodCode, source.drugMethods);
@@ -1517,21 +1526,29 @@ export function buildRows(
       // 实用量 = 07:00到当前时刻的累计用量
       const usedNow = round1(calcDrugUsageUpTo(execution, nowMs));
       const currentUsage = round1(Math.max(0, usedNow - usedAt0700));
-      carryMeds.push({
-        name,
+      // 根据药物方法配置判断是胃肠还是非胃肠
+      const isEnteral = String(method.group ?? '').trim() === '胃肠';
+      const displayName = isEnteral ? enteralDisplayName(name) : name;
+      const cell: NameAmountRoute = {
+        name: displayName,
         amount: `剩余${remaining.toFixed(1)}|实用${currentUsage.toFixed(1)}`,
         numericAmount: 0, // 不参与小结累加
         route: routeLabel(method.name),
-      });
+      };
+      if (isEnteral) {
+        carryEnteral.push(cell);
+      } else {
+        carryMeds.push(cell);
+      }
     }
-    if (carryMeds.length > 0) {
+    if (carryMeds.length > 0 || carryEnteral.length > 0) {
       rows.push({
         key: `carry-over-${start.getTime()}`,
         time: new Date(start.getTime()),
         timeText: '',
         sortRank: -1,
         medications: carryMeds,
-        enteral: [],
+        enteral: carryEnteral,
         urines: [],
         ultrafiltrations: [],
         outputs: [],
@@ -1595,19 +1612,28 @@ export function buildRows(
         nowMs,
       );
       if (settlements.length > 0) {
-        const settlementMeds: NameAmountRoute[] = settlements.map(s => ({
-          name: s.name,
-          amount: formatSegmentAmountText(s),
-          numericAmount: s.segmentUsed,
-          route: s.route,
-        }));
+        const settlementMeds: NameAmountRoute[] = [];
+        const settlementEnteral: NameAmountRoute[] = [];
+        for (const s of settlements) {
+          const cell: NameAmountRoute = {
+            name: s.isEnteral ? enteralDisplayName(s.name) : s.name,
+            amount: formatSegmentAmountText(s),
+            numericAmount: s.segmentUsed,
+            route: s.route,
+          };
+          if (s.isEnteral) {
+            settlementEnteral.push(cell);
+          } else {
+            settlementMeds.push(cell);
+          }
+        }
         rows.push({
           key: `settlement-day-${dayBoundaryMs}`,
           time: new Date(dayBoundaryMs + 1000), // 比17:00晚1秒
           timeText: '',
           sortRank: 2,
           medications: settlementMeds,
-          enteral: [],
+          enteral: settlementEnteral,
           urines: [],
           ultrafiltrations: [],
           outputs: [],
@@ -1825,19 +1851,28 @@ export function buildRows(
       nowMs,
     );
     if (nightSettlements.length > 0) {
-      const settlementMeds: NameAmountRoute[] = nightSettlements.map(s => ({
-        name: s.name,
-        amount: formatSegmentAmountText(s),
-        numericAmount: s.segmentUsed,
-        route: s.route,
-      }));
+      const settlementMeds: NameAmountRoute[] = [];
+      const settlementEnteral: NameAmountRoute[] = [];
+      for (const s of nightSettlements) {
+        const cell: NameAmountRoute = {
+          name: s.isEnteral ? enteralDisplayName(s.name) : s.name,
+          amount: formatSegmentAmountText(s),
+          numericAmount: s.segmentUsed,
+          route: s.route,
+        };
+        if (s.isEnteral) {
+          settlementEnteral.push(cell);
+        } else {
+          settlementMeds.push(cell);
+        }
+      }
       rows.push({
         key: `settlement-night-${nightSegment.end.getTime()}`,
         time: new Date(nightSegment.end.getTime() + 1000), // 比07:00晚1秒
         timeText: '',
         sortRank: 2,
         medications: settlementMeds,
-        enteral: [],
+        enteral: settlementEnteral,
         urines: [],
         ultrafiltrations: [],
         outputs: [],

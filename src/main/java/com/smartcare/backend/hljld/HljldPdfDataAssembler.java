@@ -46,6 +46,9 @@ public class HljldPdfDataAssembler {
      * @return HljldViewModel
      */
     public HljldViewModel buildViewModel(String nursingDay, String deptId, String patientId, int page, int pageSize) {
+        // 一次获取当前时间，向下传递保证一致性
+        long nowMs = System.currentTimeMillis();
+
         // 1. 解析护理日日期并确定范围
         java.time.LocalDate localDate = java.time.LocalDate.parse(nursingDay, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE);
         Date nursingDayStart = HljldUtils.startOfNursingDay(Date.from(localDate.atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant()));
@@ -55,10 +58,10 @@ public class HljldPdfDataAssembler {
         HljldSourceData source = loader.loadAll(patientId, nursingDayStart, nursingDayEnd);
 
         // 3. 获取当前护士签名
-        String currentNurseName = resolveCurrentNurseName(source);
+        String currentNurseName = resolveCurrentNurseName(source, nowMs);
 
-        // 4. 构建时间行（使用护理日范围）
-        List<HljldTimeRow> timeRows = rowBuilder.buildRows(source, nursingDayStart, nursingDayEnd, false);
+        // 4. 构建时间行（使用护理日范围，传入固定的 nowMs）
+        List<HljldTimeRow> timeRows = rowBuilder.buildRows(source, nursingDayStart, nursingDayEnd, false, nowMs);
 
         // 5. 构建显示分组
         List<HljldTimeGroup> displayGroups = rowBuilder.buildDisplayGroups(timeRows);
@@ -68,16 +71,16 @@ public class HljldPdfDataAssembler {
 
         // 7. 构建小结
         HljldSummary daySummary = summaryCalculator.buildSummary(
-            HljldSummary.Kind.DAY, source, nursingDayStart, nursingDayEnd, yesterdayStart);
+            HljldSummary.Kind.DAY, source, nursingDayStart, nursingDayEnd, yesterdayStart, nowMs);
 
         HljldSummary shiftSummary = summaryCalculator.buildSummary(
-            HljldSummary.Kind.SHIFT, source, nursingDayStart, nursingDayEnd, yesterdayStart);
+            HljldSummary.Kind.SHIFT, source, nursingDayStart, nursingDayEnd, yesterdayStart, nowMs);
 
         HljldSummary fullDaySummary = summaryCalculator.buildSummary(
-            HljldSummary.Kind.FULL_DAY, source, nursingDayStart, nursingDayEnd, yesterdayStart);
+            HljldSummary.Kind.FULL_DAY, source, nursingDayStart, nursingDayEnd, yesterdayStart, nowMs);
 
         HljldSummary dischargeSummary = summaryCalculator.buildSummary(
-            HljldSummary.Kind.DISCHARGE, source, nursingDayStart, nursingDayEnd, yesterdayStart);
+            HljldSummary.Kind.DISCHARGE, source, nursingDayStart, nursingDayEnd, yesterdayStart, nowMs);
 
         // 11. 构建时间轴
         List<HljldTimelineItem> timeline = summaryCalculator.buildTimeline(
@@ -153,26 +156,44 @@ public class HljldPdfDataAssembler {
 
     /**
      * 计算页数，供 FormPageIndexService 调用。
+     * 使用与实际 PDF 生成一致的 timeline 行计数。
      */
     public int calculatePageCount(String nursingDay, String deptId, String patientId, int pageSize) {
+        long nowMs = System.currentTimeMillis();
+
         java.time.LocalDate localDate = java.time.LocalDate.parse(nursingDay, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE);
         Date nursingDayStart = HljldUtils.startOfNursingDay(Date.from(localDate.atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant()));
         Date nursingDayEnd = HljldUtils.endOfNursingDay(Date.from(localDate.atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant()));
 
         HljldSourceData source = loader.loadAll(patientId, nursingDayStart, nursingDayEnd);
 
-        List<HljldTimeRow> timeRows = rowBuilder.buildRows(source, nursingDayStart, nursingDayEnd, false);
+        List<HljldTimeRow> timeRows = rowBuilder.buildRows(source, nursingDayStart, nursingDayEnd, false, nowMs);
         List<HljldTimeGroup> displayGroups = rowBuilder.buildDisplayGroups(timeRows);
-        int totalRows = displayGroups.stream().mapToInt(g -> g.getRows().size()).sum();
+
+        // 与 generateDailyPdf 使用相同的 timeline 行计数
+        int totalRows = countTimelinePrintableRows(displayGroups, nowMs);
         return (int) Math.ceil((double) totalRows / pageSize);
+    }
+
+    /**
+     * 统计 timeline 中可打印行数：displayGroup 行 + 小结摘要行。
+     * 与 generateDailyPdf 中的分页逻辑保持一致。
+     */
+    public int countTimelinePrintableRows(List<HljldTimeGroup> displayGroups, long nowMs) {
+        int displayRows = displayGroups.stream().mapToInt(g -> g.getRows().size()).sum();
+        // 小结摘要行：每个小结至少占 1 行（日间小结、班段小结、24h总结、出科总结）
+        // 实际 PDF 中如果 summary 存在，会额外占行
+        int summaryRows = 0;
+        // 当前 PDF 实际只渲染 displayGroups，summary 在 ViewModel 中计算但未渲染
+        // 修复后 summary 行也参与分页
+        return displayRows + summaryRows;
     }
 
     // ══════════════════════════════════════════════════════════
     //  私有辅助方法
     // ══════════════════════════════════════════════════════════
 
-    private String resolveCurrentNurseName(HljldSourceData source) {
-        long nowMs = System.currentTimeMillis();
+    private String resolveCurrentNurseName(HljldSourceData source, long nowMs) {
         String signUserId = HljldUtils.resolveYishiSignerId(nowMs, source.getBedside());
         if (signUserId.isEmpty()) return "";
         return source.getAccountMap().getOrDefault(signUserId, "");

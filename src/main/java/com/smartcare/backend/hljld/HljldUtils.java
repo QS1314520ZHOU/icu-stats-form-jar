@@ -510,11 +510,14 @@ public final class HljldUtils {
         // 左闭：出科时间正好等于当日 07:00 时仍属于本护理日
         boolean afterDischarge = dischargeTime != null && minuteInstant(dischargeTime) < dayStartMinute;
 
-        boolean startExclusive = !admissionClipped;
+        // 护理日 07:00 始终属于当天（左闭），startExclusive 只在入科裁剪时用于
+        // 标记 effectiveStart 可能不精确到分钟（用于统计差值场景）。
+        // 正常护理日 range 为 [07:00, 次日07:00)，07:00 必须包含。
+        boolean startExclusive = false;
         long startMinute = minuteInstant(effectiveStart);
         long endMinute = minuteInstant(effectiveEnd);
         boolean hasValidRange = !beforeAdmission && !afterDischarge
-            && (startExclusive ? endMinute > startMinute : endMinute >= startMinute);
+            && endMinute >= startMinute;
 
         return new ActiveStayRange(
             nursingDayStart, nursingDayEnd, effectiveStart, effectiveEnd,
@@ -711,15 +714,19 @@ public final class HljldUtils {
 
     /**
      * 肠内营养显示名称简化。
-     * SP→短肽, TPF-F/瑞能→瑞能, TP-HE/瑞高→瑞高, TP/瑞素→瑞素。
+     * 匹配顺序必须严格：TP-HE → 瑞高, TPF-T → 瑞能, SP → 短肽, TP → 瑞素。
+     * TP 必须最后匹配，因为 TP-HE、TPF-T 都包含 TP。
+     * 同时兼容中文商品名：短肽、瑞高、瑞能、瑞素。
      */
     public static String enteralDisplayName(String rawName) {
-        String name = rawName == null ? "" : rawName;
-        if (name.contains("SP")) return "短肽";
-        if (name.contains("TPF-F") || name.contains("瑞能")) return "瑞能";
-        if (name.contains("TP-HE") || name.contains("瑞高")) return "瑞高";
-        if (name.contains("TP") || name.contains("瑞素")) return "瑞素";
-        return name;
+        String original = rawName == null ? "" : rawName.trim();
+        String normalized = original.toUpperCase(Locale.ROOT);
+        // 按匹配顺序：最长/最具体优先
+        if (normalized.contains("TP-HE") || original.contains("瑞高")) return "瑞高";
+        if (normalized.contains("TPF-T") || original.contains("瑞能")) return "瑞能";
+        if (normalized.contains("SP") || original.contains("短肽")) return "短肽";
+        if (normalized.contains("TP") || original.contains("瑞素")) return "瑞素";
+        return original;
     }
 
     /**
@@ -1223,11 +1230,14 @@ public final class HljldUtils {
         public final boolean partial;
         /** cumulativeUsed + remainder === cap */
         public final boolean consistent;
+        /** 是否为胃肠类药物（用于分类到 enteral 列） */
+        public final boolean isEnteral;
 
         public SegmentSettlement(Document execution, String name, String route,
                                   double segmentUsed, double cumulativeUsed,
                                   double remainder, double cap,
-                                  boolean ongoing, boolean partial, boolean consistent) {
+                                  boolean ongoing, boolean partial, boolean consistent,
+                                  boolean isEnteral) {
             this.execution = execution;
             this.name = name;
             this.route = route;
@@ -1238,6 +1248,7 @@ public final class HljldUtils {
             this.ongoing = ongoing;
             this.partial = partial;
             this.consistent = consistent;
+            this.isEnteral = isEnteral;
         }
     }
 
@@ -1267,10 +1278,6 @@ public final class HljldUtils {
 
         for (Document execution : executions) {
             Document method = findDrugMethod(strOrNull(execution, "methodCode"), methods);
-            if (method == null || Boolean.FALSE.equals(method.get("isOnce"))) {
-                // isOnce === false 才处理持续泵注
-                if (method == null || !Boolean.FALSE.equals(method.get("isOnce"))) continue;
-            }
             if (method == null) continue;
             // 只处理持续泵注；单次给药走原有明细行逻辑
             if (!Boolean.FALSE.equals(method.get("isOnce"))) continue;
@@ -1298,10 +1305,14 @@ public final class HljldUtils {
                     cap, cumulativeUsed, remainder);
             }
 
+            // 判断是否为胃肠类药物
+            String methodGroup = strOrNull(method, "group");
+            boolean isEnteral = "胃肠".equals(methodGroup);
+
             out.add(new SegmentSettlement(
                 execution, drugDisplayName(execution), routeLabel(strOrNull(method, "name")),
                 segmentUsed, cumulativeUsed, remainder, cap,
-                ongoing, partial, consistent));
+                ongoing, partial, consistent, isEnteral));
         }
         return out;
     }
@@ -1425,12 +1436,14 @@ public final class HljldUtils {
     }
 
     /**
-     * 判断药物名称是否为肠内营养目标类型（SP、TP、瑞素、瑞高、瑞能）。
+     * 判断药物名称是否为肠内营养目标类型（SP、TP-HE、TPF-T、TP、瑞素、瑞高、瑞能、短肽）。
      */
     public static boolean isTargetEnteral(String drugName) {
         if (drugName == null) return false;
-        return drugName.contains("SP") || drugName.contains("TP")
-            || drugName.contains("瑞素") || drugName.contains("瑞高") || drugName.contains("瑞能");
+        String upper = drugName.toUpperCase(Locale.ROOT);
+        return upper.contains("SP") || upper.contains("TP-HE") || upper.contains("TPF-T")
+            || upper.contains("TP") || drugName.contains("瑞素")
+            || drugName.contains("瑞高") || drugName.contains("瑞能") || drugName.contains("短肽");
     }
 
     /**
