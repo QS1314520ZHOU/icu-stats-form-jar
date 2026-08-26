@@ -10,7 +10,7 @@
         [disabled]="!canPreviousDay()"
         aria-label="前一天"
         title="前一天"
-      >‹</button>
+      >&#8249;</button>
 
       <label class="date-picker">
         <span class="sr-only">选择护理记录日期</span>
@@ -35,7 +35,7 @@
         [disabled]="!canNextDay()"
         aria-label="后一天"
         title="后一天"
-      >›</button>
+      >&#8250;</button>
 
       <button
         type="button"
@@ -44,6 +44,31 @@
         [disabled]="!canSelectToday()"
         (click)="today()"
       >今天</button>
+    </div>
+
+    <!-- 缩放控制 -->
+    <div class="zoom-tools">
+      <button
+        type="button"
+        class="zoom-button"
+        (click)="zoomOut()"
+        [disabled]="displayScale <= 0.5"
+        title="缩小"
+      >-</button>
+      <span class="zoom-label">{{ (displayScale * 100) | number:'1.0-0' }}%</span>
+      <button
+        type="button"
+        class="zoom-button"
+        (click)="zoomIn()"
+        [disabled]="displayScale >= 3"
+        title="放大"
+      >+</button>
+      <button
+        type="button"
+        class="zoom-reset-button"
+        (click)="resetZoom()"
+        title="重置缩放"
+      >重置</button>
     </div>
 
     <!-- 页码选择 -->
@@ -66,6 +91,14 @@
     <div class="action-tools">
       <button
         type="button"
+        class="refresh-button"
+        [disabled]="isLoadingPdf || isLoadingAllPdf"
+        (click)="refreshPdf()"
+        title="刷新"
+      >刷新</button>
+
+      <button
+        type="button"
         class="recalculate-button"
         [disabled]="recalculating || !patient.pid"
         (click)="recalculatePageIndexes()"
@@ -76,49 +109,80 @@
 
       <button
         type="button"
+        class="download-button"
+        [disabled]="!pdfDocument || isLoadingPdf"
+        (click)="downloadCurrentDay()"
+        title="下载当前日"
+      >下载当日</button>
+
+      <button
+        type="button"
+        class="download-button download-all-button"
+        [disabled]="!patient.pid || isLoadingAllPdf"
+        (click)="downloadAll()"
+        title="下载全部"
+      >下载全部</button>
+
+      <button
+        type="button"
         class="print-button"
-        [disabled]="!pdfUrl || loading"
-        (click)="printCurrentPage()"
-      >打印当前页</button>
+        [disabled]="!pdfDocument || isPrinting"
+        (click)="printCurrentDay()"
+      >
+        {{ isPrinting ? '打印中...' : '打印当日' }}
+      </button>
 
       <button
         type="button"
         class="print-button print-all-button"
-        [disabled]="!patient.pid || loading"
+        [disabled]="!patient.pid || isLoadingAllPdf || isPrinting"
         (click)="printAll()"
-      >打印全部</button>
+      >
+        {{ isLoadingAllPdf ? '生成中...' : (isPrinting ? '打印中...' : '一键打印全部') }}
+      </button>
     </div>
   </header>
 
-  <!-- PDF 查看器 -->
-  <ng-container *ngIf="pageState === 'ready'; else statePanel">
-    <div class="pdf-container" *ngIf="pdfUrl">
-      <div *ngIf="loading" class="loading-overlay">
-        <div class="spinner" aria-hidden="true"></div>
-        <strong>加载中...</strong>
-      </div>
+  <!-- 加载提示 -->
+  <div class="loading-banner" *ngIf="isLoadingAllPdf">
+    <div class="spinner" aria-hidden="true"></div>
+    <span>正在生成全部护理记录PDF，请稍候...</span>
+  </div>
 
-      <iframe
-        class="pdf-viewer"
-        [src]="pdfUrl | domSafe"
-        frameborder="0"
-        width="100%"
-        height="100%"
-        title="护理记录单"
-      ></iframe>
+  <!-- 打印错误提示 -->
+  <div class="error-banner" *ngIf="printError">
+    <span>{{ printError }}</span>
+    <button type="button" class="close-button" (click)="printError = ''">×</button>
+  </div>
+
+  <!-- PDF查看器 -->
+  <ng-container *ngIf="pageState === 'ready'; else statePanel">
+    <div class="pdf-viewer-container">
+      <div class="pdf-scroll-container">
+        <div class="pdf-pages-container" #pdfPagesContainer>
+          <!-- Canvas由PDF.js动态渲染 -->
+        </div>
+      </div>
     </div>
   </ng-container>
 
   <!-- 状态面板 -->
   <ng-template #statePanel>
     <div class="state-panel" [class.error]="pageState === 'error'">
-      <div *ngIf="pageState === 'loading' || pageState === 'calculating'" class="spinner" aria-hidden="true"></div>
+      <div *ngIf="pageState === 'loading' || pageState === 'calculating' || isLoadingPdf || isRenderingPdf" class="spinner" aria-hidden="true"></div>
       <strong>
         <ng-container [ngSwitch]="pageState">
           <ng-container *ngSwitchCase="'waiting-patient'">等待患者信息...</ng-container>
-          <ng-container *ngSwitchCase="'loading'">正在加载护理记录...</ng-container>
-          <ng-container *ngSwitchCase="'calculating'">首次加载，正在计算页码... {{ calculatingProgress > 0 ? calculatingProgress + '%' : '' }}</ng-container>
+          <ng-container *ngSwitchCase="'loading'">
+            {{ isLoadingPdf ? '正在加载护理记录PDF...' : '正在加载护理记录...' }}
+          </ng-container>
+          <ng-container *ngSwitchCase="'calculating'">
+            首次加载，正在计算页码... {{ calculatingProgress > 0 ? calculatingProgress + '%' : '' }}
+          </ng-container>
           <ng-container *ngSwitchCase="'error'">{{ error || '加载失败，请重试' }}</ng-container>
+          <ng-container *ngSwitchCase="'ready'">
+            {{ isRenderingPdf ? '正在渲染PDF页面...' : '' }}
+          </ng-container>
         </ng-container>
       </strong>
     </div>

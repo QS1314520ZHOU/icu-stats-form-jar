@@ -11,7 +11,7 @@ import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 @Component({
   standalone: false,
   selector: 'app-hljld-form2-pdf',
-  templateUrl: './hljld-form-pdf.component.html',
+  templateUrl: './hljld2-form-pdf.component.html',
   styleUrls: ['./hljld-form-pdf.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

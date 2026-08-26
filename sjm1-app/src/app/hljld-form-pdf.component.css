@@ -1,55 +1,48 @@
-/* ── ICU 护理记录单 PDF 查看器样式 ── */
+/* ═══════════════════════════════════════════════════════════════
+   护理记录单PDF查看器 - 自定义PDF.js渲染
+   ═══════════════════════════════════════════════════════════════ */
 
 :host {
   display: block;
   width: 100%;
-  min-width: 0;
-  min-height: 100%;
-  box-sizing: border-box;
-  color: #222;
-  background: #f5f5f5;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .hljld-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: #f5f5f5;
 }
 
-/* ── 工具栏 ── */
+/* ═══════════════════════════════════════════════════════════════
+   工具栏
+   ═══════════════════════════════════════════════════════════════ */
 
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
+  gap: 12px;
+  padding: 8px 16px;
   background: #fff;
   border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  z-index: 10;
+  flex-shrink: 0;
   flex-wrap: wrap;
 }
 
-.date-tools,
-.page-tools,
-.action-tools {
+/* 日期选择 */
+.date-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
-
-.toolbar-spacer {
-  flex: 1;
-}
-
-/* ── 日期选择 ── */
 
 .nav-arrow {
   width: 32px;
   height: 32px;
-  border: 1px solid #ddd;
+  border: 1px solid #ccc;
   border-radius: 4px;
   background: #fff;
   cursor: pointer;
@@ -57,12 +50,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background-color 0.2s;
 }
 
 .nav-arrow:hover:not(:disabled) {
   background: #f0f0f0;
-  border-color: #bbb;
 }
 
 .nav-arrow:disabled {
@@ -70,33 +62,32 @@
   cursor: not-allowed;
 }
 
-.date-picker input[type="date"] {
-  padding: 6px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
+.date-picker {
+  position: relative;
 }
 
-.date-picker input[type="date"]:focus {
-  outline: none;
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+.date-picker input {
+  width: 140px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
 }
 
 .today-button {
-  padding: 6px 12px;
-  border: 1px solid #1976d2;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #ccc;
   border-radius: 4px;
   background: #fff;
-  color: #1976d2;
   cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
+  font-size: 14px;
+  transition: background-color 0.2s;
 }
 
 .today-button:hover:not(:disabled) {
-  background: #e3f2fd;
+  background: #f0f0f0;
 }
 
 .today-button:disabled {
@@ -105,130 +96,254 @@
 }
 
 .today-button-active {
-  background: #1976d2;
-  color: #fff;
+  background: #e3f2fd;
+  border-color: #2196f3;
+  color: #1976d2;
 }
 
-.today-button-active:hover:not(:disabled) {
-  background: #1565c0;
+/* 缩放控制 */
+.zoom-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-/* ── 页码选择 ── */
+.zoom-button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.zoom-button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.zoom-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.zoom-label {
+  min-width: 50px;
+  text-align: center;
+  font-size: 14px;
+  color: #333;
+}
+
+.zoom-reset-button {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.zoom-reset-button:hover {
+  background: #f0f0f0;
+}
+
+/* 页码选择 */
+.page-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
 .page-label {
-  font-size: 13px;
-  color: #666;
+  font-size: 14px;
+  color: #333;
 }
 
 .page-select {
-  padding: 6px 10px;
-  border: 1px solid #ddd;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid #ccc;
   border-radius: 4px;
-  background: #fff;
-  font-size: 13px;
-  cursor: pointer;
+  font-size: 14px;
   min-width: 80px;
 }
 
-.page-select:focus {
-  outline: none;
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+.toolbar-spacer {
+  flex: 1;
 }
 
-.page-info {
-  font-size: 13px;
-  color: #666;
+/* 操作按钮 */
+.action-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* ── 操作按钮 ── */
-
-.recalculate-button {
-  padding: 6px 12px;
-  border: 1px solid #ff9800;
+.refresh-button,
+.recalculate-button,
+.download-button,
+.print-button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #ccc;
   border-radius: 4px;
   background: #fff;
-  color: #ff9800;
   cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
+  font-size: 14px;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.refresh-button:hover:not(:disabled),
+.recalculate-button:hover:not(:disabled),
+.download-button:hover:not(:disabled),
+.print-button:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #999;
+}
+
+.refresh-button:disabled,
+.recalculate-button:disabled,
+.download-button:disabled,
+.print-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.recalculate-button {
+  background: #fff3e0;
+  border-color: #ffb74d;
 }
 
 .recalculate-button:hover:not(:disabled) {
-  background: #fff3e0;
+  background: #ffe0b2;
 }
 
-.recalculate-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.download-all-button {
+  background: #e8f5e9;
+  border-color: #81c784;
 }
 
-.print-button {
-  padding: 6px 16px;
-  border: none;
-  border-radius: 4px;
-  background: #1976d2;
-  color: #fff;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
-}
-
-.print-button:hover:not(:disabled) {
-  background: #1565c0;
-}
-
-.print-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.download-all-button:hover:not(:disabled) {
+  background: #c8e6c9;
 }
 
 .print-all-button {
-  background: #388e3c;
+  background: #e3f2fd;
+  border-color: #64b5f6;
 }
 
 .print-all-button:hover:not(:disabled) {
-  background: #2e7d32;
+  background: #bbdefb;
 }
 
-/* ── PDF 容器 ── */
+/* ═══════════════════════════════════════════════════════════════
+   加载和错误提示
+   ═══════════════════════════════════════════════════════════════ */
 
-.pdf-container {
+.loading-banner,
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.loading-banner {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.error-banner {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.close-button {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-button:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PDF查看器容器
+   ═══════════════════════════════════════════════════════════════ */
+
+.pdf-viewer-container {
   flex: 1;
-  position: relative;
   overflow: hidden;
-  background: #e0e0e0;
 }
 
-.pdf-viewer {
+.pdf-scroll-container {
   width: 100%;
   height: 100%;
-  border: none;
-  background: #fff;
+  overflow: auto;
+  background: #3f3f3f;
 }
 
-/* ── 加载状态 ── */
+.pdf-pages-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  min-height: 100%;
+}
 
-.loading-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+/* PDF页面Canvas */
+:host ::ng-deep .pdf-page-canvas {
+  display: block;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   状态面板
+   ═══════════════════════════════════════════════════════════════ */
+
+.state-panel {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.9);
-  z-index: 5;
-  gap: 12px;
+  gap: 16px;
+  padding: 32px;
+  text-align: center;
 }
 
+.state-panel.error {
+  color: #c62828;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   加载动画
+   ═══════════════════════════════════════════════════════════════ */
+
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #ddd;
-  border-top-color: #1976d2;
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #2196f3;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -239,31 +354,9 @@
   }
 }
 
-/* ── 状态面板 ── */
-
-.state-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: #666;
-}
-
-.state-panel.error {
-  color: #d32f2f;
-}
-
-.source-warning {
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: #fff3e0;
-  color: #e65100;
-  font-size: 13px;
-}
-
-/* ── 辅助类 ── */
+/* ═══════════════════════════════════════════════════════════════
+   无障碍
+   ═══════════════════════════════════════════════════════════════ */
 
 .sr-only {
   position: absolute;
@@ -277,52 +370,17 @@
   border: 0;
 }
 
-/* ── 打印样式 ── */
+/* ═══════════════════════════════════════════════════════════════
+   打印样式
+   ═══════════════════════════════════════════════════════════════ */
 
 @media print {
-  .toolbar {
+  .no-print {
     display: none !important;
   }
 
-  .hljld-shell {
-    height: auto;
-  }
-
-  .pdf-container {
-    position: static;
-    height: auto;
-  }
-
-  .pdf-viewer {
-    height: auto;
-    min-height: 100vh;
-  }
-}
-
-/* ── 响应式 ── */
-
-@media (max-width: 768px) {
-  .toolbar {
-    padding: 8px 12px;
-    gap: 8px;
-  }
-
-  .date-tools,
-  .page-tools,
-  .action-tools {
-    gap: 6px;
-  }
-
-  .nav-arrow {
-    width: 28px;
-    height: 28px;
-    font-size: 16px;
-  }
-
-  .today-button,
-  .recalculate-button,
-  .print-button {
-    padding: 5px 10px;
-    font-size: 12px;
+  @page {
+    size: A4 landscape;
+    margin: 0;
   }
 }
