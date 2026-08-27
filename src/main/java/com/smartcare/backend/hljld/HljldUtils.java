@@ -480,8 +480,14 @@ public final class HljldUtils {
             Date nursingDayEnd,
             boolean skipDischargeClip) {
 
-        double admissionTs = parsePatientDateTime(strOrNull(patient, "admissionTime"));
-        double dischargeTs = parsePatientDateTime(strOrNull(patient, "dischargeTime"));
+        double admissionTs = parsePatientDateTime(strOrNull(patient, "icuAdmissionTime"));
+        if (!Double.isFinite(admissionTs)) {
+            admissionTs = parsePatientDateTime(strOrNull(patient, "admissionTime"));
+        }
+        double dischargeTs = parsePatientDateTime(strOrNull(patient, "icuDischargeTime"));
+        if (!Double.isFinite(dischargeTs)) {
+            dischargeTs = parsePatientDateTime(strOrNull(patient, "dischargeTime"));
+        }
 
         Date admissionTime = Double.isFinite(admissionTs) ? new Date((long) admissionTs) : null;
         Date dischargeTime = Double.isFinite(dischargeTs) ? new Date((long) dischargeTs) : null;

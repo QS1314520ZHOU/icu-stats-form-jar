@@ -92,7 +92,10 @@ public class FormPageIndexService {
                 return;
             }
 
-            Date admissionTime = patient.getDate("admissionTime");
+            Date admissionTime = patient.getDate("icuAdmissionTime");
+            if (admissionTime == null) {
+                admissionTime = patient.getDate("admissionTime");
+            }
             if (admissionTime == null) {
                 log.error("患者入科时间为空: pid={}", pid);
                 return;
@@ -103,7 +106,9 @@ public class FormPageIndexService {
             index.setPid(pid);
             index.setFormType(formType);
             index.setAdmissionTime(admissionTime);
-            index.setDischargeTime(patient.getDate("dischargeTime"));
+            Date dischargeTimeTrigger = patient.getDate("icuDischargeTime");
+            if (dischargeTimeTrigger == null) dischargeTimeTrigger = patient.getDate("dischargeTime");
+            index.setDischargeTime(dischargeTimeTrigger);
             index.setStatus("calculating");
             index.setProgress(0);
             index.setLastUpdated(new Date());
@@ -127,8 +132,10 @@ public class FormPageIndexService {
             return;
         }
 
-        Date admissionTime = patient.getDate("admissionTime");
-        Date dischargeTime = patient.getDate("dischargeTime");
+        Date admissionTime = patient.getDate("icuAdmissionTime");
+        if (admissionTime == null) admissionTime = patient.getDate("admissionTime");
+        Date dischargeTime = patient.getDate("icuDischargeTime");
+        if (dischargeTime == null) dischargeTime = patient.getDate("dischargeTime");
 
         if (admissionTime == null) {
             log.error("页码计算-入科时间为空: pid={}", pid);

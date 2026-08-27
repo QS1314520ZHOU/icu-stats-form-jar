@@ -530,8 +530,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       age: p.age || '',
       bedNo: p.bedNo || '',
       diagnosis: p.diagnosis || '',
-      admissionTime: p.admissionTime || '',
-      dischargeTime: p.dischargeTime || '',
+      admissionTime: p.icuAdmissionTime || p.admissionTime || '',
+      dischargeTime: p.icuDischargeTime || p.dischargeTime || '',
       isDischarged: p.isDischarged === true || String(p.status || '').toLowerCase() === 'discharged',
     };
   }
