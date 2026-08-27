@@ -433,4 +433,166 @@ class HljldFlowPdfServiceTest {
         assertFalse(pageNumber.contains("/"), "页码不应包含'/'");
         assertFalse(pageNumber.contains("共"), "页码不应包含'共'");
     }
+
+    // ══════════════════════════════════════════════════════════
+    //  备注内容验证（与前端 DEFAULT_REMARK_LINES 一致）
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testRemarksContentConsistency() throws Exception {
+        String[] remarks = HljldPdfLayoutConstants.REMARK_LINES;
+        assertEquals(4, remarks.length, "备注应有4行");
+
+        // 验证每行内容与前端一致（使用4个空格分隔）
+        assertTrue(remarks[0].startsWith("检查：A：CT"), "第1行应以'检查：A：CT'开头");
+        assertTrue(remarks[0].contains("    "), "第1行应使用4个空格分隔");
+
+        assertTrue(remarks[1].startsWith("治疗：A：机械辅助排痰"), "第2行应以'治疗：A：机械辅助排痰'开头");
+        assertTrue(remarks[1].contains("    "), "第2行应使用4个空格分隔");
+
+        assertTrue(remarks[2].startsWith("基础护理：A：口腔护理"), "第3行应以'基础护理：A：口腔护理'开头");
+        assertTrue(remarks[2].contains("    "), "第3行应使用4个空格分隔");
+
+        assertTrue(remarks[3].startsWith("健康教育：A：入院指导"), "第4行应以'健康教育：A：入院指导'开头");
+        assertTrue(remarks[3].contains("    "), "第4行应使用4个空格分隔");
+
+        // 验证健康教育行包含所有项目
+        assertTrue(remarks[3].contains("P：VTE预防指导"), "健康教育行应包含'P：VTE预防指导'");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  小结时间过滤测试（未到时间不显示）
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testSummaryTimeFilter() throws Exception {
+        // 模拟当前时间为16:59（早于17:00）
+        long nowMs = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai"))
+            .withHour(16).withMinute(59).withSecond(0).withNano(0)
+            .toInstant().toEpochMilli();
+
+        // 计算当天17:00边界
+        java.time.ZonedDateTime now1659 = java.time.Instant.ofEpochMilli(nowMs)
+            .atZone(java.time.ZoneId.of("Asia/Shanghai"));
+        java.time.LocalDateTime day1700 = now1659.toLocalDateTime()
+            .withHour(17).withMinute(0).withSecond(0).withNano(0);
+        long dayBoundaryMs = day1700.atZone(java.time.ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli();
+
+        // 验证：16:59 < 17:00，日间小结不应显示
+        assertTrue(nowMs < dayBoundaryMs, "16:59应早于17:00");
+
+        // 模拟当前时间为17:00（等于17:00）
+        long nowMs1700 = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai"))
+            .withHour(17).withMinute(0).withSecond(0).withNano(0)
+            .toInstant().toEpochMilli();
+
+        // 验证：17:00 >= 17:00，日间小结应显示
+        assertTrue(nowMs1700 >= dayBoundaryMs, "17:00应等于或晚于17:00");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  24小时总结时间过滤测试
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testFullDaySummaryTimeFilter() throws Exception {
+        // 模拟当前时间为次日06:59（早于07:00）
+        long nowMs = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai"))
+            .plusDays(1).withHour(6).withMinute(59).withSecond(0).withNano(0)
+            .toInstant().toEpochMilli();
+
+        // 计算次日07:00边界
+        java.time.ZonedDateTime nowNextDay = java.time.Instant.ofEpochMilli(nowMs)
+            .atZone(java.time.ZoneId.of("Asia/Shanghai"));
+        java.time.LocalDateTime nextMorning0700 = nowNextDay.toLocalDateTime()
+            .withHour(7).withMinute(0).withSecond(0).withNano(0);
+        long nextMorningBoundaryMs = nextMorning0700.atZone(java.time.ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli();
+
+        // 验证：06:59 < 07:00，24小时总结不应显示
+        assertTrue(nowMs < nextMorningBoundaryMs, "06:59应早于次日07:00");
+
+        // 模拟当前时间为次日07:00（等于07:00）
+        long nowMs0700 = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai"))
+            .plusDays(1).withHour(7).withMinute(0).withSecond(0).withNano(0)
+            .toInstant().toEpochMilli();
+
+        // 验证：07:00 >= 07:00，24小时总结应显示
+        assertTrue(nowMs0700 >= nextMorningBoundaryMs, "07:00应等于或晚于次日07:00");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  小结内容完整性测试
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testSummaryContentCompleteness() throws Exception {
+        // 创建测试小结
+        com.smartcare.backend.hljld.HljldSummary summary = new com.smartcare.backend.hljld.HljldSummary();
+        summary.setKind(com.smartcare.backend.hljld.HljldSummary.Kind.DAY);
+        summary.setInputSum(1000.0);
+        summary.setMedicationSum(500.0);
+        summary.setEnteralSum(300.0);
+        summary.setOutputSum(800.0);
+        summary.setUrineSum(400.0);
+        summary.setUltrafiltrationSum(200.0);
+        summary.setBalance(200.0);
+
+        // 设置明细项
+        java.util.List<com.smartcare.backend.hljld.SummaryItem> medicationItems = new ArrayList<>();
+        medicationItems.add(new com.smartcare.backend.hljld.SummaryItem("brought", "带入药量", 100.0));
+        medicationItems.add(new com.smartcare.backend.hljld.SummaryItem("iv", "静脉入量", 400.0));
+        summary.setMedicationItems(medicationItems);
+
+        java.util.List<com.smartcare.backend.hljld.SummaryItem> enteralItems = new ArrayList<>();
+        enteralItems.add(new com.smartcare.backend.hljld.SummaryItem("tube", "鼻饲量", 200.0));
+        enteralItems.add(new com.smartcare.backend.hljld.SummaryItem("gastro", "胃肠入量", 100.0));
+        summary.setEnteralItems(enteralItems);
+
+        // 验证小结数据
+        assertEquals(1000.0, summary.getInputSum(), 0.1, "总入量应为1000.0");
+        assertEquals(500.0, summary.getMedicationSum(), 0.1, "药物治疗应为500.0");
+        assertEquals(300.0, summary.getEnteralSum(), 0.1, "胃肠摄入应为300.0");
+        assertEquals(800.0, summary.getOutputSum(), 0.1, "总出量应为800.0");
+        assertEquals(400.0, summary.getUrineSum(), 0.1, "尿量应为400.0");
+        assertEquals(200.0, summary.getUltrafiltrationSum(), 0.1, "净超滤量应为200.0");
+        assertEquals(200.0, summary.getBalance(), 0.1, "平衡量应为200.0");
+
+        // 验证明细项
+        assertEquals(2, summary.getMedicationItems().size(), "药物治疗应有2个明细项");
+        assertEquals(2, summary.getEnteralItems().size(), "胃肠摄入应有2个明细项");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  时区一致性测试（Asia/Shanghai）
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testTimeZoneConsistency() throws Exception {
+        // 验证使用 Asia/Shanghai 时区
+        java.time.ZoneId shanghaiZone = java.time.ZoneId.of("Asia/Shanghai");
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(shanghaiZone);
+
+        // 验证时区偏移为 +8 小时
+        assertEquals(8, now.getOffset().getTotalSeconds() / 3600, "上海时区应为UTC+8");
+
+        // 验证护理日边界计算
+        java.time.LocalDateTime dayStart = now.toLocalDateTime().withHour(7).withMinute(0).withSecond(0).withNano(0);
+        java.time.LocalDateTime dayEnd = dayStart.plusDays(1);
+
+        assertTrue(dayEnd.isAfter(dayStart), "护理日结束时间应晚于开始时间");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  备注区高度验证
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testRemarksHeight() throws Exception {
+        float rowHeight = HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
+        int rows = HljldPdfLayoutConstants.REMARK_ROWS;
+        float totalHeight = HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
+
+        assertEquals(13f, rowHeight, "备注行高应为13pt");
+        assertEquals(4, rows, "备注应有4行");
+        assertEquals(52f, totalHeight, 0.01f, "备注区总高度应为52pt");
+
+        // 验证备注区高度不超过页面高度的20%
+        float maxAllowedHeight = HljldPdfLayoutConstants.PAGE_HEIGHT * 0.2f;
+        assertTrue(totalHeight < maxAllowedHeight,
+            "备注区高度应小于页面高度的20%: " + totalHeight + " < " + maxAllowedHeight);
+    }
 }

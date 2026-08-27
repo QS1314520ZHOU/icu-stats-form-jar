@@ -414,18 +414,53 @@ public class HljldSummaryCalculator {
             nurseItems.add(new SummaryItem(name, name, 1)));
         summary.setNurseItems(nurseItems);
 
+        // ══════════════════════════════════════════════════════════
+        //  构建 detailLines（与前端 buildInputLine/buildOutputLine 保持一致）
+        // ══════════════════════════════════════════════════════════
+        List<List<SummaryTextToken>> detailLines = new ArrayList<>();
+
+        // 第一行：入量行
+        detailLines.add(buildInputLineTokens(
+            summary.getInputSum(),
+            summary.getMedicationSum(),
+            summary.getMedicationItems(),
+            summary.getEnteralSum(),
+            summary.getEnteralItems()
+        ));
+
+        // 第二行：出量行
+        detailLines.add(buildOutputLineTokens(
+            summary.getOutputSum(),
+            summary.getUrineSum(),
+            summary.getUltrafiltrationSum(),
+            summary.getOutputSum() - summary.getUrineSum() - summary.getUltrafiltrationSum(),
+            summary.getOutputItems(),
+            summary.getDrainItems()
+        ));
+
+        // 第三行：平衡量
+        List<SummaryTextToken> balanceLine = new ArrayList<>();
+        balanceLine.add(new SummaryTextToken("平衡量：", false, false));
+        balanceLine.add(new SummaryTextToken(String.format("%.1f", summary.getBalance()) + " ml", true, false));
+        detailLines.add(balanceLine);
+
+        summary.setDetailLines(detailLines);
+
         return summary;
     }
 
     /**
      * 构建时间轴，对应前端 buildTimeline。
      * 将数据组和小结按时间轴交错排列。
+     *
+     * @param nowMs 当前时刻毫秒（用于判断小结是否应显示）
      */
     public List<HljldTimelineItem> buildTimeline(List<HljldTimeGroup> displayGroups,
                                                   HljldSummary daySummary,
                                                   HljldSummary shiftSummary,
                                                   HljldSummary fullDaySummary,
-                                                  HljldSummary dischargeSummary) {
+                                                  HljldSummary dischargeSummary,
+                                                  long nowMs) {
         List<HljldTimelineItem> timeline = new ArrayList<>();
 
         // 添加数据组
@@ -433,11 +468,68 @@ public class HljldSummaryCalculator {
             timeline.add(HljldTimelineItem.ofGroup(group));
         }
 
-        // 添加小结
-        if (daySummary != null) timeline.add(HljldTimelineItem.ofSummary(daySummary));
-        if (shiftSummary != null) timeline.add(HljldTimelineItem.ofSummary(shiftSummary));
-        if (fullDaySummary != null) timeline.add(HljldTimelineItem.ofSummary(fullDaySummary));
-        if (dischargeSummary != null) timeline.add(HljldTimelineItem.ofSummary(dischargeSummary));
+        // ── 时间过滤逻辑（与前端 buildTimeline 保持一致） ──
+        // 计算时间边界（使用 Asia/Shanghai 时区）
+        java.time.ZoneId shanghaiZone = java.time.ZoneId.of("Asia/Shanghai");
+        java.time.LocalDateTime nowDateTime = java.time.Instant.ofEpochMilli(nowMs).atZone(shanghaiZone).toLocalDateTime();
+
+        // 当天17:00边界
+        java.time.LocalDateTime day1700 = nowDateTime.withHour(17).withMinute(0).withSecond(0).withNano(0);
+        long dayBoundaryMs = day1700.atZone(shanghaiZone).toInstant().toEpochMilli();
+
+        // 次日07:00边界
+        java.time.LocalDateTime nextMorning0700 = nowDateTime.plusDays(1).withHour(7).withMinute(0).withSecond(0).withNano(0);
+        long nextMorningBoundaryMs = nextMorning0700.atZone(shanghaiZone).toInstant().toEpochMilli();
+
+        // 日间小结显示条件：必须有效且时间段大于0分钟，且当前时间已到达17:00
+        boolean showDaySummary =
+            daySummary != null
+            && daySummary.getTime() != null
+            && daySummary.getTime().getTime() > 0
+            && nowMs >= dayBoundaryMs;
+
+        // 24小时总结和班段小结显示条件：当前时间已到达次日07:00
+        boolean showShiftSummary =
+            shiftSummary != null
+            && shiftSummary.getTime() != null
+            && shiftSummary.getTime().getTime() > 0
+            && nowMs >= nextMorningBoundaryMs;
+
+        boolean showFullDaySummary =
+            fullDaySummary != null
+            && fullDaySummary.getTime() != null
+            && fullDaySummary.getTime().getTime() > 0
+            && nowMs >= nextMorningBoundaryMs;
+
+        // 出科总结：始终显示（如果存在）
+        boolean showDischargeSummary = dischargeSummary != null && dischargeSummary.getTime() != null;
+
+        // 按时间顺序插入小结（与前端逻辑对齐）
+        // 日间小结：在17:00位置插入
+        if (showDaySummary) {
+            HljldTimelineItem dayItem = HljldTimelineItem.ofSummary(daySummary);
+            dayItem.setTimestamp(dayBoundaryMs);
+            timeline.add(dayItem);
+        }
+
+        // 24小时总结：在次日07:00位置插入
+        if (showFullDaySummary) {
+            HljldTimelineItem fullDayItem = HljldTimelineItem.ofSummary(fullDaySummary);
+            fullDayItem.setTimestamp(nextMorningBoundaryMs);
+            timeline.add(fullDayItem);
+        }
+
+        // 班段小结：在次日07:00位置插入
+        if (showShiftSummary) {
+            HljldTimelineItem shiftItem = HljldTimelineItem.ofSummary(shiftSummary);
+            shiftItem.setTimestamp(nextMorningBoundaryMs);
+            timeline.add(shiftItem);
+        }
+
+        // 出科总结：在出科时间位置插入
+        if (showDischargeSummary) {
+            timeline.add(HljldTimelineItem.ofSummary(dischargeSummary));
+        }
 
         // 按时间排序（数据组在前，小结在后）
         timeline.sort(Comparator.comparingLong(HljldTimelineItem::getTimestamp)
@@ -541,5 +633,142 @@ public class HljldSummaryCalculator {
     private static String str(Map<?, ?> map, String key) {
         Object v = map.get(key);
         return v != null ? v.toString().trim() : "";
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  detailLines 构建方法（与前端 buildInputLine/buildOutputLine 保持一致）
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * 构建入量行 tokens。
+     * 格式：总入量：xx ml；药物治疗：xx ml（带入药量、静脉入量（输血入量、iv、ivgtt…））；胃肠摄入：xx ml（鼻饲量（鼻饲、鼻饲泵入）、胃肠入量（po））
+     */
+    private List<SummaryTextToken> buildInputLineTokens(
+            double totalInput,
+            double drugTreatmentTotal,
+            List<SummaryItem> drugTreatmentItems,
+            double gastrointestinalInputTotal,
+            List<SummaryItem> gastrointestinalInputItems) {
+
+        List<SummaryTextToken> tokens = new ArrayList<>();
+        pushAmount(tokens, "总入量", totalInput);
+
+        // 药物治疗
+        List<SummaryItem> nonZeroDrugItems = drugTreatmentItems.stream()
+            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
+            .collect(Collectors.toList());
+        if (HljldUtils.round1(drugTreatmentTotal) != 0 || !nonZeroDrugItems.isEmpty()) {
+            tokens.add(new SummaryTextToken("；", false, true));
+            pushGroupTokens(tokens, "药物治疗", drugTreatmentTotal, nonZeroDrugItems);
+        }
+
+        // 胃肠摄入
+        List<SummaryItem> nonZeroGastroItems = gastrointestinalInputItems.stream()
+            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
+            .collect(Collectors.toList());
+        if (HljldUtils.round1(gastrointestinalInputTotal) != 0 || !nonZeroGastroItems.isEmpty()) {
+            tokens.add(new SummaryTextToken("；", false, true));
+            pushGroupTokens(tokens, "胃肠摄入", gastrointestinalInputTotal, nonZeroGastroItems);
+        }
+
+        return tokens;
+    }
+
+    /**
+     * 构建出量行 tokens。
+     * 格式：总出量：xx ml；尿量：xx ml；净超滤量：xx ml；排出物：xx ml（…）；引流液：xx ml（…）
+     */
+    private List<SummaryTextToken> buildOutputLineTokens(
+            double totalOutput,
+            double urineTotal,
+            double ultrafiltrationTotal,
+            double excretionTotal,
+            List<SummaryItem> outputItems,
+            List<SummaryItem> drainItems) {
+
+        List<SummaryTextToken> tokens = new ArrayList<>();
+        pushAmount(tokens, "总出量", totalOutput);
+
+        // 尿量
+        if (HljldUtils.round1(urineTotal) != 0) {
+            tokens.add(new SummaryTextToken("；", false, true));
+            pushAmount(tokens, "尿量", urineTotal);
+        }
+
+        // 净超滤量
+        if (HljldUtils.round1(ultrafiltrationTotal) != 0) {
+            tokens.add(new SummaryTextToken("；", false, true));
+            pushAmount(tokens, "净超滤量", ultrafiltrationTotal);
+        }
+
+        // 排出物
+        List<SummaryItem> nonZeroOutputItems = outputItems.stream()
+            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
+            .collect(Collectors.toList());
+        if (HljldUtils.round1(excretionTotal) != 0 || !nonZeroOutputItems.isEmpty()) {
+            tokens.add(new SummaryTextToken("；", false, true));
+            pushGroupTokens(tokens, "排出物", excretionTotal, nonZeroOutputItems);
+        }
+
+        // 引流液
+        double drainTotal = drainItems.stream().mapToDouble(SummaryItem::getAmount).sum();
+        List<SummaryItem> nonZeroDrainItems = drainItems.stream()
+            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
+            .collect(Collectors.toList());
+        if (HljldUtils.round1(drainTotal) != 0 || !nonZeroDrainItems.isEmpty()) {
+            tokens.add(new SummaryTextToken("；", false, true));
+            pushGroupTokens(tokens, "引流液", drainTotal, nonZeroDrainItems);
+        }
+
+        return tokens;
+    }
+
+    /**
+     * 推入「标签：xx ml」格式的 tokens。
+     */
+    private void pushAmount(List<SummaryTextToken> tokens, String label, double amount) {
+        tokens.add(new SummaryTextToken(label + "：", false, false));
+        tokens.add(new SummaryTextToken(String.format("%.1f", amount) + " ml", true, false));
+    }
+
+    /**
+     * 推入带子项的分组 tokens。
+     * 格式：标签：xx ml（子项1：xx ml、子项2：xx ml）
+     */
+    private void pushGroupTokens(List<SummaryTextToken> tokens, String label, double total, List<SummaryItem> items) {
+        pushAmount(tokens, label, total);
+        if (!items.isEmpty()) {
+            tokens.add(new SummaryTextToken("（", false, false));
+            for (int i = 0; i < items.size(); i++) {
+                if (i > 0) {
+                    tokens.add(new SummaryTextToken("、", false, false));
+                }
+                pushAmount(tokens, items.get(i).getLabel(), items.get(i).getAmount());
+                // 如果有子项，递归处理
+                if (items.get(i).getChildren() != null && !items.get(i).getChildren().isEmpty()) {
+                    tokens.add(new SummaryTextToken("（", false, false));
+                    pushItemsTokens(tokens, items.get(i).getChildren());
+                    tokens.add(new SummaryTextToken("）", false, false));
+                }
+            }
+            tokens.add(new SummaryTextToken("）", false, false));
+        }
+    }
+
+    /**
+     * 递归推入明细项 tokens。
+     */
+    private void pushItemsTokens(List<SummaryTextToken> tokens, List<SummaryItem> items) {
+        for (int i = 0; i < items.size(); i++) {
+            if (i > 0) {
+                tokens.add(new SummaryTextToken("、", false, false));
+            }
+            pushAmount(tokens, items.get(i).getLabel(), items.get(i).getAmount());
+            if (items.get(i).getChildren() != null && !items.get(i).getChildren().isEmpty()) {
+                tokens.add(new SummaryTextToken("（", false, false));
+                pushItemsTokens(tokens, items.get(i).getChildren());
+                tokens.add(new SummaryTextToken("）", false, false));
+            }
+        }
     }
 }

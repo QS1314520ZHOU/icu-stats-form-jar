@@ -82,9 +82,9 @@ public class HljldPdfDataAssembler {
         HljldSummary dischargeSummary = summaryCalculator.buildSummary(
             HljldSummary.Kind.DISCHARGE, source, nursingDayStart, nursingDayEnd, yesterdayStart, nowMs);
 
-        // 11. 构建时间轴
+        // 11. 构建时间轴（传入 nowMs 用于时间过滤）
         List<HljldTimelineItem> timeline = summaryCalculator.buildTimeline(
-            displayGroups, daySummary, shiftSummary, fullDaySummary, dischargeSummary);
+            displayGroups, daySummary, shiftSummary, fullDaySummary, dischargeSummary, nowMs);
 
         // 12. 构建分页数据
         int totalRows = displayGroups.stream().mapToInt(g -> g.getRows().size()).sum();

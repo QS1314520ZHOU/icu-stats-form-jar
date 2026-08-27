@@ -383,6 +383,7 @@ public class HljldFlowPdfService {
 
     /**
      * 构建嵌套小结 Table（4行，keep-together）
+     * 使用 detailLines 渲染，与前端保持一致
      */
     private Table buildNestedSummaryTable(PrintableItem item, PdfFont font) {
         float[] widths = HljldPdfLayoutConstants.COL_WIDTHS_PT;
@@ -395,10 +396,6 @@ public class HljldFlowPdfService {
 
         HljldSummary summary = item.summary;
         String title = (item.type == PrintableItemType.DAY_SUMMARY) ? "日间小结" : "24小时总结";
-
-        String line2 = buildSummaryLine2(summary);
-        String line3 = buildSummaryLine3(summary);
-        String line4 = buildSummaryLine4(summary);
 
         // 第1行：标题，合并19列，居中
         Cell titleCell = new Cell(1, 19)
@@ -413,25 +410,63 @@ public class HljldFlowPdfService {
             .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
         table.addCell(titleCell);
 
-        // 第2~4行：内容，合并19列，左对齐
-        for (String line : new String[]{line2, line3, line4}) {
-            Cell contentCell = new Cell(1, 19)
-                .add(new Paragraph(line)
-                    .setFont(font)
-                    .setFontSize(HljldPdfLayoutConstants.SUMMARY_FONT_SIZE)
+        // 第2~4行：使用 detailLines 渲染（与前端保持一致）
+        List<List<SummaryTextToken>> detailLines = summary.getDetailLines();
+        if (detailLines != null && !detailLines.isEmpty()) {
+            for (List<SummaryTextToken> line : detailLines) {
+                Cell contentCell = new Cell(1, 19)
+                    .add(buildParagraphFromTokens(line, font))
                     .setTextAlignment(TextAlignment.LEFT)
-                    .setMargin(0))
-                .setTextAlignment(TextAlignment.LEFT)
-                .setVerticalAlignment(VerticalAlignment.MIDDLE)
-                .setMinHeight(14f)
-                .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
-            table.addCell(contentCell);
+                    .setVerticalAlignment(VerticalAlignment.MIDDLE)
+                    .setMinHeight(14f)
+                    .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
+                table.addCell(contentCell);
+            }
+        } else {
+            // 回退：使用简单文本
+            String line2 = buildSummaryLine2(summary);
+            String line3 = buildSummaryLine3(summary);
+            String line4 = buildSummaryLine4(summary);
+
+            for (String line : new String[]{line2, line3, line4}) {
+                Cell contentCell = new Cell(1, 19)
+                    .add(new Paragraph(line)
+                        .setFont(font)
+                        .setFontSize(HljldPdfLayoutConstants.SUMMARY_FONT_SIZE)
+                        .setTextAlignment(TextAlignment.LEFT)
+                        .setMargin(0))
+                    .setTextAlignment(TextAlignment.LEFT)
+                    .setVerticalAlignment(VerticalAlignment.MIDDLE)
+                    .setMinHeight(14f)
+                    .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
+                table.addCell(contentCell);
+            }
         }
 
         return table;
     }
 
-    /** 构建小结/总结第2行：入量相关 */
+    /**
+     * 从 SummaryTextToken 列表构建 Paragraph（支持加粗）
+     */
+    private Paragraph buildParagraphFromTokens(List<SummaryTextToken> tokens, PdfFont font) {
+        Paragraph para = new Paragraph();
+        for (SummaryTextToken token : tokens) {
+            if (token.isStrong()) {
+                para.add(new com.itextpdf.layout.element.Text(token.getText())
+                    .setFont(font)
+                    .setFontSize(HljldPdfLayoutConstants.SUMMARY_FONT_SIZE)
+                    .setBold());
+            } else {
+                para.add(new com.itextpdf.layout.element.Text(token.getText())
+                    .setFont(font)
+                    .setFontSize(HljldPdfLayoutConstants.SUMMARY_FONT_SIZE));
+            }
+        }
+        return para.setMargin(0);
+    }
+
+    /** 构建小结/总结第2行：入量相关（回退用） */
     private String buildSummaryLine2(HljldSummary s) {
         StringBuilder sb = new StringBuilder();
         sb.append("总入量：").append(formatVal(s.getInputSum())).append(" ml");
@@ -440,7 +475,7 @@ public class HljldFlowPdfService {
         return sb.toString();
     }
 
-    /** 构建小结/总结第3行：出量相关 */
+    /** 构建小结/总结第3行：出量相关（回退用） */
     private String buildSummaryLine3(HljldSummary s) {
         StringBuilder sb = new StringBuilder();
         sb.append("总出量：").append(formatVal(s.getOutputSum())).append(" ml");
@@ -449,7 +484,7 @@ public class HljldFlowPdfService {
         return sb.toString();
     }
 
-    /** 构建小结/总结第4行：平衡量 */
+    /** 构建小结/总结第4行：平衡量（回退用） */
     private String buildSummaryLine4(HljldSummary s) {
         return "平衡量：" + String.format("%.1f", s.getBalance()) + " ml";
     }
