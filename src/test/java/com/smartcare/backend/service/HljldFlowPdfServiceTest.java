@@ -525,37 +525,37 @@ class HljldFlowPdfServiceTest {
         // 创建测试小结
         com.smartcare.backend.hljld.HljldSummary summary = new com.smartcare.backend.hljld.HljldSummary();
         summary.setKind(com.smartcare.backend.hljld.HljldSummary.Kind.DAY);
-        summary.setInputSum(1000.0);
-        summary.setMedicationSum(500.0);
-        summary.setEnteralSum(300.0);
-        summary.setOutputSum(800.0);
-        summary.setUrineSum(400.0);
-        summary.setUltrafiltrationSum(200.0);
+        summary.setTotalInput(1000.0);
+        summary.setDrugTreatmentTotal(500.0);
+        summary.setGastrointestinalInputTotal(300.0);
+        summary.setTotalOutput(800.0);
+        summary.setUrineTotal(400.0);
+        summary.setUltrafiltrationTotal(200.0);
         summary.setBalance(200.0);
 
         // 设置明细项
-        java.util.List<com.smartcare.backend.hljld.SummaryItem> medicationItems = new ArrayList<>();
-        medicationItems.add(new com.smartcare.backend.hljld.SummaryItem("brought", "带入药量", 100.0));
-        medicationItems.add(new com.smartcare.backend.hljld.SummaryItem("iv", "静脉入量", 400.0));
-        summary.setMedicationItems(medicationItems);
+        java.util.List<com.smartcare.backend.hljld.SummaryItem> drugTreatmentItems = new ArrayList<>();
+        drugTreatmentItems.add(new com.smartcare.backend.hljld.SummaryItem("brought", "带入药量", 100.0));
+        drugTreatmentItems.add(new com.smartcare.backend.hljld.SummaryItem("iv", "静脉入量", 400.0));
+        summary.setDrugTreatmentItems(drugTreatmentItems);
 
-        java.util.List<com.smartcare.backend.hljld.SummaryItem> enteralItems = new ArrayList<>();
-        enteralItems.add(new com.smartcare.backend.hljld.SummaryItem("tube", "鼻饲量", 200.0));
-        enteralItems.add(new com.smartcare.backend.hljld.SummaryItem("gastro", "胃肠入量", 100.0));
-        summary.setEnteralItems(enteralItems);
+        java.util.List<com.smartcare.backend.hljld.SummaryItem> gastrointestinalItems = new ArrayList<>();
+        gastrointestinalItems.add(new com.smartcare.backend.hljld.SummaryItem("tube", "鼻饲量", 200.0));
+        gastrointestinalItems.add(new com.smartcare.backend.hljld.SummaryItem("gastro", "胃肠入量", 100.0));
+        summary.setGastrointestinalInputItems(gastrointestinalItems);
 
         // 验证小结数据
-        assertEquals(1000.0, summary.getInputSum(), 0.1, "总入量应为1000.0");
-        assertEquals(500.0, summary.getMedicationSum(), 0.1, "药物治疗应为500.0");
-        assertEquals(300.0, summary.getEnteralSum(), 0.1, "胃肠摄入应为300.0");
-        assertEquals(800.0, summary.getOutputSum(), 0.1, "总出量应为800.0");
-        assertEquals(400.0, summary.getUrineSum(), 0.1, "尿量应为400.0");
-        assertEquals(200.0, summary.getUltrafiltrationSum(), 0.1, "净超滤量应为200.0");
+        assertEquals(1000.0, summary.getTotalInput(), 0.1, "总入量应为1000.0");
+        assertEquals(500.0, summary.getDrugTreatmentTotal(), 0.1, "药物治疗应为500.0");
+        assertEquals(300.0, summary.getGastrointestinalInputTotal(), 0.1, "胃肠摄入应为300.0");
+        assertEquals(800.0, summary.getTotalOutput(), 0.1, "总出量应为800.0");
+        assertEquals(400.0, summary.getUrineTotal(), 0.1, "尿量应为400.0");
+        assertEquals(200.0, summary.getUltrafiltrationTotal(), 0.1, "净超滤量应为200.0");
         assertEquals(200.0, summary.getBalance(), 0.1, "平衡量应为200.0");
 
         // 验证明细项
-        assertEquals(2, summary.getMedicationItems().size(), "药物治疗应有2个明细项");
-        assertEquals(2, summary.getEnteralItems().size(), "胃肠摄入应有2个明细项");
+        assertEquals(2, summary.getDrugTreatmentItems().size(), "药物治疗应有2个明细项");
+        assertEquals(2, summary.getGastrointestinalInputItems().size(), "胃肠摄入应有2个明细项");
     }
 
     // ══════════════════════════════════════════════════════════

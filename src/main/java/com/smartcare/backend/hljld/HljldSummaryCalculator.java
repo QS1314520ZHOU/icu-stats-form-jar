@@ -3,458 +3,237 @@ package com.smartcare.backend.hljld;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 构建小结和时间轴，对应前端 buildSummary 和 buildTimeline。
+ * 构建小结和时间轴，完全移植前端 buildSummary + buildTimeline。
  *
- * 核心逻辑：
- * 1. 为四个时间点（day/shift/fullDay/discharge）各生成一个 HljldSummary
- * 2. 计算各类别总量（出入量、药品、肠内营养、护理操作等）
- * 3. 根据护理记录类型过滤
- * 4. 按护理班段构建文本段落
- * 5. 将数据组和小结按时间轴交错排列
+ * 统计口径与前端 hljld-form.utils.ts 完全一致：
+ * - 药物按通道分类：transfusion / vein / gastro / enteral
+ * - 尿量和净超滤量直接按编码统计，不从OUTPUT_CODE_NAMES过滤
+ * - 引流量纳入总出量
+ * - detailLines格式与前端buildInputLine/buildOutputLine一致
  */
 @Service
 public class HljldSummaryCalculator {
 
     private static final Logger log = LoggerFactory.getLogger(HljldSummaryCalculator.class);
 
-    // 等效护理操作映射：检查/治疗/基础护理/健康教育 → 对应护理操作名称
-    private static final Map<String, String> EQUIVALENT_NURSING_OPERATION = Map.of(
-        "param_外出检查", "外出检查",
-        "param_物理治疗", "物理治疗",
-        "param_基础护理1", "基础护理",
-        "param_健康教育", "健康教育"
-    );
+    /** 参与出入量统计的入量通道 */
+    private static final Set<String> COUNTED_IN_CHANNELS = Set.of("胃肠", "静脉", "输血");
 
-    @Autowired
-    public HljldSummaryCalculator() {}
+    /** 肠内营养名称匹配 */
+    private static final java.util.regex.Pattern ENTERAL_NUTRITION_PATTERN =
+        java.util.regex.Pattern.compile("肠内营养");
 
-    /**
-     * 构建小结（使用当前时间）。
-     */
-    public HljldSummary buildSummary(HljldSummary.Kind kind, HljldSourceData source,
-                                      Date nursingDayStart, Date nursingDayEnd,
-                                      Date nursingDayStartOfYesterday) {
-        return buildSummary(kind, source, nursingDayStart, nursingDayEnd, nursingDayStartOfYesterday, System.currentTimeMillis());
-    }
-
-    /**
-     * 构建小结。
-     *
-     * @param kind          小结类型
-     * @param source        原始数据
-     * @param nursingDayStart 当天护理日开始时间
-     * @param nursingDayEnd   当天护理日结束时间
-     * @param nursingDayStartOfYesterday 昨天护理日开始时间
-     * @param nowMs         当前时刻毫秒（一次获取，向下传递）
-     * @return HljldSummary
-     */
+    @SuppressWarnings("unchecked")
     public HljldSummary buildSummary(HljldSummary.Kind kind, HljldSourceData source,
                                       Date nursingDayStart, Date nursingDayEnd,
                                       Date nursingDayStartOfYesterday, long nowMs) {
 
-        // 确定段落
-        List<HljldUtils.NursingSegment> segments = HljldUtils.resolveNursingSegments(nursingDayStart);
-
-        HljldUtils.NursingSegment daySegment = segments.get(0);
-        HljldUtils.NursingSegment nightSegment = segments.get(1);
-
-        long dayStartMs = daySegment.start.getTime();
-        long dayEndMs = daySegment.end.getTime();
-        long nightStartMs = nightSegment.start.getTime();
-        long nightEndMs = nightSegment.end.getTime();
-
-        long startMs = nursingDayStart.getTime();
-        long endMs = nursingDayEnd.getTime();
+        // 1. 确定统计区间
+        HljldUtils.ActiveStayRange stay = HljldUtils.resolveActiveStayRange(
+            source.getPatient(), nursingDayStart, nursingDayEnd, true);
+        Date actualStart = stay.effectiveStart;
+        Date actualEnd = stay.effectiveEnd;
+        long startTs = actualStart.getTime();
+        long endTs = actualEnd.getTime();
 
         // 日间小结在17:00截断
-        final long effectiveEndMs = (kind == HljldSummary.Kind.DAY) ? dayEndMs : endMs;
+        java.time.ZoneId zone = HljldUtils.ZONE_SHANGHAI;
+        java.time.LocalDateTime day1700 = java.time.LocalDateTime.ofInstant(
+            nursingDayStart.toInstant(), zone).withHour(17).withMinute(0);
+        long dayBoundaryMs = day1700.atZone(zone).toInstant().toEpochMilli();
 
-        long effectiveNow = nowMs < effectiveEndMs ? nowMs : effectiveEndMs;
+        final long effectiveEndMs = (kind == HljldSummary.Kind.DAY) ? dayBoundaryMs : endTs;
+        final long effectiveNow = nowMs < effectiveEndMs ? nowMs : effectiveEndMs;
 
-        // 按类别筛选
+        // 2. 筛选区间内数据
         List<Document> bedsideInPeriod = source.getBedside().stream()
-            .filter(HljldUtils::isRenderableBedsideRecord)
+            .filter(HljldUtils::isValidBusinessRecord)
             .filter(item -> {
-                long t = (long) HljldUtils.databaseTimeValue(str(item, "time"));
-                return t >= startMs && t < effectiveEndMs;
+                long t = (long) HljldUtils.databaseTimeValue(HljldUtils.str(item, "time"));
+                return t >= startTs && t < effectiveEndMs;
             })
             .collect(Collectors.toList());
 
         List<Document> drugsInPeriod = source.getDrugExecutions().stream()
             .filter(HljldUtils::isRenderableDrugExecution)
             .filter(item -> {
-                long t = (long) HljldUtils.databaseTimeValue(str(item, "startTime"));
-                return t >= startMs && t < effectiveEndMs;
+                long t = (long) HljldUtils.databaseTimeValue(HljldUtils.str(item, "startTime"));
+                return t >= startTs && t < effectiveEndMs;
             })
             .collect(Collectors.toList());
 
-        List<Document> nurseInPeriod = source.getNurseRecords().stream()
-            .filter(HljldUtils::isValidBusinessRecord)
-            .filter(item -> !HljldUtils.str(item, "desc").isEmpty())
-            .filter(item -> {
-                long t = (long) HljldUtils.databaseTimeValue(str(item, "time"));
-                return t >= startMs && t < effectiveEndMs;
-            })
-            .collect(Collectors.toList());
+        // 3. 生成小结标题
+        String defaultLabel;
+        switch (kind) {
+            case DAY: defaultLabel = "日间小结"; break;
+            case SHIFT: defaultLabel = "班段小结"; break;
+            case FULL_DAY: defaultLabel = "24小时总结"; break;
+            case DISCHARGE: defaultLabel = "出科总结"; break;
+            default: defaultLabel = "小结"; break;
+        }
+        String kindKey;
+        switch (kind) {
+            case SHIFT: kindKey = "shift"; break;
+            case FULL_DAY: kindKey = "24h"; break;
+            case DISCHARGE: kindKey = "discharge"; break;
+            default: kindKey = "day"; break;
+        }
+        String summaryLabel = HljldUtils.buildSummaryLabel(
+            defaultLabel, kindKey, actualStart, actualEnd,
+            stay.admissionClipped, stay.dischargeClipped);
 
-        // ══════════════════════════════════════════════════════════
-        //  出入量
-        // ══════════════════════════════════════════════════════════
+        // 4. 药物按通道聚合
+        DrugChannelTotals drugTotals = sumDrugAmountsByChannel(
+            source, drugsInPeriod, actualStart, effectiveNow, effectiveEndMs, stay.startExclusive);
 
-        // 入量：药品
-        Map<String, Double> medicationAmounts = new LinkedHashMap<>();
-        for (Document execution : drugsInPeriod) {
-            Document method = HljldUtils.findDrugMethod(str(execution, "methodCode"), source.getDrugMethods());
-            if (method == null) continue;
-            if (Boolean.TRUE.equals(method.get("isOnce"))) continue;
+        // 5. 手工录入项
+        double broughtTotal = sumBedsideByCode(bedsideInPeriod, HljldUtils.CODE_BROUGHT);
+        double oralManual = sumBedsideByCode(bedsideInPeriod, HljldUtils.CODE_ORAL);
+        double tubeFeedingManual = sumBedsideByCode(bedsideInPeriod, HljldUtils.CODE_TUBE_FEEDING);
 
-            String name = HljldUtils.drugDisplayName(execution);
-            if (name.isEmpty()) continue;
+        // 6. 入量计算（与前端完全一致）
+        // 静脉入量 = 输血 + 各静脉途径实算量
+        List<SummaryItem> intravenousChildren = new ArrayList<>();
+        intravenousChildren.add(new SummaryItem("transfusion", "输血入量", HljldUtils.round1(drugTotals.transfusion)));
+        for (Map.Entry<String, Double> entry : drugTotals.vein.entrySet()) {
+            intravenousChildren.add(new SummaryItem("vein-" + entry.getKey(), entry.getKey(), HljldUtils.round1(entry.getValue())));
+        }
+        double intravenousTotal = HljldUtils.round1(
+            intravenousChildren.stream().mapToDouble(SummaryItem::getAmount).sum());
 
-            List<Map<String, Object>> actionList = getList(execution, "drugActionList");
-            if (actionList == null || actionList.isEmpty()) {
-                medicationAmounts.merge(name, HljldUtils.parseAmount(execution.get("dose")), Double::sum);
-            } else {
-                double amt = 0;
-                for (Map<String, Object> action : actionList) {
-                    String act = str(action, "action").trim();
-                    switch (act) {
-                        case "start":
-                        case "recovery": {
-                            long startMsAct = (long) HljldUtils.databaseTimeValue(str(action, "time"));
-                            long endMsAct = effectiveNow;
-                            for (Map<String, Object> nextAction : actionList) {
-                                String nextAct = str(nextAction, "action").trim();
-                                if (!Arrays.asList("pause", "stop", "add", "minus", "quickAdd").contains(nextAct))
-                                    continue;
-                                long nextMs = (long) HljldUtils.databaseTimeValue(str(nextAction, "time"));
-                                if (nextMs > startMsAct && nextMs < effectiveNow) {
-                                    endMsAct = nextMs;
-                                    break;
-                                }
-                            }
-                            if (endMsAct <= startMsAct) break;
-                            double speed = HljldUtils.parseAmount(action.get("speed"));
-                            String speedUnit = str(action, "speedUnit");
-                            if ("ml/min".equals(speedUnit)) speed = speed * 60;
-                            amt += HljldUtils.calcContinuousDrugAmount(speed, startMsAct, endMsAct);
-                            break;
-                        }
-                        case "add": {
-                            long actMs = (long) HljldUtils.databaseTimeValue(str(action, "time"));
-                            amt += HljldUtils.parseAmount(action.get("quickAddAmount"));
-                            long nextMs = effectiveNow;
-                            for (Map<String, Object> nextAction : actionList) {
-                                String nextAct = str(nextAction, "action").trim();
-                                if (!Arrays.asList("pause", "stop").contains(nextAct)) continue;
-                                long nextMsAct = (long) HljldUtils.databaseTimeValue(str(nextAction, "time"));
-                                if (nextMsAct > actMs && nextMsAct < effectiveNow) {
-                                    nextMs = nextMsAct;
-                                    break;
-                                }
-                            }
-                            if (nextMs > actMs) {
-                                double speed = HljldUtils.parseAmount(action.get("speed"));
-                                String speedUnit = str(action, "speedUnit");
-                                if ("ml/min".equals(speedUnit)) speed = speed * 60;
-                                amt += HljldUtils.calcContinuousDrugAmount(speed, actMs, nextMs);
-                            }
-                            break;
-                        }
-                        case "minus":
-                        case "quickAdd": {
-                            long actMs = (long) HljldUtils.databaseTimeValue(str(action, "time"));
-                            amt += HljldUtils.parseAmount(action.get("quickAddAmount"));
-                            long nextMs = effectiveNow;
-                            for (Map<String, Object> nextAction : actionList) {
-                                String nextAct = str(nextAction, "action").trim();
-                                if (!Arrays.asList("pause", "stop").contains(nextAct)) continue;
-                                long nextMsAct = (long) HljldUtils.databaseTimeValue(str(nextAction, "time"));
-                                if (nextMsAct > actMs && nextMsAct < effectiveNow) {
-                                    nextMs = nextMsAct;
-                                    break;
-                                }
-                            }
-                            if (nextMs > actMs) {
-                                double speed = HljldUtils.parseAmount(action.get("speed"));
-                                String speedUnit = str(action, "speedUnit");
-                                if ("ml/min".equals(speedUnit)) speed = speed * 60;
-                                amt += HljldUtils.calcContinuousDrugAmount(speed, actMs, nextMs);
-                            }
-                            break;
-                        }
-                        case "pause": {
-                            long startMsAct = (long) HljldUtils.databaseTimeValue(str(action, "time"));
-                            long endMsAct = effectiveNow;
-                            for (Map<String, Object> nextAction : actionList) {
-                                String nextAct = str(nextAction, "action").trim();
-                                if (!Arrays.asList("start", "recovery", "add", "minus", "quickAdd").contains(nextAct))
-                                    continue;
-                                long nextMs = (long) HljldUtils.databaseTimeValue(str(nextAction, "time"));
-                                if (nextMs > startMsAct && nextMs < effectiveNow) {
-                                    endMsAct = nextMs;
-                                    break;
-                                }
-                            }
-                            if (endMsAct > startMsAct) {
-                                double speed = HljldUtils.parseAmount(action.get("speed"));
-                                String speedUnit = str(action, "speedUnit");
-                                if ("ml/min".equals(speedUnit)) speed = speed * 60;
-                                amt += HljldUtils.calcContinuousDrugAmount(speed, startMsAct, endMsAct);
-                            }
-                            break;
-                        }
-                        case "stop":
-                            break;
-                        default:
-                            break;
-                    }
-                }
-                medicationAmounts.merge(name, HljldUtils.round1(amt), Double::sum);
+        // 药物治疗 = 带入药量 + 静脉入量
+        List<SummaryItem> drugTreatmentItems = new ArrayList<>();
+        drugTreatmentItems.add(new SummaryItem("brought-medication", "带入药量", HljldUtils.round1(broughtTotal)));
+        drugTreatmentItems.add(new SummaryItem("intravenous", "静脉入量", intravenousTotal, intravenousChildren));
+        double drugTreatmentTotal = HljldUtils.round1(broughtTotal + intravenousTotal);
+
+        // 鼻饲量 = 手工鼻饲 + 肠内营养泵入
+        List<SummaryItem> tubeFeedingChildren = new ArrayList<>();
+        tubeFeedingChildren.add(new SummaryItem("tube-feeding-manual", "鼻饲", HljldUtils.round1(tubeFeedingManual)));
+        tubeFeedingChildren.add(new SummaryItem("tube-feeding-enteral", "鼻饲泵入", HljldUtils.round1(drugTotals.enteral)));
+        double tubeFeedingTotal = HljldUtils.round1(tubeFeedingManual + drugTotals.enteral);
+
+        // 胃肠入量 = 口服（手工 + po执行）+ 其他胃肠途径
+        double gastroPo = oralManual + drugTotals.gastro.getOrDefault("po", 0D);
+        List<SummaryItem> gastroChildren = new ArrayList<>();
+        gastroChildren.add(new SummaryItem("gastro-po", "po", HljldUtils.round1(gastroPo)));
+        for (Map.Entry<String, Double> entry : drugTotals.gastro.entrySet()) {
+            if (!"po".equals(entry.getKey())) {
+                gastroChildren.add(new SummaryItem("gastro-" + entry.getKey(), entry.getKey(), HljldUtils.round1(entry.getValue())));
             }
         }
+        double gastroTotal = HljldUtils.round1(
+            gastroChildren.stream().mapToDouble(SummaryItem::getAmount).sum());
 
-        // 入量：肠内营养
-        Map<String, Double> enteralAmounts = new LinkedHashMap<>();
-        for (Document execution : drugsInPeriod) {
-            Document method = HljldUtils.findDrugMethod(str(execution, "methodCode"), source.getDrugMethods());
-            if (method == null || !"胃肠".equals(str(method, "group"))) continue;
+        // 胃肠摄入 = 鼻饲量 + 胃肠入量
+        List<SummaryItem> gastrointestinalInputItems = new ArrayList<>();
+        gastrointestinalInputItems.add(new SummaryItem("tube-feeding", "鼻饲量", tubeFeedingTotal, tubeFeedingChildren));
+        gastrointestinalInputItems.add(new SummaryItem("gastrointestinal", "胃肠入量", gastroTotal, gastroChildren));
+        double gastrointestinalInputTotal = HljldUtils.round1(tubeFeedingTotal + gastroTotal);
 
-            String drugName = HljldUtils.drugDisplayName(execution);
-            if (!HljldUtils.isTargetEnteral(drugName)) continue;
+        // 总入量 = 药物治疗 + 胃肠摄入
+        double totalInput = HljldUtils.round1(drugTreatmentTotal + gastrointestinalInputTotal);
 
-            String displayName = HljldUtils.enteralDisplayName(drugName);
-            List<Map<String, Object>> actionList = getList(execution, "drugActionList");
+        // 7. 出量计算
+        // 尿量和净超滤量直接按编码统计（不从OUTPUT_CODE_NAMES过滤）
+        double urineTotal = HljldUtils.round1(
+            bedsideInPeriod.stream()
+                .filter(item -> HljldUtils.URINE_CODE.equals(HljldUtils.str(item, "code")))
+                .mapToDouble(item -> HljldUtils.parseAmount(item.get("strVal")))
+                .sum());
+        double ultrafiltrationTotal = HljldUtils.round1(
+            bedsideInPeriod.stream()
+                .filter(item -> HljldUtils.ULTRAFILTRATION_CODE.equals(HljldUtils.str(item, "code")))
+                .mapToDouble(item -> HljldUtils.parseAmount(item.get("strVal")))
+                .sum());
 
-            if (actionList == null || actionList.isEmpty()) {
-                enteralAmounts.merge(displayName, HljldUtils.parseAmount(execution.get("dose")), Double::sum);
-            } else {
-                double totalQuickAdd = 0;
-                for (Map<String, Object> action : actionList) {
-                    String act = str(action, "action").trim().toLowerCase();
-                    if ("quickadd".equals(act)) {
-                        totalQuickAdd += HljldUtils.parseAmount(action.get("quickAddAmount"));
-                    }
-                }
-                if (totalQuickAdd > 0) {
-                    enteralAmounts.merge(displayName, totalQuickAdd, Double::sum);
-                }
-            }
+        // 排出物
+        List<SummaryItem> outputItems = new ArrayList<>();
+        for (Map<String, String> def : HljldUtils.EXCRETION_SUMMARY_DEFINITIONS) {
+            String code = def.get("code");
+            String label = def.get("label");
+            double amount = HljldUtils.round1(
+                bedsideInPeriod.stream()
+                    .filter(item -> code.equals(HljldUtils.str(item, "code")))
+                    .mapToDouble(item -> HljldUtils.parseAmount(item.get("strVal")))
+                    .sum());
+            outputItems.add(new SummaryItem(def.get("key"), label, amount));
         }
-
-        // 出量
-        List<NameAmount> outAll = bedsideInPeriod.stream()
-            .filter(item -> HljldUtils.OUTPUT_CODE_NAMES.containsKey(str(item, "code")))
-            .map(item -> new NameAmount(
-                HljldUtils.OUTPUT_CODE_NAMES.get(str(item, "code")),
-                HljldUtils.displayAmount(item.get("strVal")),
-                HljldUtils.parseAmount(item.get("strVal"))))
-            .filter(NameAmount::hasAmountValue)
-            .collect(Collectors.toList());
-
-        Map<String, Double> urineMap = outAll.stream()
-            .filter(item -> "尿量".equals(item.getName()))
-            .collect(Collectors.groupingBy(NameAmount::getName, Collectors.summingDouble(NameAmount::getNumericAmount)));
-
-        Map<String, Double> ultrafiltrationMap = outAll.stream()
-            .filter(item -> "净超滤量".equals(item.getName()))
-            .collect(Collectors.groupingBy(NameAmount::getName, Collectors.summingDouble(NameAmount::getNumericAmount)));
-
-        List<NameAmount> otherOutAll = outAll.stream()
-            .filter(item -> !"尿量".equals(item.getName()) && !"净超滤量".equals(item.getName()))
-            .collect(Collectors.toList());
+        double excretionTotal = HljldUtils.round1(
+            outputItems.stream().mapToDouble(SummaryItem::getAmount).sum());
 
         // 引流液
-        List<NameAmount> drainAll = bedsideInPeriod.stream()
-            .filter(item -> HljldUtils.isDrainCode(str(item, "code")))
-            .map(item -> new NameAmount(
-                HljldUtils.drainName(str(item, "code")),
-                HljldUtils.displayAmount(item.get("strVal")),
-                HljldUtils.parseAmount(item.get("strVal"))))
-            .filter(NameAmount::hasAmountValue)
-            .collect(Collectors.toList());
-
+        List<SummaryItem> drainItems = new ArrayList<>();
         Map<String, Double> drainMap = new LinkedHashMap<>();
-        for (NameAmount d : drainAll) {
-            drainMap.merge(d.getName(), d.getNumericAmount(), Double::sum);
+        for (Document item : bedsideInPeriod) {
+            String code = HljldUtils.str(item, "code");
+            if (!HljldUtils.isDrainCode(code)) continue;
+            String name = HljldUtils.drainName(code);
+            double amount = HljldUtils.parseAmount(item.get("strVal"));
+            drainMap.merge(name, amount, Double::sum);
         }
+        drainMap.forEach((name, amount) ->
+            drainItems.add(new SummaryItem("drain-" + name, name, HljldUtils.round1(amount))));
+        double drainTotal = HljldUtils.round1(
+            drainItems.stream().mapToDouble(SummaryItem::getAmount).sum());
 
-        // 合并尿量和净超滤量
-        Map<String, Double> outputMap = new LinkedHashMap<>();
-        outputMap.putAll(urineMap);
-        outputMap.putAll(ultrafiltrationMap);
+        // 总出量 = 尿量 + 净超滤量 + 排出物 + 引流液
+        double totalOutput = HljldUtils.round1(urineTotal + ultrafiltrationTotal + excretionTotal + drainTotal);
 
-        // ══════════════════════════════════════════════════════════
-        //  护理操作
-        // ══════════════════════════════════════════════════════════
+        // 平衡量 = 总入量 - 总出量
+        double balance = HljldUtils.round1(totalInput - totalOutput);
 
-        // 护理记录类型
-        List<String> nurseDescTypes = nurseInPeriod.stream()
-            .map(item -> str(item, "desc"))
-            .filter(s -> !s.isEmpty())
-            .collect(Collectors.toList());
-
-        // 等效护理操作
-        List<String> equivalentNursingOps = bedsideInPeriod.stream()
-            .filter(item -> EQUIVALENT_NURSING_OPERATION.containsKey(str(item, "code")))
-            .map(item -> EQUIVALENT_NURSING_OPERATION.get(str(item, "code")))
-            .distinct()
-            .collect(Collectors.toList());
-
-        // 检查/治疗/基础护理/健康教育名称
-        List<String> paramNames = bedsideInPeriod.stream()
-            .filter(item -> HljldUtils.isExaminationTreatmentBasicCareOrHealthEducation(str(item, "code")))
-            .map(item -> HljldUtils.displayName(str(item, "code")))
-            .filter(s -> !s.isEmpty())
-            .distinct()
-            .collect(Collectors.toList());
-
-        // 排除护理记录名称：从 paramNames 中移除已有护理操作记录类型
-        List<String> excludeParamNames = paramNames.stream()
-            .filter(name -> !nurseDescTypes.contains(name))
-            .collect(Collectors.toList());
-
-        // ══════════════════════════════════════════════════════════
-        //  文本段落
-        // ══════════════════════════════════════════════════════════
-
-        List<HljldUtils.TextSegment> daySegments = new ArrayList<>();
-        List<HljldUtils.TextSegment> nightSegments = new ArrayList<>();
-
-        // 将列表数据转换为文本段落
-        addTextSegments(daySegments, nightSegments, medicationAmounts, dayStartMs, dayEndMs, nightStartMs, nightEndMs, "drug", startMs);
-        addTextSegments(daySegments, nightSegments, enteralAmounts, dayStartMs, dayEndMs, nightStartMs, nightEndMs, "enteral", startMs);
-        addTextSegments(daySegments, nightSegments, outputMap, dayStartMs, dayEndMs, nightStartMs, nightEndMs, "output", startMs);
-        addTextSegments(daySegments, nightSegments, drainMap, dayStartMs, dayEndMs, nightStartMs, nightEndMs, "drain", startMs);
-        // 使用 LinkedHashMap 并提供 mergeFunction 处理重复键，保留所有记录
-        addTextSegments(daySegments, nightSegments, nurseDescTypes.stream().collect(Collectors.toMap(s -> s, s -> 1.0, Double::sum, LinkedHashMap::new)), dayStartMs, dayEndMs, nightStartMs, nightEndMs, "nurse", startMs);
-        addTextSegments(daySegments, nightSegments, equivalentNursingOps.stream().collect(Collectors.toMap(s -> s, s -> 1.0, Double::sum, LinkedHashMap::new)), dayStartMs, dayEndMs, nightStartMs, nightEndMs, "nurse", startMs);
-        addTextSegments(daySegments, nightSegments, excludeParamNames.stream().collect(Collectors.toMap(s -> s, s -> 1.0, Double::sum, LinkedHashMap::new)), dayStartMs, dayEndMs, nightStartMs, nightEndMs, "nurse", startMs);
-
-        // 构建 HljldSummary
+        // 8. 构建 HljldSummary
         HljldSummary summary = new HljldSummary();
         summary.setKind(kind);
-        // 根据类型设置正确的时间锚点
-        switch (kind) {
-            case DAY:
-                // 日间小结：时间锚点为当天17:00
-                summary.setTime(new Date(dayEndMs));
-                break;
-            case FULL_DAY:
-                // 24小时总结：时间锚点为次日07:00
-                summary.setTime(new Date(nursingDayEnd.getTime()));
-                break;
-            default:
-                // 其他类型使用护理日开始时间
-                summary.setTime(new Date(nursingDayStart.getTime()));
-                break;
-        }
-        summary.setDayText(buildDayText(daySegments));
-        summary.setNightText(buildNightText(nightSegments));
+        summary.setLabel(summaryLabel);
+        summary.setPeriodText(HljldUtils.formatTime(startTs) + "—" + HljldUtils.formatTime(endTs));
+        summary.setPlannedStart(nursingDayStart.getTime());
+        summary.setPlannedEnd(nursingDayEnd.getTime());
+        summary.setPeriodStart(startTs);
+        summary.setPeriodEnd(effectiveEndMs);
+        summary.setAdmissionClipped(stay.admissionClipped);
+        summary.setDischargeClipped(stay.dischargeClipped);
+        summary.setAvailable(stay.hasValidRange);
+        summary.setTime(resolveSummaryTime(kind, dayBoundaryMs,
+            nursingDayEnd.getTime(), effectiveEndMs));
 
-        // 汇总数据
-        double totalMedication = medicationAmounts.values().stream().mapToDouble(Double::doubleValue).sum();
-        double totalEnteral = enteralAmounts.values().stream().mapToDouble(Double::doubleValue).sum();
-        double totalUrine = urineMap.values().stream().mapToDouble(Double::doubleValue).sum();
-        double totalUltrafiltration = ultrafiltrationMap.values().stream().mapToDouble(Double::doubleValue).sum();
-        double totalOutput = otherOutAll.stream().mapToDouble(NameAmount::getNumericAmount).sum();
+        summary.setTotalInput(totalInput);
+        summary.setDrugTreatmentTotal(drugTreatmentTotal);
+        summary.setDrugTreatmentItems(drugTreatmentItems);
+        summary.setGastrointestinalInputTotal(gastrointestinalInputTotal);
+        summary.setGastrointestinalInputItems(gastrointestinalInputItems);
 
-        summary.setMedicationSum(HljldUtils.round1(totalMedication));
-        summary.setEnteralSum(HljldUtils.round1(totalEnteral));
-        summary.setInputSum(HljldUtils.round1(totalMedication + totalEnteral));
-        summary.setUrineSum(HljldUtils.round1(totalUrine));
-        summary.setUltrafiltrationSum(HljldUtils.round1(totalUltrafiltration));
-        summary.setOutputSum(HljldUtils.round1(totalUrine + totalUltrafiltration + totalOutput));
-
-        // 详细项目
-        List<SummaryItem> medicationItems = new ArrayList<>();
-        medicationAmounts.forEach((name, amount) ->
-            medicationItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
-        summary.setMedicationItems(medicationItems);
-
-        List<SummaryItem> enteralItems = new ArrayList<>();
-        enteralAmounts.forEach((name, amount) ->
-            enteralItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
-        summary.setEnteralItems(enteralItems);
-
-        List<SummaryItem> urineItems = new ArrayList<>();
-        urineMap.forEach((name, amount) ->
-            urineItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
-        summary.setUrineItems(urineItems);
-
-        List<SummaryItem> ultrafiltrationItems = new ArrayList<>();
-        ultrafiltrationMap.forEach((name, amount) ->
-            ultrafiltrationItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
-        summary.setUltrafiltrationItems(ultrafiltrationItems);
-
-        List<SummaryItem> outputItems = new ArrayList<>();
-        otherOutAll.forEach(na ->
-            outputItems.add(new SummaryItem(na.getName(), na.getName(), na.getNumericAmount())));
+        summary.setTotalOutput(totalOutput);
+        summary.setUrineTotal(urineTotal);
+        summary.setUltrafiltrationTotal(ultrafiltrationTotal);
+        summary.setExcretionTotal(excretionTotal);
         summary.setOutputItems(outputItems);
-
-        List<SummaryItem> drainItems = new ArrayList<>();
-        drainMap.forEach((name, amount) ->
-            drainItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
+        summary.setDrainTotal(drainTotal);
         summary.setDrainItems(drainItems);
 
-        List<SummaryItem> nurseItems = new ArrayList<>();
-        nurseDescTypes.forEach(name ->
-            nurseItems.add(new SummaryItem(name, name, 1)));
-        equivalentNursingOps.forEach(name ->
-            nurseItems.add(new SummaryItem(name, name, 1)));
-        excludeParamNames.forEach(name ->
-            nurseItems.add(new SummaryItem(name, name, 1)));
-        summary.setNurseItems(nurseItems);
+        summary.setBalance(balance);
 
-        // ══════════════════════════════════════════════════════════
-        //  构建 detailLines（与前端 buildInputLine/buildOutputLine 保持一致）
-        // ══════════════════════════════════════════════════════════
-        List<List<SummaryTextToken>> detailLines = new ArrayList<>();
-
-        // 第一行：入量行
-        detailLines.add(buildInputLineTokens(
-            summary.getInputSum(),
-            summary.getMedicationSum(),
-            summary.getMedicationItems(),
-            summary.getEnteralSum(),
-            summary.getEnteralItems()
+        // 9. 构建 detailLines（与前端 buildInputLine / buildOutputLine 一致）
+        summary.setDetailLines(Arrays.asList(
+            buildInputLine(summary),
+            buildOutputLine(summary),
+            buildBalanceLine(summary)
         ));
-
-        // 第二行：出量行
-        detailLines.add(buildOutputLineTokens(
-            summary.getOutputSum(),
-            summary.getUrineSum(),
-            summary.getUltrafiltrationSum(),
-            summary.getOutputSum() - summary.getUrineSum() - summary.getUltrafiltrationSum(),
-            summary.getOutputItems(),
-            summary.getDrainItems()
-        ));
-
-        // 第三行：平衡量
-        List<SummaryTextToken> balanceLine = new ArrayList<>();
-        balanceLine.add(new SummaryTextToken("平衡量：", false, false));
-        balanceLine.add(new SummaryTextToken(String.format("%.1f", summary.getBalance()) + " ml", true, false));
-        detailLines.add(balanceLine);
-
-        summary.setDetailLines(detailLines);
 
         return summary;
     }
 
-    /**
-     * 构建时间轴，对应前端 buildTimeline。
-     * 将数据组和小结按时间轴交错排列。
-     *
-     * @param nowMs 当前时刻毫秒（用于判断小结是否应显示）
-     */
+    // ══════════════════════════════════════════════════════════
+    //  时间轴构建（完全移植前端 buildTimeline）
+    // ══════════════════════════════════════════════════════════
+
     public List<HljldTimelineItem> buildTimeline(List<HljldTimeGroup> displayGroups,
                                                   HljldSummary daySummary,
                                                   HljldSummary shiftSummary,
@@ -463,74 +242,144 @@ public class HljldSummaryCalculator {
                                                   long nowMs) {
         List<HljldTimelineItem> timeline = new ArrayList<>();
 
-        // 添加数据组
-        for (HljldTimeGroup group : displayGroups) {
-            timeline.add(HljldTimelineItem.ofGroup(group));
-        }
-
-        // ── 时间过滤逻辑（与前端 buildTimeline 保持一致） ──
-        // 计算时间边界（使用 Asia/Shanghai 时区）
-        java.time.ZoneId shanghaiZone = java.time.ZoneId.of("Asia/Shanghai");
-        java.time.LocalDateTime nowDateTime = java.time.Instant.ofEpochMilli(nowMs).atZone(shanghaiZone).toLocalDateTime();
-
-        // 当天17:00边界
+        // 计算时间边界
+        java.time.ZoneId zone = HljldUtils.ZONE_SHANGHAI;
+        java.time.LocalDateTime nowDateTime = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDateTime();
         java.time.LocalDateTime day1700 = nowDateTime.withHour(17).withMinute(0).withSecond(0).withNano(0);
-        long dayBoundaryMs = day1700.atZone(shanghaiZone).toInstant().toEpochMilli();
-
-        // 次日07:00边界
+        long dayBoundaryMs = day1700.atZone(zone).toInstant().toEpochMilli();
         java.time.LocalDateTime nextMorning0700 = nowDateTime.plusDays(1).withHour(7).withMinute(0).withSecond(0).withNano(0);
-        long nextMorningBoundaryMs = nextMorning0700.atZone(shanghaiZone).toInstant().toEpochMilli();
+        long nextMorningBoundaryMs = nextMorning0700.atZone(zone).toInstant().toEpochMilli();
 
-        // 日间小结显示条件：必须有效且时间段大于0分钟，且当前时间已到达17:00
+        // 显示条件（与前端完全一致）
         boolean showDaySummary =
             daySummary != null
-            && daySummary.getTime() != null
-            && daySummary.getTime().getTime() > 0
+            && daySummary.isAvailable()
+            && daySummary.getPeriodEnd() > daySummary.getPeriodStart()
             && nowMs >= dayBoundaryMs;
 
-        // 24小时总结和班段小结显示条件：当前时间已到达次日07:00
         boolean showShiftSummary =
             shiftSummary != null
-            && shiftSummary.getTime() != null
-            && shiftSummary.getTime().getTime() > 0
+            && shiftSummary.isAvailable()
+            && shiftSummary.getPeriodEnd() > shiftSummary.getPeriodStart()
             && nowMs >= nextMorningBoundaryMs;
 
         boolean showFullDaySummary =
             fullDaySummary != null
-            && fullDaySummary.getTime() != null
-            && fullDaySummary.getTime().getTime() > 0
+            && fullDaySummary.isAvailable()
+            && fullDaySummary.getPeriodEnd() > fullDaySummary.getPeriodStart()
             && nowMs >= nextMorningBoundaryMs;
 
-        // 出科总结：始终显示（如果存在）
-        boolean showDischargeSummary = dischargeSummary != null && dischargeSummary.getTime() != null;
+        // 出科逻辑
+        long dischargeMs = (dischargeSummary != null && dischargeSummary.isAvailable())
+            ? dischargeSummary.getPeriodEnd() : 0;
+        boolean hasDischarge = dischargeMs > 0;
+        boolean dischargeBeforeDay = hasDischarge && dischargeMs < dayBoundaryMs;
+        boolean dischargeAtDay = hasDischarge && dischargeMs == dayBoundaryMs;
+        boolean dischargeBetween = hasDischarge && dischargeMs > dayBoundaryMs && dischargeMs < nextMorningBoundaryMs;
+        boolean dischargeAtOrAfterMorning = hasDischarge && dischargeMs >= nextMorningBoundaryMs;
 
-        // 按时间顺序插入小结（与前端逻辑对齐）
-        // 日间小结：在17:00位置插入
-        if (showDaySummary) {
-            HljldTimelineItem dayItem = HljldTimelineItem.ofSummary(daySummary);
-            dayItem.setTimestamp(dayBoundaryMs);
-            dayItem.setSortRank(1); // 日间小结排序优先级
-            timeline.add(dayItem);
+        boolean dayInserted = false;
+        boolean dischargeInserted = false;
+
+        // 添加数据组
+        List<HljldTimeGroup> sortedGroups = displayGroups.stream()
+            .sorted(Comparator.comparingLong(HljldTimeGroup::getTimestamp))
+            .collect(Collectors.toList());
+
+        for (HljldTimeGroup group : sortedGroups) {
+            if (group.getTimestamp() > nowMs) continue;
+            if (group.getTimestamp() > nextMorningBoundaryMs) continue;
+
+            // 已到17:00但当前组晚于17:00时，先插入日间小结
+            if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay
+                && group.getTimestamp() > dayBoundaryMs) {
+                timeline.add(HljldTimelineItem.ofSummary(daySummary));
+                dayInserted = true;
+            }
+
+            // 出科时间在明细之间
+            if (hasDischarge && !dischargeInserted && dischargeBetween
+                && group.getTimestamp() >= dischargeMs
+                && !dischargeBeforeDay && !dischargeAtDay) {
+                if (showDaySummary && !dayInserted) {
+                    timeline.add(HljldTimelineItem.ofSummary(daySummary));
+                    dayInserted = true;
+                }
+                HljldTimelineItem dischargeItem = HljldTimelineItem.ofSummary(dischargeSummary);
+                dischargeItem.setTimestamp(dischargeMs);
+                timeline.add(dischargeItem);
+                dischargeInserted = true;
+            }
+
+            timeline.add(HljldTimelineItem.ofGroup(group));
+
+            // 正好17:00：先展示组，再展示日间小结
+            if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay
+                && group.getTimestamp() == dayBoundaryMs) {
+                timeline.add(HljldTimelineItem.ofSummary(daySummary));
+                dayInserted = true;
+            }
+
+            // 正好出科时间
+            if (hasDischarge && !dischargeInserted && group.getTimestamp() == dischargeMs) {
+                if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay
+                    && dischargeMs > dayBoundaryMs) {
+                    timeline.add(HljldTimelineItem.ofSummary(daySummary));
+                    dayInserted = true;
+                }
+                HljldTimelineItem dischargeItem = HljldTimelineItem.ofSummary(dischargeSummary);
+                dischargeItem.setTimestamp(dischargeMs);
+                timeline.add(dischargeItem);
+                dischargeInserted = true;
+            }
         }
 
-        // 24小时总结：在次日07:00位置插入
-        if (showFullDaySummary) {
-            HljldTimelineItem fullDayItem = HljldTimelineItem.ofSummary(fullDaySummary);
-            fullDayItem.setTimestamp(nextMorningBoundaryMs);
-            fullDayItem.setSortRank(3); // 24小时总结排序优先级
-            timeline.add(fullDayItem);
+        // 已到17:00但之后没有明细
+        if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay) {
+            timeline.add(HljldTimelineItem.ofSummary(daySummary));
+            dayInserted = true;
         }
 
-        // 班段小结：在次日07:00位置插入
-        if (showShiftSummary) {
-            HljldTimelineItem shiftItem = HljldTimelineItem.ofSummary(shiftSummary);
-            shiftItem.setTimestamp(nextMorningBoundaryMs);
-            timeline.add(shiftItem);
+        // 出科在17:00之前
+        if (hasDischarge && !dischargeInserted && dischargeBeforeDay) {
+            HljldTimelineItem dischargeItem = HljldTimelineItem.ofSummary(dischargeSummary);
+            dischargeItem.setTimestamp(dischargeMs);
+            timeline.add(dischargeItem);
+            dischargeInserted = true;
         }
 
-        // 出科总结：在出科时间位置插入
-        if (showDischargeSummary) {
-            timeline.add(HljldTimelineItem.ofSummary(dischargeSummary));
+        // 出科等于17:00
+        if (hasDischarge && !dischargeInserted && dischargeAtDay) {
+            HljldTimelineItem dischargeItem = HljldTimelineItem.ofSummary(dischargeSummary);
+            dischargeItem.setTimestamp(dischargeMs);
+            timeline.add(dischargeItem);
+            dischargeInserted = true;
+        }
+
+        // 出科在17:00之后、次日07:00之前
+        if (hasDischarge && !dischargeInserted && dischargeBetween) {
+            if (showDaySummary && !dayInserted) {
+                timeline.add(HljldTimelineItem.ofSummary(daySummary));
+            }
+            HljldTimelineItem dischargeItem = HljldTimelineItem.ofSummary(dischargeSummary);
+            dischargeItem.setTimestamp(dischargeMs);
+            timeline.add(dischargeItem);
+            dischargeInserted = true;
+        }
+
+        // 次日07:00：夜班小结 + 24小时总结（出科在次日07:00之后或无出科才显示）
+        boolean shouldAppendNextMorning = !hasDischarge || dischargeAtOrAfterMorning;
+        if (shouldAppendNextMorning) {
+            if (showShiftSummary) {
+                HljldTimelineItem shiftItem = HljldTimelineItem.ofSummary(shiftSummary);
+                shiftItem.setTimestamp(nextMorningBoundaryMs);
+                timeline.add(shiftItem);
+            }
+            if (showFullDaySummary) {
+                HljldTimelineItem fullDayItem = HljldTimelineItem.ofSummary(fullDaySummary);
+                fullDayItem.setTimestamp(nextMorningBoundaryMs);
+                timeline.add(fullDayItem);
+            }
         }
 
         // 按时间排序（数据组在前，小结在后）
@@ -541,236 +390,260 @@ public class HljldSummaryCalculator {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  私有辅助方法
+    //  药物通道聚合
     // ══════════════════════════════════════════════════════════
 
-    private void addTextSegments(List<HljldUtils.TextSegment> daySegments, List<HljldUtils.TextSegment> nightSegments,
-                                  Map<String, Double> amounts, long dayStartMs, long dayEndMs,
-                                  long nightStartMs, long nightEndMs, String category, long nursingDayStartMs) {
-        for (Map.Entry<String, Double> entry : amounts.entrySet()) {
-            HljldUtils.TextSegment seg = new HljldUtils.TextSegment();
-            seg.setCategory(category);
-            seg.setCategoryDisplay(category);
-            seg.setSegment("day");
-            seg.setSegmentStartMs(dayStartMs);
-            seg.setSegmentEndMs(dayEndMs);
-            seg.setStartMs(nursingDayStartMs);
-            seg.setEndMs(dayEndMs);
-            seg.setText(buildTextSegment(entry.getKey(), entry.getValue(), category));
-            seg.setTokens(buildTextTokens(entry.getKey(), entry.getValue(), category));
-            daySegments.add(seg);
-
-            HljldUtils.TextSegment nightSeg = new HljldUtils.TextSegment();
-            nightSeg.setCategory(category);
-            nightSeg.setCategoryDisplay(category);
-            nightSeg.setSegment("night");
-            nightSeg.setSegmentStartMs(nightStartMs);
-            nightSeg.setSegmentEndMs(nightEndMs);
-            nightSeg.setStartMs(nursingDayStartMs);
-            nightSeg.setEndMs(nightEndMs);
-            nightSeg.setText(buildTextSegment(entry.getKey(), entry.getValue(), category));
-            nightSeg.setTokens(buildTextTokens(entry.getKey(), entry.getValue(), category));
-            nightSegments.add(nightSeg);
-        }
-    }
-
-    private String buildTextSegment(String name, double amount, String category) {
-        switch (category) {
-            case "drug":
-                return name + " " + String.format("%.1f", amount) + "ml";
-            case "enteral":
-                return name + " " + String.format("%.1f", amount) + "ml";
-            case "output":
-                return name + " " + String.format("%.1f", amount) + "ml";
-            case "drain":
-                return name + " " + String.format("%.1f", amount) + "ml";
-            default:
-                return name;
-        }
-    }
-
-    private List<SummaryTextToken> buildTextTokens(String name, double amount, String category) {
-        List<SummaryTextToken> tokens = new ArrayList<>();
-        switch (category) {
-            case "drug":
-            case "enteral":
-            case "output":
-            case "drain":
-                tokens.add(new SummaryTextToken(name, false, false));
-                tokens.add(new SummaryTextToken(" ", false, true));
-                tokens.add(new SummaryTextToken(String.format("%.1f", amount), true, false));
-                tokens.add(new SummaryTextToken("ml", false, false));
-                break;
-            default:
-                tokens.add(new SummaryTextToken(name, false, false));
-                break;
-        }
-        return tokens;
-    }
-
-    private String buildDayText(List<HljldUtils.TextSegment> daySegments) {
-        return daySegments.stream()
-            .map(HljldUtils.TextSegment::getText)
-            .collect(Collectors.joining("；"));
-    }
-
-    private String buildNightText(List<HljldUtils.TextSegment> nightSegments) {
-        return nightSegments.stream()
-            .map(HljldUtils.TextSegment::getText)
-            .collect(Collectors.joining("；"));
+    private static class DrugChannelTotals {
+        Map<String, Double> vein = new LinkedHashMap<>();
+        Map<String, Double> gastro = new LinkedHashMap<>();
+        double transfusion = 0;
+        double enteral = 0;
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> getList(Document doc, String key) {
+    private DrugChannelTotals sumDrugAmountsByChannel(
+            HljldSourceData source,
+            List<Document> drugsInPeriod,
+            Date actualStart,
+            long effectiveNow,
+            long effectiveEndMs,
+            boolean startExclusive) {
+
+        DrugChannelTotals totals = new DrugChannelTotals();
+
+        for (Document execution : drugsInPeriod) {
+            Document method = HljldUtils.findDrugMethod(
+                HljldUtils.str(execution, "methodCode"), source.getDrugMethods());
+            if (method == null) continue;
+
+            // inChannel 必须严格等于三种入量通道之一
+            String inChannel = HljldUtils.str(method, "inChannel").trim();
+            if (!COUNTED_IN_CHANNELS.contains(inChannel)) continue;
+
+            boolean isOnce = Boolean.TRUE.equals(method.get("isOnce"));
+            String drugName = HljldUtils.drugDisplayName(execution);
+            String route = HljldUtils.routeLabel(HljldUtils.str(method, "name"));
+
+            double amount;
+            if (!isOnce) {
+                // 持续用药：班段口径用量
+                double execStartMs = HljldUtils.databaseTimeValue(HljldUtils.str(execution, "startTime"));
+                long effectiveStartMs = startExclusive && Double.isFinite(execStartMs) && execStartMs > actualStart.getTime()
+                    ? (long) execStartMs : actualStart.getTime();
+                double usageAtEnd = HljldUtils.calcDrugUsageUpTo(execution, effectiveEndMs);
+                double usageAtStart = HljldUtils.calcDrugUsageUpTo(execution, effectiveStartMs);
+                amount = HljldUtils.round1(Math.max(0, usageAtEnd - usageAtStart));
+            } else {
+                // 单次给药
+                boolean isTargetEnteral = HljldUtils.isTargetEnteral(drugName);
+                if (isTargetEnteral) {
+                    // 肠内营养单次：计算 quickAdd 量
+                    double quickAddTotal = 0;
+                    List<Map<String, Object>> actionList = getList(execution, "drugActionList");
+                    if (actionList != null) {
+                        for (Map<String, Object> action : actionList) {
+                            String act = str(action, "action").trim().toLowerCase();
+                            if (!"quickadd".equals(act) && !"stop".equals(act)) continue;
+                            long actionTime = (long) HljldUtils.databaseTimeValue(str(action, "time"));
+                            if (actionTime >= actualStart.getTime() && actionTime < effectiveEndMs) {
+                                quickAddTotal += HljldUtils.parseAmount(action.get("quickAddAmount"));
+                            }
+                        }
+                    }
+                    amount = HljldUtils.round1(quickAddTotal);
+                } else {
+                    // 普通单次给药
+                    long execTime = (long) HljldUtils.databaseTimeValue(HljldUtils.str(execution, "startTime"));
+                    boolean inRange = startExclusive
+                        ? (execTime > actualStart.getTime() && execTime < effectiveEndMs)
+                        : (execTime >= actualStart.getTime() && execTime < effectiveEndMs);
+                    if (!inRange) continue;
+                    amount = HljldUtils.resolveLiquidCap(execution);
+                }
+            }
+
+            if (amount == 0) continue;
+
+            // 按通道分类
+            String methodGroup = HljldUtils.str(method, "group").trim();
+            if ("输血".equals(methodGroup) || "输血".equals(inChannel)) {
+                totals.transfusion += amount;
+            } else if (ENTERAL_NUTRITION_PATTERN.matcher(HljldUtils.str(method, "name")).find()) {
+                totals.enteral += amount;
+            } else if ("胃肠".equals(methodGroup) || "胃肠".equals(inChannel) || "消化道".equals(inChannel)) {
+                totals.gastro.merge(route, amount, Double::sum);
+            } else if ("静脉".equals(inChannel)) {
+                totals.vein.merge(route, amount, Double::sum);
+            }
+        }
+
+        return totals;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  detailLines 构建（与前端完全一致）
+    // ══════════════════════════════════════════════════════════
+
+    private static List<SummaryTextToken> buildInputLine(HljldSummary summary) {
+        List<SummaryTextToken> tokens = new ArrayList<>();
+        pushAmount(tokens, "总入量", summary.getTotalInput());
+
+        List<SummaryTextToken> segment = new ArrayList<>();
+        if (pushGroup(segment, "药物治疗", summary.getDrugTreatmentTotal(), summary.getDrugTreatmentItems())) {
+            appendSeparator(tokens);
+            tokens.addAll(segment);
+        }
+
+        segment = new ArrayList<>();
+        if (pushGroup(segment, "胃肠摄入", summary.getGastrointestinalInputTotal(), summary.getGastrointestinalInputItems())) {
+            appendSeparator(tokens);
+            tokens.addAll(segment);
+        }
+
+        return tokens;
+    }
+
+    private static List<SummaryTextToken> buildOutputLine(HljldSummary summary) {
+        List<SummaryTextToken> tokens = new ArrayList<>();
+        pushAmount(tokens, "总出量", summary.getTotalOutput());
+
+        if (HljldUtils.round1(summary.getUrineTotal()) != 0) {
+            appendSeparator(tokens);
+            pushAmount(tokens, "尿量", summary.getUrineTotal());
+        }
+
+        if (HljldUtils.round1(summary.getUltrafiltrationTotal()) != 0) {
+            appendSeparator(tokens);
+            pushAmount(tokens, "净超滤量", summary.getUltrafiltrationTotal());
+        }
+
+        List<SummaryTextToken> segment = new ArrayList<>();
+        if (pushGroup(segment, "排出物", summary.getExcretionTotal(), summary.getOutputItems())) {
+            appendSeparator(tokens);
+            tokens.addAll(segment);
+        }
+
+        segment = new ArrayList<>();
+        if (pushGroup(segment, "引流液", summary.getDrainTotal(), summary.getDrainItems())) {
+            appendSeparator(tokens);
+            tokens.addAll(segment);
+        }
+
+        return tokens;
+    }
+
+    private static List<SummaryTextToken> buildBalanceLine(HljldSummary summary) {
+        return Arrays.asList(
+            new SummaryTextToken("平衡量：", false, false),
+            new SummaryTextToken(formatAmount(summary.getBalance()) + " ml", true, false)
+        );
+    }
+
+    private static void pushAmount(List<SummaryTextToken> tokens, String label, double amount) {
+        tokens.add(new SummaryTextToken(label + "：", false, false));
+        tokens.add(new SummaryTextToken(formatAmount(amount) + " ml", true, false));
+    }
+
+    private static void pushItems(List<SummaryTextToken> tokens, List<SummaryItem> items) {
+        List<SummaryItem> validItems = items.stream()
+            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
+            .collect(Collectors.toList());
+
+        for (int i = 0; i < validItems.size(); i++) {
+            if (i > 0) {
+                tokens.add(new SummaryTextToken("、", false, false));
+            }
+            SummaryItem item = validItems.get(i);
+            pushAmount(tokens, item.getLabel(), item.getAmount());
+
+            if (item.getChildren() != null && !item.getChildren().isEmpty()) {
+                tokens.add(new SummaryTextToken("（", false, false));
+                pushItems(tokens, item.getChildren());
+                tokens.add(new SummaryTextToken("）", false, false));
+            }
+        }
+    }
+
+    private static boolean pushGroup(
+            List<SummaryTextToken> tokens,
+            String label,
+            double total,
+            List<SummaryItem> items) {
+
+        List<SummaryItem> nonZeroItems = items == null
+            ? Collections.emptyList()
+            : items.stream()
+                .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
+                .collect(Collectors.toList());
+
+        if (HljldUtils.round1(total) == 0 && nonZeroItems.isEmpty()) {
+            return false;
+        }
+
+        pushAmount(tokens, label, total);
+
+        if (!nonZeroItems.isEmpty()) {
+            tokens.add(new SummaryTextToken("（", false, false));
+            pushItems(tokens, nonZeroItems);
+            tokens.add(new SummaryTextToken("）", false, false));
+        }
+
+        return true;
+    }
+
+    private static void appendSeparator(List<SummaryTextToken> tokens) {
+        if (!tokens.isEmpty()) {
+            tokens.add(new SummaryTextToken("；", false, true));
+        }
+    }
+
+    private static String formatAmount(double value) {
+        double rounded = HljldUtils.round1(value);
+        if (rounded == Math.rint(rounded)) {
+            return String.format(Locale.CHINA, "%.0f", rounded);
+        }
+        return String.format(Locale.CHINA, "%.1f", rounded);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  时间解析辅助
+    // ══════════════════════════════════════════════════════════
+
+    private Date resolveSummaryTime(HljldSummary.Kind kind, long dayBoundaryMs,
+                                     long nursingDayEndMs, long effectiveEndMs) {
+        switch (kind) {
+            case DAY:
+                return new Date(dayBoundaryMs);
+            case SHIFT:
+            case FULL_DAY:
+                return new Date(nursingDayEndMs);
+            case DISCHARGE:
+                return new Date(effectiveEndMs);
+            default:
+                return new Date(dayBoundaryMs);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  内部辅助方法
+    // ══════════════════════════════════════════════════════════
+
+    private static double sumBedsideByCode(List<Document> records, String code) {
+        return records.stream()
+            .filter(item -> code.equals(HljldUtils.str(item, "code")))
+            .mapToDouble(item -> HljldUtils.parseAmount(item.get("strVal")))
+            .sum();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> getList(Document doc, String key) {
         Object v = doc.get(key);
         if (v instanceof List) return (List<Map<String, Object>>) v;
         return null;
     }
 
-    private static String str(Document doc, String key) {
-        Object v = doc.get(key);
-        return v != null ? v.toString().trim() : "";
-    }
-
     private static String str(Map<?, ?> map, String key) {
         Object v = map.get(key);
         return v != null ? v.toString().trim() : "";
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  detailLines 构建方法（与前端 buildInputLine/buildOutputLine 保持一致）
-    // ══════════════════════════════════════════════════════════
-
-    /**
-     * 构建入量行 tokens。
-     * 格式：总入量：xx ml；药物治疗：xx ml（带入药量、静脉入量（输血入量、iv、ivgtt…））；胃肠摄入：xx ml（鼻饲量（鼻饲、鼻饲泵入）、胃肠入量（po））
-     */
-    private List<SummaryTextToken> buildInputLineTokens(
-            double totalInput,
-            double drugTreatmentTotal,
-            List<SummaryItem> drugTreatmentItems,
-            double gastrointestinalInputTotal,
-            List<SummaryItem> gastrointestinalInputItems) {
-
-        List<SummaryTextToken> tokens = new ArrayList<>();
-        pushAmount(tokens, "总入量", totalInput);
-
-        // 药物治疗
-        List<SummaryItem> nonZeroDrugItems = drugTreatmentItems.stream()
-            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
-            .collect(Collectors.toList());
-        if (HljldUtils.round1(drugTreatmentTotal) != 0 || !nonZeroDrugItems.isEmpty()) {
-            tokens.add(new SummaryTextToken("；", false, true));
-            pushGroupTokens(tokens, "药物治疗", drugTreatmentTotal, nonZeroDrugItems);
-        }
-
-        // 胃肠摄入
-        List<SummaryItem> nonZeroGastroItems = gastrointestinalInputItems.stream()
-            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
-            .collect(Collectors.toList());
-        if (HljldUtils.round1(gastrointestinalInputTotal) != 0 || !nonZeroGastroItems.isEmpty()) {
-            tokens.add(new SummaryTextToken("；", false, true));
-            pushGroupTokens(tokens, "胃肠摄入", gastrointestinalInputTotal, nonZeroGastroItems);
-        }
-
-        return tokens;
-    }
-
-    /**
-     * 构建出量行 tokens。
-     * 格式：总出量：xx ml；尿量：xx ml；净超滤量：xx ml；排出物：xx ml（…）；引流液：xx ml（…）
-     */
-    private List<SummaryTextToken> buildOutputLineTokens(
-            double totalOutput,
-            double urineTotal,
-            double ultrafiltrationTotal,
-            double excretionTotal,
-            List<SummaryItem> outputItems,
-            List<SummaryItem> drainItems) {
-
-        List<SummaryTextToken> tokens = new ArrayList<>();
-        pushAmount(tokens, "总出量", totalOutput);
-
-        // 尿量
-        if (HljldUtils.round1(urineTotal) != 0) {
-            tokens.add(new SummaryTextToken("；", false, true));
-            pushAmount(tokens, "尿量", urineTotal);
-        }
-
-        // 净超滤量
-        if (HljldUtils.round1(ultrafiltrationTotal) != 0) {
-            tokens.add(new SummaryTextToken("；", false, true));
-            pushAmount(tokens, "净超滤量", ultrafiltrationTotal);
-        }
-
-        // 排出物
-        List<SummaryItem> nonZeroOutputItems = outputItems.stream()
-            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
-            .collect(Collectors.toList());
-        if (HljldUtils.round1(excretionTotal) != 0 || !nonZeroOutputItems.isEmpty()) {
-            tokens.add(new SummaryTextToken("；", false, true));
-            pushGroupTokens(tokens, "排出物", excretionTotal, nonZeroOutputItems);
-        }
-
-        // 引流液
-        double drainTotal = drainItems.stream().mapToDouble(SummaryItem::getAmount).sum();
-        List<SummaryItem> nonZeroDrainItems = drainItems.stream()
-            .filter(item -> HljldUtils.round1(item.getAmount()) != 0)
-            .collect(Collectors.toList());
-        if (HljldUtils.round1(drainTotal) != 0 || !nonZeroDrainItems.isEmpty()) {
-            tokens.add(new SummaryTextToken("；", false, true));
-            pushGroupTokens(tokens, "引流液", drainTotal, nonZeroDrainItems);
-        }
-
-        return tokens;
-    }
-
-    /**
-     * 推入「标签：xx ml」格式的 tokens。
-     */
-    private void pushAmount(List<SummaryTextToken> tokens, String label, double amount) {
-        tokens.add(new SummaryTextToken(label + "：", false, false));
-        tokens.add(new SummaryTextToken(String.format("%.1f", amount) + " ml", true, false));
-    }
-
-    /**
-     * 推入带子项的分组 tokens。
-     * 格式：标签：xx ml（子项1：xx ml、子项2：xx ml）
-     */
-    private void pushGroupTokens(List<SummaryTextToken> tokens, String label, double total, List<SummaryItem> items) {
-        pushAmount(tokens, label, total);
-        if (!items.isEmpty()) {
-            tokens.add(new SummaryTextToken("（", false, false));
-            for (int i = 0; i < items.size(); i++) {
-                if (i > 0) {
-                    tokens.add(new SummaryTextToken("、", false, false));
-                }
-                pushAmount(tokens, items.get(i).getLabel(), items.get(i).getAmount());
-                // 如果有子项，递归处理
-                if (items.get(i).getChildren() != null && !items.get(i).getChildren().isEmpty()) {
-                    tokens.add(new SummaryTextToken("（", false, false));
-                    pushItemsTokens(tokens, items.get(i).getChildren());
-                    tokens.add(new SummaryTextToken("）", false, false));
-                }
-            }
-            tokens.add(new SummaryTextToken("）", false, false));
-        }
-    }
-
-    /**
-     * 递归推入明细项 tokens。
-     */
-    private void pushItemsTokens(List<SummaryTextToken> tokens, List<SummaryItem> items) {
-        for (int i = 0; i < items.size(); i++) {
-            if (i > 0) {
-                tokens.add(new SummaryTextToken("、", false, false));
-            }
-            pushAmount(tokens, items.get(i).getLabel(), items.get(i).getAmount());
-            if (items.get(i).getChildren() != null && !items.get(i).getChildren().isEmpty()) {
-                tokens.add(new SummaryTextToken("（", false, false));
-                pushItemsTokens(tokens, items.get(i).getChildren());
-                tokens.add(new SummaryTextToken("）", false, false));
-            }
-        }
     }
 }

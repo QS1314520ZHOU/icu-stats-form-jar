@@ -392,7 +392,7 @@ public class HljldFlowPdfService {
     }
 
     /**
-     * 构建嵌套小结 Table（4行，keep-together）
+     * 构建嵌套小结 Table（标题 + detailLines，keep-together）
      * 使用 detailLines 渲染，与前端保持一致
      */
     private Table buildNestedSummaryTable(PrintableItem item, PdfFont font) {
@@ -405,28 +405,33 @@ public class HljldFlowPdfService {
         table.setMarginBottom(0);
 
         HljldSummary summary = item.summary;
-        String title;
-        switch (item.type) {
-            case DAY_SUMMARY: title = "日间小结"; break;
-            case DAY_SETTLEMENT: title = "17点结算"; break;
-            case FULL_DAY_SUMMARY: title = "24小时总结"; break;
-            default: title = "小结"; break;
+
+        // 第1行：标题 + 时间范围，合并19列，居中
+        Paragraph heading = new Paragraph()
+            .setFont(font)
+            .setFontSize(HljldPdfLayoutConstants.SUMMARY_TITLE_FONT_SIZE)
+            .setTextAlignment(TextAlignment.CENTER)
+            .setMargin(0)
+            .setMultipliedLeading(1.0f);
+
+        heading.add(new com.itextpdf.layout.element.Text(
+            summary.getLabel()).setFont(font).setBold());
+
+        if (summary.getPeriodText() != null && !summary.getPeriodText().isBlank()) {
+            heading.add(new com.itextpdf.layout.element.Text(
+                "    " + summary.getPeriodText())
+                .setFont(font).setFontSize(HljldPdfLayoutConstants.SUMMARY_FONT_SIZE));
         }
 
-        // 第1行：标题，合并19列，居中
         Cell titleCell = new Cell(1, 19)
-            .add(new Paragraph(title)
-                .setFont(font)
-                .setFontSize(HljldPdfLayoutConstants.SUMMARY_TITLE_FONT_SIZE)
-                .setTextAlignment(TextAlignment.CENTER)
-                .setMargin(0))
+            .add(heading)
             .setTextAlignment(TextAlignment.CENTER)
             .setVerticalAlignment(VerticalAlignment.MIDDLE)
             .setHeight(14f)
             .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_SUMMARY));
         table.addCell(titleCell);
 
-        // 第2~4行：使用 detailLines 渲染（与前端保持一致）
+        // 第2~N行：使用 detailLines 渲染（与前端保持一致）
         List<List<SummaryTextToken>> detailLines = summary.getDetailLines();
         if (detailLines != null && !detailLines.isEmpty()) {
             for (List<SummaryTextToken> line : detailLines) {

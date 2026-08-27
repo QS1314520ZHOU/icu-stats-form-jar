@@ -21,6 +21,13 @@ public class SummaryItem {
         this.amount = amount;
     }
 
+    public SummaryItem(String key, String label, double amount, List<SummaryItem> children) {
+        this.key = key;
+        this.label = label;
+        this.amount = amount;
+        this.children = children == null ? new ArrayList<>() : children;
+    }
+
     public String getKey() { return key; }
     public void setKey(String key) { this.key = key; }
     public String getLabel() { return label; }
