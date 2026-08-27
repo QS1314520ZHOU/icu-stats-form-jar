@@ -239,35 +239,45 @@ public class HljldSummaryCalculator {
                                                   HljldSummary shiftSummary,
                                                   HljldSummary fullDaySummary,
                                                   HljldSummary dischargeSummary,
-                                                  long nowMs) {
+                                                  long referenceTimeMs) {
         List<HljldTimelineItem> timeline = new ArrayList<>();
 
-        // 计算时间边界
+        // 计算时间边界 —— 必须根据nursingDate计算，不能根据referenceTime所在日期计算
         java.time.ZoneId zone = HljldUtils.ZONE_SHANGHAI;
-        java.time.LocalDateTime nowDateTime = java.time.Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDateTime();
-        java.time.LocalDateTime day1700 = nowDateTime.withHour(17).withMinute(0).withSecond(0).withNano(0);
-        long dayBoundaryMs = day1700.atZone(zone).toInstant().toEpochMilli();
-        java.time.LocalDateTime nextMorning0700 = nowDateTime.plusDays(1).withHour(7).withMinute(0).withSecond(0).withNano(0);
-        long nextMorningBoundaryMs = nextMorning0700.atZone(zone).toInstant().toEpochMilli();
+        java.time.LocalDateTime nursingDate;
+        if (daySummary != null && daySummary.getPlannedStart() > 0) {
+            nursingDate = java.time.Instant.ofEpochMilli(daySummary.getPlannedStart()).atZone(zone).toLocalDateTime();
+        } else if (shiftSummary != null && shiftSummary.getPlannedStart() > 0) {
+            nursingDate = java.time.Instant.ofEpochMilli(shiftSummary.getPlannedStart()).atZone(zone).toLocalDateTime();
+        } else if (fullDaySummary != null && fullDaySummary.getPlannedStart() > 0) {
+            nursingDate = java.time.Instant.ofEpochMilli(fullDaySummary.getPlannedStart()).atZone(zone).toLocalDateTime();
+        } else {
+            // 回退：从referenceTime推断护理日
+            nursingDate = java.time.Instant.ofEpochMilli(referenceTimeMs).atZone(zone).toLocalDateTime();
+        }
+        // 使用护理日日期（不含时间部分）计算17:00和次日07:00
+        java.time.LocalDate nursingDateOnly = nursingDate.toLocalDate();
+        long dayBoundaryMs = nursingDateOnly.atTime(17, 0).atZone(zone).toInstant().toEpochMilli();
+        long nextMorningBoundaryMs = nursingDateOnly.plusDays(1).atTime(7, 0).atZone(zone).toInstant().toEpochMilli();
 
         // 显示条件（与前端完全一致）
         boolean showDaySummary =
             daySummary != null
             && daySummary.isAvailable()
             && daySummary.getPeriodEnd() > daySummary.getPeriodStart()
-            && nowMs >= dayBoundaryMs;
+            && referenceTimeMs >= dayBoundaryMs;
 
         boolean showShiftSummary =
             shiftSummary != null
             && shiftSummary.isAvailable()
             && shiftSummary.getPeriodEnd() > shiftSummary.getPeriodStart()
-            && nowMs >= nextMorningBoundaryMs;
+            && referenceTimeMs >= nextMorningBoundaryMs;
 
         boolean showFullDaySummary =
             fullDaySummary != null
             && fullDaySummary.isAvailable()
             && fullDaySummary.getPeriodEnd() > fullDaySummary.getPeriodStart()
-            && nowMs >= nextMorningBoundaryMs;
+            && referenceTimeMs >= nextMorningBoundaryMs;
 
         // 出科逻辑
         long dischargeMs = (dischargeSummary != null && dischargeSummary.isAvailable())
@@ -287,14 +297,17 @@ public class HljldSummaryCalculator {
             .collect(Collectors.toList());
 
         for (HljldTimeGroup group : sortedGroups) {
-            if (group.getTimestamp() > nowMs) continue;
+            if (group.getTimestamp() > referenceTimeMs) continue;
             if (group.getTimestamp() > nextMorningBoundaryMs) continue;
 
-            // 已到17:00但当前组晚于17:00时，先插入日间小结
+            // 已到17:00但当前组晚于17:00时，先插入日间小结 + 结算行
             if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay
                 && group.getTimestamp() > dayBoundaryMs) {
                 timeline.add(HljldTimelineItem.ofSummary(daySummary));
                 dayInserted = true;
+                // 日间小结后插入结算行
+                timeline.add(HljldTimelineItem.ofSettlement(
+                    "day-settlement-" + dayBoundaryMs, dayBoundaryMs, daySummary));
             }
 
             // 出科时间在明细之间
@@ -313,11 +326,14 @@ public class HljldSummaryCalculator {
 
             timeline.add(HljldTimelineItem.ofGroup(group));
 
-            // 正好17:00：先展示组，再展示日间小结
+            // 正好17:00：先展示组，再展示日间小结 + 结算行
             if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay
                 && group.getTimestamp() == dayBoundaryMs) {
                 timeline.add(HljldTimelineItem.ofSummary(daySummary));
                 dayInserted = true;
+                // 日间小结后插入结算行
+                timeline.add(HljldTimelineItem.ofSettlement(
+                    "day-settlement-" + dayBoundaryMs, dayBoundaryMs, daySummary));
             }
 
             // 正好出科时间
@@ -338,6 +354,9 @@ public class HljldSummaryCalculator {
         if (showDaySummary && !dayInserted && !dischargeBeforeDay && !dischargeAtDay) {
             timeline.add(HljldTimelineItem.ofSummary(daySummary));
             dayInserted = true;
+            // 日间小结后插入结算行
+            timeline.add(HljldTimelineItem.ofSettlement(
+                "day-settlement-" + dayBoundaryMs, dayBoundaryMs, daySummary));
         }
 
         // 出科在17:00之前
@@ -382,9 +401,10 @@ public class HljldSummaryCalculator {
             }
         }
 
-        // 按时间排序（数据组在前，小结在后）
+        // 按时间排序，同一时间戳内按sortRank排序：
+        // CONTINUATION(0) < TIME_GROUP(10) < DAY_SUMMARY(20) < DAY_SETTLEMENT(30) < FULL_DAY_SUMMARY(40)
         timeline.sort(Comparator.comparingLong(HljldTimelineItem::getTimestamp)
-            .thenComparingInt(item -> item.getKind() == HljldTimelineItem.Kind.TIME_GROUP ? 0 : 1));
+            .thenComparingInt(HljldTimelineItem::getSortRank));
 
         return timeline;
     }

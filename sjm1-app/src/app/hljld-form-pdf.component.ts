@@ -49,6 +49,9 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   minDateInput = '';
   maxDateInput = '';
 
+  // 业务参考时间（从路由或宿主数据读取，不伪造）
+  businessReferenceTime = '';
+
   // 当前PDF基础URL（不含fragment）
   basePdfUrl = '';
 
@@ -206,8 +209,9 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) {
+    // 使用本地日期解析，避免UTC偏移
+    const date = this.parseLocalDate(dateStr);
+    if (!date) {
       return;
     }
 
@@ -515,10 +519,17 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
 
   /**
    * 获取业务时间（参考时间）
+   * 优先使用上游传入的businessReferenceTime，不伪造时间
    * 使用Asia/Shanghai时区，返回ISO格式字符串
    */
   private getReferenceTime(dateStr: string): string {
-    // 使用当前时间作为业务时间（符合业务场景：实时查看PDF时使用当前时间）
+    // 优先使用已传入的业务参考时间（原样透传）
+    if (this.businessReferenceTime) {
+      return this.businessReferenceTime;
+    }
+
+    // 兼容回退：使用当前时间作为业务时间
+    // 仅在业务调用链确实没有传referenceTime时使用
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -529,6 +540,30 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
 
     // 转换为Asia/Shanghai时区的ISO格式
     return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+08:00`;
+  }
+
+  /**
+   * 本地日期解析（避免UTC偏移）
+   * yyyy-MM-dd 格式日期在JavaScript中可能按UTC解析导致日期偏移
+   */
+  private parseLocalDate(dateStr: string): Date | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+    if (!match) {
+      return null;
+    }
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+    return date;
   }
 
   /**

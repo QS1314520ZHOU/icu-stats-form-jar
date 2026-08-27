@@ -14,6 +14,9 @@ import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
+import com.smartcare.backend.hljld.HljldRemarkLayout;
+
+import java.util.List;
 
 /**
  * 护理记录单流式 PDF 页事件处理器。
@@ -24,6 +27,7 @@ import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
  * 3. 页码："第 N 页"
  *
  * 使用 PdfCanvas 绘制边框和线条，使用 Canvas 绘制文字。
+ * 备注区使用动态高度布局（HljldRemarkLayout），确保文字和边框高度一致。
  */
 public class HljldFlowPageEventHandler implements IEventHandler {
 
@@ -39,16 +43,25 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     private final PdfFont font;
     private final String patientInfo;
     private final int startPageNo;
+    private final HljldRemarkLayout remarkLayout;
 
     /**
-     * @param font        当前 PdfDocument 的 PdfFont
-     * @param patientInfo 患者信息文本
-     * @param startPageNo 全局起始页码
+     * @param font          当前 PdfDocument 的 PdfFont
+     * @param patientInfo   患者信息文本
+     * @param startPageNo   全局起始页码
+     * @param remarkLayout  备注区动态布局（文字和边框共用同一份高度）
      */
-    public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo) {
+    public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo,
+                                      HljldRemarkLayout remarkLayout) {
         this.font = font;
         this.patientInfo = patientInfo == null ? "" : patientInfo;
         this.startPageNo = startPageNo;
+        this.remarkLayout = remarkLayout;
+    }
+
+    /** 兼容旧调用：使用固定高度 */
+    public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo) {
+        this(font, patientInfo, startPageNo, null);
     }
 
     @Override
@@ -75,7 +88,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
             drawPageNumber(canvas, pw, globalPageNumber);
         }
 
-        // 使用 PdfCanvas 绘制备注区边框和线条
+        // 使用 PdfCanvas 绘制备注区边框和线条（使用动态高度）
         drawRemarksBorders(pdfCanvas, pw);
     }
 
@@ -104,7 +117,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  备注区文字（使用 Canvas 绘制，支持自动换行）
+    //  备注区文字（使用 Canvas 绘制，支持自动换行 + 动态高度）
     // ══════════════════════════════════════════════════════════
 
     private void drawRemarksText(Canvas canvas, float pw) {
@@ -113,8 +126,29 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
 
+        // 使用动态布局计算备注高度（如果提供了 remarkLayout）
+        float totalHeight;
+        List<Float> rowHeights;
+        List<String> texts;
+
+        if (remarkLayout != null) {
+            totalHeight = remarkLayout.getTotalHeight();
+            rowHeights = remarkLayout.getRowHeights();
+            texts = remarkLayout.getCompactTexts();
+        } else {
+            // 兼容：使用固定高度
+            totalHeight = HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
+            rowHeights = new java.util.ArrayList<>();
+            texts = new java.util.ArrayList<>();
+            float fixedRowHeight = HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT / HljldPdfLayoutConstants.REMARK_ROWS;
+            for (int i = 0; i < REMARKS.length; i++) {
+                rowHeights.add(fixedRowHeight);
+                texts.add(HljldRemarkLayout.compactRemarkOptions(REMARKS[i]));
+            }
+        }
+
         // "备注"文字：水平居中、垂直居中于4行
-        float labelCenterY = remarksBottom + HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT / 2f;
+        float labelCenterY = remarksBottom + totalHeight / 2f;
         canvas.showTextAligned(
             new Paragraph("备注")
                 .setFont(font)
@@ -126,42 +160,20 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         // 4行备注内容文字（从上到下：检查、治疗、基础护理、健康教育）
         // 使用动态高度计算，支持自动换行
         float textX = contentX + 2f;
-        float availableWidth = TABLE_W - col0Width - 4f;
-
-        // 先计算每行的实际高度（考虑自动换行）
-        float[] rowHeights = new float[REMARKS.length];
-        float totalRemarkHeight = 0;
-
-        for (int i = 0; i < REMARKS.length; i++) {
-            Paragraph para = new Paragraph(REMARKS[i])
-                .setFont(font)
-                .setFontSize(HljldPdfLayoutConstants.REMARK_FONT_SIZE)
-                .setMultipliedLeading(1.0f);
-
-            // 估算文本高度：根据字符数和可用宽度
-            int charCount = REMARKS[i].length();
-            float charWidth = HljldPdfLayoutConstants.REMARK_FONT_SIZE * 0.6f; // 中文字符宽度约等于字号
-            float charsPerLine = availableWidth / charWidth;
-            int lineCount = (int) Math.ceil(charCount / charsPerLine);
-            lineCount = Math.max(lineCount, 1); // 至少1行
-
-            float textHeight = lineCount * HljldPdfLayoutConstants.REMARK_FONT_SIZE * 1.2f;
-            rowHeights[i] = Math.max(textHeight, HljldPdfLayoutConstants.REMARK_ROW_HEIGHT);
-            totalRemarkHeight += rowHeights[i];
-        }
+        float availableWidth = HljldPdfLayoutConstants.REMARK_CONTENT_WIDTH - 4f;
 
         // 从下到上绘制（第一行在最上面，第四行在最下面）
         float currentY = remarksBottom;
-        for (int i = REMARKS.length - 1; i >= 0; i--) {
-            float rowHeight = rowHeights[i];
-            float textY = currentY + rowHeight / 2f;
+        for (int i = texts.size() - 1; i >= 0; i--) {
+            float rowHeight = rowHeights.get(i);
+            String text = texts.get(i);
 
             // 使用矩形区域绘制文字，支持自动换行
             Rectangle textRect = new Rectangle(textX, currentY, availableWidth, rowHeight);
 
             try (Canvas rowCanvas = new Canvas(canvas.getPdfCanvas(), textRect)) {
                 rowCanvas.showTextAligned(
-                    new Paragraph(REMARKS[i])
+                    new Paragraph(text)
                         .setFont(font)
                         .setFontSize(HljldPdfLayoutConstants.REMARK_FONT_SIZE)
                         .setMultipliedLeading(1.0f)
@@ -175,21 +187,39 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  备注区边框和线条（使用 PdfCanvas 绘制）
+    //  备注区边框和线条（使用 PdfCanvas 绘制，动态高度）
     // ══════════════════════════════════════════════════════════
 
     private void drawRemarksBorders(PdfCanvas pdfCanvas, float pw) {
         float remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
-        float remarksTop = HljldPdfLayoutConstants.REMARK_TOP;
         float leftX = ML;
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
+
+        // 使用动态布局计算备注高度（如果提供了 remarkLayout）
+        float totalHeight;
+        List<Float> rowHeights;
+
+        if (remarkLayout != null) {
+            totalHeight = remarkLayout.getTotalHeight();
+            rowHeights = remarkLayout.getRowHeights();
+        } else {
+            // 兼容：使用固定高度
+            totalHeight = HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
+            rowHeights = new java.util.ArrayList<>();
+            float fixedRowHeight = HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT / HljldPdfLayoutConstants.REMARK_ROWS;
+            for (int i = 0; i < REMARKS.length; i++) {
+                rowHeights.add(fixedRowHeight);
+            }
+        }
+
+        float remarksTop = remarksBottom + totalHeight;
 
         pdfCanvas.setStrokeColor(ColorConstants.BLACK);
 
         // ── 外边框 ──
         pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_OUTER);
-        pdfCanvas.rectangle(leftX, remarksBottom, TABLE_W, HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT);
+        pdfCanvas.rectangle(leftX, remarksBottom, TABLE_W, totalHeight);
         pdfCanvas.stroke();
 
         // ── "备注"标签单元格右边线（纵向4行合并） ──
@@ -198,12 +228,14 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         pdfCanvas.lineTo(contentX, remarksTop);
         pdfCanvas.stroke();
 
-        // ── 右侧4行备注内容的横线（从第一列右边界开始，不穿过左侧"备注"单元格） ──
-        for (int i = 1; i < REMARKS.length; i++) {
-            float lineY = remarksBottom + i * HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
+        // ── 右侧4行备注内容的横线（按实际行高累计，从第一列右边界开始） ──
+        // 使用与文字完全相同的行高累计绘制横线
+        float currentTop = remarksTop;
+        for (int i = 0; i < rowHeights.size() - 1; i++) {
+            currentTop -= rowHeights.get(i);
             pdfCanvas.setLineWidth(HljldPdfLayoutConstants.BORDER_REMARK);
-            pdfCanvas.moveTo(contentX, lineY);
-            pdfCanvas.lineTo(leftX + TABLE_W, lineY);
+            pdfCanvas.moveTo(contentX, currentTop);
+            pdfCanvas.lineTo(leftX + TABLE_W, currentTop);
             pdfCanvas.stroke();
         }
     }

@@ -717,7 +717,7 @@ class HljldFlowPdfServiceTest {
         // 测试时间轴项目的排序优先级
         com.smartcare.backend.hljld.HljldTimelineItem timeGroup =
             com.smartcare.backend.hljld.HljldTimelineItem.ofGroup(new com.smartcare.backend.hljld.HljldTimeGroup());
-        assertEquals(0, timeGroup.getSortRank(), "普通明细排序优先级应为0");
+        assertEquals(com.smartcare.backend.hljld.HljldTimelineItem.SORT_RANK_TIME_GROUP, timeGroup.getSortRank(), "普通明细排序优先级");
 
         com.smartcare.backend.hljld.HljldSummary summary = new com.smartcare.backend.hljld.HljldSummary();
         summary.setKind(com.smartcare.backend.hljld.HljldSummary.Kind.DAY);
@@ -725,14 +725,14 @@ class HljldFlowPdfServiceTest {
 
         com.smartcare.backend.hljld.HljldTimelineItem daySummary =
             com.smartcare.backend.hljld.HljldTimelineItem.ofSummary(summary);
-        assertEquals(1, daySummary.getSortRank(), "日间小结排序优先级应为1");
+        assertEquals(com.smartcare.backend.hljld.HljldTimelineItem.SORT_RANK_DAY_SUMMARY, daySummary.getSortRank(), "日间小结排序优先级");
 
         com.smartcare.backend.hljld.HljldTimelineItem settlement =
             com.smartcare.backend.hljld.HljldTimelineItem.ofSettlement("test", System.currentTimeMillis(), summary);
-        assertEquals(2, settlement.getSortRank(), "结算行排序优先级应为2");
+        assertEquals(com.smartcare.backend.hljld.HljldTimelineItem.SORT_RANK_DAY_SETTLEMENT, settlement.getSortRank(), "结算行排序优先级");
 
         com.smartcare.backend.hljld.HljldTimelineItem continuation =
             com.smartcare.backend.hljld.HljldTimelineItem.ofContinuation("test", System.currentTimeMillis(), new com.smartcare.backend.hljld.HljldTimeGroup());
-        assertEquals(-1, continuation.getSortRank(), "续用行排序优先级应为-1");
+        assertEquals(com.smartcare.backend.hljld.HljldTimelineItem.SORT_RANK_CONTINUATION, continuation.getSortRank(), "续用行排序优先级");
     }
 }

@@ -203,15 +203,22 @@ public final class HljldPdfLayoutConstants {
     public static final float BORDER_REMARK = 0.5f;
 
     // ══════════════════════════════════════════════════════════
-    //  备注内容
+    //  备注内容（选项间不留空格，由 compactRemarkOptions 保证）
     // ══════════════════════════════════════════════════════════
     // 备注内容必须与前端 hljld-form.utils.ts 中的 DEFAULT_REMARK_LINES 保持一致
+    // 选项之间的空格在运行时由 HljldRemarkLayout.compactRemarkOptions() 压缩
     public static final String[] REMARK_LINES = {
         "检查：A：CT    B：核磁共振    C：胃镜    D：肠镜    E：超声检查    F：床旁胸片    G：心电图",
         "治疗：A：机械辅助排痰    B：气压治疗    C：雾化吸入    D：支气管镜灌洗    E：TDP照射    F：针灸治疗    G：运动治疗    H：肺复张",
         "基础护理：A：口腔护理    B：动/静脉置管护理    C：擦浴    D：会阴擦洗    E：肛周护理    F：更换引流袋    G：膀胱冲洗    H：压疮护理    I：床上洗头",
         "健康教育：A：入院指导    B：入科指导    C：疾病知识    D：药物指导    E：饮食指导    F：肢体活动指导    G：检查指导    H：安全指导    I：心理指导    J：术前指导    K：术后指导    L：转科/出院指导    M：用氧注意事项    N：通气配合指导    O：康复指导    P：VTE预防指导"
     };
+
+    // ══════════════════════════════════════════════════════════
+    //  备注区内容列可用宽度
+    // ══════════════════════════════════════════════════════════
+    /** 备注区右侧内容列可用宽度 = 表格总宽 - 第一列宽度 */
+    public static final float REMARK_CONTENT_WIDTH = TABLE_WIDTH - COL_WIDTHS_PT[0];
 
     // ══════════════════════════════════════════════════════════
     //  数据字段键名

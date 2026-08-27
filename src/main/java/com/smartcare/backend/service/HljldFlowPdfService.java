@@ -175,6 +175,11 @@ public class HljldFlowPdfService {
         PdfFont font = createPdfFont();
         String patientInfo = getPatientInfoString(pid, referenceDate);
 
+        // 计算备注区动态布局（文字和边框共用同一份高度）
+        HljldRemarkLayout remarkLayout = HljldRemarkLayout.calculate(
+            font, HljldPdfLayoutConstants.REMARK_LINES,
+            HljldPdfLayoutConstants.REMARK_CONTENT_WIDTH);
+
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
         PdfDocument pdfDoc = new PdfDocument(writer);
@@ -182,17 +187,21 @@ public class HljldFlowPdfService {
 
         // 设置边距：精确匹配事件处理器绘制区域
         // topMargin = 标题+患者信息高度 → 内容从 CONTENT_TOP 开始
-        // bottomMargin = 备注+页码高度 → 内容到 CONTENT_BOTTOM 结束
+        // bottomMargin = 备注+页码高度 → 动态计算
+        float dynamicBottomMargin =
+            HljldPdfLayoutConstants.REMARK_BOTTOM
+            + remarkLayout.getTotalHeight()
+            + HljldPdfLayoutConstants.INFO_TABLE_GAP;
         doc.setMargins(
             HljldPdfLayoutConstants.MARGIN_TOP,
             HljldPdfLayoutConstants.MARGIN_RIGHT,
-            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            dynamicBottomMargin,
             HljldPdfLayoutConstants.MARGIN_LEFT
         );
 
         // 先创建事件处理器并注册（在添加内容之前）
         HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
-            font, patientInfo, startPageNo);
+            font, patientInfo, startPageNo, remarkLayout);
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
 
         int totalRowCount = 0;

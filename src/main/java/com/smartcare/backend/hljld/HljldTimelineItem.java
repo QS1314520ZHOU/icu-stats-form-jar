@@ -15,6 +15,15 @@ public class HljldTimelineItem {
         DISCHARGE_SUMMARY    // 出科总结
     }
 
+    // ── 排序优先级常量 ──
+    public static final int SORT_RANK_CONTINUATION   = 0;
+    public static final int SORT_RANK_TIME_GROUP     = 10;
+    public static final int SORT_RANK_DAY_SUMMARY    = 20;
+    public static final int SORT_RANK_DAY_SETTLEMENT = 30;
+    public static final int SORT_RANK_FULL_DAY       = 40;
+    public static final int SORT_RANK_SHIFT          = 50;
+    public static final int SORT_RANK_DISCHARGE      = 60;
+
     private Kind kind;
     private String key = "";
     private long timestamp;
@@ -29,7 +38,7 @@ public class HljldTimelineItem {
         item.kind = Kind.TIME_GROUP;
         item.key = group.getKey();
         item.timestamp = group.getTimestamp();
-        item.sortRank = 0; // 普通明细排序优先级最低
+        item.sortRank = SORT_RANK_TIME_GROUP; // 普通明细
         item.group = group;
         return item;
     }
@@ -42,13 +51,14 @@ public class HljldTimelineItem {
         item.summary = summary;
         // 根据类型设置排序优先级
         switch (kind) {
-            case CONTINUATION: item.sortRank = -1; break;  // 续用行最先
-            case DAY_SUMMARY: item.sortRank = 1; break;    // 日间小结
-            case DAY_SETTLEMENT: item.sortRank = 2; break; // 结算行在日间小结后
-            case FULL_DAY_SUMMARY: item.sortRank = 3; break; // 24小时总结
-            case SHIFT_SUMMARY: item.sortRank = 4; break;  // 班段小结
-            case DISCHARGE_SUMMARY: item.sortRank = 5; break; // 出科总结
-            default: item.sortRank = 0; break;
+            case CONTINUATION: item.sortRank = SORT_RANK_CONTINUATION; break;
+            case TIME_GROUP: item.sortRank = SORT_RANK_TIME_GROUP; break;
+            case DAY_SUMMARY: item.sortRank = SORT_RANK_DAY_SUMMARY; break;
+            case DAY_SETTLEMENT: item.sortRank = SORT_RANK_DAY_SETTLEMENT; break;
+            case FULL_DAY_SUMMARY: item.sortRank = SORT_RANK_FULL_DAY; break;
+            case SHIFT_SUMMARY: item.sortRank = SORT_RANK_SHIFT; break;
+            case DISCHARGE_SUMMARY: item.sortRank = SORT_RANK_DISCHARGE; break;
+            default: item.sortRank = SORT_RANK_TIME_GROUP; break;
         }
         return item;
     }
@@ -66,7 +76,7 @@ public class HljldTimelineItem {
             case DISCHARGE: kind = Kind.DISCHARGE_SUMMARY; key = "discharge-summary"; break;
             default: kind = Kind.DAY_SUMMARY; key = "summary"; break;
         }
-        long ts = summary.getTime() != null ? summary.getTime().getTime() : System.currentTimeMillis();
+        long ts = summary.getTime() != null ? summary.getTime().getTime() : 0;
         return ofSummary(kind, key, ts, summary);
     }
 
@@ -78,7 +88,7 @@ public class HljldTimelineItem {
         item.kind = Kind.CONTINUATION;
         item.key = key;
         item.timestamp = timestamp;
-        item.sortRank = -1; // 续用行最先
+        item.sortRank = SORT_RANK_CONTINUATION; // 续用行最先
         item.group = group;
         return item;
     }
@@ -91,7 +101,7 @@ public class HljldTimelineItem {
         item.kind = Kind.DAY_SETTLEMENT;
         item.key = key;
         item.timestamp = timestamp;
-        item.sortRank = 2; // 结算行在日间小结后
+        item.sortRank = SORT_RANK_DAY_SETTLEMENT; // 结算行在日间小结后
         item.summary = summary;
         return item;
     }
