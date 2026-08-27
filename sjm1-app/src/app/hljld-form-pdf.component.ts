@@ -452,8 +452,18 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
 
   /**
    * 更新日期范围
+   * 出科患者：限制入科~出科日期范围
+   * 在科患者：不限制范围
    */
   private updateDateRange(): void {
+    if (!this.patient.isDischarged) {
+      // 在科患者：不限制日期范围
+      this.minDateInput = '';
+      this.maxDateInput = '';
+      return;
+    }
+
+    // 出科患者：限制入科~出科范围
     if (this.patient.admissionTime) {
       const admissionDate = this.parseTimeField(this.patient.admissionTime);
       if (admissionDate) {
@@ -469,16 +479,16 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
         this.maxDateInput = this.toDateString(dischargeDate);
       }
     } else {
-      this.maxDateInput = this.toDateString(new Date());
+      this.maxDateInput = '';
     }
   }
 
   /**
    * 获取默认日期
-   * 已出科：默认入科日期；未出科：默认今天
+   * 出科患者：默认入科日期；在科患者：默认今天
    */
   private getDefaultDate(): Date {
-    if (this.patient.admissionTime) {
+    if (this.patient.isDischarged && this.patient.admissionTime) {
       const admissionDate = this.parseTimeField(this.patient.admissionTime);
       if (admissionDate) {
         return admissionDate;
@@ -522,7 +532,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       diagnosis: p.diagnosis || '',
       admissionTime: p.admissionTime || '',
       dischargeTime: p.dischargeTime || '',
-      isDischarged: p.isDischarged || false,
+      isDischarged: p.isDischarged === true || String(p.status || '').toLowerCase() === 'discharged',
     };
   }
 
