@@ -23,7 +23,6 @@ export class PdfPrintService {
       iframe.style.height = '1px';
       iframe.style.opacity = '0';
       iframe.style.border = 'none';
-      iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
 
       let resolved = false;
