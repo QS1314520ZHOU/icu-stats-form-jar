@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -109,8 +108,6 @@ public class HljldSummaryCalculator {
         //  出入量
         // ══════════════════════════════════════════════════════════
 
-        log.info("[hljld] 开始计算出入量，统计周期: {} ~ {}", new Date(startMs), new Date(endMs));
-        log.info("[hljld] 统计周期内药物记录数: {}", drugsInPeriod.size());
 
         // 入量：药品（静脉入量）
         // 使用 HljldUtils.calcContinuousDrugAmountMs 进行精确计算，支持 liquidAmount 封顶
@@ -124,28 +121,19 @@ public class HljldSummaryCalculator {
             String methodCode = str(execution, "methodCode");
             Document method = HljldUtils.findDrugMethod(methodCode, source.getDrugMethods());
             String drugName = HljldUtils.drugDisplayName(execution);
-            String startTime = str(execution, "startTime");
-            String endTime = str(execution, "endTime");
             double liquidAmount = HljldUtils.parseAmount(execution.get("liquidAmount"));
             double dose = HljldUtils.parseAmount(execution.get("dose"));
-
-            log.info("[hljld] 药物记录: name={}, methodCode={}, startTime={}, endTime={}, liquidAmount={}, dose={}",
-                drugName, methodCode, startTime, endTime, liquidAmount, dose);
 
             if (method == null) {
                 log.warn("[hljld] 药物方法未找到: name={}, methodCode={}", drugName, methodCode);
                 continue;
             }
 
-            String group = str(method, "group");
             String inChannel = str(method, "inChannel");
             String methodName = str(method, "name");
-            log.info("[hljld] 药物方法匹配: name={}, methodCode={}, methodName={}, group={}, inChannel={}",
-                drugName, methodCode, methodName, group, inChannel);
 
             // 使用 inChannel 判断是否计入入量（与前端逻辑一致）
             if (!HljldUtils.COUNTED_IN_CHANNELS.contains(inChannel)) {
-                log.info("[hljld] 药物跳过（非计入通道）: name={}, inChannel={}", drugName, inChannel);
                 continue;
             }
 
@@ -164,22 +152,18 @@ public class HljldSummaryCalculator {
                 long drugStartMs = (long) HljldUtils.databaseTimeValue(str(execution, "startTime"));
                 if (drugStartMs >= startMs && drugStartMs < effectiveEndMs) {
                     amt = liquidAmount > 0 ? liquidAmount : dose;
-                    log.info("[hljld] 单次给药计入入量: name={}, amt={}", name, amt);
                 } else {
                     amt = 0;
-                    log.info("[hljld] 单次给药跳过（不在统计区间内）: name={}, drugStartMs={}", name, new Date(drugStartMs));
                 }
             } else {
                 // 持续泵注：使用精确的 action-driven 计算
                 HljldUtils.DrugActualAmount result = HljldUtils.calcContinuousDrugAmountMs(
                     execution, startMs, endMs, true);
                 amt = result.inRange;
-                log.info("[hljld] 持续泵注计算结果: name={}, inRange={}", name, amt);
             }
 
             if (amt > 0) {
                 medicationAmounts.merge(name, amt, Double::sum);
-                log.info("[hljld] 药物计入入量: name={}, amt={}, 累计={}", name, amt, medicationAmounts.get(name));
 
                 // 统计各途径的量（ivgtt、iv泵、iv）
                 String route = HljldUtils.routeLabel(methodName);
@@ -190,16 +174,10 @@ public class HljldSummaryCalculator {
                 } else if ("iv".equals(route)) {
                     ivTotal += amt;
                 }
-            } else {
-                log.info("[hljld] 药物未计入入量（amt=0）: name={}", name);
             }
         }
 
-        log.info("[hljld] 静脉入量计算完成，共 {} 项药物，总量: {} ml", medicationAmounts.size(),
-            medicationAmounts.values().stream().mapToDouble(Double::doubleValue).sum());
-
         // 入量：肠内营养
-        log.info("[hljld] 开始计算肠内营养");
         Map<String, Double> enteralAmounts = new LinkedHashMap<>();
         for (Document execution : drugsInPeriod) {
             String methodCode = str(execution, "methodCode");
@@ -207,19 +185,16 @@ public class HljldSummaryCalculator {
             String drugName = HljldUtils.drugDisplayName(execution);
 
             if (method == null) {
-                log.info("[hljld] 肠内营养方法未找到: name={}, methodCode={}", drugName, methodCode);
                 continue;
             }
 
             String inChannel = str(method, "inChannel");
             // 使用 inChannel 判断是否为胃肠入量（与前端逻辑一致）
             if (!"胃肠".equals(inChannel)) {
-                log.info("[hljld] 药物跳过（非胃肠通道）: name={}, inChannel={}", drugName, inChannel);
                 continue;
             }
 
             if (!HljldUtils.isTargetEnteral(drugName)) {
-                log.info("[hljld] 药物跳过（非目标肠内营养）: name={}", drugName);
                 continue;
             }
 
@@ -229,7 +204,6 @@ public class HljldSummaryCalculator {
             if (actionList == null || actionList.isEmpty()) {
                 double dose = HljldUtils.parseAmount(execution.get("dose"));
                 enteralAmounts.merge(displayName, dose, Double::sum);
-                log.info("[hljld] 肠内营养计入（无actionList）: name={}, dose={}", displayName, dose);
             } else {
                 double totalQuickAdd = 0;
                 for (Map<String, Object> action : actionList) {
@@ -237,27 +211,19 @@ public class HljldSummaryCalculator {
                     if ("quickadd".equals(act)) {
                         double quickAddAmount = HljldUtils.parseAmount(action.get("quickAddAmount"));
                         totalQuickAdd += quickAddAmount;
-                        log.info("[hljld] 肠内营养quickAdd: name={}, quickAddAmount={}", displayName, quickAddAmount);
                     }
                 }
                 if (totalQuickAdd > 0) {
                     enteralAmounts.merge(displayName, totalQuickAdd, Double::sum);
-                    log.info("[hljld] 肠内营养计入（有actionList）: name={}, totalQuickAdd={}", displayName, totalQuickAdd);
                 }
             }
         }
 
-        log.info("[hljld] 肠内营养计算完成，共 {} 项，总量: {} ml", enteralAmounts.size(),
-            enteralAmounts.values().stream().mapToDouble(Double::doubleValue).sum());
-
         // 出量
-        log.info("[hljld] 开始计算出量，bedsideInPeriod记录数: {}", bedsideInPeriod.size());
 
         // 尿量和净超滤量必须直接按编码统计，不能先经过不包含这两个编码的OUTPUT_CODE_NAMES
         double urineTotal = sumBedsideByCode(bedsideInPeriod, HljldUtils.URINE_CODE);
         double ultrafiltrationTotal = sumBedsideByCode(bedsideInPeriod, HljldUtils.ULTRAFILTRATION_CODE);
-
-        log.info("[hljld] 尿量: {} ml, 净超滤量: {} ml", urineTotal, ultrafiltrationTotal);
 
         // 其他出量（不含尿量和净超滤量）
         List<NameAmount> outAll = bedsideInPeriod.stream()
@@ -278,8 +244,6 @@ public class HljldSummaryCalculator {
 
         List<NameAmount> otherOutAll = outAll;
 
-        log.info("[hljld] 其他出量项目数: {}", otherOutAll.size());
-
         // 引流液
         List<NameAmount> drainAll = bedsideInPeriod.stream()
             .filter(item -> HljldUtils.isDrainCode(str(item, "code")))
@@ -294,8 +258,6 @@ public class HljldSummaryCalculator {
         for (NameAmount d : drainAll) {
             drainMap.merge(d.getName(), d.getNumericAmount(), Double::sum);
         }
-
-        log.info("[hljld] 引流液项目数: {}", drainMap.size());
 
         // 合并尿量和净超滤量
         Map<String, Double> outputMap = new LinkedHashMap<>();
@@ -380,23 +342,10 @@ public class HljldSummaryCalculator {
         double totalOtherOutput = otherOutAll.stream().mapToDouble(NameAmount::getNumericAmount).sum();
         double totalOutput = totalUrine + totalUltrafiltration + totalDrain + totalOtherOutput;
 
-        log.info("[hljld] ========== 出入量汇总 ==========");
-        log.info("[hljld] 入量明细:");
-        log.info("[hljld]   药物治疗（静脉入量）: {} ml, 项目数: {}", totalMedication, medicationAmounts.size());
-        medicationAmounts.forEach((name, amount) -> log.info("[hljld]     - {}: {} ml", name, amount));
-        log.info("[hljld]   胃肠入量（肠内营养）: {} ml, 项目数: {}", totalEnteral, enteralAmounts.size());
-        enteralAmounts.forEach((name, amount) -> log.info("[hljld]     - {}: {} ml", name, amount));
-        log.info("[hljld]   总入量: {} ml", totalMedication + totalEnteral);
-
-        log.info("[hljld] 出量明细:");
-        log.info("[hljld]   尿量: {} ml", totalUrine);
-        log.info("[hljld]   净超滤量: {} ml", totalUltrafiltration);
-        log.info("[hljld]   引流液: {} ml", totalDrain);
-        log.info("[hljld]   其他出量: {} ml", totalOtherOutput);
-        log.info("[hljld]   总出量: {} ml", totalOutput);
-
-        log.info("[hljld] 平衡量: {} ml (总入量 - 总出量)", totalMedication + totalEnteral - totalOutput);
-        log.info("[hljld] ======================================");
+        log.info("[hljld] 出入量汇总: 总入量={} ml (药物={}, 肠内={}), 总出量={} ml (尿={}, 超滤={}, 引流={}, 其他={}), 平衡={} ml",
+            totalMedication + totalEnteral, totalMedication, totalEnteral,
+            totalOutput, totalUrine, totalUltrafiltration, totalDrain, totalOtherOutput,
+            totalMedication + totalEnteral - totalOutput);
 
         summary.setMedicationSum(HljldUtils.round1(totalMedication));
         summary.setEnteralSum(HljldUtils.round1(totalEnteral));
@@ -710,17 +659,6 @@ public class HljldSummaryCalculator {
                 .thenComparingInt(HljldTimelineItem::getSortRank)
                 .thenComparing(HljldTimelineItem::getKey)
         );
-
-        // 打印排序后的 timeline
-        java.text.SimpleDateFormat logTf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        logTf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
-        log.info("[HLJLD-TL] ===== buildTimeline 排序后共 {} 条 =====", timeline.size());
-        for (int i = 0; i < timeline.size(); i++) {
-            HljldTimelineItem t = timeline.get(i);
-            int rows = (t.getGroup() != null) ? t.getGroup().getRows().size() : 0;
-            log.info("[HLJLD-TL] timeline[{}] kind={}, time={}, key={}, rows={}, sortRank={}",
-                i, t.getKind(), logTf.format(new Date(t.getTimestamp())), t.getKey(), rows, t.getSortRank());
-        }
 
         return timeline;
     }

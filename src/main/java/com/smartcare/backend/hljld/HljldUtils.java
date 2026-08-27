@@ -1268,12 +1268,8 @@ public final class HljldUtils {
         long segStartMs = segment.start.getTime();
         long segEndMs = segment.end.getTime();
 
-        log.info("[HLJLD-SETTLE] buildSegmentSettlements开始, segStart={}, segEnd={}, nowMs={}, 药物总数={}",
-            segment.start, segment.end, nowMs, executions.size());
-
         // 整段还没开始，不结算
         if (nowMs <= segStartMs) {
-            log.info("[HLJLD-SETTLE] 当前时间未到班段开始时间，跳过结算");
             return Collections.emptyList();
         }
 
@@ -1289,12 +1285,9 @@ public final class HljldUtils {
             if (!Boolean.FALSE.equals(method.get("isOnce"))) continue;
 
             double startMs = databaseTimeValue(String.valueOf(execution.get("startTime")));
-            String drugName = drugDisplayName(execution);
-            log.debug("[HLJLD-SETTLE] 检查药物: {}, startMs={}, segStartMs={}", drugName, startMs, segStartMs);
 
             // 只展示在 day 段（07:00-17:00）内开始的药物
             if (!Double.isFinite(startMs) || startMs >= segStartMs) {
-                log.debug("[HLJLD-SETTLE] 跳过药物: {} (startMs={} >= segStartMs={})", drugName, startMs, segStartMs);
                 continue;
             }
 
@@ -1308,12 +1301,8 @@ public final class HljldUtils {
             double remainder = round1(cap - cumulativeAtSegStart);
             boolean ongoing = !Double.isFinite(endMs) || endMs > cutoffMs;
 
-            log.info("[HLJLD-SETTLE] 药物: {}, cap={}, segmentUsed={}, cumulativeUsed={}, remainder={}, ongoing={}",
-                drugName, cap, segmentUsed, cumulativeUsed, remainder, ongoing);
-
             // 已用完的药物不出现在结算行
             if (remainder <= 0) {
-                log.debug("[HLJLD-SETTLE] 跳过药物: {} (remainder={} <= 0)", drugName, remainder);
                 continue;
             }
 
@@ -1331,9 +1320,7 @@ public final class HljldUtils {
                 execution, drugDisplayName(execution), routeLabel(strOrNull(method, "name")),
                 segmentUsed, cumulativeUsed, remainder, cap,
                 ongoing, partial, consistent, isEnteral));
-            log.info("[HLJLD-SETTLE] 添加结算项: {}", drugName);
         }
-        log.info("[HLJLD-SETTLE] 结算完成, 共{}项", out.size());
         return out;
     }
 

@@ -411,10 +411,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     if (!this.minDateInput) {
       return true;
     }
-    const date = new Date(this.selectedDate);
-    date.setDate(date.getDate() - 1);
-    const minDate = this.parseLocalDate(this.minDateInput);
-    return minDate ? date >= minDate : true;
+    const prevDay = new Date(this.selectedDate);
+    prevDay.setDate(prevDay.getDate() - 1);
+    const prevDayStr = this.toDateString(prevDay);
+    return prevDayStr >= this.minDateInput;
   }
 
   /**
@@ -424,10 +424,11 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     if (!this.maxDateInput) {
       return true;
     }
-    const date = new Date(this.selectedDate);
-    date.setDate(date.getDate() + 1);
-    const maxDate = this.parseLocalDate(this.maxDateInput);
-    return maxDate ? date <= maxDate : true;
+    const selectedStr = this.toDateString(this.selectedDate);
+    const nextDay = new Date(this.selectedDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const nextDayStr = this.toDateString(nextDay);
+    return nextDayStr <= this.maxDateInput;
   }
 
   /**
@@ -445,9 +446,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     if (!this.maxDateInput) {
       return true;
     }
-    const today = new Date();
-    const maxDate = this.parseLocalDate(this.maxDateInput);
-    return maxDate ? today <= maxDate : true;
+    const todayStr = this.toDateString(new Date());
+    return todayStr <= this.maxDateInput;
   }
 
   /**
@@ -455,7 +455,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
    */
   private updateDateRange(): void {
     if (this.patient.admissionTime) {
-      const admissionDate = this.parseLocalDate(this.patient.admissionTime.substring(0, 10));
+      const admissionDate = this.parseTimeField(this.patient.admissionTime);
       if (admissionDate) {
         this.minDateInput = this.toDateString(admissionDate);
       }
@@ -464,7 +464,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     }
 
     if (this.patient.dischargeTime) {
-      const dischargeDate = this.parseLocalDate(this.patient.dischargeTime.substring(0, 10));
+      const dischargeDate = this.parseTimeField(this.patient.dischargeTime);
       if (dischargeDate) {
         this.maxDateInput = this.toDateString(dischargeDate);
       }
@@ -475,12 +475,13 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
 
   /**
    * 获取默认日期
+   * 已出科：默认入科日期；未出科：默认今天
    */
   private getDefaultDate(): Date {
-    if (this.patient.dischargeTime) {
-      const dischargeDate = this.parseLocalDate(this.patient.dischargeTime.substring(0, 10));
-      if (dischargeDate) {
-        return dischargeDate;
+    if (this.patient.admissionTime) {
+      const admissionDate = this.parseTimeField(this.patient.admissionTime);
+      if (admissionDate) {
+        return admissionDate;
       }
     }
     return new Date();
@@ -533,6 +534,22 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * 解析时间字段 — 兼容字符串(yyyy-MM-dd)和数字(毫秒时间戳)
+   */
+  private parseTimeField(value: string | number | undefined): Date | null {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'number') {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    // 字符串：取前10位 yyyy-MM-dd
+    const str = String(value).substring(0, 10);
+    return this.parseLocalDate(str);
   }
 
   /**

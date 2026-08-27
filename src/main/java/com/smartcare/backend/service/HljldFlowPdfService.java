@@ -636,24 +636,9 @@ public class HljldFlowPdfService {
         HljldPdfRequestContext context = viewModel.getContext();
         List<PrintableItem> items = new ArrayList<>();
 
-        java.text.SimpleDateFormat logTf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-        logTf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
-
         List<HljldTimelineItem> timeline = viewModel.getTimeline();
-        log.info("[HLJLD-PDF] ===== timeline 构建前 ===== timeline={}, displayGroups={}",
-            timeline != null ? timeline.size() : "null",
-            viewModel.getDisplayGroups() != null ? viewModel.getDisplayGroups().size() : "null");
 
         if (timeline != null) {
-            // 先打印 timeline 内容
-            for (int ti = 0; ti < timeline.size(); ti++) {
-                HljldTimelineItem t = timeline.get(ti);
-                String timeStr = logTf.format(new Date(t.getTimestamp()));
-                int groupRows = (t.getGroup() != null) ? t.getGroup().getRows().size() : 0;
-                log.info("[HLJLD-PDF] timeline[{}] kind={}, time={}, key={}, groupRows={}, sortRank={}",
-                    ti, t.getKind(), timeStr, t.getKey(), groupRows, t.getSortRank());
-            }
-
             for (int ti = 0; ti < timeline.size(); ti++) {
                 HljldTimelineItem tItem = timeline.get(ti);
                 String tsPrefix = String.format("%04d", ti);
@@ -719,23 +704,6 @@ public class HljldFlowPdfService {
             .comparingLong((PrintableItem p) -> p.sortTime)
             .thenComparingInt((PrintableItem p) -> p.sortPriority)
             .thenComparing((PrintableItem p) -> p.stableId));
-
-        // 打印排序后的完整列表
-        log.info("[HLJLD-PDF] ===== 排序后 items 共 {} 条 =====", items.size());
-        for (int i = 0; i < items.size(); i++) {
-            PrintableItem p = items.get(i);
-            String timeStr = logTf.format(new Date(p.sortTime));
-            String detail = "";
-            if (p.normalRow != null) {
-                String med = mapStr(p.normalRow, "medName");
-                String timeText = mapStr(p.normalRow, "timeText");
-                detail = "med=" + med + ", timeText=" + timeText;
-            } else if (p.summary != null) {
-                detail = "title=" + p.title;
-            }
-            log.info("[HLJLD-PDF] items[{}] time={}, priority={}, stableId={}, type={}, {}",
-                i, timeStr, p.sortPriority, p.stableId, p.type, detail);
-        }
 
         return items;
     }

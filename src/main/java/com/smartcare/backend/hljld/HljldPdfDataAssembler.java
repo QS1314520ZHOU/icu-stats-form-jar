@@ -61,7 +61,6 @@ public class HljldPdfDataAssembler {
             if (admissionTimeObj == null) {
                 admissionTimeObj = source.getPatientInfo().get("admissionTime");
             }
-            log.info("患者入科时间原始值: {}", admissionTimeObj);
             if (admissionTimeObj instanceof Date) {
                 // 使用 ISO 8601 格式，时区偏移量带冒号
                 java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
@@ -71,12 +70,8 @@ public class HljldPdfDataAssembler {
                 admissionTimeStr = (String) admissionTimeObj;
             }
         }
-        log.info("入科时间字符串: {}", admissionTimeStr);
-
         // 使用 HljldPdfRequestContext 统一管理时间
         HljldPdfRequestContext context = HljldPdfRequestContext.of(nursingDay, referenceTime, admissionTimeStr);
-        log.info("Context入科时间: {}", context.getAdmissionTime());
-        log.info("shouldShowDaySummary: {}", context.shouldShowDaySummary());
         long nowMs = context.getReferenceTimeMs();
 
         // 3. 获取当前护士签名

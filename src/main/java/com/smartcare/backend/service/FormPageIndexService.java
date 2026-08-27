@@ -58,7 +58,6 @@ public class FormPageIndexService {
 
         FormPageIndex index = indexOpt.get();
         String status = index.getStatus();
-        log.info("页码索引状态: pid={}, status={}, dailyPages={}", pid, status, index.getDailyPages().size());
 
         if ("calculating".equals(status)) {
             return new PageIndexResult(1, 1, "calculating");
@@ -70,11 +69,6 @@ public class FormPageIndexService {
         Optional<FormPageIndex.DailyPageInfo> dailyInfo = index.getDailyPages().stream()
             .filter(d -> d.getDate().equals(date))
             .findFirst();
-
-        log.info("查找日期页码: date={}, 找到={}", date, dailyInfo.isPresent());
-        if (dailyInfo.isPresent()) {
-            log.info("页码详情: startPageNo={}, pageCount={}", dailyInfo.get().getStartPageNo(), dailyInfo.get().getPageCount());
-        }
 
         if (dailyInfo.isEmpty()) {
             if (!index.getDailyPages().isEmpty()) {
@@ -126,8 +120,6 @@ public class FormPageIndexService {
      */
     @Async
     public void recalculatePageIndexes(String pid, String formType) {
-        log.info("开始计算页码: pid={}, formType={}", pid, formType);
-
         Document patient = patientResolver.findPatient(pid);
         if (patient == null) {
             log.error("页码计算-未找到患者: pid={}", pid);
@@ -137,8 +129,6 @@ public class FormPageIndexService {
 
         Date admissionTime = patient.getDate("admissionTime");
         Date dischargeTime = patient.getDate("dischargeTime");
-        log.info("患者信息: name={}, admissionTime={}, dischargeTime={}",
-            patient.getString("name"), admissionTime, dischargeTime);
 
         if (admissionTime == null) {
             log.error("页码计算-入科时间为空: pid={}", pid);
@@ -154,7 +144,6 @@ public class FormPageIndexService {
         cal.set(Calendar.MILLISECOND, 0);
         Date startDate = cal.getTime();
         Date endDate = (dischargeTime != null) ? dischargeTime : new Date();
-        log.info("计算范围: startDate={}, endDate={}", startDate, endDate);
 
         FormPageIndex index = pageIndexRepository.findTopByPidAndFormType(pid, formType)
             .orElse(new FormPageIndex());
@@ -172,18 +161,15 @@ public class FormPageIndexService {
             int currentPageNo = 1;
             int totalDays = daysBetween(startDate, endDate);
             int processedDays = 0;
-            log.info("总天数: {}", totalDays);
 
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
             cal.setTime(startDate);
 
             while (!cal.getTime().after(endDate)) {
                 String dateStr = dateFormat.format(cal.getTime());
-                log.info("计算日期页码: date={}", dateStr);
                 // 使用当前时间作为referenceTime进行页码计算
                 String referenceTime = java.time.OffsetDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).toString();
                 int pageCount = flowPdfService.calculateFlowPageCount(pid, dateStr, referenceTime);
-                log.info("日期页码结果: date={}, pageCount={}", dateStr, pageCount);
 
                 FormPageIndex.DailyPageInfo dailyInfo = new FormPageIndex.DailyPageInfo();
                 dailyInfo.setDate(dateStr);
@@ -258,12 +244,9 @@ public class FormPageIndexService {
         if (allRecords.size() > 1) {
             log.warn("发现重复页码记录: pid={}, formType={}, count={}", pid, formType, allRecords.size());
             // 保留第一条，删除其余
-            FormPageIndex keepRecord = allRecords.get(0);
             for (int i = 1; i < allRecords.size(); i++) {
                 pageIndexRepository.deleteById(allRecords.get(i).getId());
-                log.info("删除重复记录: id={}", allRecords.get(i).getId());
             }
-            log.info("保留记录: id={}, status={}", keepRecord.getId(), keepRecord.getStatus());
         }
     }
 
