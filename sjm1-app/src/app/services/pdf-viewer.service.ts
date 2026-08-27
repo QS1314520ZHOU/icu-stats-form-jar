@@ -26,35 +26,42 @@ export class PdfPrintService {
       iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
 
+      let resolved = false;
+      const safeResolve = () => {
+        if (resolved) return;
+        resolved = true;
+        resolve();
+      };
+
+      const cleanup = () => {
+        setTimeout(() => {
+          try { document.body.removeChild(iframe); } catch (_) {}
+          URL.revokeObjectURL(objectUrl);
+        }, 200);
+      };
+
       iframe.onload = () => {
         setTimeout(() => {
           const win = iframe.contentWindow;
-          if (!win) {
-            try { document.body.removeChild(iframe); } catch (_) {}
-            URL.revokeObjectURL(objectUrl);
-            resolve();
-            return;
-          }
+          if (!win) { safeResolve(); cleanup(); return; }
 
-          // 先注册 afterprint，再调用 print()
-          // afterprint 在用户关闭打印对话框后触发（打印或取消）
+          // afterprint：用户关闭对话框后清理 iframe
           win.addEventListener('afterprint', () => {
-            // 对话框已关闭，现在可以安全清理
-            setTimeout(() => {
-              try { document.body.removeChild(iframe); } catch (_) {}
-              URL.revokeObjectURL(objectUrl);
-              resolve();
-            }, 100);
+            safeResolve();
+            cleanup();
           }, { once: true });
 
           try {
             win.print();
           } catch (err) {
             console.error('[Print] print() failed', err);
-            try { document.body.removeChild(iframe); } catch (_) {}
-            URL.revokeObjectURL(objectUrl);
-            resolve();
+            safeResolve();
+            cleanup();
           }
+
+          // 兜底：5秒后解锁按钮（不删 iframe，避免关掉打印对话框）
+          // 如果 afterprint 已触发则无副作用
+          setTimeout(safeResolve, 5000);
         }, 500);
       };
 
