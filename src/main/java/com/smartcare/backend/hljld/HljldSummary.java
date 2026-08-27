@@ -11,11 +11,24 @@ public class HljldSummary {
     public enum Kind { DAY, SHIFT, FULL_DAY, DISCHARGE }
 
     private Kind kind;
+    private String label = "";
+    private String periodText = "";
+    private Date periodStart;
+    private Date periodEnd;
     private Date time;
+    private boolean available;
+
     private String dayText = "";
     private String nightText = "";
 
     // 入量
+    private double totalInput;
+    private double drugTreatmentTotal;
+    private List<SummaryItem> drugTreatmentItems = new ArrayList<>();
+    private double gastrointestinalInputTotal;
+    private List<SummaryItem> gastrointestinalInputItems = new ArrayList<>();
+
+    // 兼容旧字段
     private double inputSum;
     private List<SummaryItem> inputItems = new ArrayList<>();
     private double medicationSum;
@@ -24,6 +37,12 @@ public class HljldSummary {
     private List<SummaryItem> enteralItems = new ArrayList<>();
 
     // 出量
+    private double totalOutput;
+    private double urineTotal;
+    private double ultrafiltrationTotal;
+    private double excretionTotal;
+    private double drainTotal;
+
     private double outputSum;
     private List<SummaryItem> outputItems = new ArrayList<>();
     private double urineSum;
@@ -44,12 +63,34 @@ public class HljldSummary {
     // Getters and Setters
     public Kind getKind() { return kind; }
     public void setKind(Kind kind) { this.kind = kind; }
+    public String getLabel() { return label; }
+    public void setLabel(String label) { this.label = label; }
+    public String getPeriodText() { return periodText; }
+    public void setPeriodText(String periodText) { this.periodText = periodText; }
+    public Date getPeriodStart() { return periodStart; }
+    public void setPeriodStart(Date periodStart) { this.periodStart = periodStart; }
+    public Date getPeriodEnd() { return periodEnd; }
+    public void setPeriodEnd(Date periodEnd) { this.periodEnd = periodEnd; }
     public Date getTime() { return time; }
     public void setTime(Date time) { this.time = time; }
+    public boolean isAvailable() { return available; }
+    public void setAvailable(boolean available) { this.available = available; }
     public String getDayText() { return dayText; }
     public void setDayText(String dayText) { this.dayText = dayText; }
     public String getNightText() { return nightText; }
     public void setNightText(String nightText) { this.nightText = nightText; }
+
+    public double getTotalInput() { return totalInput; }
+    public void setTotalInput(double totalInput) { this.totalInput = totalInput; }
+    public double getDrugTreatmentTotal() { return drugTreatmentTotal; }
+    public void setDrugTreatmentTotal(double drugTreatmentTotal) { this.drugTreatmentTotal = drugTreatmentTotal; }
+    public List<SummaryItem> getDrugTreatmentItems() { return drugTreatmentItems; }
+    public void setDrugTreatmentItems(List<SummaryItem> drugTreatmentItems) { this.drugTreatmentItems = drugTreatmentItems; }
+    public double getGastrointestinalInputTotal() { return gastrointestinalInputTotal; }
+    public void setGastrointestinalInputTotal(double gastrointestinalInputTotal) { this.gastrointestinalInputTotal = gastrointestinalInputTotal; }
+    public List<SummaryItem> getGastrointestinalInputItems() { return gastrointestinalInputItems; }
+    public void setGastrointestinalInputItems(List<SummaryItem> gastrointestinalInputItems) { this.gastrointestinalInputItems = gastrointestinalInputItems; }
+
     public double getInputSum() { return inputSum; }
     public void setInputSum(double inputSum) { this.inputSum = inputSum; }
     public List<SummaryItem> getInputItems() { return inputItems; }
@@ -62,6 +103,18 @@ public class HljldSummary {
     public void setEnteralSum(double enteralSum) { this.enteralSum = enteralSum; }
     public List<SummaryItem> getEnteralItems() { return enteralItems; }
     public void setEnteralItems(List<SummaryItem> enteralItems) { this.enteralItems = enteralItems; }
+
+    public double getTotalOutput() { return totalOutput; }
+    public void setTotalOutput(double totalOutput) { this.totalOutput = totalOutput; }
+    public double getUrineTotal() { return urineTotal; }
+    public void setUrineTotal(double urineTotal) { this.urineTotal = urineTotal; }
+    public double getUltrafiltrationTotal() { return ultrafiltrationTotal; }
+    public void setUltrafiltrationTotal(double ultrafiltrationTotal) { this.ultrafiltrationTotal = ultrafiltrationTotal; }
+    public double getExcretionTotal() { return excretionTotal; }
+    public void setExcretionTotal(double excretionTotal) { this.excretionTotal = excretionTotal; }
+    public double getDrainTotal() { return drainTotal; }
+    public void setDrainTotal(double drainTotal) { this.drainTotal = drainTotal; }
+
     public double getOutputSum() { return outputSum; }
     public void setOutputSum(double outputSum) { this.outputSum = outputSum; }
     public List<SummaryItem> getOutputItems() { return outputItems; }

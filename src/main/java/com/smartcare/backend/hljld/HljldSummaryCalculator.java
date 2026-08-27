@@ -114,7 +114,7 @@ public class HljldSummaryCalculator {
         for (Document execution : drugsInPeriod) {
             Document method = HljldUtils.findDrugMethod(str(execution, "methodCode"), source.getDrugMethods());
             if (method == null) continue;
-            if (Boolean.TRUE.equals(method.get("isOnce"))) continue;
+            // 注意：不能无条件排除单次药物（isOnce），需要根据前端逻辑处理
 
             String name = HljldUtils.drugDisplayName(execution);
             if (name.isEmpty()) continue;
@@ -251,8 +251,14 @@ public class HljldSummaryCalculator {
         }
 
         // 出量
+        // 尿量和净超滤量必须直接按编码统计，不能先经过不包含这两个编码的OUTPUT_CODE_NAMES
+        double urineTotal = sumBedsideByCode(bedsideInPeriod, HljldUtils.URINE_CODE);
+        double ultrafiltrationTotal = sumBedsideByCode(bedsideInPeriod, HljldUtils.ULTRAFILTRATION_CODE);
+
+        // 其他出量（不含尿量和净超滤量）
         List<NameAmount> outAll = bedsideInPeriod.stream()
             .filter(item -> HljldUtils.OUTPUT_CODE_NAMES.containsKey(str(item, "code")))
+            .filter(item -> !HljldUtils.URINE_CODE.equals(str(item, "code")) && !HljldUtils.ULTRAFILTRATION_CODE.equals(str(item, "code")))
             .map(item -> new NameAmount(
                 HljldUtils.OUTPUT_CODE_NAMES.get(str(item, "code")),
                 HljldUtils.displayAmount(item.get("strVal")),
@@ -260,17 +266,13 @@ public class HljldSummaryCalculator {
             .filter(NameAmount::hasAmountValue)
             .collect(Collectors.toList());
 
-        Map<String, Double> urineMap = outAll.stream()
-            .filter(item -> "尿量".equals(item.getName()))
-            .collect(Collectors.groupingBy(NameAmount::getName, Collectors.summingDouble(NameAmount::getNumericAmount)));
+        Map<String, Double> urineMap = new LinkedHashMap<>();
+        urineMap.put("尿量", urineTotal);
 
-        Map<String, Double> ultrafiltrationMap = outAll.stream()
-            .filter(item -> "净超滤量".equals(item.getName()))
-            .collect(Collectors.groupingBy(NameAmount::getName, Collectors.summingDouble(NameAmount::getNumericAmount)));
+        Map<String, Double> ultrafiltrationMap = new LinkedHashMap<>();
+        ultrafiltrationMap.put("净超滤量", ultrafiltrationTotal);
 
-        List<NameAmount> otherOutAll = outAll.stream()
-            .filter(item -> !"尿量".equals(item.getName()) && !"净超滤量".equals(item.getName()))
-            .collect(Collectors.toList());
+        List<NameAmount> otherOutAll = outAll;
 
         // 引流液
         List<NameAmount> drainAll = bedsideInPeriod.stream()
@@ -541,5 +543,150 @@ public class HljldSummaryCalculator {
     private static String str(Map<?, ?> map, String key) {
         Object v = map.get(key);
         return v != null ? v.toString().trim() : "";
+    }
+
+    /**
+     * 按编码统计bedside记录的量
+     */
+    private double sumBedsideByCode(List<Document> records, String code) {
+        return HljldUtils.round1(
+            records.stream()
+                .filter(item -> code.equals(str(item, "code")))
+                .mapToDouble(item -> HljldUtils.parseAmount(item.get("strVal")))
+                .sum()
+        );
+    }
+
+    /**
+     * 构建时间轴（使用 HljldPdfRequestContext 控制门禁）
+     * 对应前端 buildTimeline
+     */
+    public List<HljldTimelineItem> buildTimeline(
+        HljldPdfRequestContext context,
+        List<HljldTimeGroup> displayGroups,
+        List<HljldTimeGroup> continuationGroups,
+        HljldSummary daySummary,
+        HljldSummary fullDaySummary
+    ) {
+        List<HljldTimelineItem> timeline = new ArrayList<>();
+
+        long referenceTime = context.getReferenceTimeMs();
+        long daySummaryTime = context.getDaySummaryTimeMs();
+        long nursingDayEnd = context.getNursingDayEndMs();
+
+        // 当日07:00续用行
+        if (continuationGroups != null) {
+            for (HljldTimeGroup group : continuationGroups) {
+                timeline.add(
+                    createTimelineItem(
+                        HljldTimelineItem.Kind.CONTINUATION,
+                        "continuation-" + group.getKey(),
+                        context.getNursingDayStartMs(),
+                        group,
+                        null
+                    )
+                );
+            }
+        }
+
+        // 普通记录
+        for (HljldTimeGroup group : displayGroups) {
+            if (group.getTimestamp() > referenceTime ||
+                group.getTimestamp() >= nursingDayEnd) {
+                continue;
+            }
+            timeline.add(
+                createTimelineItem(
+                    HljldTimelineItem.Kind.TIME_GROUP,
+                    group.getKey(),
+                    group.getTimestamp(),
+                    group,
+                    null
+                )
+            );
+        }
+
+        // 日间小结
+        if (context.shouldShowDaySummary() &&
+            daySummary != null &&
+            daySummary.isAvailable()) {
+            daySummary.setTime(new Date(daySummaryTime));
+            timeline.add(
+                createTimelineItem(
+                    HljldTimelineItem.Kind.DAY_SUMMARY,
+                    "day-summary",
+                    daySummaryTime,
+                    null,
+                    daySummary
+                )
+            );
+
+            // 结算行只能在小结存在时生成
+            HljldTimeGroup settlement = buildSettlementGroup(daySummary, daySummaryTime);
+            if (settlement != null) {
+                timeline.add(
+                    createTimelineItem(
+                        HljldTimelineItem.Kind.DAY_SETTLEMENT,
+                        "day-settlement",
+                        daySummaryTime,
+                        settlement,
+                        null
+                    )
+                );
+            }
+        }
+
+        // 次日07:00总结
+        if (context.shouldShowFullDaySummary() &&
+            fullDaySummary != null &&
+            fullDaySummary.isAvailable()) {
+            fullDaySummary.setTime(new Date(nursingDayEnd));
+            timeline.add(
+                createTimelineItem(
+                    HljldTimelineItem.Kind.FULL_DAY_SUMMARY,
+                    "full-day-summary",
+                    nursingDayEnd,
+                    null,
+                    fullDaySummary
+                )
+            );
+        }
+
+        // 按时间戳、排序等级、key排序
+        timeline.sort(
+            Comparator.comparingLong(HljldTimelineItem::getTimestamp)
+                .thenComparingInt(HljldTimelineItem::getSortRank)
+                .thenComparing(HljldTimelineItem::getKey)
+        );
+
+        return timeline;
+    }
+
+    private HljldTimelineItem createTimelineItem(
+        HljldTimelineItem.Kind kind,
+        String key,
+        long timestamp,
+        HljldTimeGroup group,
+        HljldSummary summary
+    ) {
+        HljldTimelineItem item = new HljldTimelineItem();
+        item.setKind(kind);
+        item.setKey(key);
+        item.setTimestamp(timestamp);
+        item.setGroup(group);
+        item.setSummary(summary);
+        return item;
+    }
+
+    private HljldTimeGroup buildSettlementGroup(HljldSummary summary, long timestamp) {
+        // 构建结算行（根据小结数据生成）
+        if (summary == null || !summary.isAvailable()) {
+            return null;
+        }
+        // 简化实现：返回一个包含结算信息的TimeGroup
+        HljldTimeGroup group = new HljldTimeGroup();
+        group.setKey("settlement-" + timestamp);
+        group.setTimestamp(timestamp);
+        return group;
     }
 }

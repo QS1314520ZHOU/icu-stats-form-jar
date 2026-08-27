@@ -38,8 +38,8 @@ public class FormPageIndexService {
     /**
      * 获取指定表单、指定日期的页码信息
      */
-    public PageIndexResult getPageInfo(String pid, String formType, String date) {
-        log.info("获取页码信息: pid={}, formType={}, date={}", pid, formType, date);
+    public PageIndexResult getPageInfo(String pid, String formType, String date, String referenceTime) {
+        log.info("获取页码信息: pid={}, formType={}, date={}, referenceTime={}", pid, formType, date, referenceTime);
         Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, formType);
 
         if (indexOpt.isEmpty()) {
@@ -176,7 +176,9 @@ public class FormPageIndexService {
             while (!cal.getTime().after(endDate)) {
                 String dateStr = dateFormat.format(cal.getTime());
                 log.info("计算日期页码: date={}", dateStr);
-                int pageCount = flowPdfService.calculateFlowPageCount(pid, dateStr);
+                // 使用当前时间作为referenceTime进行页码计算
+                String referenceTime = java.time.OffsetDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).toString();
+                int pageCount = flowPdfService.calculateFlowPageCount(pid, dateStr, referenceTime);
                 log.info("日期页码结果: date={}, pageCount={}", dateStr, pageCount);
 
                 FormPageIndex.DailyPageInfo dailyInfo = new FormPageIndex.DailyPageInfo();

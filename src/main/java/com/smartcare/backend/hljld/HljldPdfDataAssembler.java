@@ -45,14 +45,15 @@ public class HljldPdfDataAssembler {
      * @param pageSize   每页数据行数
      * @return HljldViewModel
      */
-    public HljldViewModel buildViewModel(String nursingDay, String deptId, String patientId, int page, int pageSize) {
-        // 一次获取当前时间，向下传递保证一致性
-        long nowMs = System.currentTimeMillis();
+    public HljldViewModel buildViewModel(String nursingDay, String deptId, String patientId, int page, int pageSize, String referenceTime) {
+        // 使用 HljldPdfRequestContext 统一管理时间
+        HljldPdfRequestContext context = HljldPdfRequestContext.of(nursingDay, referenceTime);
+        long nowMs = context.getReferenceTimeMs();
 
         // 1. 解析护理日日期并确定范围
         java.time.LocalDate localDate = java.time.LocalDate.parse(nursingDay, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE);
-        Date nursingDayStart = HljldUtils.startOfNursingDay(Date.from(localDate.atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant()));
-        Date nursingDayEnd = HljldUtils.endOfNursingDay(Date.from(localDate.atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant()));
+        Date nursingDayStart = Date.from(context.getNursingDayStart().toInstant());
+        Date nursingDayEnd = Date.from(context.getNursingDayEnd().toInstant());
 
         // 2. 加载原始数据
         HljldSourceData source = loader.loadAll(patientId, nursingDayStart, nursingDayEnd);
@@ -82,9 +83,9 @@ public class HljldPdfDataAssembler {
         HljldSummary dischargeSummary = summaryCalculator.buildSummary(
             HljldSummary.Kind.DISCHARGE, source, nursingDayStart, nursingDayEnd, yesterdayStart, nowMs);
 
-        // 11. 构建时间轴
+        // 11. 构建时间轴（使用 context 控制门禁）
         List<HljldTimelineItem> timeline = summaryCalculator.buildTimeline(
-            displayGroups, daySummary, shiftSummary, fullDaySummary, dischargeSummary);
+            context, displayGroups, null, daySummary, fullDaySummary);
 
         // 12. 构建分页数据
         int totalRows = displayGroups.stream().mapToInt(g -> g.getRows().size()).sum();
@@ -150,8 +151,8 @@ public class HljldPdfDataAssembler {
      * 构建打印用的视图模型（无分页，包含所有数据）。
      * 对应前端 printPDF 时获取所有数据。
      */
-    public HljldViewModel buildPrintViewModel(String nursingDay, String deptId, String patientId) {
-        return buildViewModel(nursingDay, deptId, patientId, 0, Integer.MAX_VALUE);
+    public HljldViewModel buildPrintViewModel(String nursingDay, String deptId, String patientId, String referenceTime) {
+        return buildViewModel(nursingDay, deptId, patientId, 0, Integer.MAX_VALUE, referenceTime);
     }
 
     /**

@@ -36,32 +36,34 @@ public class HljldPdfController {
     @GetMapping("/pdf/{pid}/{date}")
     public ResponseEntity<byte[]> getPdf(
             @PathVariable String pid,
-            @PathVariable String date) {
+            @PathVariable String date,
+            @RequestParam(required = false) String referenceTime) {
         try {
-            byte[] pdfData = flowPdfService.generateDailyPdf(pid, date);
+            byte[] pdfData = flowPdfService.generateDailyPdf(pid, date, referenceTime);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
-            log.error("生成PDF失败: pid={}, date={}", pid, date, e);
+            log.error("生成PDF失败: pid={}, date={}, referenceTime={}", pid, date, referenceTime, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     @GetMapping("/pdf-all/{pid}")
     public ResponseEntity<byte[]> getAllPdfs(
-            @PathVariable String pid) {
+            @PathVariable String pid,
+            @RequestParam(required = false) String referenceTime) {
         try {
-            byte[] pdfData = flowPdfService.generateAllPagesPdf(pid);
+            byte[] pdfData = flowPdfService.generateAllPagesPdf(pid, referenceTime);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
-            log.error("生成全部PDF失败: pid={}", pid, e);
+            log.error("生成全部PDF失败: pid={}, referenceTime={}", pid, referenceTime, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -72,16 +74,17 @@ public class HljldPdfController {
     @GetMapping("/page-index/{pid}")
     public ResponseEntity<Map<String, Object>> getPageIndex(
             @PathVariable String pid,
-            @RequestParam String date) {
+            @RequestParam String date,
+            @RequestParam(required = false) String referenceTime) {
         try {
-            FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, "hljld2-flow", date);
+            FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, "hljld2-flow", date, referenceTime);
             Map<String, Object> response = new HashMap<>();
             response.put("startPageNo", result.getStartPageNo());
             response.put("pageCount", result.getPageCount());
             response.put("status", result.getStatus());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            log.error("获取页码信息失败: pid={}, date={}", pid, date, e);
+            log.error("获取页码信息失败: pid={}, date={}, referenceTime={}", pid, date, referenceTime, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

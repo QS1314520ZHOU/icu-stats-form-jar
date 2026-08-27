@@ -232,11 +232,11 @@ public class HljldFlowPdfService {
     // ══════════════════════════════════════════════════════════
 
     /** 生成指定日期的护理记录 PDF（流式分页） */
-    public byte[] generateDailyPdf(String pid, String date) {
-        log.info("Flow PDF 生成: pid={}, date={}", pid, date);
+    public byte[] generateDailyPdf(String pid, String date, String referenceTime) {
+        log.info("Flow PDF 生成: pid={}, date={}, referenceTime={}", pid, date, referenceTime);
 
         LocalDate referenceDate = LocalDate.parse(date);
-        List<PrintableItem> items = buildPrintableItems(date, pid);
+        List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
         int startPageNo = getStartPageNo(pid, date, "hljld2-flow");
 
@@ -246,8 +246,8 @@ public class HljldFlowPdfService {
     }
 
     /** 生成全部记录的 PDF（流式分页，多护理日用 AreaBreak 分隔） */
-    public byte[] generateAllPagesPdf(String pid) {
-        log.info("Flow PDF 生成全部: pid={}", pid);
+    public byte[] generateAllPagesPdf(String pid, String referenceTime) {
+        log.info("Flow PDF 生成全部: pid={}, referenceTime={}", pid, referenceTime);
 
         Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, "hljld2-flow");
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
@@ -261,7 +261,7 @@ public class HljldFlowPdfService {
 
         for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
             dates.add(LocalDate.parse(dailyPage.getDate()));
-            itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid));
+            itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid, referenceTime));
         }
 
         int startPageNo = 1;
@@ -278,9 +278,9 @@ public class HljldFlowPdfService {
     }
 
     /** 计算某天的页数（使用真实渲染） */
-    public int calculateFlowPageCount(String pid, String date) {
+    public int calculateFlowPageCount(String pid, String date, String referenceTime) {
         LocalDate referenceDate = LocalDate.parse(date);
-        List<PrintableItem> items = buildPrintableItems(date, pid);
+        List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
         FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, pid, referenceDate);
         log.info("Flow PDF 页数: pid={}, date={}, pageCount={}", pid, date, result.pageCount);
@@ -566,8 +566,8 @@ public class HljldFlowPdfService {
     //  构建可打印项列表（时间轴交错输出）
     // ══════════════════════════════════════════════════════════
 
-    List<PrintableItem> buildPrintableItems(String nursingDay, String pid) {
-        HljldViewModel viewModel = dataAssembler.buildPrintViewModel(nursingDay, pid, pid);
+    List<PrintableItem> buildPrintableItems(String nursingDay, String pid, String referenceTime) {
+        HljldViewModel viewModel = dataAssembler.buildPrintViewModel(nursingDay, pid, pid, referenceTime);
         List<PrintableItem> items = new ArrayList<>();
 
         List<HljldTimelineItem> timeline = viewModel.getTimeline();

@@ -5,13 +5,22 @@ package com.smartcare.backend.hljld;
  * 可以是时间组数据行，也可以是小结/总结行。
  */
 public class HljldTimelineItem {
-    public enum Kind { TIME_GROUP, DAY_SUMMARY, SHIFT_SUMMARY, FULL_DAY_SUMMARY, DISCHARGE_SUMMARY }
+    public enum Kind {
+        CONTINUATION,
+        TIME_GROUP,
+        DAY_SUMMARY,
+        DAY_SETTLEMENT,
+        SHIFT_SUMMARY,
+        FULL_DAY_SUMMARY,
+        DISCHARGE_SUMMARY
+    }
 
     private Kind kind;
     private String key = "";
     private long timestamp;
     private HljldTimeGroup group;
     private HljldSummary summary;
+    private int sortRank;
 
     public HljldTimelineItem() {}
 
@@ -21,6 +30,7 @@ public class HljldTimelineItem {
         item.key = group.getKey();
         item.timestamp = group.getTimestamp();
         item.group = group;
+        item.sortRank = resolveSortRank(Kind.TIME_GROUP);
         return item;
     }
 
@@ -30,6 +40,7 @@ public class HljldTimelineItem {
         item.key = key;
         item.timestamp = timestamp;
         item.summary = summary;
+        item.sortRank = resolveSortRank(kind);
         return item;
     }
 
@@ -50,8 +61,24 @@ public class HljldTimelineItem {
         return ofSummary(kind, key, ts, summary);
     }
 
+    private static int resolveSortRank(Kind kind) {
+        switch (kind) {
+            case CONTINUATION: return 0;
+            case TIME_GROUP: return 10;
+            case DAY_SUMMARY: return 20;
+            case DAY_SETTLEMENT: return 30;
+            case SHIFT_SUMMARY: return 35;
+            case FULL_DAY_SUMMARY: return 40;
+            case DISCHARGE_SUMMARY: return 50;
+            default: return 100;
+        }
+    }
+
     public Kind getKind() { return kind; }
-    public void setKind(Kind kind) { this.kind = kind; }
+    public void setKind(Kind kind) {
+        this.kind = kind;
+        this.sortRank = resolveSortRank(kind);
+    }
     public String getKey() { return key; }
     public void setKey(String key) { this.key = key; }
     public long getTimestamp() { return timestamp; }
@@ -60,4 +87,6 @@ public class HljldTimelineItem {
     public void setGroup(HljldTimeGroup group) { this.group = group; }
     public HljldSummary getSummary() { return summary; }
     public void setSummary(HljldSummary summary) { this.summary = summary; }
+    public int getSortRank() { return sortRank; }
+    public void setSortRank(int sortRank) { this.sortRank = sortRank; }
 }

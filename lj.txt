@@ -1,0 +1,1474 @@
+一、直接在主干操作的命令
+git fetch origin --prune
+
+git checkout master
+git reset --hard origin/master
+
+echo "当前远端主干："
+git rev-parse HEAD
+git log -1 --oneline
+
+git status --short
+​
+必须确认：
+当前分支：master
+工作区：干净
+HEAD：等于origin/master
+​
+禁止执行：
+git checkout -b ...
+git switch -c ...
+git merge feature/...
+git push origin --delete ...
+​
+二、统一业务时间代码
+新增：
+src/main/java/com/smartcare/backend/hljld/HljldPdfRequestContext.java
+​
+package com.smartcare.backend.hljld;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+
+public final class HljldPdfRequestContext {
+
+    public static final ZoneId ZONE =
+        ZoneId.of("Asia/Shanghai");
+
+    private final LocalDate nursingDate;
+    private final Instant referenceTime;
+
+    private HljldPdfRequestContext(
+        LocalDate nursingDate,
+        Instant referenceTime
+    ) {
+        this.nursingDate = nursingDate;
+        this.referenceTime = referenceTime;
+    }
+
+    public static HljldPdfRequestContext of(
+        String nursingDateText,
+        String referenceTimeText
+    ) {
+        LocalDate nursingDate =
+            LocalDate.parse(nursingDateText);
+
+        Instant referenceTime =
+            referenceTimeText == null ||
+            referenceTimeText.trim().isEmpty()
+                ? Instant.now()
+                : OffsetDateTime
+                    .parse(referenceTimeText.trim())
+                    .toInstant();
+
+        return new HljldPdfRequestContext(
+            nursingDate,
+            referenceTime
+        );
+    }
+
+    public LocalDate getNursingDate() {
+        return nursingDate;
+    }
+
+    public long getReferenceTimeMs() {
+        return referenceTime.toEpochMilli();
+    }
+
+    public ZonedDateTime getNursingDayStart() {
+        return nursingDate
+            .atTime(7, 0)
+            .atZone(ZONE);
+    }
+
+    public ZonedDateTime getDaySummaryTime() {
+        return nursingDate
+            .atTime(17, 0)
+            .atZone(ZONE);
+    }
+
+    public ZonedDateTime getNursingDayEnd() {
+        return nursingDate
+            .plusDays(1)
+            .atTime(7, 0)
+            .atZone(ZONE);
+    }
+
+    public long getNursingDayStartMs() {
+        return getNursingDayStart()
+            .toInstant()
+            .toEpochMilli();
+    }
+
+    public long getDaySummaryTimeMs() {
+        return getDaySummaryTime()
+            .toInstant()
+            .toEpochMilli();
+    }
+
+    public long getNursingDayEndMs() {
+        return getNursingDayEnd()
+            .toInstant()
+            .toEpochMilli();
+    }
+
+    public long getEffectiveEndMs() {
+        return Math.min(
+            getReferenceTimeMs(),
+            getNursingDayEndMs()
+        );
+    }
+
+    public boolean shouldShowDaySummary() {
+        return getReferenceTimeMs() >=
+            getDaySummaryTimeMs();
+    }
+
+    public boolean shouldShowFullDaySummary() {
+        return getReferenceTimeMs() >=
+            getNursingDayEndMs();
+    }
+}
+​
+核心规则：
+nursingDate负责确定07:00、17:00、次日07:00。
+referenceTime只判断这些时间点是否已经到达。
+​
+三、后端接口透传 referenceTime
+修改 HljldPdfController.java。
+单日PDF
+@GetMapping("/pdf/{pid}/{date}")
+public ResponseEntity<byte[]> getPdf(
+    @PathVariable String pid,
+    @PathVariable String date,
+    @RequestParam(required = false)
+    String referenceTime
+) {
+    try {
+        byte[] pdfData =
+            flowPdfService.generateDailyPdf(
+                pid,
+                date,
+                referenceTime
+            );
+
+        HttpHeaders headers =
+            new HttpHeaders();
+
+        headers.setContentType(
+            MediaType.APPLICATION_PDF
+        );
+        headers.set(
+            HttpHeaders.CONTENT_DISPOSITION,
+            "inline"
+        );
+        headers.setContentLength(
+            pdfData.length
+        );
+
+        return new ResponseEntity<>(
+            pdfData,
+            headers,
+            HttpStatus.OK
+        );
+    } catch (Exception e) {
+        log.error(
+            "生成PDF失败: pid={}, date={}, referenceTime={}",
+            pid,
+            date,
+            referenceTime,
+            e
+        );
+
+        return ResponseEntity
+            .status(
+                HttpStatus.INTERNAL_SERVER_ERROR
+            )
+            .build();
+    }
+}
+​
+全部PDF
+@GetMapping("/pdf-all/{pid}")
+public ResponseEntity<byte[]> getAllPdfs(
+    @PathVariable String pid,
+    @RequestParam(required = false)
+    String referenceTime
+) {
+    byte[] pdfData =
+        flowPdfService.generateAllPagesPdf(
+            pid,
+            referenceTime
+        );
+
+    HttpHeaders headers =
+        new HttpHeaders();
+
+    headers.setContentType(
+        MediaType.APPLICATION_PDF
+    );
+    headers.set(
+        HttpHeaders.CONTENT_DISPOSITION,
+        "inline"
+    );
+    headers.setContentLength(
+        pdfData.length
+    );
+
+    return ResponseEntity.ok()
+        .headers(headers)
+        .body(pdfData);
+}
+​
+page-index 同样增加：
+@RequestParam(required = false)
+String referenceTime
+​
+页数计算和PDF生成必须使用同一个 referenceTime。
+四、前端服务透传时间
+修改 hljld-pdf.service.ts：
+getPdfUrl(
+  pid: string,
+  date: string,
+  referenceTime?: string,
+): string {
+  const base =
+    `${this.baseUrl}/pdf/` +
+    `${encodeURIComponent(pid)}/` +
+    `${encodeURIComponent(date)}`;
+
+  if (!referenceTime) {
+    return base;
+  }
+
+  return (
+    `${base}?referenceTime=` +
+    encodeURIComponent(referenceTime)
+  );
+}
+
+getAllPdfsUrl(
+  pid: string,
+  referenceTime?: string,
+): string {
+  const base =
+    `${this.baseUrl}/pdf-all/` +
+    encodeURIComponent(pid);
+
+  if (!referenceTime) {
+    return base;
+  }
+
+  return (
+    `${base}?referenceTime=` +
+    encodeURIComponent(referenceTime)
+  );
+}
+
+getPageIndex(
+  pid: string,
+  date: string,
+  referenceTime?: string,
+): Observable<PageIndexInfo> {
+  let params =
+    new HttpParams().set('date', date);
+
+  if (referenceTime) {
+    params = params.set(
+      'referenceTime',
+      referenceTime,
+    );
+  }
+
+  return this.http.get<PageIndexInfo>(
+    `${this.baseUrl}/page-index/` +
+      encodeURIComponent(pid),
+    { params },
+  );
+}
+​
+五、前端业务时间和日期解析
+hljld-form-pdf.component.ts 中禁止继续直接使用：
+new Date(dateStr)
+​
+增加：
+private parseLocalDate(
+  value: string,
+): Date | null {
+  const result =
+    /^(\d{4})-(\d{2})-(\d{2})$/
+      .exec(value);
+
+  if (!result) {
+    return null;
+  }
+
+  const year = Number(result[1]);
+  const month = Number(result[2]);
+  const day = Number(result[3]);
+
+  const date =
+    new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+​
+业务时间：
+private businessReferenceTime = '';
+
+private resolveReferenceTime(): string {
+  if (this.businessReferenceTime) {
+    return this.businessReferenceTime;
+  }
+
+  return this.formatShanghaiTime(
+    new Date(),
+  );
+}
+
+private formatShanghaiTime(
+  value: Date,
+): string {
+  const parts =
+    new Intl.DateTimeFormat(
+      'en-CA',
+      {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      },
+    )
+      .formatToParts(value)
+      .reduce<Record<string, string>>(
+        (result, part) => {
+          if (part.type !== 'literal') {
+            result[part.type] =
+              part.value;
+          }
+          return result;
+        },
+        {},
+      );
+
+  return (
+    `${parts['year']}-` +
+    `${parts['month']}-` +
+    `${parts['day']}T` +
+    `${parts['hour']}:` +
+    `${parts['minute']}:` +
+    `${parts['second']}+08:00`
+  );
+}
+​
+加载时：
+const dateStr =
+  this.toDateString(this.selectedDate);
+
+const referenceTime =
+  this.resolveReferenceTime();
+
+this.pdfService
+  .getPageIndex(
+    this.patient.pid,
+    dateStr,
+    referenceTime,
+  )
+  .subscribe(info => {
+    this.pageIndex = info;
+
+    this.basePdfUrl =
+      this.pdfService.getPdfUrl(
+        this.patient.pid,
+        dateStr,
+        referenceTime,
+      );
+
+    this.updateViewerUrl();
+  });
+​
+六、时间轴类型和顺序
+修改 HljldTimelineItem.Kind：
+public enum Kind {
+    CONTINUATION,
+    TIME_GROUP,
+    DAY_SUMMARY,
+    DAY_SETTLEMENT,
+    SHIFT_SUMMARY,
+    FULL_DAY_SUMMARY,
+    DISCHARGE_SUMMARY
+}
+​
+增加：
+private int sortRank;
+
+public int getSortRank() {
+    return sortRank;
+}
+
+public void setSortRank(int sortRank) {
+    this.sortRank = sortRank;
+}
+​
+排序等级：
+private static int resolveSortRank(
+    HljldTimelineItem.Kind kind
+) {
+    switch (kind) {
+        case CONTINUATION:
+            return 0;
+        case TIME_GROUP:
+            return 10;
+        case DAY_SUMMARY:
+            return 20;
+        case DAY_SETTLEMENT:
+            return 30;
+        case SHIFT_SUMMARY:
+            return 35;
+        case FULL_DAY_SUMMARY:
+            return 40;
+        case DISCHARGE_SUMMARY:
+            return 50;
+        default:
+            return 100;
+    }
+}
+​
+七、重写时间轴门禁
+HljldSummaryCalculator.buildTimeline() 改为接收上下文：
+public List<HljldTimelineItem> buildTimeline(
+    HljldPdfRequestContext context,
+    List<HljldTimeGroup> displayGroups,
+    List<HljldTimeGroup> continuationGroups,
+    HljldSummary daySummary,
+    HljldSummary fullDaySummary
+) {
+    List<HljldTimelineItem> timeline =
+        new ArrayList<>();
+
+    long referenceTime =
+        context.getReferenceTimeMs();
+
+    long daySummaryTime =
+        context.getDaySummaryTimeMs();
+
+    long nursingDayEnd =
+        context.getNursingDayEndMs();
+
+    // 当日07:00续用行
+    if (continuationGroups != null) {
+        for (
+            HljldTimeGroup group :
+            continuationGroups
+        ) {
+            timeline.add(
+                createTimelineItem(
+                    HljldTimelineItem.Kind.CONTINUATION,
+                    "continuation-" +
+                        group.getKey(),
+                    context.getNursingDayStartMs(),
+                    group,
+                    null
+                )
+            );
+        }
+    }
+
+    // 普通记录
+    for (HljldTimeGroup group :
+        displayGroups) {
+        if (
+            group.getTimestamp() >
+                referenceTime ||
+            group.getTimestamp() >=
+                nursingDayEnd
+        ) {
+            continue;
+        }
+
+        timeline.add(
+            createTimelineItem(
+                HljldTimelineItem.Kind.TIME_GROUP,
+                group.getKey(),
+                group.getTimestamp(),
+                group,
+                null
+            )
+        );
+    }
+
+    // 日间小结
+    if (
+        context.shouldShowDaySummary() &&
+        daySummary != null &&
+        daySummary.isAvailable()
+    ) {
+        daySummary.setTime(
+            new Date(daySummaryTime)
+        );
+
+        timeline.add(
+            createTimelineItem(
+                HljldTimelineItem.Kind.DAY_SUMMARY,
+                "day-summary",
+                daySummaryTime,
+                null,
+                daySummary
+            )
+        );
+
+        // 结算行只能在小结存在时生成
+        HljldTimeGroup settlement =
+            buildSettlementGroup(
+                daySummary,
+                daySummaryTime
+            );
+
+        if (settlement != null) {
+            timeline.add(
+                createTimelineItem(
+                    HljldTimelineItem.Kind.DAY_SETTLEMENT,
+                    "day-settlement",
+                    daySummaryTime,
+                    settlement,
+                    null
+                )
+            );
+        }
+    }
+
+    // 次日07:00总结
+    if (
+        context.shouldShowFullDaySummary() &&
+        fullDaySummary != null &&
+        fullDaySummary.isAvailable()
+    ) {
+        fullDaySummary.setTime(
+            new Date(nursingDayEnd)
+        );
+
+        timeline.add(
+            createTimelineItem(
+                HljldTimelineItem.Kind.FULL_DAY_SUMMARY,
+                "full-day-summary",
+                nursingDayEnd,
+                null,
+                fullDaySummary
+            )
+        );
+    }
+
+    timeline.sort(
+        Comparator
+            .comparingLong(
+                HljldTimelineItem::getTimestamp
+            )
+            .thenComparingInt(
+                HljldTimelineItem::getSortRank
+            )
+            .thenComparing(
+                HljldTimelineItem::getKey
+            )
+    );
+
+    return timeline;
+}
+​
+创建方法：
+private HljldTimelineItem createTimelineItem(
+    HljldTimelineItem.Kind kind,
+    String key,
+    long timestamp,
+    HljldTimeGroup group,
+    HljldSummary summary
+) {
+    HljldTimelineItem item =
+        new HljldTimelineItem();
+
+    item.setKind(kind);
+    item.setKey(key);
+    item.setTimestamp(timestamp);
+    item.setGroup(group);
+    item.setSummary(summary);
+    item.setSortRank(
+        resolveSortRank(kind)
+    );
+
+    return item;
+}
+​
+这样17:00顺序才是：
+17:00普通记录
+→ 日间小结
+→ 结算行
+​
+八、续用行判断
+在 HljldRowBuilder 增加：
+private boolean isContinuationAt(
+    Document execution,
+    long boundary
+) {
+    double rawStart =
+        HljldUtils.databaseTimeValue(
+            HljldUtils.str(
+                execution,
+                "startTime"
+            )
+        );
+
+    if (
+        !Double.isFinite(rawStart) ||
+        rawStart >= boundary
+    ) {
+        return false;
+    }
+
+    Long stopTime =
+        resolveEffectiveStopTime(execution);
+
+    return stopTime == null ||
+        stopTime > boundary;
+}
+​
+续用条件：
+执行开始时间 < 当前护理日07:00
+并且
+没有停止，或停止时间 > 当前护理日07:00
+​
+续用量显示：
+private String markContinuationAmount(
+    String text
+) {
+    String value =
+        text == null ? "" : text.trim();
+
+    if (value.isEmpty()) {
+        return "";
+    }
+
+    return value.startsWith("续")
+        ? value
+        : "续" + value;
+}
+​
+只对：
+medAmount
+enteralAmount
+outputAmount
+drainAmount
+​
+处理。
+九、统计逻辑必须对齐前端
+当前主干这些逻辑必须删除或替换：
+if (Boolean.TRUE.equals(
+    method.get("isOnce")
+)) {
+    continue;
+}
+​
+不能无条件排除单次药物。
+总入量：
+double totalInput =
+    HljldUtils.round1(
+        drugTreatmentTotal +
+        gastrointestinalInputTotal
+    );
+​
+总出量：
+double totalOutput =
+    HljldUtils.round1(
+        urineTotal +
+        ultrafiltrationTotal +
+        excretionTotal +
+        drainTotal
+    );
+​
+平衡量：
+double balance =
+    HljldUtils.round1(
+        totalInput - totalOutput
+    );
+​
+必须赋值：
+summary.setTotalInput(
+    totalInput
+);
+summary.setTotalOutput(
+    totalOutput
+);
+summary.setUrineTotal(
+    urineTotal
+);
+summary.setUltrafiltrationTotal(
+    ultrafiltrationTotal
+);
+summary.setExcretionTotal(
+    excretionTotal
+);
+summary.setDrainTotal(
+    drainTotal
+);
+summary.setBalance(
+    balance
+);
+​
+尿量和净超滤量必须直接按编码统计：
+private double sumBedsideByCode(
+    List<Document> records,
+    String code
+) {
+    return HljldUtils.round1(
+        records.stream()
+            .filter(item ->
+                code.equals(
+                    HljldUtils.str(
+                        item,
+                        "code"
+                    )
+                )
+            )
+            .mapToDouble(item ->
+                HljldUtils.parseAmount(
+                    item.get("strVal")
+                )
+            )
+            .sum()
+    );
+}
+​
+调用：
+double urineTotal =
+    sumBedsideByCode(
+        bedsideInPeriod,
+        HljldUtils.URINE_CODE
+    );
+
+double ultrafiltrationTotal =
+    sumBedsideByCode(
+        bedsideInPeriod,
+        HljldUtils
+            .ULTRAFILTRATION_CODE
+    );
+​
+不能先经过 OUTPUT_CODE_NAMES。
+十、小结必须直接渲染 detailLines
+生成：
+summary.setDetailLines(
+    Arrays.asList(
+        buildInputLine(summary),
+        buildOutputLine(summary),
+        buildBalanceLine(summary)
+    )
+);
+​
+删除PDF层的第二套简化文案：
+buildSummaryLine2()
+buildSummaryLine3()
+buildSummaryLine4()
+​
+标题：
+String title =
+    summary.getLabel();
+
+if (
+    summary.getPeriodText() != null &&
+    !summary.getPeriodText().isBlank()
+) {
+    title += " " +
+        summary.getPeriodText();
+}
+​
+内容直接循环：
+for (
+    List<SummaryTextToken> line :
+    summary.getDetailLines()
+) {
+    Cell cell =
+        new Cell(1, 19)
+            .add(
+                buildParagraphFromTokens(
+                    line,
+                    font
+                )
+            )
+            .setMinHeight(14f)
+            .setTextAlignment(
+                TextAlignment.LEFT
+            );
+
+    table.addCell(cell);
+}
+​
+十一、备注压缩
+Java备注改成：
+public static final String[] REMARK_LINES = {
+    "检查：A：CTB：核磁共振C：胃镜D：肠镜E：超声检查F：床旁胸片G：心电图",
+    "治疗：A：机械辅助排痰B：气压治疗C：雾化吸入D：支气管镜灌洗E：TDP照射F：针灸治疗G：运动治疗H：肺复张",
+    "基础护理：A：口腔护理B：动/静脉置管护理C：擦浴D：会阴擦洗E：肛周护理F：更换引流袋G：膀胱冲洗H：压疮护理I：床上洗头",
+    "健康教育：A：入院指导B：入科指导C：疾病知识D：药物指导E：饮食指导F：肢体活动指导G：检查指导H：安全指导I：心理指导J：术前指导K：术后指导L：转科/出院指导M：用氧注意事项N：通气配合指导O：康复指导P：VTE预防指导"
+};
+​
+防御性压缩：
+public static String compactRemark(
+    String text
+) {
+    if (text == null) {
+        return "";
+    }
+
+    return text
+        .replace('\u3000', ' ')
+        .replaceAll(
+            "\\s+(?=[A-PＡ-Ｐ][：:])",
+            ""
+        )
+        .replaceAll(
+            "^(检查|治疗|基础护理|健康教育)[：:]\\s*",
+            "$1："
+        )
+        .trim();
+}
+​
+前端 DEFAULT_REMARK_LINES 同步调整。
+十二、备注动态高度
+新增统一布局对象：
+public final class HljldRemarkLayout {
+
+    private final List<String> texts;
+    private final List<Float> rowHeights;
+    private final float totalHeight;
+
+    public HljldRemarkLayout(
+        List<String> texts,
+        List<Float> rowHeights
+    ) {
+        this.texts = texts;
+        this.rowHeights = rowHeights;
+        this.totalHeight = (float)
+            rowHeights.stream()
+                .mapToDouble(
+                    Float::doubleValue
+                )
+                .sum();
+    }
+
+    public List<String> getTexts() {
+        return texts;
+    }
+
+    public List<Float> getRowHeights() {
+        return rowHeights;
+    }
+
+    public float getTotalHeight() {
+        return totalHeight;
+    }
+}
+​
+必须先计算备注高度，再设置页面底边距：
+HljldRemarkLayout remarkLayout =
+    calculateRemarkLayout(font);
+
+float bottomMargin =
+    HljldPdfLayoutConstants.REMARK_BOTTOM +
+    remarkLayout.getTotalHeight() +
+    2f;
+
+doc.setMargins(
+    HljldPdfLayoutConstants.MARGIN_TOP,
+    HljldPdfLayoutConstants.MARGIN_RIGHT,
+    bottomMargin,
+    HljldPdfLayoutConstants.MARGIN_LEFT
+);
+​
+事件处理器接收同一对象：
+new HljldFlowPageEventHandler(
+    font,
+    patientInfo,
+    startPageNo,
+    remarkLayout
+);
+​
+文字和边框必须共用：
+remarkLayout.getRowHeights()
+remarkLayout.getTotalHeight()
+​
+不能继续使用：
+REMARK_ROW_HEIGHT
+REMARK_TOTAL_HEIGHT
+​
+绘制横线时：
+float currentTop =
+    remarksBottom +
+    remarkLayout.getTotalHeight();
+
+List<Float> heights =
+    remarkLayout.getRowHeights();
+
+for (int i = 0;
+     i < heights.size() - 1;
+     i++) {
+    currentTop -= heights.get(i);
+
+    pdfCanvas.moveTo(
+        contentX,
+        currentTop
+    );
+    pdfCanvas.lineTo(
+        leftX + TABLE_W,
+        currentTop
+    );
+}
+pdfCanvas.stroke();
+​
+十三、修复静态构建产物
+当前必须重点修复：
+master源代码提交：3ed7bad
+static/form/build-info.json：ce05844
+​
+构建脚本必须在Angular构建结束后更新：
+src/main/resources/static/form/
+​
+执行：
+cd sjm1-app
+npm ci
+npm run build
+cd ..
+
+node scripts/build-form-frontend.mjs
+​
+再验证：
+cat src/main/resources/static/form/build-info.json
+git rev-parse --short HEAD
+​
+还必须检查最终JAR：
+mvn clean package
+
+unzip -p target/*.jar \
+  BOOT-INF/classes/static/form/build-info.json
+​
+如果JAR内仍是旧提交，禁止推送和部署。
+十四、直接在主干提交
+全部完成后：
+git status --short
+git diff --check
+
+mvn clean test
+mvn clean package
+
+cd sjm1-app
+npm ci
+npm run build
+cd ..
+
+node scripts/build-form-frontend.mjs
+
+git add \
+  src/main/java/com/smartcare/backend \
+  src/test/java/com/smartcare/backend \
+  sjm1-app/src/app \
+  sjm1-app/package-lock.json \
+  scripts/build-form-frontend.mjs \
+  src/main/resources/static/form
+
+git commit -m \
+  "fix: align hljld PDF summaries remarks and timeline"
+​
+推送前先吸收远端变化：
+git fetch origin
+git pull --rebase origin master
+
+mvn clean test
+mvn clean package
+
+git push origin master
+​
+禁止 --force 推送。
+十五、直接在 master 执行的完整提示词
+请直接修改仓库：
+
+https://github.com/QS1314520ZHOU/icu-stats-form-jar
+
+用户明确要求：
+
+1. 不创建任何新分支；
+2. 不切换到旧功能分支；
+3. 不再执行分支合并；
+4. 所有修改直接在master完成；
+5. 测试通过后直接提交并推送master；
+6. 禁止force push。
+
+开始前必须执行：
+
+git fetch origin --prune
+git checkout master
+git reset --hard origin/master
+git rev-parse HEAD
+git log -1 --oneline
+git status --short
+
+必须在执行报告中记录开始修改前的master SHA。
+
+如果master仍然是：
+
+3ed7bad5a45457da886252a0ad0ef4cbd7df4808
+
+则以该版本为基准修改。
+
+禁止执行：
+
+git checkout -b
+git switch -c
+git merge feature/*
+git push --force
+git push origin --delete
+
+目标页面：
+
+/form/hljldFormPDF
+
+业务逻辑基准：
+
+/form/hljldForm
+
+不得改变/form/hljldForm现有行为。
+
+==================================================
+一、统一时间参数
+==================================================
+
+新增HljldPdfRequestContext，明确区分：
+
+nursingDate：护理日；
+referenceTime：调用方传入的业务截止时间。
+
+nursingDate决定：
+
+- 当日07:00；
+- 当日17:00；
+- 次日07:00。
+
+referenceTime只判断这些节点是否已经到达。
+
+严禁根据referenceTime所在日期重新计算17:00。
+严禁在HljldPdfDataAssembler、HljldSummaryCalculator、HljldRowBuilder、FormPageIndexService中直接调用System.currentTimeMillis()控制小结展示。
+
+只有HTTP入口未传referenceTime时，允许统一回退到Instant.now()。
+
+==================================================
+二、完整透传referenceTime
+==================================================
+
+以下接口增加referenceTime：
+
+GET /api/v1/icu/hljld/pdf/{pid}/{date}
+GET /api/v1/icu/hljld/pdf-all/{pid}
+GET /api/v1/icu/hljld/page-index/{pid}
+
+调用链必须完整透传：
+
+hljld-form-pdf.component.ts
+→ hljld-pdf.service.ts
+→ HljldPdfController
+→ HljldFlowPdfService
+→ HljldPdfDataAssembler
+→ HljldSummaryCalculator
+→ HljldRowBuilder
+
+页数计算和实际PDF必须使用同一个referenceTime。
+
+修复new Date('yyyy-MM-dd')的UTC日期偏移，改为解析year/month/day后使用new Date(year, month-1, day)。
+
+==================================================
+三、小结和总结门禁
+==================================================
+
+护理日2026-08-26的固定时间：
+
+护理日开始：2026-08-26 07:00
+日间小结：2026-08-26 17:00
+24小时总结：2026-08-27 07:00
+
+显示规则：
+
+referenceTime < 2026-08-26 17:00：
+- 不显示日间小结；
+- 不显示结算行；
+- 不显示24小时总结。
+
+referenceTime >= 2026-08-26 17:00：
+- 显示日间小结；
+- 日间小结时间戳固定为2026-08-26 17:00；
+- 小结显示在17:00普通记录之后；
+- 小结之后才显示结算行。
+
+referenceTime >= 2026-08-27 07:00：
+- 显示24小时总结；
+- 总结时间戳固定为2026-08-27 07:00。
+
+历史护理日测试：
+
+nursingDate=2026-08-26
+referenceTime=2026-08-27T11:19:00+08:00
+
+必须同时显示日间小结和24小时总结。
+
+==================================================
+四、时间轴
+==================================================
+
+HljldTimelineItem.Kind增加：
+
+CONTINUATION
+TIME_GROUP
+DAY_SUMMARY
+DAY_SETTLEMENT
+SHIFT_SUMMARY
+FULL_DAY_SUMMARY
+DISCHARGE_SUMMARY
+
+排序优先级：
+
+CONTINUATION=0
+TIME_GROUP=10
+DAY_SUMMARY=20
+DAY_SETTLEMENT=30
+SHIFT_SUMMARY=35
+FULL_DAY_SUMMARY=40
+DISCHARGE_SUMMARY=50
+
+同为17:00时必须是：
+
+普通记录
+→ 日间小结
+→ 结算行
+
+结算行仅在日间小结实际生成后生成。
+
+==================================================
+五、续用行
+==================================================
+
+持续项目满足：
+
+startTime < nursingDate 07:00
+并且
+stopTime为空或stopTime > nursingDate 07:00
+
+才生成当前护理日07:00续用行。
+
+续用行必须排在当前护理日第一条普通数据前。
+相同执行ID必须去重。
+续用项目不能同时重复生成普通开始行。
+
+量字段增加“续”：
+
+续24.0
+续剩余24.0|实用10.0
+
+“续”只影响展示，不能重复计入统计。
+空量不能显示孤立的“续”。
+
+==================================================
+六、统计完全对齐/form/hljldForm
+==================================================
+
+逐函数对照并移植：
+
+sjm1-app/src/app/hljld-form.utils.ts
+
+中的：
+
+buildSummary
+buildTimeline
+buildInputLine
+buildOutputLine
+pushAmount
+pushItems
+pushGroup
+collectDrainNames
+sumDrugAmountsByChannel
+
+禁止PDF后端创建第二套简化公式。
+
+总入量：
+
+totalInput =
+drugTreatmentTotal +
+gastrointestinalInputTotal
+
+包括：
+
+- 带入药量；
+- 输血；
+- 静脉入量及各途径；
+- 手工鼻饲；
+- 肠内营养泵入；
+- 手工口服；
+- po执行；
+- 其他胃肠途径。
+
+不能直接跳过isOnce项目。
+不能重复统计手工鼻饲和肠内营养。
+
+总出量：
+
+totalOutput =
+urineTotal +
+ultrafiltrationTotal +
+excretionTotal +
+drainTotal
+
+尿量必须直接按param_niaoLiang统计。
+净超滤量必须直接按param_chaoLvLiang统计。
+不得先经过不包含这两个编码的OUTPUT_CODE_NAMES。
+引流液必须纳入总出量。
+
+平衡量：
+
+balance = round1(totalInput-totalOutput)
+
+必须调用summary.setBalance(balance)。
+
+==================================================
+七、小结格式
+==================================================
+
+HljldSummary补齐：
+
+label
+periodText
+periodStart
+periodEnd
+available
+totalInput
+drugTreatmentTotal
+drugTreatmentItems
+gastrointestinalInputTotal
+gastrointestinalInputItems
+totalOutput
+urineTotal
+ultrafiltrationTotal
+excretionTotal
+drainTotal
+balance
+detailLines
+
+detailLines必须与/form/hljldForm完全一致。
+
+PDF层删除或停止使用：
+
+buildSummaryLine2
+buildSummaryLine3
+buildSummaryLine4
+
+PDF必须直接渲染summary.detailLines。
+
+小结使用colspan=19。
+标题显示summary.label和summary.periodText。
+整个小结keepTogether，不能跨页拆分。
+
+==================================================
+八、备注
+==================================================
+
+备注固定4行：
+
+检查
+治疗
+基础护理
+健康教育
+
+选项之间不保留任何空格：
+
+检查：A：CTB：核磁共振C：胃镜D：肠镜E：超声检查F：床旁胸片G：心电图
+治疗：A：机械辅助排痰B：气压治疗C：雾化吸入D：支气管镜灌洗E：TDP照射F：针灸治疗G：运动治疗H：肺复张
+基础护理：A：口腔护理B：动/静脉置管护理C：擦浴D：会阴擦洗E：肛周护理F：更换引流袋G：膀胱冲洗H：压疮护理I：床上洗头
+健康教育：A：入院指导B：入科指导C：疾病知识D：药物指导E：饮食指导F：肢体活动指导G：检查指导H：安全指导I：心理指导J：术前指导K：术后指导L：转科/出院指导M：用氧注意事项N：通气配合指导O：康复指导P：VTE预防指导
+
+Java的REMARK_LINES和前端DEFAULT_REMARK_LINES同步修改。
+
+增加compactRemark，删除A-P选项前的空格、Tab和全角空格。
+
+备注不能继续固定13pt。
+
+必须：
+
+1. 使用PdfFont.getWidth测量实际文字；
+2. 计算每一行换行数；
+3. 计算4行各自高度；
+4. 生成统一HljldRemarkLayout；
+5. 文字、横线、外框和Document.bottomMargin共用同一份高度。
+
+健康教育允许换成多行，但仍然属于一个备注单元格。
+最终PDF必须完整显示到“P：VTE预防指导”。
+
+==================================================
+九、分页
+==================================================
+
+删除：
+
+int summaryRows = 0
+
+页数不能按固定行数推测。
+
+必须按照真实PDF：
+
+PdfDocument.getNumberOfPages()
+
+计算。
+
+页数必须考虑：
+
+- 普通行真实高度；
+- 长护理记录；
+- 续用行；
+- 日间小结；
+- 结算行；
+- 24小时总结；
+- 动态备注高度；
+- 跨页重复表头。
+
+page-index、页面下拉页数、PDF实际页数必须一致。
+
+==================================================
+十、前端构建产物
+==================================================
+
+当前发现：
+
+master源码和
+src/main/resources/static/form/build-info.json
+版本不一致。
+
+必须修改scripts/build-form-frontend.mjs：
+
+- 每次Angular构建后清理旧static/form；
+- 完整复制新构建产物；
+- build-info.json写入实际源码SHA；
+- 增加版本一致性检查；
+- 不一致时构建直接失败。
+
+必须执行：
+
+cd sjm1-app
+npm ci
+npm run build
+cd ..
+node scripts/build-form-frontend.mjs
+
+再执行：
+
+mvn clean package
+
+并检查JAR内：
+
+unzip -p target/*.jar BOOT-INF/classes/static/form/build-info.json
+
+禁止只修改sjm1-app源文件而不更新static/form。
+
+==================================================
+十一、测试
+==================================================
+
+增加并通过：
+
+- 16:59无日间小结；
+- 17:00有日间小结和结算行；
+- 次日06:59无24小时总结；
+- 次日07:00有24小时总结；
+- 历史护理日传次日上午时间时两个总结都显示；
+- 结算行位于小结后；
+- 续用行只在护理日07:00；
+- 续用量包含“续”；
+- 引流液纳入总出量；
+- balance等于totalInput-totalOutput；
+- Java summary.detailLines与前端一致；
+- 备注选项之间没有空格；
+- 备注完整包含P：VTE预防指导；
+- page-index页数等于真实PDF页数。
+
+必须生成真实PDF：
+
+pdfinfo output.pdf
+pdftotext -layout output.pdf output.txt
+
+检查：
+
+grep -n "检查：" output.txt
+grep -n "治疗：" output.txt
+grep -n "基础护理：" output.txt
+grep -n "健康教育：" output.txt
+grep -n "P：VTE预防指导" output.txt
+grep -n "日间小结" output.txt
+grep -n "24小时总结" output.txt
+grep -n "总入量" output.txt
+grep -n "总出量" output.txt
+grep -n "平衡量" output.txt
+
+==================================================
+十二、直接提交master
+==================================================
+
+修改、测试和构建全部通过后：
+
+git status --short
+git diff --check
+
+git add \
+  src/main/java/com/smartcare/backend \
+  src/test/java/com/smartcare/backend \
+  sjm1-app/src/app \
+  sjm1-app/package-lock.json \
+  scripts/build-form-frontend.mjs \
+  src/main/resources/static/form
+
+git commit -m "fix: align hljld PDF summaries remarks and timeline"
+
+推送前执行：
+
+git fetch origin
+git pull --rebase origin master
+
+重新执行：
+
+mvn clean test
+mvn clean package
+
+确认通过后：
+
+git push origin master
+
+禁止force push。
+
+最后输出：
+
+1. 修改前master SHA；
+2. 修改后提交SHA；
+3. 修改文件列表；
+4. 后端测试结果；
+5. 前端构建结果；
+6. 备注完整性结果；
+7. 26日历史护理日测试结果；
+8. 总入量、总出量和平衡量结果；
+9. PDF文本提取结果；
+10. PDF真实页数与page-index对照；
+11. static/form/build-info.json版本；
+12. JAR内build-info.json版本；
+13. git push origin master结果。

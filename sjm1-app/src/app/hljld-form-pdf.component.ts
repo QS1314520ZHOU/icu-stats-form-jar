@@ -49,6 +49,9 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   minDateInput = '';
   maxDateInput = '';
 
+  // 业务参考时间（从路由或宿主数据读取，不伪造）
+  businessReferenceTime = '';
+
   // 当前PDF基础URL（不含fragment）
   basePdfUrl = '';
 
@@ -115,9 +118,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     const dateStr = this.toDateString(this.selectedDate);
+    const referenceTime = this.resolveReferenceTime();
 
     // 获取页码信息
-    this.pdfService.getPageIndex(this.patient.pid, dateStr).pipe(
+    this.pdfService.getPageIndex(this.patient.pid, dateStr, referenceTime).pipe(
       catchError(err => {
         console.error('[HLJLD] 获取页码信息失败', err);
         return [{ startPageNo: 1, pageCount: 1, status: 'completed' as const }];
@@ -145,8 +149,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
         this.updatePageOptions();
       }
 
-      // 生成PDF URL
-      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr);
+      // 生成PDF URL（传递当前业务时间）
+      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr, referenceTime);
 
       // 默认显示第1页，缩放135%
       this.updateViewerUrl();
@@ -205,8 +209,9 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) {
+    // 使用本地日期解析，避免UTC偏移
+    const date = this.parseLocalDate(dateStr);
+    if (!date) {
       return;
     }
 
@@ -331,7 +336,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      const pdfUrl = this.pdfService.getAllPdfsUrl(this.patient.pid);
+      const referenceTime = this.resolveReferenceTime();
+      const pdfUrl = this.pdfService.getAllPdfsUrl(this.patient.pid, referenceTime);
       const blob = await this.pdfPrintService.fetchPdfBlob(pdfUrl);
       await this.pdfPrintService.printPdfBlob(blob);
     } catch (err: any) {
@@ -361,8 +367,11 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   previousDay(): void {
     const date = new Date(this.selectedDate);
     date.setDate(date.getDate() - 1);
-    if (this.minDateInput && date < new Date(this.minDateInput)) {
-      return;
+    if (this.minDateInput) {
+      const minDate = this.parseLocalDate(this.minDateInput);
+      if (minDate && date < minDate) {
+        return;
+      }
     }
     this.selectedDate = date;
     this.dateInput = this.toDateString(date);
@@ -375,8 +384,11 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   nextDay(): void {
     const date = new Date(this.selectedDate);
     date.setDate(date.getDate() + 1);
-    if (this.maxDateInput && date > new Date(this.maxDateInput)) {
-      return;
+    if (this.maxDateInput) {
+      const maxDate = this.parseLocalDate(this.maxDateInput);
+      if (maxDate && date > maxDate) {
+        return;
+      }
     }
     this.selectedDate = date;
     this.dateInput = this.toDateString(date);
@@ -401,7 +413,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     }
     const date = new Date(this.selectedDate);
     date.setDate(date.getDate() - 1);
-    return date >= new Date(this.minDateInput);
+    const minDate = this.parseLocalDate(this.minDateInput);
+    return minDate ? date >= minDate : true;
   }
 
   /**
@@ -413,7 +426,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     }
     const date = new Date(this.selectedDate);
     date.setDate(date.getDate() + 1);
-    return date <= new Date(this.maxDateInput);
+    const maxDate = this.parseLocalDate(this.maxDateInput);
+    return maxDate ? date <= maxDate : true;
   }
 
   /**
@@ -431,7 +445,9 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     if (!this.maxDateInput) {
       return true;
     }
-    return new Date() <= new Date(this.maxDateInput);
+    const today = new Date();
+    const maxDate = this.parseLocalDate(this.maxDateInput);
+    return maxDate ? today <= maxDate : true;
   }
 
   /**
@@ -439,15 +455,19 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
    */
   private updateDateRange(): void {
     if (this.patient.admissionTime) {
-      const admissionDate = new Date(this.patient.admissionTime);
-      this.minDateInput = this.toDateString(admissionDate);
+      const admissionDate = this.parseLocalDate(this.patient.admissionTime.substring(0, 10));
+      if (admissionDate) {
+        this.minDateInput = this.toDateString(admissionDate);
+      }
     } else {
       this.minDateInput = '';
     }
 
     if (this.patient.dischargeTime) {
-      const dischargeDate = new Date(this.patient.dischargeTime);
-      this.maxDateInput = this.toDateString(dischargeDate);
+      const dischargeDate = this.parseLocalDate(this.patient.dischargeTime.substring(0, 10));
+      if (dischargeDate) {
+        this.maxDateInput = this.toDateString(dischargeDate);
+      }
     } else {
       this.maxDateInput = this.toDateString(new Date());
     }
@@ -458,7 +478,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
    */
   private getDefaultDate(): Date {
     if (this.patient.dischargeTime) {
-      return new Date(this.patient.dischargeTime);
+      const dischargeDate = this.parseLocalDate(this.patient.dischargeTime.substring(0, 10));
+      if (dischargeDate) {
+        return dischargeDate;
+      }
     }
     return new Date();
   }
@@ -510,6 +533,86 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * 本地日期解析（避免UTC偏移）
+   * yyyy-MM-dd 格式日期在JavaScript中可能按UTC解析导致日期偏移
+   */
+  private parseLocalDate(dateStr: string): Date | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+    if (!match) {
+      return null;
+    }
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+    return date;
+  }
+
+  /**
+   * 获取业务时间（参考时间）
+   * 优先使用上游传入的businessReferenceTime，不伪造时间
+   * 使用Asia/Shanghai时区，返回ISO格式字符串
+   */
+  private resolveReferenceTime(): string {
+    // 优先使用已传入的业务参考时间（原样透传）
+    if (this.businessReferenceTime) {
+      return this.businessReferenceTime;
+    }
+
+    // 兼容回退：使用当前时间作为业务时间
+    // 仅在业务调用链确实没有传referenceTime时使用
+    return this.formatShanghaiTime(new Date());
+  }
+
+  /**
+   * 格式化为上海时区ISO格式
+   * 使用Intl.DateTimeFormat确保时区正确
+   */
+  private formatShanghaiTime(value: Date): string {
+    const parts =
+      new Intl.DateTimeFormat(
+        'en-CA',
+        {
+          timeZone: 'Asia/Shanghai',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        },
+      )
+        .formatToParts(value)
+        .reduce<Record<string, string>>(
+          (result, part) => {
+            if (part.type !== 'literal') {
+              result[part.type] = part.value;
+            }
+            return result;
+          },
+          {},
+        );
+
+    return (
+      `${parts['year']}-` +
+      `${parts['month']}-` +
+      `${parts['day']}T` +
+      `${parts['hour']}:` +
+      `${parts['minute']}:` +
+      `${parts['second']}+08:00`
+    );
   }
 
   /**

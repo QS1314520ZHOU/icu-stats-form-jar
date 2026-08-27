@@ -33,22 +33,33 @@ export class HljldPdfService {
   /**
    * 获取指定日期的 PDF URL
    */
-  getPdfUrl(pid: string, date: string): string {
-    return `${this.baseUrl}/pdf/${encodeURIComponent(pid)}/${encodeURIComponent(date)}`;
+  getPdfUrl(pid: string, date: string, referenceTime?: string): string {
+    const base = `${this.baseUrl}/pdf/${encodeURIComponent(pid)}/${encodeURIComponent(date)}`;
+    if (!referenceTime) {
+      return base;
+    }
+    return `${base}?referenceTime=${encodeURIComponent(referenceTime)}`;
   }
 
   /**
    * 获取全部记录的 PDF URL
    */
-  getAllPdfsUrl(pid: string): string {
-    return `${this.baseUrl}/pdf-all/${encodeURIComponent(pid)}`;
+  getAllPdfsUrl(pid: string, referenceTime?: string): string {
+    const base = `${this.baseUrl}/pdf-all/${encodeURIComponent(pid)}`;
+    if (!referenceTime) {
+      return base;
+    }
+    return `${base}?referenceTime=${encodeURIComponent(referenceTime)}`;
   }
 
   /**
    * 获取页码信息
    */
-  getPageIndex(pid: string, date: string): Observable<PageIndexInfo> {
-    const params = new HttpParams().set('date', date);
+  getPageIndex(pid: string, date: string, referenceTime?: string): Observable<PageIndexInfo> {
+    let params = new HttpParams().set('date', date);
+    if (referenceTime) {
+      params = params.set('referenceTime', referenceTime);
+    }
     return this.http.get<PageIndexInfo>(`${this.baseUrl}/page-index/${encodeURIComponent(pid)}`, { params });
   }
 
