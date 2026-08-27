@@ -20,15 +20,15 @@ public final class HljldPdfLayoutConstants {
     //  页面边距（从页面边缘到内容区域的距离）
     // ══════════════════════════════════════════════════════════
     /** 左边距 */
-    public static final float MARGIN_LEFT   = 10f;
+    public static final float MARGIN_LEFT   = 20f;
     /** 右边距 */
-    public static final float MARGIN_RIGHT  = 10f;
+    public static final float MARGIN_RIGHT  = 20f;
 
     // ══════════════════════════════════════════════════════════
     //  顶部区域坐标（由上到下推导）
     // ══════════════════════════════════════════════════════════
     /** 页面顶部到标题之间的安全边距 */
-    public static final float PAGE_TOP_PADDING = 8f;
+    public static final float PAGE_TOP_PADDING = 15f;
     /** 标题区域高度 */
     public static final float TITLE_AREA_HEIGHT = 18f;
     /** 标题与患者信息之间的间距 */
@@ -53,7 +53,7 @@ public final class HljldPdfLayoutConstants {
     //  底部区域坐标（由下到上推导）
     // ══════════════════════════════════════════════════════════
     /** 页面底部到页码之间的安全边距 */
-    public static final float PAGE_BOTTOM_PADDING = 2f;
+    public static final float PAGE_BOTTOM_PADDING = 5f;
     /** 页码区域高度 */
     public static final float PAGE_NUMBER_HEIGHT = 14f;
     /** 页码与备注区之间的间距 */
@@ -157,12 +157,12 @@ public final class HljldPdfLayoutConstants {
     // ══════════════════════════════════════════════════════════
     //  19 列宽度（pt）
     // ══════════════════════════════════════════════════════════
-    // A4横向页面宽度842pt，左右边距各10pt，可用宽度822pt
-    // 表格总宽820pt，确保不超过页面右边界
-    // 总宽 820pt:
+    // A4横向页面宽度842pt，左右边距各20pt，可用宽度802pt
+    // 表格总宽800pt，确保不超过页面右边界
+    // 总宽 800pt:
     //   日期50, 药物90+30+30=150, 胃肠90+30+30=150,
     //   尿量30, 净超滤30, 排出物30+30=60, 引流液30+30=60,
-    //   检查30, 治疗30, 基础护理30, 健康教育30, 护理记录140, 签名30
+    //   检查30, 治疗30, 基础护理30, 健康教育30, 护理记录120, 签名30
     public static final float[] COL_WIDTHS_PT = {
         50f,        // 0: 日期时间
         90f,        // 1: 药物治疗-名称
@@ -181,12 +181,12 @@ public final class HljldPdfLayoutConstants {
         30f,        // 14: 治疗
         30f,        // 15: 基础护理
         30f,        // 16: 健康教育
-        140f,       // 17: 护理记录
+        120f,       // 17: 护理记录
         30f         // 18: 签名
     };
 
     /** 表格总宽度 = 所有列宽之和，不超过页面可用宽度 */
-    public static final float TABLE_WIDTH = 820f;
+    public static final float TABLE_WIDTH = 800f;
 
     // ══════════════════════════════════════════════════════════
     //  边框粗细

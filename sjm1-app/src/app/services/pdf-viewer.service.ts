@@ -16,33 +16,35 @@ export class PdfPrintService {
     return new Promise((resolve, reject) => {
       const objectUrl = URL.createObjectURL(pdfBlob);
       const iframe = document.createElement('iframe');
+      // 必须可见且有尺寸，否则浏览器不弹打印对话框
       iframe.style.position = 'fixed';
-      iframe.style.left = '-9999px';
-      iframe.style.top = '-9999px';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
+      iframe.style.left = '0';
+      iframe.style.top = '0';
+      iframe.style.width = '1px';
+      iframe.style.height = '1px';
+      iframe.style.opacity = '0';
+      iframe.style.border = 'none';
+      iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
 
       iframe.onload = () => {
         setTimeout(() => {
           try {
             iframe.contentWindow?.print();
-            // 打印后清理
-            setTimeout(() => {
-              document.body.removeChild(iframe);
-              URL.revokeObjectURL(objectUrl);
-              resolve();
-            }, 1000);
           } catch (err) {
-            document.body.removeChild(iframe);
-            URL.revokeObjectURL(objectUrl);
-            reject(err);
+            console.error('[Print] print() failed', err);
           }
+          // 延迟清理，等待打印对话框关闭
+          setTimeout(() => {
+            try { document.body.removeChild(iframe); } catch (_) {}
+            URL.revokeObjectURL(objectUrl);
+            resolve();
+          }, 3000);
         }, 500);
       };
 
       iframe.onerror = () => {
-        document.body.removeChild(iframe);
+        try { document.body.removeChild(iframe); } catch (_) {}
         URL.revokeObjectURL(objectUrl);
         reject(new Error('打印iframe加载失败'));
       };
