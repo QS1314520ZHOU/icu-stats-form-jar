@@ -16,7 +16,6 @@ export class PdfPrintService {
     return new Promise((resolve, reject) => {
       const objectUrl = URL.createObjectURL(pdfBlob);
       const iframe = document.createElement('iframe');
-      // 必须可见且有尺寸，否则浏览器不弹打印对话框
       iframe.style.position = 'fixed';
       iframe.style.left = '0';
       iframe.style.top = '0';
@@ -27,31 +26,35 @@ export class PdfPrintService {
       iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
 
-      const cleanup = () => {
-        try { document.body.removeChild(iframe); } catch (_) {}
-        URL.revokeObjectURL(objectUrl);
-        resolve();
-      };
-
       iframe.onload = () => {
         setTimeout(() => {
           const win = iframe.contentWindow;
-          if (!win) { cleanup(); return; }
+          if (!win) {
+            try { document.body.removeChild(iframe); } catch (_) {}
+            URL.revokeObjectURL(objectUrl);
+            resolve();
+            return;
+          }
 
-          // 监听 afterprint：用户关闭打印对话框（打印或取消）后清理
-          win.addEventListener('afterprint', cleanup, { once: true });
+          // 先注册 afterprint，再调用 print()
+          // afterprint 在用户关闭打印对话框后触发（打印或取消）
+          win.addEventListener('afterprint', () => {
+            // 对话框已关闭，现在可以安全清理
+            setTimeout(() => {
+              try { document.body.removeChild(iframe); } catch (_) {}
+              URL.revokeObjectURL(objectUrl);
+              resolve();
+            }, 100);
+          }, { once: true });
 
           try {
             win.print();
           } catch (err) {
             console.error('[Print] print() failed', err);
-            cleanup();
+            try { document.body.removeChild(iframe); } catch (_) {}
+            URL.revokeObjectURL(objectUrl);
+            resolve();
           }
-
-          // 兜底：如果 afterprint 始终不触发（某些浏览器），10秒后清理
-          setTimeout(() => {
-            if (document.body.contains(iframe)) cleanup();
-          }, 10000);
         }, 500);
       };
 
