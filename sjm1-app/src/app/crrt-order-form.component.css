@@ -1618,6 +1618,27 @@ label {
 }
 
 /* =========================================================
+   Large screens (≥1600px, e.g. 1920×1080)
+   ========================================================= */
+
+/*
+ * A4 屏幕版式固定为 794×1123px，在 1920 宽的显示器上只占约 40% 宽度，
+ * 整体偏小。此处对大屏整体放大 1.5 倍：
+ *   - 仅 @media screen 且视口 ≥1600px 生效；打印（@media print）走基础
+ *     规则的 zoom:1 !important，纸张尺寸完全不受影响；
+ *   - 用 zoom 而非 transform:scale —— zoom 会同步缩放布局与命中区域，
+ *     不会破坏 .datetime-cell 内透明 input 的点击坐标（日期控件
+ *     "全范围点击弹窗"的修复依赖真实的指针命中位置）；
+ *   - 顶部工具栏（.toolbar）不放大，保持操作按钮大小不变。
+ */
+@media screen and (min-width: 1600px) {
+  .sheet,
+  .crrt-print-page {
+    zoom: 1.5 !important;
+  }
+}
+
+/* =========================================================
    Narrow screens
    ========================================================= */
 
@@ -1685,9 +1706,13 @@ label {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  /* 铺满整个 .datetime-cell，保证单元格任意位置点击都能进入单元格的事件链路 */
+  position: absolute !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
   min-width: 0;
-  min-height: 34px;
+  min-height: 0;
   padding: 2px 1px;
   overflow: hidden;
   color: #000;
@@ -1730,13 +1755,54 @@ label {
   border: 0 !important;
   background: transparent !important;
   color: transparent !important;
-  opacity: 0;
-  pointer-events: none !important;
+  -webkit-text-fill-color: transparent !important;
+  /*
+   * opacity / visibility 必须带 !important：
+   * 上方 .crrt-table input:disabled、.prescription-grid input:disabled、
+   * .order-table input:disabled 等规则（优先级 0,2,1）会把本规则（优先级 0,1,0）
+   * 的 opacity:0 覆盖为 opacity:1，导致禁用态（即当前角色无权编辑的
+   * 日期控件）原生 datetime-local 控件显形，与格式化文本叠加显示成
+   * "两条时间数据"，空值时露出原生占位符"年 /月/日 --:--"。
+   * 管理员登录时所有控件均为启用态，不触发该覆盖，因此显示正常。
+   */
+  opacity: 0 !important;
+  /*
+   * 不能给 .datetime-picker 设置 pointer-events: none：
+   *   1. openDateTimePicker() 里的 input.focus() / input.showPicker()
+   *      在 pointer-events:none 元素上会失败（无法获焦、showPicker 拒绝），导致全范围都点不动；
+   *   2. 即使事件能冒泡到 td，input 自身无法获焦，showPicker 无焦点状态也无效。
+   * 默认 pointer-events: auto，input 自身接受点击，由透明色隐藏即可。
+   * "禁用态禁点击"由下方 .datetime-picker:disabled 单独处理。
+   */
+  /* 透明输入框铺在单元格最上层且接受事件，是悬浮命中的元素，
+   * 必须显式声明 pointer 手势，否则会显示 input 默认的文本光标，
+   * 盖掉 .datetime-cell 的 cursor:pointer。 */
+  cursor: pointer;
 }
 
 .datetime-picker:disabled {
   cursor: default;
   pointer-events: none;
+}
+
+/*
+ * 核心技巧：把 datetime-local 原生日历指示器（右侧那个小日历图标，
+ * 即此前"只有最右边能点出弹窗"的那个区域）拉伸为铺满整个透明输入框。
+ * 在当前运行环境中，JS 的 input.showPicker() 不生效，原生日历指示器的
+ * 真实用户点击是唯一可靠的弹窗入口。将其覆盖到 inset:0 后，单元格
+ * 任意位置的点击都会命中该原生区域，从而全范围弹出日期选择器。
+ * opacity:0 保持图标本身不可见（input 整体本来就是透明的）。
+ */
+.datetime-picker::-webkit-calendar-picker-indicator {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  cursor: pointer;
 }
 
 .prescription-grid .datetime-row th,
@@ -1953,6 +2019,10 @@ label {
 
   .datetime-value {
     display: flex !important;
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
