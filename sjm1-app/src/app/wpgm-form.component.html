@@ -8,13 +8,11 @@
 
 <section class="sheet" *ngFor="let page of pages" [class.continuation-sheet]="!page.showDocumentHeader" [attr.aria-label]="'第' + page.index + '页'">
   <div class="sheet-content">
-  <h1 *ngIf="page.showDocumentHeader" data-measure-block="intro">患者物品购买温馨提醒</h1>
+  <h1 *ngIf="page.showDocumentHeader" data-measure-block="intro">ICU住院患者物品准备清单</h1>
 
   <div class="notice-copy" *ngIf="page.showDocumentHeader" data-measure-block="intro">
     <p>尊敬的病员家属：</p>
-    <p class="indent">您好！为了给患者提供一个安全舒适的就医环境，特此说明以下提醒事项，请您知晓，敬请配合！</p>
-    <p>1、重症医学科（ICU）实行24小时无陪护制度，每日探视时间为11:00—11:30，每位患者探视人数不超过2人，中途不交换家属，具体探视要求请参照《重症医学科探视制度》规定。</p>
-    <p>2、请按照以下物品清单为患者准备住院所需用物，为方便您购买，部分物品可参照以下图片。</p>
+    <p class="indent">您好!为了保证您的亲人在住院期间的生活所需和我们能更好地护理患者，请按照以下物品清单为您的亲人准备住院所需用物。为方便您购买，特此说明所需物品的数量和要求（部分物品图片如下），请您知晓并在医患沟通结束后及时购买，谢谢您的配合！</p>
   </div>
 
   <table class="paper-table" *ngIf="page.items.length > 0">
@@ -49,34 +47,33 @@
       <figcaption>翻身枕</figcaption>
     </figure>
     <figure class="reference-image-card">
-      <img src="wpgm/sd.png" alt="水垫48×35CM" />
-      <figcaption>水垫 48×35CM</figcaption>
+      <img src="wpgm/sd.png" alt="水垫48cm*35cm" />
+      <figcaption>水垫 48cm*35cm</figcaption>
     </figure>
     <figure class="reference-image-card">
       <img src="wpgm/ysst.png" alt="约束手套" />
       <figcaption>约束手套</figcaption>
     </figure>
     <figure class="reference-image-card">
-      <img src="wpgm/hld.png" alt="护理垫60×90CM" />
-      <figcaption>护理垫 60×90CM</figcaption>
+      <img src="wpgm/hld.png" alt="护理垫60cm*90cm" />
+      <figcaption>护理垫 60cm*90cm</figcaption>
     </figure>
     <figure class="reference-image-card">
       <img src="wpgm/zxd.png" alt="止血带" />
       <figcaption>止血带</figcaption>
     </figure>
     <figure class="reference-image-card">
-      <img src="wpgm/pmft.png" alt="泡沫敷贴10×10CM" />
-      <figcaption>泡沫敷贴 10×10CM</figcaption>
+      <img src="wpgm/pmft.png" alt="泡沫敷贴10cm*10cm" />
+      <figcaption>泡沫敷贴 10cm*10cm</figcaption>
     </figure>
   </section>
 
   <div class="notice-copy footer-copy" *ngIf="page.showFooterNotice">
-    <p>3、以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品。</p>
-    <p>4、患者身上不留现金、手机及其它贵重物品，若必须留时，请与医护人员当面交接。</p>
-    <p>5、请注意维护公共环境，请勿在通道座椅上躺卧睡觉，同时请保管好个人财物。</p>
-    <p>6、医院禁止吸烟及任何形式使用明火，通道电源插座禁止连接大功率电器，插座上不能有裸露的电源线，请及时将充电电源线取下。为了您和家人的安全，请重视消防安全！</p>
-    <p>7、家属在外走廊等候期间，请不要大声喧哗，以免影响患者休息。</p>
-    <p>8、住院期间如患者病情变化、转科或生活物品数量不足等情况，医护人员会电话通知您，请保持电话通畅，以便及时与您取得联系，如有需要请拨打科室电话：023-81915173。</p>
+    <p class="indent">以上患者所需物品请家属自行准备，科室及工作人员不销售任何物品，住院期间如患者生活物品数量不足、病情变化或转科等情况，医护人员会电话通知您，请务必保持电话通畅！如有需要请拨打科室咨询电话：023-81915173。</p>
+    <p class="indent">探视提醒：重症医学科(ICU)实行24小时无陪护制度，每日探视时间为11:00—11:30，每位患者探视人数不超过2人，具体探视要求请参照《重症医学科探视制度》规定。</p>
+    <p>&nbsp;</p>
+    <p>&nbsp;</p>
+    <p class="footer-sign">重症医学科</p>
   </div>
 
   </div>
