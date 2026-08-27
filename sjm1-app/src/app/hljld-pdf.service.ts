@@ -33,8 +33,12 @@ export class HljldPdfService {
   /**
    * 获取指定日期的 PDF URL
    */
-  getPdfUrl(pid: string, date: string): string {
-    return `${this.baseUrl}/pdf/${encodeURIComponent(pid)}/${encodeURIComponent(date)}`;
+  getPdfUrl(pid: string, date: string, referenceTime?: string): string {
+    let url = `${this.baseUrl}/pdf/${encodeURIComponent(pid)}/${encodeURIComponent(date)}`;
+    if (referenceTime) {
+      url += `?referenceTime=${encodeURIComponent(referenceTime)}`;
+    }
+    return url;
   }
 
   /**

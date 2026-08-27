@@ -104,7 +104,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  备注区文字（使用 Canvas 绘制）
+    //  备注区文字（使用 Canvas 绘制，支持自动换行）
     // ══════════════════════════════════════════════════════════
 
     private void drawRemarksText(Canvas canvas, float pw) {
@@ -124,25 +124,53 @@ public class HljldFlowPageEventHandler implements IEventHandler {
             TextAlignment.CENTER, VerticalAlignment.MIDDLE);
 
         // 4行备注内容文字（从上到下：检查、治疗、基础护理、健康教育）
-        for (int i = 0; i < REMARKS.length; i++) {
-            // 从上到下绘制：第一行在最上面，第四行在最下面
-            float rowBottom = remarksBottom + (REMARKS.length - 1 - i) * HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
-            float textY = rowBottom + HljldPdfLayoutConstants.REMARK_ROW_HEIGHT / 2f;
+        // 使用动态高度计算，支持自动换行
+        float textX = contentX + 2f;
+        float availableWidth = TABLE_W - col0Width - 4f;
 
-            // 使用矩形区域绘制文字，避免长文本超出右边框
-            float textX = contentX + 2f;
-            float availableWidth = TABLE_W - col0Width - 4f;
-            Rectangle textRect = new Rectangle(textX, rowBottom, availableWidth, HljldPdfLayoutConstants.REMARK_ROW_HEIGHT);
+        // 先计算每行的实际高度（考虑自动换行）
+        float[] rowHeights = new float[REMARKS.length];
+        float totalRemarkHeight = 0;
+
+        for (int i = 0; i < REMARKS.length; i++) {
+            Paragraph para = new Paragraph(REMARKS[i])
+                .setFont(font)
+                .setFontSize(HljldPdfLayoutConstants.REMARK_FONT_SIZE)
+                .setMultipliedLeading(1.0f);
+
+            // 估算文本高度：根据字符数和可用宽度
+            int charCount = REMARKS[i].length();
+            float charWidth = HljldPdfLayoutConstants.REMARK_FONT_SIZE * 0.6f; // 中文字符宽度约等于字号
+            float charsPerLine = availableWidth / charWidth;
+            int lineCount = (int) Math.ceil(charCount / charsPerLine);
+            lineCount = Math.max(lineCount, 1); // 至少1行
+
+            float textHeight = lineCount * HljldPdfLayoutConstants.REMARK_FONT_SIZE * 1.2f;
+            rowHeights[i] = Math.max(textHeight, HljldPdfLayoutConstants.REMARK_ROW_HEIGHT);
+            totalRemarkHeight += rowHeights[i];
+        }
+
+        // 从下到上绘制（第一行在最上面，第四行在最下面）
+        float currentY = remarksBottom;
+        for (int i = REMARKS.length - 1; i >= 0; i--) {
+            float rowHeight = rowHeights[i];
+            float textY = currentY + rowHeight / 2f;
+
+            // 使用矩形区域绘制文字，支持自动换行
+            Rectangle textRect = new Rectangle(textX, currentY, availableWidth, rowHeight);
 
             try (Canvas rowCanvas = new Canvas(canvas.getPdfCanvas(), textRect)) {
                 rowCanvas.showTextAligned(
                     new Paragraph(REMARKS[i])
                         .setFont(font)
                         .setFontSize(HljldPdfLayoutConstants.REMARK_FONT_SIZE)
+                        .setMultipliedLeading(1.0f)
                         .setMargin(0),
-                    0, HljldPdfLayoutConstants.REMARK_ROW_HEIGHT / 2f,
+                    0, rowHeight / 2f,
                     TextAlignment.LEFT, VerticalAlignment.MIDDLE);
             }
+
+            currentY += rowHeight;
         }
     }
 

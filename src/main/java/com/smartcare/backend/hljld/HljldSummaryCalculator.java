@@ -509,6 +509,7 @@ public class HljldSummaryCalculator {
         if (showDaySummary) {
             HljldTimelineItem dayItem = HljldTimelineItem.ofSummary(daySummary);
             dayItem.setTimestamp(dayBoundaryMs);
+            dayItem.setSortRank(1); // 日间小结排序优先级
             timeline.add(dayItem);
         }
 
@@ -516,6 +517,7 @@ public class HljldSummaryCalculator {
         if (showFullDaySummary) {
             HljldTimelineItem fullDayItem = HljldTimelineItem.ofSummary(fullDaySummary);
             fullDayItem.setTimestamp(nextMorningBoundaryMs);
+            fullDayItem.setSortRank(3); // 24小时总结排序优先级
             timeline.add(fullDayItem);
         }
 

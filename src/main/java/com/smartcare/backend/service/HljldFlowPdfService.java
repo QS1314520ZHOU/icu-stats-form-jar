@@ -74,7 +74,7 @@ public class HljldFlowPdfService {
     //  可打印项模型
     // ══════════════════════════════════════════════════════════
 
-    enum PrintableItemType { NORMAL_ROW, DAY_SUMMARY, FULL_DAY_SUMMARY }
+    enum PrintableItemType { NORMAL_ROW, CONTINUATION_ROW, DAY_SUMMARY, DAY_SETTLEMENT, FULL_DAY_SUMMARY }
 
     static class PrintableItem {
         long sortTime;
@@ -232,17 +232,22 @@ public class HljldFlowPdfService {
     // ══════════════════════════════════════════════════════════
 
     /** 生成指定日期的护理记录 PDF（流式分页） */
-    public byte[] generateDailyPdf(String pid, String date) {
-        log.info("Flow PDF 生成: pid={}, date={}", pid, date);
+    public byte[] generateDailyPdf(String pid, String date, String referenceTime) {
+        log.info("Flow PDF 生成: pid={}, date={}, referenceTime={}", pid, date, referenceTime);
 
         LocalDate referenceDate = LocalDate.parse(date);
-        List<PrintableItem> items = buildPrintableItems(date, pid);
+        List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
         int startPageNo = getStartPageNo(pid, date, "hljld2-flow");
 
         FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
         log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}", pid, date, result.pageCount, items.size());
         return result.pdfBytes;
+    }
+
+    /** 生成指定日期的护理记录 PDF（流式分页，兼容旧调用） */
+    public byte[] generateDailyPdf(String pid, String date) {
+        return generateDailyPdf(pid, date, null);
     }
 
     /** 生成全部记录的 PDF（流式分页，多护理日用 AreaBreak 分隔） */
@@ -261,7 +266,7 @@ public class HljldFlowPdfService {
 
         for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
             dates.add(LocalDate.parse(dailyPage.getDate()));
-            itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid));
+            itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid, null));
         }
 
         int startPageNo = 1;
@@ -279,8 +284,13 @@ public class HljldFlowPdfService {
 
     /** 计算某天的页数（使用真实渲染） */
     public int calculateFlowPageCount(String pid, String date) {
+        return calculateFlowPageCount(pid, date, null);
+    }
+
+    /** 计算某天的页数，支持业务时间参数 */
+    public int calculateFlowPageCount(String pid, String date, String referenceTime) {
         LocalDate referenceDate = LocalDate.parse(date);
-        List<PrintableItem> items = buildPrintableItems(date, pid);
+        List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
         FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, pid, referenceDate);
         log.info("Flow PDF 页数: pid={}, date={}, pageCount={}", pid, date, result.pageCount);
@@ -340,8 +350,8 @@ public class HljldFlowPdfService {
 
         // 按时间轴顺序交错输出普通行和小结/总结容器行
         for (PrintableItem item : items) {
-            if (item.type == PrintableItemType.NORMAL_ROW) {
-                addDataRow(table, item.normalRow, font);
+            if (item.type == PrintableItemType.NORMAL_ROW || item.type == PrintableItemType.CONTINUATION_ROW) {
+                addDataRow(table, item.normalRow, font, item.type == PrintableItemType.CONTINUATION_ROW);
             } else {
                 addSummaryContainerRow(table, item, font);
             }
@@ -395,7 +405,13 @@ public class HljldFlowPdfService {
         table.setMarginBottom(0);
 
         HljldSummary summary = item.summary;
-        String title = (item.type == PrintableItemType.DAY_SUMMARY) ? "日间小结" : "24小时总结";
+        String title;
+        switch (item.type) {
+            case DAY_SUMMARY: title = "日间小结"; break;
+            case DAY_SETTLEMENT: title = "17点结算"; break;
+            case FULL_DAY_SUMMARY: title = "24小时总结"; break;
+            default: title = "小结"; break;
+        }
 
         // 第1行：标题，合并19列，居中
         Cell titleCell = new Cell(1, 19)
@@ -561,14 +577,41 @@ public class HljldFlowPdfService {
     // ══════════════════════════════════════════════════════════
 
     private void addDataRow(Table table, Map<String, Object> row, PdfFont font) {
+        addDataRow(table, row, font, false);
+    }
+
+    private void addDataRow(Table table, Map<String, Object> row, PdfFont font, boolean isContinuation) {
         String[] keys = HljldPdfLayoutConstants.DATA_KEYS;
 
         for (int i = 0; i < 19; i++) {
             String text = (row != null) ? mapStr(row, keys[i]) : "";
 
+            // 续用行：在量列添加"续"字
+            if (isContinuation) {
+                text = markContinuationAmount(text, keys[i]);
+            }
+
             Cell cell = createDataCell(text, font, i);
             table.addCell(cell);
         }
+    }
+
+    /**
+     * 续用行标记：在量列添加"续"字。
+     * 只影响显示文本，不参与统计数值计算。
+     */
+    private String markContinuationAmount(String amountText, String key) {
+        // 只处理量列（药物治疗量、胃肠摄入量、排出物量、引流液量）
+        if (!"medAmount".equals(key) && !"enteralAmount".equals(key)
+            && !"outputAmount".equals(key) && !"drainAmount".equals(key)) {
+            return amountText;
+        }
+
+        String value = amountText == null ? "" : amountText.trim();
+        if (value.isEmpty()) {
+            return "续";
+        }
+        return value.startsWith("续") ? value : "续" + value;
     }
 
     /**
@@ -601,8 +644,8 @@ public class HljldFlowPdfService {
     //  构建可打印项列表（时间轴交错输出）
     // ══════════════════════════════════════════════════════════
 
-    List<PrintableItem> buildPrintableItems(String nursingDay, String pid) {
-        HljldViewModel viewModel = dataAssembler.buildPrintViewModel(nursingDay, pid, pid);
+    List<PrintableItem> buildPrintableItems(String nursingDay, String pid, String referenceTime) {
+        HljldViewModel viewModel = dataAssembler.buildPrintViewModel(nursingDay, pid, pid, referenceTime);
         List<PrintableItem> items = new ArrayList<>();
 
         List<HljldTimelineItem> timeline = viewModel.getTimeline();
@@ -612,21 +655,34 @@ public class HljldFlowPdfService {
                     for (HljldDisplayRow row : tItem.getGroup().getRows()) {
                         PrintableItem pi = new PrintableItem();
                         pi.sortTime = tItem.getTimestamp();
-                        pi.sortPriority = 20;  // 普通行优先级低
+                        pi.sortPriority = tItem.getSortRank(); // 使用时间项的排序优先级
                         pi.stableId = "row-" + items.size();
                         pi.type = PrintableItemType.NORMAL_ROW;
+                        pi.normalRow = displayRowToMap(row);
+                        items.add(pi);
+                    }
+                } else if (tItem.getKind() == HljldTimelineItem.Kind.CONTINUATION && tItem.getGroup() != null) {
+                    // 续用行：在护理日开始处显示
+                    for (HljldDisplayRow row : tItem.getGroup().getRows()) {
+                        PrintableItem pi = new PrintableItem();
+                        pi.sortTime = tItem.getTimestamp();
+                        pi.sortPriority = tItem.getSortRank(); // 续用行排序优先级最高
+                        pi.stableId = "continuation-" + items.size();
+                        pi.type = PrintableItemType.CONTINUATION_ROW;
                         pi.normalRow = displayRowToMap(row);
                         items.add(pi);
                     }
                 } else if (tItem.getSummary() != null) {
                     PrintableItem pi = new PrintableItem();
                     pi.sortTime = tItem.getTimestamp();
-                    pi.sortPriority = 10;  // 小结优先级高，排在同时间普通行之前
+                    pi.sortPriority = tItem.getSortRank(); // 使用时间项的排序优先级
                     pi.stableId = "summary-" + tItem.getKind().name();
                     if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SUMMARY) {
                         pi.type = PrintableItemType.DAY_SUMMARY;
                     } else if (tItem.getKind() == HljldTimelineItem.Kind.FULL_DAY_SUMMARY) {
                         pi.type = PrintableItemType.FULL_DAY_SUMMARY;
+                    } else if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SETTLEMENT) {
+                        pi.type = PrintableItemType.DAY_SETTLEMENT;
                     } else {
                         // SHIFT_SUMMARY、DISCHARGE_SUMMARY 默认跳过，不输出到PDF
                         continue;

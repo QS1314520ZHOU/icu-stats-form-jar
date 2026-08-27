@@ -595,4 +595,144 @@ class HljldFlowPdfServiceTest {
         assertTrue(totalHeight < maxAllowedHeight,
             "备注区高度应小于页面高度的20%: " + totalHeight + " < " + maxAllowedHeight);
     }
+
+    // ══════════════════════════════════════════════════════════
+    //  业务时间传入测试
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testRequestContextCreation() throws Exception {
+        // 测试HljldPdfRequestContext创建
+        java.time.LocalDate nursingDate = java.time.LocalDate.of(2026, 8, 27);
+        java.time.ZonedDateTime referenceTime = nursingDate.atTime(17, 0)
+            .atZone(java.time.ZoneId.of("Asia/Shanghai"));
+
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx =
+            new com.smartcare.backend.hljld.HljldPdfRequestContext(nursingDate, referenceTime);
+
+        assertEquals(nursingDate, ctx.getNursingDate());
+        assertEquals(referenceTime, ctx.getReferenceTime());
+        assertTrue(ctx.shouldShowDaySummary());
+        assertFalse(ctx.shouldShowFullDaySummary());
+    }
+
+    @Test
+    void testRequestContextFromString() throws Exception {
+        // 测试从字符串创建上下文
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx =
+            com.smartcare.backend.hljld.HljldPdfRequestContext.of("2026-08-27", "2026-08-27T17:00:00+08:00");
+
+        assertEquals(java.time.LocalDate.of(2026, 8, 27), ctx.getNursingDate());
+        assertTrue(ctx.shouldShowDaySummary());
+        assertFalse(ctx.shouldShowFullDaySummary());
+    }
+
+    @Test
+    void testRequestContextWithNullReferenceTime() throws Exception {
+        // 测试referenceTime为空时的默认值
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx =
+            com.smartcare.backend.hljld.HljldPdfRequestContext.of("2026-08-27", null);
+
+        assertEquals(java.time.LocalDate.of(2026, 8, 27), ctx.getNursingDate());
+        // 默认使用17:00，应该显示日间小结
+        assertTrue(ctx.shouldShowDaySummary());
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  日间小结时间门禁测试
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testDaySummaryTimeGate() throws Exception {
+        java.time.LocalDate nursingDate = java.time.LocalDate.of(2026, 8, 27);
+        java.time.ZoneId zone = java.time.ZoneId.of("Asia/Shanghai");
+
+        // 16:59：不应显示日间小结
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx1659 =
+            new com.smartcare.backend.hljld.HljldPdfRequestContext(nursingDate,
+                nursingDate.atTime(16, 59).atZone(zone));
+        assertFalse(ctx1659.shouldShowDaySummary(), "16:59不应显示日间小结");
+
+        // 17:00：应显示日间小结
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx1700 =
+            new com.smartcare.backend.hljld.HljldPdfRequestContext(nursingDate,
+                nursingDate.atTime(17, 0).atZone(zone));
+        assertTrue(ctx1700.shouldShowDaySummary(), "17:00应显示日间小结");
+
+        // 17:01：应显示日间小结
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx1701 =
+            new com.smartcare.backend.hljld.HljldPdfRequestContext(nursingDate,
+                nursingDate.atTime(17, 1).atZone(zone));
+        assertTrue(ctx1701.shouldShowDaySummary(), "17:01应显示日间小结");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  24小时总结时间门禁测试
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testFullDaySummaryTimeGate() throws Exception {
+        java.time.LocalDate nursingDate = java.time.LocalDate.of(2026, 8, 27);
+        java.time.ZoneId zone = java.time.ZoneId.of("Asia/Shanghai");
+
+        // 次日06:59：不应显示24小时总结
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx0659 =
+            new com.smartcare.backend.hljld.HljldPdfRequestContext(nursingDate,
+                nursingDate.plusDays(1).atTime(6, 59).atZone(zone));
+        assertFalse(ctx0659.shouldShowFullDaySummary(), "次日06:59不应显示24小时总结");
+
+        // 次日07:00：应显示24小时总结
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx0700 =
+            new com.smartcare.backend.hljld.HljldPdfRequestContext(nursingDate,
+                nursingDate.plusDays(1).atTime(7, 0).atZone(zone));
+        assertTrue(ctx0700.shouldShowFullDaySummary(), "次日07:00应显示24小时总结");
+
+        // 次日07:01：应显示24小时总结
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx0701 =
+            new com.smartcare.backend.hljld.HljldPdfRequestContext(nursingDate,
+                nursingDate.plusDays(1).atTime(7, 1).atZone(zone));
+        assertTrue(ctx0701.shouldShowFullDaySummary(), "次日07:01应显示24小时总结");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  服务器时间不干扰测试
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testServerTimeDoesNotInterfere() throws Exception {
+        java.time.LocalDate nursingDate = java.time.LocalDate.of(2026, 8, 27);
+        java.time.ZoneId zone = java.time.ZoneId.of("Asia/Shanghai");
+
+        // 即使服务器当前时间晚于17点，传入16:59也不应显示日间小结
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now(zone);
+        assertTrue(now.getHour() >= 0, "确保服务器时间可用");
+
+        com.smartcare.backend.hljld.HljldPdfRequestContext ctx =
+            new com.smartcare.backend.hljld.HljldPdfRequestContext(nursingDate,
+                nursingDate.atTime(16, 59).atZone(zone));
+        assertFalse(ctx.shouldShowDaySummary(), "传入16:59不应显示日间小结，无论服务器时间");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  时间轴排序优先级测试
+    // ══════════════════════════════════════════════════════════
+    @Test
+    void testTimelineSortRank() throws Exception {
+        // 测试时间轴项目的排序优先级
+        com.smartcare.backend.hljld.HljldTimelineItem timeGroup =
+            com.smartcare.backend.hljld.HljldTimelineItem.ofGroup(new com.smartcare.backend.hljld.HljldTimeGroup());
+        assertEquals(0, timeGroup.getSortRank(), "普通明细排序优先级应为0");
+
+        com.smartcare.backend.hljld.HljldSummary summary = new com.smartcare.backend.hljld.HljldSummary();
+        summary.setKind(com.smartcare.backend.hljld.HljldSummary.Kind.DAY);
+        summary.setTime(new java.util.Date());
+
+        com.smartcare.backend.hljld.HljldTimelineItem daySummary =
+            com.smartcare.backend.hljld.HljldTimelineItem.ofSummary(summary);
+        assertEquals(1, daySummary.getSortRank(), "日间小结排序优先级应为1");
+
+        com.smartcare.backend.hljld.HljldTimelineItem settlement =
+            com.smartcare.backend.hljld.HljldTimelineItem.ofSettlement("test", System.currentTimeMillis(), summary);
+        assertEquals(2, settlement.getSortRank(), "结算行排序优先级应为2");
+
+        com.smartcare.backend.hljld.HljldTimelineItem continuation =
+            com.smartcare.backend.hljld.HljldTimelineItem.ofContinuation("test", System.currentTimeMillis(), new com.smartcare.backend.hljld.HljldTimeGroup());
+        assertEquals(-1, continuation.getSortRank(), "续用行排序优先级应为-1");
+    }
 }

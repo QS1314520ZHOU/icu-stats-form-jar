@@ -145,8 +145,9 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
         this.updatePageOptions();
       }
 
-      // 生成PDF URL
-      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr);
+      // 生成PDF URL（传递当前业务时间）
+      const referenceTime = this.getReferenceTime(dateStr);
+      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr, referenceTime);
 
       // 默认显示第1页，缩放135%
       this.updateViewerUrl();
@@ -510,6 +511,24 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * 获取业务时间（参考时间）
+   * 使用Asia/Shanghai时区，返回ISO格式字符串
+   */
+  private getReferenceTime(dateStr: string): string {
+    // 使用当前时间作为业务时间（符合业务场景：实时查看PDF时使用当前时间）
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    // 转换为Asia/Shanghai时区的ISO格式
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+08:00`;
   }
 
   /**

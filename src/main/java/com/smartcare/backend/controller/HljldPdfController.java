@@ -36,9 +36,11 @@ public class HljldPdfController {
     @GetMapping("/pdf/{pid}/{date}")
     public ResponseEntity<byte[]> getPdf(
             @PathVariable String pid,
-            @PathVariable String date) {
+            @PathVariable String date,
+            @RequestParam(required = false) String referenceTime) {
         try {
-            byte[] pdfData = flowPdfService.generateDailyPdf(pid, date);
+            log.info("生成PDF: pid={}, date={}, referenceTime={}", pid, date, referenceTime);
+            byte[] pdfData = flowPdfService.generateDailyPdf(pid, date, referenceTime);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
