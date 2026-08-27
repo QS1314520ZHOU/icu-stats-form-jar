@@ -28,7 +28,7 @@ public final class HljldPdfLayoutConstants {
     //  顶部区域坐标（由上到下推导）
     // ══════════════════════════════════════════════════════════
     /** 页面顶部到标题之间的安全边距 */
-    public static final float PAGE_TOP_PADDING = 15f;
+    public static final float PAGE_TOP_PADDING = 20f;
     /** 标题区域高度 */
     public static final float TITLE_AREA_HEIGHT = 18f;
     /** 标题与患者信息之间的间距 */
@@ -53,7 +53,7 @@ public final class HljldPdfLayoutConstants {
     //  底部区域坐标（由下到上推导）
     // ══════════════════════════════════════════════════════════
     /** 页面底部到页码之间的安全边距 */
-    public static final float PAGE_BOTTOM_PADDING = 5f;
+    public static final float PAGE_BOTTOM_PADDING = 2f;
     /** 页码区域高度 */
     public static final float PAGE_NUMBER_HEIGHT = 14f;
     /** 页码与备注区之间的间距 */

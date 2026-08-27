@@ -27,19 +27,31 @@ export class PdfPrintService {
       iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
 
+      const cleanup = () => {
+        try { document.body.removeChild(iframe); } catch (_) {}
+        URL.revokeObjectURL(objectUrl);
+        resolve();
+      };
+
       iframe.onload = () => {
         setTimeout(() => {
+          const win = iframe.contentWindow;
+          if (!win) { cleanup(); return; }
+
+          // 监听 afterprint：用户关闭打印对话框（打印或取消）后清理
+          win.addEventListener('afterprint', cleanup, { once: true });
+
           try {
-            iframe.contentWindow?.print();
+            win.print();
           } catch (err) {
             console.error('[Print] print() failed', err);
+            cleanup();
           }
-          // 延迟清理，等待打印对话框关闭
+
+          // 兜底：如果 afterprint 始终不触发（某些浏览器），10秒后清理
           setTimeout(() => {
-            try { document.body.removeChild(iframe); } catch (_) {}
-            URL.revokeObjectURL(objectUrl);
-            resolve();
-          }, 3000);
+            if (document.body.contains(iframe)) cleanup();
+          }, 10000);
         }, 500);
       };
 
