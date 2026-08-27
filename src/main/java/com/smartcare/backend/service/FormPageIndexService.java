@@ -40,12 +40,16 @@ public class FormPageIndexService {
      */
     public PageIndexResult getPageInfo(String pid, String formType, String date, String referenceTime) {
         log.info("获取页码信息: pid={}, formType={}, date={}, referenceTime={}", pid, formType, date, referenceTime);
-        Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, formType);
+
+        // 清理重复记录
+        cleanDuplicateRecords(pid, formType);
+
+        Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, formType);
 
         if (indexOpt.isEmpty()) {
             log.info("无页码索引，触发计算: pid={}, formType={}", pid, formType);
             triggerCalculation(pid, formType);
-            indexOpt = pageIndexRepository.findByPidAndFormType(pid, formType);
+            indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, formType);
             if (indexOpt.isEmpty()) {
                 log.warn("页码计算后仍无索引: pid={}, formType={}", pid, formType);
                 return new PageIndexResult(1, 1, "failed");
@@ -100,7 +104,7 @@ public class FormPageIndexService {
                 return;
             }
 
-            FormPageIndex index = pageIndexRepository.findByPidAndFormType(pid, formType)
+            FormPageIndex index = pageIndexRepository.findTopByPidAndFormType(pid, formType)
                 .orElse(new FormPageIndex());
             index.setPid(pid);
             index.setFormType(formType);
@@ -152,7 +156,7 @@ public class FormPageIndexService {
         Date endDate = (dischargeTime != null) ? dischargeTime : new Date();
         log.info("计算范围: startDate={}, endDate={}", startDate, endDate);
 
-        FormPageIndex index = pageIndexRepository.findByPidAndFormType(pid, formType)
+        FormPageIndex index = pageIndexRepository.findTopByPidAndFormType(pid, formType)
             .orElse(new FormPageIndex());
         index.setPid(pid);
         index.setFormType(formType);
@@ -218,7 +222,7 @@ public class FormPageIndexService {
     }
 
     private void markFailed(String pid, String formType, String reason) {
-        Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, formType);
+        Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, formType);
         if (indexOpt.isPresent()) {
             FormPageIndex index = indexOpt.get();
             index.setStatus("failed");
@@ -229,7 +233,7 @@ public class FormPageIndexService {
 
     public Map<String, Object> getCalculationStatus(String pid, String formType) {
         Map<String, Object> response = new HashMap<>();
-        Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, formType);
+        Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, formType);
         if (indexOpt.isEmpty()) {
             response.put("status", "not_started");
             response.put("progress", 0);
@@ -244,6 +248,23 @@ public class FormPageIndexService {
 
     private int daysBetween(Date start, Date end) {
         return (int) ((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    /**
+     * 清理重复的页码记录
+     */
+    private void cleanDuplicateRecords(String pid, String formType) {
+        List<FormPageIndex> allRecords = pageIndexRepository.findAllByPidAndFormType(pid, formType);
+        if (allRecords.size() > 1) {
+            log.warn("发现重复页码记录: pid={}, formType={}, count={}", pid, formType, allRecords.size());
+            // 保留第一条，删除其余
+            FormPageIndex keepRecord = allRecords.get(0);
+            for (int i = 1; i < allRecords.size(); i++) {
+                pageIndexRepository.deleteById(allRecords.get(i).getId());
+                log.info("删除重复记录: id={}", allRecords.get(i).getId());
+            }
+            log.info("保留记录: id={}, status={}", keepRecord.getId(), keepRecord.getStatus());
+        }
     }
 
     public static class PageIndexResult {

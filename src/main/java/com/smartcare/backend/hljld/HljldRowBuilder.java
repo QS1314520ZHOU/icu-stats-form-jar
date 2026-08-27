@@ -139,6 +139,7 @@ public class HljldRowBuilder {
 
             // 日间小结（17:00）之后：插入 night 段结算行
             if (!daySummaryRemaindersAdded[0] && timeMs > dayBoundaryMs) {
+                log.info("[HLJLD-SETTLE] 触发17:00结算行, timeMs={}, dayBoundaryMs={}", timeMs, dayBoundaryMs);
                 addNightSettlementRow(rows, source, nightSegment, nowMs);
                 daySummaryRemaindersAdded[0] = true;
             }
@@ -251,6 +252,7 @@ public class HljldRowBuilder {
         }
 
         // night 段结算行（07:00）：插入到表尾
+        log.info("[HLJLD-SETTLE] 开始处理07:00结算行");
         addNightEndSettlementRow(rows, source, nightSegment, nowMs);
 
         return rows;
@@ -266,6 +268,19 @@ public class HljldRowBuilder {
             .sorted(Comparator.comparingLong((HljldTimeRow r) -> HljldUtils.minuteInstant(r.getTime()))
                 .thenComparingInt(HljldTimeRow::getSortRank))
             .collect(Collectors.toList());
+
+        // 打印排序后的 timeRow 顺序
+        SimpleDateFormat logTf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        logTf.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
+        log.info("[HLJLD-DISP] ===== buildDisplayGroups 排序后 rows 共 {} 条 =====", sorted.size());
+        for (int i = 0; i < sorted.size(); i++) {
+            HljldTimeRow r = sorted.get(i);
+            int medCount = r.getMedications() != null ? r.getMedications().size() : 0;
+            int entCount = r.getEnteral() != null ? r.getEnteral().size() : 0;
+            String firstMed = medCount > 0 ? r.getMedications().get(0).getName() : "";
+            log.info("[HLJLD-DISP] sorted[{}] key={}, time={}, sortRank={}, meds={}, enteral={}, firstMed={}",
+                i, r.getKey(), logTf.format(r.getTime()), r.getSortRank(), medCount, entCount, firstMed);
+        }
 
         List<HljldTimeGroup> groups = new ArrayList<>();
 
@@ -351,6 +366,8 @@ public class HljldRowBuilder {
         List<NameAmountRoute> carryMeds = new ArrayList<>();
         List<NameAmountRoute> carryEnteral = new ArrayList<>();
 
+        log.info("[HLJLD-CARRY] 开始处理续用行, dayStartMs={}, 药物执行总数={}", dayStartMs, source.getDrugExecutions().size());
+
         for (Document execution : source.getDrugExecutions()) {
             if (!HljldUtils.isRenderableDrugExecution(execution)) continue;
             Document method = HljldUtils.findDrugMethod(str(execution, "methodCode"), source.getDrugMethods());
@@ -379,12 +396,16 @@ public class HljldRowBuilder {
                 "续*剩余:" + String.format("%.1f", remaining) + "|实用:" + String.format("%.1f", currentUsage),
                 HljldUtils.routeLabel(str(method, "name")), 0);
 
+            log.info("[HLJLD-CARRY] 续用药物: {}, isEnteral={}, remaining={}, currentUsage={}", name, isEnteral, remaining, currentUsage);
+
             if (isEnteral) {
                 carryEnteral.add(cell);
             } else {
                 carryMeds.add(cell);
             }
         }
+
+        log.info("[HLJLD-CARRY] 续用行处理完成, carryMeds={}, carryEnteral={}", carryMeds.size(), carryEnteral.size());
 
         if (!carryMeds.isEmpty() || !carryEnteral.isEmpty()) {
             HljldTimeRow carryRow = new HljldTimeRow();
@@ -395,16 +416,20 @@ public class HljldRowBuilder {
             carryRow.setMedications(carryMeds);
             carryRow.setEnteral(carryEnteral);
             rows.add(carryRow);
+            log.info("[HLJLD-CARRY] 续用行已添加到rows");
         }
     }
 
     private void addNightSettlementRow(List<HljldTimeRow> rows, HljldSourceData source,
                                         HljldUtils.NursingSegment nightSegment, long nowMs) {
+        log.info("[HLJLD-SETTLE] 开始处理17:00结算行, nightSegment=[{}, {}]", nightSegment.start, nightSegment.end);
         List<HljldUtils.SegmentSettlement> settlements = HljldUtils.buildSegmentSettlements(
             source.getDrugExecutions(), source.getDrugMethods(), nightSegment, nowMs);
+        log.info("[HLJLD-SETTLE] 计算出结算项数量={}", settlements.size());
         List<NameAmountRoute> settlementMeds = new ArrayList<>();
         List<NameAmountRoute> settlementEnteral = new ArrayList<>();
         convertSettlements(settlements, settlementMeds, settlementEnteral);
+        log.info("[HLJLD-SETTLE] 转换后 settlementMeds={}, settlementEnteral={}", settlementMeds.size(), settlementEnteral.size());
 
         if (!settlementMeds.isEmpty() || !settlementEnteral.isEmpty()) {
             HljldTimeRow settlementRow = new HljldTimeRow();
@@ -415,16 +440,22 @@ public class HljldRowBuilder {
             settlementRow.setMedications(settlementMeds);
             settlementRow.setEnteral(settlementEnteral);
             rows.add(settlementRow);
+            log.info("[HLJLD-SETTLE] 17:00结算行已添加到rows");
+        } else {
+            log.info("[HLJLD-SETTLE] 17:00结算行无内容，跳过");
         }
     }
 
     private void addNightEndSettlementRow(List<HljldTimeRow> rows, HljldSourceData source,
                                            HljldUtils.NursingSegment nightSegment, long nowMs) {
+        log.info("[HLJLD-SETTLE] 开始处理07:00结算行, nightSegment=[{}, {}]", nightSegment.start, nightSegment.end);
         List<HljldUtils.SegmentSettlement> settlements = HljldUtils.buildSegmentSettlements(
             source.getDrugExecutions(), source.getDrugMethods(), nightSegment, nowMs);
+        log.info("[HLJLD-SETTLE] 07:00计算出结算项数量={}", settlements.size());
         List<NameAmountRoute> settlementMeds = new ArrayList<>();
         List<NameAmountRoute> settlementEnteral = new ArrayList<>();
         convertSettlements(settlements, settlementMeds, settlementEnteral);
+        log.info("[HLJLD-SETTLE] 07:00转换后 settlementMeds={}, settlementEnteral={}", settlementMeds.size(), settlementEnteral.size());
 
         if (!settlementMeds.isEmpty() || !settlementEnteral.isEmpty()) {
             HljldTimeRow settlementRow = new HljldTimeRow();
@@ -435,6 +466,9 @@ public class HljldRowBuilder {
             settlementRow.setMedications(settlementMeds);
             settlementRow.setEnteral(settlementEnteral);
             rows.add(settlementRow);
+            log.info("[HLJLD-SETTLE] 07:00结算行已添加到rows");
+        } else {
+            log.info("[HLJLD-SETTLE] 07:00结算行无内容，跳过");
         }
     }
 

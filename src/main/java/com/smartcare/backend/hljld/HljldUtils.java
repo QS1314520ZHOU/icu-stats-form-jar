@@ -702,7 +702,7 @@ public final class HljldUtils {
     public static String routeLabel(String name) {
         String value = name == null ? "" : name;
         if (value.contains("输液泵") || value.contains("静滴")) return "ivgtt";
-        if (value.contains("量微泵")) return "iv泵";
+        if (value.contains("微量泵")) return "iv泵";
         if (value.contains("肌肉注射")) return "im";
         if (value.contains("皮下注射")) return "IH";
         if (value.contains("静注")) return "iv";
@@ -1268,8 +1268,14 @@ public final class HljldUtils {
         long segStartMs = segment.start.getTime();
         long segEndMs = segment.end.getTime();
 
+        log.info("[HLJLD-SETTLE] buildSegmentSettlements开始, segStart={}, segEnd={}, nowMs={}, 药物总数={}",
+            segment.start, segment.end, nowMs, executions.size());
+
         // 整段还没开始，不结算
-        if (nowMs <= segStartMs) return Collections.emptyList();
+        if (nowMs <= segStartMs) {
+            log.info("[HLJLD-SETTLE] 当前时间未到班段开始时间，跳过结算");
+            return Collections.emptyList();
+        }
 
         long cutoffMs = Math.min(segEndMs, nowMs);
         boolean partial = cutoffMs < segEndMs;
@@ -1283,8 +1289,14 @@ public final class HljldUtils {
             if (!Boolean.FALSE.equals(method.get("isOnce"))) continue;
 
             double startMs = databaseTimeValue(String.valueOf(execution.get("startTime")));
+            String drugName = drugDisplayName(execution);
+            log.debug("[HLJLD-SETTLE] 检查药物: {}, startMs={}, segStartMs={}", drugName, startMs, segStartMs);
+
             // 只展示在 day 段（07:00-17:00）内开始的药物
-            if (!Double.isFinite(startMs) || startMs >= segStartMs) continue;
+            if (!Double.isFinite(startMs) || startMs >= segStartMs) {
+                log.debug("[HLJLD-SETTLE] 跳过药物: {} (startMs={} >= segStartMs={})", drugName, startMs, segStartMs);
+                continue;
+            }
 
             double endRaw = databaseTimeValue(String.valueOf(execution.get("endTime")));
             double endMs = Double.isFinite(endRaw) ? endRaw : Double.NaN;
@@ -1296,8 +1308,14 @@ public final class HljldUtils {
             double remainder = round1(cap - cumulativeAtSegStart);
             boolean ongoing = !Double.isFinite(endMs) || endMs > cutoffMs;
 
+            log.info("[HLJLD-SETTLE] 药物: {}, cap={}, segmentUsed={}, cumulativeUsed={}, remainder={}, ongoing={}",
+                drugName, cap, segmentUsed, cumulativeUsed, remainder, ongoing);
+
             // 已用完的药物不出现在结算行
-            if (remainder <= 0) continue;
+            if (remainder <= 0) {
+                log.debug("[HLJLD-SETTLE] 跳过药物: {} (remainder={} <= 0)", drugName, remainder);
+                continue;
+            }
 
             boolean consistent = Math.abs(cumulativeAtSegStart + remainder - cap) < 0.05;
             if (!consistent) {
@@ -1313,7 +1331,9 @@ public final class HljldUtils {
                 execution, drugDisplayName(execution), routeLabel(strOrNull(method, "name")),
                 segmentUsed, cumulativeUsed, remainder, cap,
                 ongoing, partial, consistent, isEnteral));
+            log.info("[HLJLD-SETTLE] 添加结算项: {}", drugName);
         }
+        log.info("[HLJLD-SETTLE] 结算完成, 共{}项", out.size());
         return out;
     }
 

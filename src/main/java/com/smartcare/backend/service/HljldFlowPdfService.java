@@ -250,7 +250,7 @@ public class HljldFlowPdfService {
     public byte[] generateAllPagesPdf(String pid, String referenceTime) {
         log.info("Flow PDF 生成全部: pid={}, referenceTime={}", pid, referenceTime);
 
-        Optional<FormPageIndex> indexOpt = pageIndexRepository.findByPidAndFormType(pid, "hljld2-flow");
+        Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, "hljld2-flow");
         if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
             log.warn("Flow PDF 索引不存在或为空: pid={}", pid);
             return generateEmptyPagePdf(pid, "全部");
@@ -636,15 +636,46 @@ public class HljldFlowPdfService {
         HljldPdfRequestContext context = viewModel.getContext();
         List<PrintableItem> items = new ArrayList<>();
 
+        java.text.SimpleDateFormat logTf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+        logTf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
+
         List<HljldTimelineItem> timeline = viewModel.getTimeline();
+        log.info("[HLJLD-PDF] ===== timeline 构建前 ===== timeline={}, displayGroups={}",
+            timeline != null ? timeline.size() : "null",
+            viewModel.getDisplayGroups() != null ? viewModel.getDisplayGroups().size() : "null");
+
         if (timeline != null) {
-            for (HljldTimelineItem tItem : timeline) {
-                if (tItem.getKind() == HljldTimelineItem.Kind.TIME_GROUP && tItem.getGroup() != null) {
+            // 先打印 timeline 内容
+            for (int ti = 0; ti < timeline.size(); ti++) {
+                HljldTimelineItem t = timeline.get(ti);
+                String timeStr = logTf.format(new Date(t.getTimestamp()));
+                int groupRows = (t.getGroup() != null) ? t.getGroup().getRows().size() : 0;
+                log.info("[HLJLD-PDF] timeline[{}] kind={}, time={}, key={}, groupRows={}, sortRank={}",
+                    ti, t.getKind(), timeStr, t.getKey(), groupRows, t.getSortRank());
+            }
+
+            for (int ti = 0; ti < timeline.size(); ti++) {
+                HljldTimelineItem tItem = timeline.get(ti);
+                String tsPrefix = String.format("%04d", ti);
+
+                if ((tItem.getKind() == HljldTimelineItem.Kind.TIME_GROUP
+                    || tItem.getKind() == HljldTimelineItem.Kind.CONTINUATION)
+                    && tItem.getGroup() != null) {
                     for (HljldDisplayRow row : tItem.getGroup().getRows()) {
                         PrintableItem pi = new PrintableItem();
                         pi.sortTime = tItem.getTimestamp();
-                        pi.sortPriority = 20;  // 普通行优先级低
-                        pi.stableId = "row-" + items.size();
+                        pi.sortPriority = 20;
+                        pi.stableId = tsPrefix + "-row-" + items.size();
+                        pi.type = PrintableItemType.NORMAL_ROW;
+                        pi.normalRow = displayRowToMap(row);
+                        items.add(pi);
+                    }
+                } else if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SETTLEMENT && tItem.getGroup() != null) {
+                    for (HljldDisplayRow row : tItem.getGroup().getRows()) {
+                        PrintableItem pi = new PrintableItem();
+                        pi.sortTime = tItem.getTimestamp();
+                        pi.sortPriority = 25;
+                        pi.stableId = tsPrefix + "-settlement-" + items.size();
                         pi.type = PrintableItemType.NORMAL_ROW;
                         pi.normalRow = displayRowToMap(row);
                         items.add(pi);
@@ -652,17 +683,16 @@ public class HljldFlowPdfService {
                 } else if (tItem.getSummary() != null) {
                     PrintableItem pi = new PrintableItem();
                     pi.sortTime = tItem.getTimestamp();
-                    pi.sortPriority = 10;  // 小结优先级高，排在同时间普通行之前
-                    pi.stableId = "summary-" + tItem.getKind().name();
+                    pi.stableId = tsPrefix + "-summary-" + tItem.getKind().name();
                     if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SUMMARY) {
                         pi.type = PrintableItemType.DAY_SUMMARY;
+                        pi.sortPriority = 30;
                         pi.title = "日间小结";
                     } else if (tItem.getKind() == HljldTimelineItem.Kind.FULL_DAY_SUMMARY) {
                         pi.type = PrintableItemType.FULL_DAY_SUMMARY;
-                        // 使用 context 计算正确的标题
+                        pi.sortPriority = 50;
                         pi.title = (context != null) ? context.getFullDaySummaryTitle() : "24小时总结";
                     } else {
-                        // SHIFT_SUMMARY、DISCHARGE_SUMMARY 默认跳过，不输出到PDF
                         continue;
                     }
                     pi.summary = tItem.getSummary();
@@ -689,6 +719,23 @@ public class HljldFlowPdfService {
             .comparingLong((PrintableItem p) -> p.sortTime)
             .thenComparingInt((PrintableItem p) -> p.sortPriority)
             .thenComparing((PrintableItem p) -> p.stableId));
+
+        // 打印排序后的完整列表
+        log.info("[HLJLD-PDF] ===== 排序后 items 共 {} 条 =====", items.size());
+        for (int i = 0; i < items.size(); i++) {
+            PrintableItem p = items.get(i);
+            String timeStr = logTf.format(new Date(p.sortTime));
+            String detail = "";
+            if (p.normalRow != null) {
+                String med = mapStr(p.normalRow, "medName");
+                String timeText = mapStr(p.normalRow, "timeText");
+                detail = "med=" + med + ", timeText=" + timeText;
+            } else if (p.summary != null) {
+                detail = "title=" + p.title;
+            }
+            log.info("[HLJLD-PDF] items[{}] time={}, priority={}, stableId={}, type={}, {}",
+                i, timeStr, p.sortPriority, p.stableId, p.type, detail);
+        }
 
         return items;
     }
@@ -753,7 +800,7 @@ public class HljldFlowPdfService {
     }
 
     int getStartPageNo(String pid, String date, String formType) {
-        return pageIndexRepository.findByPidAndFormType(pid, formType)
+        return pageIndexRepository.findTopByPidAndFormType(pid, formType)
             .flatMap(idx -> idx.getDailyPages().stream()
                 .filter(d -> d.getDate().equals(date))
                 .map(FormPageIndex.DailyPageInfo::getStartPageNo)

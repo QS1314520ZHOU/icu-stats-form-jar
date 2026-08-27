@@ -711,6 +711,17 @@ public class HljldSummaryCalculator {
                 .thenComparing(HljldTimelineItem::getKey)
         );
 
+        // 打印排序后的 timeline
+        java.text.SimpleDateFormat logTf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        logTf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
+        log.info("[HLJLD-TL] ===== buildTimeline 排序后共 {} 条 =====", timeline.size());
+        for (int i = 0; i < timeline.size(); i++) {
+            HljldTimelineItem t = timeline.get(i);
+            int rows = (t.getGroup() != null) ? t.getGroup().getRows().size() : 0;
+            log.info("[HLJLD-TL] timeline[{}] kind={}, time={}, key={}, rows={}, sortRank={}",
+                i, t.getKind(), logTf.format(new Date(t.getTimestamp())), t.getKey(), rows, t.getSortRank());
+        }
+
         return timeline;
     }
 

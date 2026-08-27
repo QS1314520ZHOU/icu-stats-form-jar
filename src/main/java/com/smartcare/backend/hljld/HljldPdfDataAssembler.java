@@ -88,6 +88,17 @@ public class HljldPdfDataAssembler {
         // 5. 构建显示分组
         List<HljldTimeGroup> displayGroups = rowBuilder.buildDisplayGroups(timeRows);
 
+        // 5.1 从 displayGroups 中分离出续用行（key 以 "carry-over-" 开头）
+        List<HljldTimeGroup> continuationGroups = new ArrayList<>();
+        List<HljldTimeGroup> regularGroups = new ArrayList<>();
+        for (HljldTimeGroup group : displayGroups) {
+            if (group.getKey() != null && group.getKey().startsWith("carry-over-")) {
+                continuationGroups.add(group);
+            } else {
+                regularGroups.add(group);
+            }
+        }
+
         // 6. 昨天的护理日开始时间
         Date yesterdayStart = HljldUtils.startOfNursingDay(Date.from(localDate.minusDays(1).atStartOfDay(java.time.ZoneId.of("Asia/Shanghai")).toInstant()));
 
@@ -106,10 +117,15 @@ public class HljldPdfDataAssembler {
 
         // 11. 构建时间轴（使用 context 控制门禁）
         List<HljldTimelineItem> timeline = summaryCalculator.buildTimeline(
-            context, displayGroups, null, daySummary, fullDaySummary);
+            context, regularGroups, continuationGroups, daySummary, fullDaySummary);
 
         // 12. 构建分页数据
-        int totalRows = displayGroups.stream().mapToInt(g -> g.getRows().size()).sum();
+        // 将续用行和普通行合并用于分页计算
+        List<HljldTimeGroup> allGroupsForPaging = new ArrayList<>();
+        allGroupsForPaging.addAll(continuationGroups);
+        allGroupsForPaging.addAll(regularGroups);
+
+        int totalRows = allGroupsForPaging.stream().mapToInt(g -> g.getRows().size()).sum();
         int totalPages = (int) Math.ceil((double) totalRows / pageSize);
 
         // 分页截取
@@ -119,8 +135,8 @@ public class HljldPdfDataAssembler {
         int startOffset = 0;
         int accumulated = 0;
 
-        for (int i = 0; i < displayGroups.size(); i++) {
-            HljldTimeGroup group = displayGroups.get(i);
+        for (int i = 0; i < allGroupsForPaging.size(); i++) {
+            HljldTimeGroup group = allGroupsForPaging.get(i);
             if (accumulated + group.getRows().size() > startRow) {
                 startGroupIndex = i;
                 startOffset = startRow - accumulated;
@@ -131,8 +147,8 @@ public class HljldPdfDataAssembler {
 
         List<HljldTimeGroup> pagedGroups = new ArrayList<>();
         int remaining = pageSize;
-        for (int i = startGroupIndex; i < displayGroups.size() && remaining > 0; i++) {
-            HljldTimeGroup group = displayGroups.get(i);
+        for (int i = startGroupIndex; i < allGroupsForPaging.size() && remaining > 0; i++) {
+            HljldTimeGroup group = allGroupsForPaging.get(i);
             List<HljldDisplayRow> rows = group.getRows();
             int offset = (i == startGroupIndex) ? startOffset : 0;
             int count = Math.min(rows.size() - offset, remaining);
