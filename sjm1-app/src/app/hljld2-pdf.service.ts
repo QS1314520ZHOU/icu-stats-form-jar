@@ -34,7 +34,8 @@ export class Hljld2PdfService {
    * 获取指定日期的 PDF URL
    */
   getPdfUrl(pid: string, date: string): string {
-    return `${this.baseUrl}/pdf/${pid}/${date}`;
+    // 添加时间戳防止缓存
+    return `${this.baseUrl}/pdf/${pid}/${date}?t=${Date.now()}`;
   }
 
   /**

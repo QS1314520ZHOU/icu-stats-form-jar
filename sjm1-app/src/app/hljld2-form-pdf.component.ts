@@ -101,6 +101,7 @@ export class Hljld2FormPdfComponent implements OnInit, AfterViewInit, OnDestroy 
     }
 
     this.loading = true;
+    this.pdfUrl = '';  // 先清空 PDF URL，确保 iframe 刷新
     this.stopPolling();
     this.cdr.markForCheck();
 

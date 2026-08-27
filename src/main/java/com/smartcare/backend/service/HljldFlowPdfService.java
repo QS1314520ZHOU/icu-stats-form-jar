@@ -83,6 +83,7 @@ public class HljldFlowPdfService {
         PrintableItemType type;
         Map<String, Object> normalRow;
         HljldSummary summary;
+        String title;  // 小结/总结标题
     }
 
     // ══════════════════════════════════════════════════════════
@@ -394,7 +395,7 @@ public class HljldFlowPdfService {
         table.setMarginBottom(0);
 
         HljldSummary summary = item.summary;
-        String title = (item.type == PrintableItemType.DAY_SUMMARY) ? "日间小结" : "24小时总结";
+        String title = item.title;  // 使用预设的标题
 
         String line2 = buildSummaryLine2(summary);
         String line3 = buildSummaryLine3(summary);
@@ -431,21 +432,85 @@ public class HljldFlowPdfService {
         return table;
     }
 
-    /** 构建小结/总结第2行：入量相关 */
+    /** 构建小结/总结第2行：入量相关 - 匹配前端格式 */
     private String buildSummaryLine2(HljldSummary s) {
         StringBuilder sb = new StringBuilder();
-        sb.append("总入量：").append(formatVal(s.getInputSum())).append(" ml");
-        sb.append("；药物治疗：").append(formatVal(s.getMedicationSum())).append(" ml");
-        sb.append("；胃肠摄入：").append(formatVal(s.getEnteralSum())).append(" ml");
+        sb.append("总入量：").append(formatVal(s.getInputSum())).append(" ml；");
+
+        // 药物治疗
+        if (s.getMedicationSum() > 0) {
+            sb.append("药物治疗：").append(formatVal(s.getMedicationSum())).append(" ml");
+
+            // 静脉入量细分（ivgtt、iv泵、iv）
+            if (s.getVeinItems() != null && !s.getVeinItems().isEmpty()) {
+                double veinTotal = s.getVeinItems().stream()
+                    .mapToDouble(item -> item.getAmount())
+                    .sum();
+                if (veinTotal > 0) {
+                    sb.append("（静脉入量：").append(formatVal(veinTotal)).append(" ml（");
+
+                    List<String> veinDetails = new ArrayList<>();
+                    for (SummaryItem item : s.getVeinItems()) {
+                        veinDetails.add(item.getKey() + "：" + formatVal(item.getAmount()) + " ml");
+                    }
+                    sb.append(String.join("、", veinDetails));
+                    sb.append("））");
+                }
+            }
+        }
+
+        // 胃肠入量
+        if (s.getEnteralSum() > 0) {
+            sb.append("；胃肠入量：").append(formatVal(s.getEnteralSum())).append(" ml");
+        }
+
         return sb.toString();
     }
 
-    /** 构建小结/总结第3行：出量相关 */
+    /** 构建小结/总结第3行：出量相关 - 匹配前端格式 */
     private String buildSummaryLine3(HljldSummary s) {
         StringBuilder sb = new StringBuilder();
-        sb.append("总出量：").append(formatVal(s.getOutputSum())).append(" ml");
-        sb.append("；尿量：").append(formatVal(s.getUrineSum())).append(" ml");
-        sb.append("；净超滤量：").append(formatVal(s.getUltrafiltrationSum())).append(" ml");
+        sb.append("总出量：").append(formatVal(s.getOutputSum())).append(" ml；");
+
+        // 尿量
+        if (s.getUrineSum() > 0) {
+            sb.append("尿量：").append(formatVal(s.getUrineSum())).append(" ml；");
+        }
+
+        // 排出物（痰液量、大便量等）
+        if (s.getOutputItems() != null && !s.getOutputItems().isEmpty()) {
+            double outputTotal = s.getOutputItems().stream()
+                .mapToDouble(item -> item.getAmount())
+                .sum();
+            if (outputTotal > 0) {
+                sb.append("排出物：").append(formatVal(outputTotal)).append(" ml（");
+
+                List<String> outputDetails = new ArrayList<>();
+                for (SummaryItem item : s.getOutputItems()) {
+                    outputDetails.add(item.getKey() + "：" + formatVal(item.getAmount()) + " ml");
+                }
+                sb.append(String.join("、", outputDetails));
+                sb.append("）；");
+            }
+        }
+
+        // 引流液
+        if (s.getDrainItems() != null && !s.getDrainItems().isEmpty()) {
+            double drainTotal = s.getDrainItems().stream()
+                .mapToDouble(item -> item.getAmount())
+                .sum();
+            if (drainTotal > 0) {
+                sb.append("引流液：").append(formatVal(drainTotal)).append(" ml（");
+
+                List<String> drainDetails = new ArrayList<>();
+                for (SummaryItem item : s.getDrainItems()) {
+                    drainDetails.add(item.getKey() + "：" + formatVal(item.getAmount()) + " ml");
+                }
+                sb.append(String.join("、", drainDetails));
+                sb.append("）");
+            }
+        }
+
         return sb.toString();
     }
 
@@ -568,6 +633,7 @@ public class HljldFlowPdfService {
 
     List<PrintableItem> buildPrintableItems(String nursingDay, String pid, String referenceTime) {
         HljldViewModel viewModel = dataAssembler.buildPrintViewModel(nursingDay, pid, pid, referenceTime);
+        HljldPdfRequestContext context = viewModel.getContext();
         List<PrintableItem> items = new ArrayList<>();
 
         List<HljldTimelineItem> timeline = viewModel.getTimeline();
@@ -590,8 +656,11 @@ public class HljldFlowPdfService {
                     pi.stableId = "summary-" + tItem.getKind().name();
                     if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SUMMARY) {
                         pi.type = PrintableItemType.DAY_SUMMARY;
+                        pi.title = "日间小结";
                     } else if (tItem.getKind() == HljldTimelineItem.Kind.FULL_DAY_SUMMARY) {
                         pi.type = PrintableItemType.FULL_DAY_SUMMARY;
+                        // 使用 context 计算正确的标题
+                        pi.title = (context != null) ? context.getFullDaySummaryTitle() : "24小时总结";
                     } else {
                         // SHIFT_SUMMARY、DISCHARGE_SUMMARY 默认跳过，不输出到PDF
                         continue;

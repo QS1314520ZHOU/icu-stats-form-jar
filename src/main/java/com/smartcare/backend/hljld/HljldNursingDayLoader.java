@@ -70,6 +70,7 @@ public class HljldNursingDayLoader {
         List<Document> tubeExecutions = loadTubeExecutions(pid, nursingDayStart, queryEnd);
         List<Document> tubeViews = loadTubeViews();
         Map<String, String> accountMap = buildAccountMap(bedside, nurseRecords);
+        Document patientInfo = loadPatientInfo(pid);
 
         log.info("数据加载完成: bedside={}, drugExe={}, drugMethods={}, nurseRecords={}, tubeExe={}, tubeViews={}, accounts={}",
             bedside.size(), drugExecutions.size(), drugMethods.size(),
@@ -83,6 +84,7 @@ public class HljldNursingDayLoader {
         data.setTubeExecutions(tubeExecutions);
         data.setTubeViews(tubeViews);
         data.setAccountMap(accountMap);
+        data.setPatientInfo(patientInfo);
         return data;
     }
 

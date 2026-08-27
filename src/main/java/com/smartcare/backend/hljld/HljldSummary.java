@@ -28,6 +28,9 @@ public class HljldSummary {
     private double gastrointestinalInputTotal;
     private List<SummaryItem> gastrointestinalInputItems = new ArrayList<>();
 
+    // 静脉入量细分
+    private List<SummaryItem> veinItems = new ArrayList<>();
+
     // 兼容旧字段
     private double inputSum;
     private List<SummaryItem> inputItems = new ArrayList<>();
@@ -103,6 +106,9 @@ public class HljldSummary {
     public void setEnteralSum(double enteralSum) { this.enteralSum = enteralSum; }
     public List<SummaryItem> getEnteralItems() { return enteralItems; }
     public void setEnteralItems(List<SummaryItem> enteralItems) { this.enteralItems = enteralItems; }
+
+    public List<SummaryItem> getVeinItems() { return veinItems; }
+    public void setVeinItems(List<SummaryItem> veinItems) { this.veinItems = veinItems; }
 
     public double getTotalOutput() { return totalOutput; }
     public void setTotalOutput(double totalOutput) { this.totalOutput = totalOutput; }

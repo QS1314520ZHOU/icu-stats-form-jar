@@ -16,6 +16,8 @@ public class HljldSourceData {
     private List<Document> tubeViews = new ArrayList<>();
     /** accountId → trueName 映射 */
     private Map<String, String> accountMap = new HashMap<>();
+    /** 患者信息 */
+    private Document patientInfo = new Document();
 
     public List<Document> getBedside() { return bedside; }
     public void setBedside(List<Document> bedside) { this.bedside = bedside; }
@@ -31,6 +33,8 @@ public class HljldSourceData {
     public void setTubeViews(List<Document> tubeViews) { this.tubeViews = tubeViews; }
     public Map<String, String> getAccountMap() { return accountMap; }
     public void setAccountMap(Map<String, String> accountMap) { this.accountMap = accountMap; }
+    public Document getPatientInfo() { return patientInfo; }
+    public void setPatientInfo(Document patientInfo) { this.patientInfo = patientInfo; }
 
     public boolean isEmpty() {
         return bedside.isEmpty() && drugExecutions.isEmpty() && nurseRecords.isEmpty();

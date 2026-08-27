@@ -71,7 +71,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         // 使用 Canvas 绘制文字（在内容流之上）
         try (Canvas canvas = new Canvas(pdfCanvas, new Rectangle(0, 0, pw, ph))) {
             drawHeader(canvas, pw, ph);
-            drawRemarksText(canvas, pw);
+            drawRemarksText(canvas, pdfCanvas, pw);
             drawPageNumber(canvas, pw, globalPageNumber);
         }
 
@@ -107,7 +107,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     //  备注区文字（使用 Canvas 绘制）
     // ══════════════════════════════════════════════════════════
 
-    private void drawRemarksText(Canvas canvas, float pw) {
+    private void drawRemarksText(Canvas canvas, PdfCanvas pdfCanvas, float pw) {
         float remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
         float leftX = ML;
         float col0Width = COL_W[0];
@@ -124,25 +124,25 @@ public class HljldFlowPageEventHandler implements IEventHandler {
             TextAlignment.CENTER, VerticalAlignment.MIDDLE);
 
         // 4行备注内容文字（从上到下：检查、治疗、基础护理、健康教育）
+        // 使用 PdfCanvas.beginText() 直接绘制文字，确保精确定位
+        float textX = contentX + 4f;
+
         for (int i = 0; i < REMARKS.length; i++) {
             // 从上到下绘制：第一行在最上面，第四行在最下面
+            // 计算当前行的底部Y坐标
             float rowBottom = remarksBottom + (REMARKS.length - 1 - i) * HljldPdfLayoutConstants.REMARK_ROW_HEIGHT;
-            float textY = rowBottom + HljldPdfLayoutConstants.REMARK_ROW_HEIGHT / 2f;
+            // 计算文字Y坐标（使用行中心偏下一点，确保文字在行内垂直居中）
+            float textY = rowBottom + HljldPdfLayoutConstants.REMARK_ROW_HEIGHT / 2f - 1f;
 
-            // 使用矩形区域绘制文字，避免长文本超出右边框
-            float textX = contentX + 2f;
-            float availableWidth = TABLE_W - col0Width - 4f;
-            Rectangle textRect = new Rectangle(textX, rowBottom, availableWidth, HljldPdfLayoutConstants.REMARK_ROW_HEIGHT);
-
-            try (Canvas rowCanvas = new Canvas(canvas.getPdfCanvas(), textRect)) {
-                rowCanvas.showTextAligned(
-                    new Paragraph(REMARKS[i])
-                        .setFont(font)
-                        .setFontSize(HljldPdfLayoutConstants.REMARK_FONT_SIZE)
-                        .setMargin(0),
-                    0, HljldPdfLayoutConstants.REMARK_ROW_HEIGHT / 2f,
-                    TextAlignment.LEFT, VerticalAlignment.MIDDLE);
-            }
+            // 每行文字单独绘制，确保精确定位
+            pdfCanvas.saveState();
+            pdfCanvas.setFillColor(ColorConstants.BLACK);
+            pdfCanvas.beginText();
+            pdfCanvas.setFontAndSize(font, HljldPdfLayoutConstants.REMARK_FONT_SIZE);
+            pdfCanvas.moveText(textX, textY);
+            pdfCanvas.showText(REMARKS[i]);
+            pdfCanvas.endText();
+            pdfCanvas.restoreState();
         }
     }
 

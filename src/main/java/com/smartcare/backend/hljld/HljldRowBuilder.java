@@ -376,7 +376,7 @@ public class HljldRowBuilder {
             String displayName = isEnteral ? HljldUtils.enteralDisplayName(name) : name;
 
             NameAmountRoute cell = new NameAmountRoute(displayName,
-                "剩余" + String.format("%.1f", remaining) + "|实用" + String.format("%.1f", currentUsage),
+                "续*剩余:" + String.format("%.1f", remaining) + "|实用:" + String.format("%.1f", currentUsage),
                 HljldUtils.routeLabel(str(method, "name")), 0);
 
             if (isEnteral) {

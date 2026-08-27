@@ -46,17 +46,38 @@ public class HljldPdfDataAssembler {
      * @return HljldViewModel
      */
     public HljldViewModel buildViewModel(String nursingDay, String deptId, String patientId, int page, int pageSize, String referenceTime) {
-        // 使用 HljldPdfRequestContext 统一管理时间
-        HljldPdfRequestContext context = HljldPdfRequestContext.of(nursingDay, referenceTime);
-        long nowMs = context.getReferenceTimeMs();
-
         // 1. 解析护理日日期并确定范围
         java.time.LocalDate localDate = java.time.LocalDate.parse(nursingDay, java.time.format.DateTimeFormatter.ISO_LOCAL_DATE);
-        Date nursingDayStart = Date.from(context.getNursingDayStart().toInstant());
-        Date nursingDayEnd = Date.from(context.getNursingDayEnd().toInstant());
+        Date nursingDayStart = Date.from(java.time.ZonedDateTime.of(localDate.atTime(7, 0), java.time.ZoneId.of("Asia/Shanghai")).toInstant());
+        Date nursingDayEnd = Date.from(java.time.ZonedDateTime.of(localDate.plusDays(1).atTime(7, 0), java.time.ZoneId.of("Asia/Shanghai")).toInstant());
 
-        // 2. 加载原始数据
+        // 2. 加载原始数据（包括患者信息）
         HljldSourceData source = loader.loadAll(patientId, nursingDayStart, nursingDayEnd);
+
+        // 3. 获取入科时间（优先使用 icuAdmissionTime，其次 admissionTime）
+        String admissionTimeStr = null;
+        if (source.getPatientInfo() != null) {
+            Object admissionTimeObj = source.getPatientInfo().get("icuAdmissionTime");
+            if (admissionTimeObj == null) {
+                admissionTimeObj = source.getPatientInfo().get("admissionTime");
+            }
+            log.info("患者入科时间原始值: {}", admissionTimeObj);
+            if (admissionTimeObj instanceof Date) {
+                // 使用 ISO 8601 格式，时区偏移量带冒号
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+                sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
+                admissionTimeStr = sdf.format((Date) admissionTimeObj);
+            } else if (admissionTimeObj instanceof String) {
+                admissionTimeStr = (String) admissionTimeObj;
+            }
+        }
+        log.info("入科时间字符串: {}", admissionTimeStr);
+
+        // 使用 HljldPdfRequestContext 统一管理时间
+        HljldPdfRequestContext context = HljldPdfRequestContext.of(nursingDay, referenceTime, admissionTimeStr);
+        log.info("Context入科时间: {}", context.getAdmissionTime());
+        log.info("shouldShowDaySummary: {}", context.shouldShowDaySummary());
+        long nowMs = context.getReferenceTimeMs();
 
         // 3. 获取当前护士签名
         String currentNurseName = resolveCurrentNurseName(source, nowMs);
@@ -143,6 +164,7 @@ public class HljldPdfDataAssembler {
         viewModel.setTotalRows(totalRows);
         viewModel.setTotalPages(totalPages);
         viewModel.setDrainNames(drainNames);
+        viewModel.setContext(context);
 
         return viewModel;
     }
@@ -247,6 +269,7 @@ public class HljldPdfDataAssembler {
         private int totalRows;
         private int totalPages;
         private List<String> drainNames;
+        private HljldPdfRequestContext context;  // 请求上下文
 
         // Getters and Setters
         public String getNursingDay() { return nursingDay; }
@@ -275,5 +298,7 @@ public class HljldPdfDataAssembler {
         public void setTotalPages(int totalPages) { this.totalPages = totalPages; }
         public List<String> getDrainNames() { return drainNames; }
         public void setDrainNames(List<String> drainNames) { this.drainNames = drainNames; }
+        public HljldPdfRequestContext getContext() { return context; }
+        public void setContext(HljldPdfRequestContext context) { this.context = context; }
     }
 }
