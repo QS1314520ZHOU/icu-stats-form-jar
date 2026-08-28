@@ -59,6 +59,28 @@ public class FormPageIndexService {
         FormPageIndex index = indexOpt.get();
         String status = index.getStatus();
 
+        // 检查索引是否基于错误的起始日期（入科时间<07:00时应该从前一天开始）
+        if ("completed".equals(status) && index.getAdmissionTime() != null
+                && !index.getDailyPages().isEmpty()) {
+            Calendar calCheck = Calendar.getInstance();
+            calCheck.setTime(index.getAdmissionTime());
+            int h = calCheck.get(Calendar.HOUR_OF_DAY);
+            if (h < 7) {
+                calCheck.add(Calendar.DAY_OF_MONTH, -1);
+            }
+            calCheck.set(Calendar.HOUR_OF_DAY, 7);
+            calCheck.set(Calendar.MINUTE, 0);
+            calCheck.set(Calendar.SECOND, 0);
+            calCheck.set(Calendar.MILLISECOND, 0);
+            String expectedFirstDate = new SimpleDateFormat("yyyy-MM-dd").format(calCheck.getTime());
+            String actualFirstDate = index.getDailyPages().get(0).getDate();
+            if (!expectedFirstDate.equals(actualFirstDate)) {
+                log.warn("索引起点日期{}与期望{}不一致，触发重新计算: pid={}", actualFirstDate, expectedFirstDate, pid);
+                triggerCalculation(pid, formType);
+                return new PageIndexResult(1, 1, "calculating");
+            }
+        }
+
         if ("calculating".equals(status)) {
             return new PageIndexResult(1, 1, "calculating");
         }
@@ -72,6 +94,13 @@ public class FormPageIndexService {
 
         if (dailyInfo.isEmpty()) {
             if (!index.getDailyPages().isEmpty()) {
+                String firstDate = index.getDailyPages().get(0).getDate();
+                // 请求的日期早于索引中的第一天 → 索引计算起点有误，需要重新计算
+                if (date.compareTo(firstDate) < 0) {
+                    log.warn("请求日期{}早于索引首日{}，触发重新计算: pid={}", date, firstDate, pid);
+                    triggerCalculation(pid, formType);
+                    return new PageIndexResult(1, 1, "calculating");
+                }
                 FormPageIndex.DailyPageInfo last = index.getDailyPages().get(index.getDailyPages().size() - 1);
                 return new PageIndexResult(last.getEndPageNo() + 1, 1, "completed");
             }
@@ -143,8 +172,16 @@ public class FormPageIndexService {
             return;
         }
 
+        // 确定起始护理日：护理日为 [当日07:00, 次日07:00)
+        // 入科时间 < 07:00 → 归上一护理日（与前端 nursingDateForTimestamp 一致）
         Calendar cal = Calendar.getInstance();
         cal.setTime(admissionTime);
+        int hour = cal.get(Calendar.HOUR_OF_DAY);
+        int minute = cal.get(Calendar.MINUTE);
+        if (hour < 7) {
+            // 07:00之前 → 前一天的07:00（与前端 nursingDateForTimestamp 一致）
+            cal.add(Calendar.DAY_OF_MONTH, -1);
+        }
         cal.set(Calendar.HOUR_OF_DAY, 7);
         cal.set(Calendar.MINUTE, 0);
         cal.set(Calendar.SECOND, 0);

@@ -532,14 +532,14 @@ public class HljldFlowPdfService {
         addHeaderCell(table, "日期时间", 1, 2, font);
         addHeaderCell(table, "药物治疗", 3, 1, font);
         addHeaderCell(table, "胃肠摄入", 3, 1, font);
-        addHeaderCell(table, "尿量\n(ml)", 1, 2, font);
-        addHeaderCell(table, "净超滤量\n(ml)", 1, 2, font);
+        addHeaderCell(table, "尿量(ml)", 1, 2, font);
+        addHeaderCell(table, "净超滤量(ml)", 1, 2, font);
         addHeaderCell(table, "排出物", 2, 1, font);
         addHeaderCell(table, "引流液", 2, 1, font);
         addHeaderCell(table, "检查", 1, 2, font);
         addHeaderCell(table, "治疗", 1, 2, font);
-        addHeaderCell(table, "基础\n护理", 1, 2, font);
-        addHeaderCell(table, "健康\n教育", 1, 2, font);
+        addHeaderCell(table, "基础护理", 1, 2, font);
+        addHeaderCell(table, "健康教育", 1, 2, font);
         addHeaderCell(table, "护理记录", 1, 2, font);
         addHeaderCell(table, "签名", 1, 2, font);
 
@@ -557,10 +557,14 @@ public class HljldFlowPdfService {
     }
 
     private void addHeaderCell(Table table, String text, int colspan, int rowspan, PdfFont font) {
+        addHeaderCell(table, text, colspan, rowspan, font, HljldPdfLayoutConstants.HEADER_FONT_SIZE);
+    }
+
+    private void addHeaderCell(Table table, String text, int colspan, int rowspan, PdfFont font, float fontSize) {
         Cell cell = new Cell(rowspan, colspan)
             .add(new Paragraph(text)
                 .setFont(font)
-                .setFontSize(HljldPdfLayoutConstants.HEADER_FONT_SIZE)
+                .setFontSize(fontSize)
                 .setMargin(0)
                 .setMultipliedLeading(1.0f))
             .setTextAlignment(TextAlignment.CENTER)

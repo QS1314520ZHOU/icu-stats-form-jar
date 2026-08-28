@@ -1,7 +1,10 @@
 {
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
-  "cli": { "packageManager": "npm" },
+  "cli": {
+    "packageManager": "npm",
+    "analytics": "30bfeaf4-4f6e-48df-bb88-84789fe9c8ea"
+  },
   "newProjectRoot": "projects",
   "projects": {
     "sjm1-app": {

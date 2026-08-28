@@ -227,6 +227,20 @@ public final class HljldUtils {
     }
 
     /**
+     * 安全提取时间戳毫秒。对 Date 类型直接 getTime()，避免 String.valueOf 导致的时区双重转换。
+     * 对其他类型委托 databaseTimeValue。
+     */
+    public static double toTimestampMs(Object value) {
+        if (value instanceof Date) {
+            return ((Date) value).getTime();
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        return databaseTimeValue(value);
+    }
+
+    /**
      * 解析 "Fri Jul 24 09:00:00 CST 2026" 格式。
      * CST = China Standard Time (UTC+8)，手工解析避免歧义。
      */
@@ -832,14 +846,14 @@ public final class HljldUtils {
 
         long rangeStartMs = rangeStart.getTime();
         long rangeEndMs = rangeEnd.getTime();
-        long startMs = (long) databaseTimeValue(String.valueOf(execution.get("startTime")));
-        if (!Double.isFinite(startMs)) return new DrugActualAmount(0, 0, false);
+        double startMsRaw = toTimestampMs(execution.get("startTime"));
+        if (!Double.isFinite(startMsRaw) || startMsRaw <= 0) return new DrugActualAmount(0, 0, false);
+        long startMs = (long) startMsRaw;
 
         double cap = resolveLiquidCap(execution);
         boolean hasCap = cap > 0;
 
-        double endRaw = execution.containsKey("endTime") && execution.get("endTime") != null
-            ? databaseTimeValue(String.valueOf(execution.get("endTime"))) : Double.NaN;
+        double endRaw = toTimestampMs(execution.get("endTime"));
         // 未结束的记录随时间推进，展示时按截断时刻计算
         long cutoff = Double.isFinite(endRaw) ? (long) endRaw : Math.min(System.currentTimeMillis(), rangeEndMs);
         if (cutoff <= startMs) return new DrugActualAmount(0, 0, false);
@@ -970,7 +984,7 @@ public final class HljldUtils {
      * 用于计算剩余量 = 总量 - 已用量。
      */
     public static double calcDrugUsageUpTo(Document execution, long timeMs) {
-        double startMs = databaseTimeValue(String.valueOf(execution.get("startTime")));
+        double startMs = toTimestampMs(execution.get("startTime"));
         if (!Double.isFinite(startMs)) return 0;
         Date startMinusOne = new Date((long) startMs - 1);
         Date timeEnd = new Date(timeMs);
@@ -1000,12 +1014,12 @@ public final class HljldUtils {
      * 判断药物在指定时间点是否仍在进行（未停止）。
      */
     public static boolean isDrugOngoingAt(Document execution, long timeMs) {
-        double startMs = databaseTimeValue(String.valueOf(execution.get("startTime")));
+        double startMs = toTimestampMs(execution.get("startTime"));
         if (!Double.isFinite(startMs) || startMs >= timeMs) return false;
 
         // 有 endTime 且 endTime <= timeMs，说明已停止
         if (execution.containsKey("endTime") && execution.get("endTime") != null) {
-            double endMs = databaseTimeValue(String.valueOf(execution.get("endTime")));
+            double endMs = toTimestampMs(execution.get("endTime"));
             if (Double.isFinite(endMs) && endMs <= timeMs) return false;
         }
 
@@ -1290,14 +1304,14 @@ public final class HljldUtils {
             // 只处理持续泵注；单次给药走原有明细行逻辑
             if (!Boolean.FALSE.equals(method.get("isOnce"))) continue;
 
-            double startMs = databaseTimeValue(String.valueOf(execution.get("startTime")));
+            double startMs = toTimestampMs(execution.get("startTime"));
 
             // 只展示在 day 段（07:00-17:00）内开始的药物
             if (!Double.isFinite(startMs) || startMs >= segStartMs) {
                 continue;
             }
 
-            double endRaw = databaseTimeValue(String.valueOf(execution.get("endTime")));
+            double endRaw = toTimestampMs(execution.get("endTime"));
             double endMs = Double.isFinite(endRaw) ? endRaw : Double.NaN;
 
             double cap = round1(resolveLiquidCap(execution));

@@ -463,11 +463,11 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // 出科患者：限制入科~出科范围
+    // 出科患者：限制入科护理日~出科范围
     if (this.patient.admissionTime) {
       const admissionDate = this.parseTimeField(this.patient.admissionTime);
       if (admissionDate) {
-        this.minDateInput = this.toDateString(admissionDate);
+        this.minDateInput = this.toDateString(this.nursingDate(admissionDate));
       }
     } else {
       this.minDateInput = '';
@@ -485,16 +485,28 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
 
   /**
    * 获取默认日期
-   * 出科患者：默认入科日期；在科患者：默认今天
+   * 出科患者：默认入科护理日；在科患者：默认今天
    */
   private getDefaultDate(): Date {
     if (this.patient.isDischarged && this.patient.admissionTime) {
-      const admissionDate = this.parseTimeField(this.patient.admissionTime);
-      if (admissionDate) {
-        return admissionDate;
+      const admissionTs = this.parseTimeField(this.patient.admissionTime);
+      if (admissionTs) {
+        return this.nursingDate(admissionTs);
       }
     }
     return new Date();
+  }
+
+  /**
+   * 根据时间戳计算所属护理日日期
+   * 护理日为 [当日07:00, 次日07:00)，07:00属于当天，07:00之前归上一护理日
+   */
+  private nursingDate(date: Date): Date {
+    const cal = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    if (date.getHours() < 7) {
+      cal.setDate(cal.getDate() - 1);
+    }
+    return cal;
   }
 
   /**
