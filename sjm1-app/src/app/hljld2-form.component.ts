@@ -713,8 +713,7 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
       const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
 
       if (Number.isFinite(admissionTs)) {
-        const admission = new Date(admissionTs);
-        targetDate = new Date(admission.getFullYear(), admission.getMonth(), admission.getDate());
+        targetDate = this.nursingDateForTimestamp(admissionTs);
       } else if (Number.isFinite(dischargeTs)) {
         targetDate = this.nursingDateForTimestamp(dischargeTs);
       } else {
@@ -765,8 +764,8 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
     const nursingDate = new Date(value.getFullYear(), value.getMonth(), value.getDate());
     const dayStart = new Date(nursingDate);
     dayStart.setHours(7, 0, 0, 0);
-    // 护理日为 (当日07:00, 次日07:00]，07:00 整点及之前归上一护理日
-    if (minuteInstant(timestamp) <= dayStart.getTime()) {
+    // 护理日为 [当日07:00, 次日07:00)，07:00属于当天，07:00之前归上一护理日
+    if (minuteInstant(timestamp) < dayStart.getTime()) {
       nursingDate.setDate(nursingDate.getDate() - 1);
     }
     return nursingDate;
