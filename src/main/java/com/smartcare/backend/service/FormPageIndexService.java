@@ -143,8 +143,16 @@ public class FormPageIndexService {
             return;
         }
 
+        // 确定起始护理日：护理日为 [当日07:00, 次日07:00)
+        // 入科时间 < 07:00 → 归上一护理日（与前端 nursingDateForTimestamp 一致）
         Calendar cal = Calendar.getInstance();
         cal.setTime(admissionTime);
+        int hour = cal.get(Calendar.HOUR_OF_DAY);
+        int minute = cal.get(Calendar.MINUTE);
+        if (hour < 7) {
+            // 07:00之前 → 前一天的07:00（与前端 nursingDateForTimestamp 一致）
+            cal.add(Calendar.DAY_OF_MONTH, -1);
+        }
         cal.set(Calendar.HOUR_OF_DAY, 7);
         cal.set(Calendar.MINUTE, 0);
         cal.set(Calendar.SECOND, 0);
