@@ -108,6 +108,11 @@ public class HljldSummaryCalculator {
         //  出入量
         // ══════════════════════════════════════════════════════════
 
+        // 带入药量（bedside 记录，code = param_带入药量）
+        double broughtMedication = sumBedsideByCode(bedsideInPeriod, "param_带入药量");
+        if (broughtMedication > 0) {
+            log.debug("[hljld] 入量-带入药量={} ml", HljldUtils.round1(broughtMedication));
+        }
 
         // 入量：药品（静脉入量）
         // 使用 HljldUtils.calcContinuousDrugAmountMs 进行精确计算，支持 liquidAmount 封顶
@@ -164,6 +169,8 @@ public class HljldSummaryCalculator {
 
             if (amt > 0) {
                 medicationAmounts.merge(name, amt, Double::sum);
+                log.debug("[hljld] 入量-药物: name={}, methodCode={}, inChannel={}, route={}, amt={} ml",
+                    name, methodCode, inChannel, HljldUtils.routeLabel(methodName), HljldUtils.round1(amt));
 
                 // 统计各途径的量（ivgtt、iv泵、iv）
                 String route = HljldUtils.routeLabel(methodName);
@@ -177,7 +184,7 @@ public class HljldSummaryCalculator {
             }
         }
 
-        // 入量：肠内营养
+        // 入量：肠内营养（药物执行 + bedside 口服/鼻饲）
         Map<String, Double> enteralAmounts = new LinkedHashMap<>();
         for (Document execution : drugsInPeriod) {
             String methodCode = str(execution, "methodCode");
@@ -190,33 +197,55 @@ public class HljldSummaryCalculator {
 
             String inChannel = str(method, "inChannel");
             // 使用 inChannel 判断是否为胃肠入量（与前端逻辑一致）
+            // 所有 inChannel=胃肠 的药物都计入，不限于肠内营养配方
             if (!"胃肠".equals(inChannel)) {
-                continue;
-            }
-
-            if (!HljldUtils.isTargetEnteral(drugName)) {
                 continue;
             }
 
             String displayName = HljldUtils.enteralDisplayName(drugName);
             List<Map<String, Object>> actionList = getList(execution, "drugActionList");
 
+            // 判断是否为单次给药
+            Boolean isOnce = execution.getBoolean("isOnce");
+            boolean once = isOnce == null || isOnce;
+
+            double amt = 0;
             if (actionList == null || actionList.isEmpty()) {
-                double dose = HljldUtils.parseAmount(execution.get("dose"));
-                enteralAmounts.merge(displayName, dose, Double::sum);
+                // 无执行记录：单次给药用 liquidAmount，持续泵注用 dose
+                amt = once ? HljldUtils.parseAmount(execution.get("liquidAmount"))
+                          : HljldUtils.parseAmount(execution.get("dose"));
             } else {
+                // 有执行记录：优先取 quickadd 的量
                 double totalQuickAdd = 0;
                 for (Map<String, Object> action : actionList) {
                     String act = str(action, "action").trim().toLowerCase();
                     if ("quickadd".equals(act)) {
-                        double quickAddAmount = HljldUtils.parseAmount(action.get("quickAddAmount"));
-                        totalQuickAdd += quickAddAmount;
+                        totalQuickAdd += HljldUtils.parseAmount(action.get("quickAddAmount"));
                     }
                 }
                 if (totalQuickAdd > 0) {
-                    enteralAmounts.merge(displayName, totalQuickAdd, Double::sum);
+                    amt = totalQuickAdd;
+                } else if (once) {
+                    // 单次给药无 quickadd：用 liquidAmount
+                    amt = HljldUtils.parseAmount(execution.get("liquidAmount"));
                 }
             }
+            if (amt > 0) {
+                enteralAmounts.merge(displayName, amt, Double::sum);
+                log.debug("[hljld] 入量-肠内: name={}, methodCode={}, amt={} ml", displayName, methodCode, HljldUtils.round1(amt));
+            }
+        }
+
+        // 肠内营养：加 bedside 口服量和鼻饲量
+        double oralTotal = sumBedsideByCode(bedsideInPeriod, "param_kouFu");
+        double tubeFeedingManual = sumBedsideByCode(bedsideInPeriod, "param_biSi");
+        if (oralTotal > 0) {
+            enteralAmounts.merge("口服", oralTotal, Double::sum);
+            log.debug("[hljld] 入量-肠内bedside: 口服={} ml", HljldUtils.round1(oralTotal));
+        }
+        if (tubeFeedingManual > 0) {
+            enteralAmounts.merge("鼻饲", tubeFeedingManual, Double::sum);
+            log.debug("[hljld] 入量-肠内bedside: 鼻饲={} ml", HljldUtils.round1(tubeFeedingManual));
         }
 
         // 出量
@@ -342,27 +371,27 @@ public class HljldSummaryCalculator {
         double totalOtherOutput = otherOutAll.stream().mapToDouble(NameAmount::getNumericAmount).sum();
         double totalOutput = totalUrine + totalUltrafiltration + totalDrain + totalOtherOutput;
 
-        log.info("[hljld] 出入量汇总: 总入量={} ml (药物={}, 肠内={}), 总出量={} ml (尿={}, 超滤={}, 引流={}, 其他={}), 平衡={} ml",
-            totalMedication + totalEnteral, totalMedication, totalEnteral,
+        log.info("[hljld] 出入量汇总: 总入量={} ml (带入药量={}, 药物={}, 肠内={}), 总出量={} ml (尿={}, 超滤={}, 引流={}, 其他={}), 平衡={} ml",
+            broughtMedication + totalMedication + totalEnteral, broughtMedication, totalMedication, totalEnteral,
             totalOutput, totalUrine, totalUltrafiltration, totalDrain, totalOtherOutput,
-            totalMedication + totalEnteral - totalOutput);
+            broughtMedication + totalMedication + totalEnteral - totalOutput);
 
         summary.setMedicationSum(HljldUtils.round1(totalMedication));
         summary.setEnteralSum(HljldUtils.round1(totalEnteral));
-        summary.setInputSum(HljldUtils.round1(totalMedication + totalEnteral));
+        summary.setInputSum(HljldUtils.round1(broughtMedication + totalMedication + totalEnteral));
         summary.setUrineSum(HljldUtils.round1(totalUrine));
         summary.setUltrafiltrationSum(HljldUtils.round1(totalUltrafiltration));
         summary.setOutputSum(HljldUtils.round1(totalOutput));
 
         // 赋值前端对应字段
-        // 药物治疗总量 = 静脉入量（medicationSum）
-        summary.setDrugTreatmentTotal(HljldUtils.round1(totalMedication));
+        // 药物治疗总量 = 带入药量 + 静脉入量（medicationSum）
+        summary.setDrugTreatmentTotal(HljldUtils.round1(broughtMedication + totalMedication));
         // 胃肠入量总量 = 胃肠入量（enteralSum）
         summary.setGastrointestinalInputTotal(HljldUtils.round1(totalEnteral));
-        // 总入量 = 药物治疗 + 胃肠入量
-        summary.setTotalInput(HljldUtils.round1(totalMedication + totalEnteral));
+        // 总入量 = 带入药量 + 药物治疗 + 胃肠入量
+        summary.setTotalInput(HljldUtils.round1(broughtMedication + totalMedication + totalEnteral));
         // 平衡量
-        summary.setBalance(HljldUtils.round1(totalMedication + totalEnteral - totalOutput));
+        summary.setBalance(HljldUtils.round1(broughtMedication + totalMedication + totalEnteral - totalOutput));
 
         // 详细项目
         List<SummaryItem> medicationItems = new ArrayList<>();
@@ -375,8 +404,11 @@ public class HljldSummaryCalculator {
             enteralItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
         summary.setEnteralItems(enteralItems);
 
-        // 静脉入量细分（ivgtt、iv泵、iv）
+        // 静脉入量细分（带入药量、ivgtt、iv泵、iv）
         List<SummaryItem> veinItems = new ArrayList<>();
+        if (broughtMedication > 0) {
+            veinItems.add(new SummaryItem("带入药量", "带入药量", HljldUtils.round1(broughtMedication)));
+        }
         if (ivgttTotal > 0) {
             veinItems.add(new SummaryItem("ivgtt", "ivgtt", HljldUtils.round1(ivgttTotal)));
         }
@@ -398,9 +430,12 @@ public class HljldSummaryCalculator {
             ultrafiltrationItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
         summary.setUltrafiltrationItems(ultrafiltrationItems);
 
+        // 排出物按名称汇总
+        Map<String, Double> outputMapAggregated = new LinkedHashMap<>();
+        otherOutAll.forEach(na -> outputMapAggregated.merge(na.getName(), na.getNumericAmount(), Double::sum));
         List<SummaryItem> outputItems = new ArrayList<>();
-        otherOutAll.forEach(na ->
-            outputItems.add(new SummaryItem(na.getName(), na.getName(), na.getNumericAmount())));
+        outputMapAggregated.forEach((name, amount) ->
+            outputItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
         summary.setOutputItems(outputItems);
 
         List<SummaryItem> drainItems = new ArrayList<>();
@@ -486,13 +521,13 @@ public class HljldSummaryCalculator {
     private String buildTextSegment(String name, double amount, String category) {
         switch (category) {
             case "drug":
-                return name + " " + String.format("%.1f", amount) + "ml";
+                return name + " " + String.format("%.0f", amount) + "ml";
             case "enteral":
-                return name + " " + String.format("%.1f", amount) + "ml";
+                return name + " " + String.format("%.0f", amount) + "ml";
             case "output":
-                return name + " " + String.format("%.1f", amount) + "ml";
+                return name + " " + String.format("%.0f", amount) + "ml";
             case "drain":
-                return name + " " + String.format("%.1f", amount) + "ml";
+                return name + " " + String.format("%.0f", amount) + "ml";
             default:
                 return name;
         }
@@ -507,7 +542,7 @@ public class HljldSummaryCalculator {
             case "drain":
                 tokens.add(new SummaryTextToken(name, false, false));
                 tokens.add(new SummaryTextToken(" ", false, true));
-                tokens.add(new SummaryTextToken(String.format("%.1f", amount), true, false));
+                tokens.add(new SummaryTextToken(String.format("%.0f", amount), true, false));
                 tokens.add(new SummaryTextToken("ml", false, false));
                 break;
             default:

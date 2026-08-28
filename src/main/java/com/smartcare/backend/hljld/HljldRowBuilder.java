@@ -376,7 +376,7 @@ public class HljldRowBuilder {
             String displayName = isEnteral ? HljldUtils.enteralDisplayName(name) : name;
 
             NameAmountRoute cell = new NameAmountRoute(displayName,
-                "续*剩余:" + String.format("%.1f", remaining) + "|实用:" + String.format("%.1f", currentUsage),
+                "续*剩余:" + String.format("%.0f", remaining) + "|实用:" + String.format("%.0f", currentUsage),
                 HljldUtils.routeLabel(str(method, "name")), 0);
 
             if (isEnteral) {
@@ -471,7 +471,7 @@ public class HljldRowBuilder {
 
                 NameAmountRoute cell = new NameAmountRoute(
                     HljldUtils.enteralDisplayName(drugName),
-                    quickAddAmount > 0 ? String.format("%.1f", quickAddAmount) : "0",
+                    quickAddAmount > 0 ? String.format("%.0f", quickAddAmount) : "0",
                     HljldUtils.routeLabel(str(method, "name")),
                     quickAddAmount);
                 if (cell.hasNameOrAmount()) enteral.add(cell);
@@ -521,7 +521,7 @@ public class HljldRowBuilder {
                 long segEndMs = seg.isPresent() ? seg.get().end.getTime() : startMs + 3600000;
 
                 NameAmountRoute cell = HljldUtils.drugToCell(execution, method, isEnteral, startMs, segStartMs, segEndMs);
-                cell.setAmount("实用量 " + String.format("%.1f", cell.getNumericAmount()));
+                cell.setAmount("实用量 " + String.format("%.0f", cell.getNumericAmount()));
                 if (cell.hasNameOrAmount()) {
                     (isEnteral ? enteral : medications).add(cell);
                 }
@@ -591,7 +591,7 @@ public class HljldRowBuilder {
                 if (Math.abs(cumulativeQuickAdd - liquidCap) < 0.05) {
                     NameAmountRoute cell = HljldUtils.drugToCell(execution, method, true, stopMs);
                     double stopAmount = HljldUtils.parseAmount(stopAction.get("quickAddAmount"));
-                    cell.setAmount(stopAmount > 0 ? String.format("%.1f", stopAmount) : "");
+                    cell.setAmount(stopAmount > 0 ? String.format("%.0f", stopAmount) : "");
                     cell.setNumericAmount(stopAmount);
                     if (cell.hasNameOrAmount()) enteral.add(cell);
                 }

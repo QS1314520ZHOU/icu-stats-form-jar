@@ -516,11 +516,11 @@ public class HljldFlowPdfService {
 
     /** 构建小结/总结第4行：平衡量 */
     private String buildSummaryLine4(HljldSummary s) {
-        return "平衡量：" + String.format("%.1f", s.getBalance()) + " ml";
+        return "平衡量：" + String.format("%.0f", s.getBalance()) + " ml";
     }
 
     private String formatVal(double v) {
-        return String.format("%.1f", v);
+        return String.format("%.0f", v);
     }
 
     // ══════════════════════════════════════════════════════════

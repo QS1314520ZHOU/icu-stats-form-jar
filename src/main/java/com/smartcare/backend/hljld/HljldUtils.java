@@ -1160,14 +1160,14 @@ public final class HljldUtils {
      * 金额格式化，保留一位小数。
      */
     public static String formatSummaryAmount(double value) {
-        return String.format(Locale.CHINA, "%.1f", value);
+        return String.format(Locale.CHINA, "%.0f", value);
     }
 
     /**
      * 四舍五入到一位小数。
      */
     public static double round1(double value) {
-        return Math.round(value * 10.0) / 10.0;
+        return Math.round(value);
     }
 
     // =========================================================================
@@ -1368,7 +1368,11 @@ public final class HljldUtils {
     public static NameAmountRoute drugToCell(Document execution, Document method, boolean isEnteral, long timeMs) {
         String name = drugDisplayName(execution);
         String route = routeLabel(strOrNull(method, "name"));
-        double amount = parseAmount(execution.get("dose"));
+        // 单次给药：优先用 liquidAmount，回退到 dose
+        double amount = parseAmount(execution.get("liquidAmount"));
+        if (amount <= 0) {
+            amount = parseAmount(execution.get("dose"));
+        }
         String amountText = amount > 0 ? formatSummaryAmount(amount) : "";
         return new NameAmountRoute(
             isEnteral ? enteralDisplayName(name) : name,
