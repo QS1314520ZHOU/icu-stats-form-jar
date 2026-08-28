@@ -17,7 +17,7 @@ public class BackendApplication implements CommandLineRunner {
     @Override
     public void run(String... args) {
         log.info("========== ICU Stats Form JAR 启动完成 ==========");
-        log.info("构建版本: 2026-08-20 20:59 结算行-剩余量修复版");
+        log.info("构建版本: 2026-08-28 16:50 护理日起始日期修正版");
         log.info("=================================================");
     }
 }
