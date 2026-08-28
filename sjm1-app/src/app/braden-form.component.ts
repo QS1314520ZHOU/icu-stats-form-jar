@@ -631,8 +631,10 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
   pagePaddedRows(page: RenderPage): (BradenRow | null)[] {
     if (this.pages.length <= 1) {
-      // 单页模式：直接显示全部数据行，不填充空行，由zoom缩放
-      return page.rows.slice(0, this.maxRowsPerPageMultiPage);
+      // 单页模式：不足8行时补足8行空白行（保持基础行高），≥8行时按原逻辑压缩行高适配一页
+      const r: (BradenRow | null)[] = page.rows.slice(0, this.maxRowsPerPageMultiPage);
+      while (r.length < this.maxRowsPerPage) r.push(null);
+      return r;
     }
     // 多页模式：保持固定行数
     let maxRows: number;
@@ -668,8 +670,10 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     if (this.rows.length <= this.maxRowsPerPageMultiPage) {
       // 单页模式：数据≤13行时，都在一页显示
       this.pages = [{ index: 1, rows: this.rows.slice(0, this.maxRowsPerPageMultiPage) }];
-      // 计算动态行高：使总高度等于9行的基础高度
-      this.currentRowHeight = Math.floor((this.baseRowHeight * this.maxRowsPerPage) / this.rows.length);
+      // 不足8行：保持基础行高，由 pagePaddedRows 补足空白行凑满8行；≥8行：压缩行高使总高等于8行
+      this.currentRowHeight = this.rows.length < this.maxRowsPerPage
+        ? this.baseRowHeight
+        : Math.floor((this.baseRowHeight * this.maxRowsPerPage) / this.rows.length);
     } else {
       // 多页模式：数据>13行时，分页显示
       const pages: RenderPage[] = [];
