@@ -712,12 +712,25 @@ export class Hljld2FormComponent implements OnInit, OnDestroy {
       const admissionTs = parsePatientDateTime(this.patient.admissionTime);
       const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
 
+      console.info('[HLJLD][init-date]', {
+        isDischarged: this.patient.isDischarged,
+        admissionTime: this.patient.admissionTime,
+        admissionTs,
+        admissionDate: new Date(admissionTs).toString(),
+        dischargeTime: this.patient.dischargeTime,
+      });
+
       if (Number.isFinite(admissionTs)) {
         targetDate = this.nursingDateForTimestamp(admissionTs);
       } else if (Number.isFinite(dischargeTs)) {
         targetDate = this.nursingDateForTimestamp(dischargeTs);
       }
     }
+
+    console.info('[HLJLD][init-date] result', {
+      targetDate: targetDate.toISOString(),
+      targetDateLocal: targetDate.toString(),
+    });
 
     this.selectedDate = targetDate;
     this.clampSelectedDateToRange();
