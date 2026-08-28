@@ -113,7 +113,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
               <th class="sign-col" rowspan="4">签名</th>
             </tr>
             <!-- HR2 项目行 -->
-            <tr>
+            <tr class="situation-row">
               <th class="method-col vtext" rowspan="3">临床判定法</th>
               <th class="method-col vtext" rowspan="3">Morse评分量表</th>
               <th class="cond-col vtext" rowspan="3">昏迷或完全瘫痪</th>
@@ -124,20 +124,20 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
               <th class="total-col" rowspan="3">总分</th>
             </tr>
             <!-- HR3 评估行 -->
-            <tr>
+            <tr class="eval-row">
               <th class="cond-col vtext" rowspan="2">过去24小时曾有手术麻醉史</th>
               <th class="cond-col vtext" rowspan="2">使用两种及以上镇静安眠药物</th>
               <th class="cond-col vtext" rowspan="2">年龄≥80岁</th>
               <th class="cond-col vtext" rowspan="2">住院前6个月内有跌倒经历/住院期间此次有跌倒经历</th>
               <th class="cond-col vtext" rowspan="2">存在步态不稳、关节疼痛、肌肉疼痛、视觉障碍等</th>
-              <th class="cond-col vtext" rowspan="2">6h内使用过以上镇静、安眠药物</th>
+              <th class="cond-col cond-short vtext" rowspan="2">6h内使用过以上镇静、安眠药物</th>
               <th class="rowlabel-col">评估</th>
               <ng-container *ngFor="let m of MORSE">
                 <th *ngFor="let o of m.opts" class="opt-col vtext">{{ o.label }}</th>
               </ng-container>
             </tr>
             <!-- HR4 评分行 -->
-            <tr>
+            <tr class="score-row">
               <th class="rowlabel-col">评分</th>
               <ng-container *ngFor="let m of MORSE">
                 <th *ngFor="let o of m.opts" class="score-col">{{ o.score }}</th>
@@ -219,16 +219,22 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
 
     .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:9pt; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:1px; word-break:break-all; vertical-align:middle; overflow:hidden; }
+    .record-table th { height:60px; } /* 表头默认行高 */
+    .method-col { height:30px; } /* 适用方法行高-15px */
+    .situation-row th { height:30px; } /* "存在以下情况之一"行高+10px */
+    .eval-row th { height:170px; } /* 评估行高度+10px */
+    .score-row th { height:45px; } /* 评分行高度-15px */
+    .cond-short { height:40px; } /* 6h内使用过以上镇静、安眠药物 高-20px */
     .record-table td { height:26px; }
-    /* 竖排文字：随行高自适应，允许向左换行；text-orientation:upright 保持字母数字直立 */
-    .vtext { writing-mode:vertical-rl; text-orientation:upright; white-space:normal; line-height:1.08; letter-spacing:0.5px; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; }
+    /* 竖排文字：随行高自适应，从左往右换行；text-orientation:upright 保持字母数字直立；支持多列显示 */
+    .vtext { writing-mode:vertical-lr; text-orientation:upright; white-space:normal; line-height:1.08; letter-spacing:0.5px; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; overflow:hidden; }
     .date-col { width:82px; min-width:82px; }
     .method-col { width:22px; }
     .cond-col { width:26px; }
     .rowlabel-col { width:16px; writing-mode:vertical-rl; text-orientation:upright; white-space:nowrap; font-family:'SimSun','宋体',serif; font-size:9pt; letter-spacing:1px; }
-    .opt-col { width:24px; height:165px; writing-mode:vertical-rl; text-orientation:upright; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; color:#000; }      /* 评估行：拉高，容纳长竖排选项 */
+    .opt-col { width:24px; height:50px; writing-mode:vertical-rl; text-orientation:upright; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; color:#000; }      /* 评估行：压缩行高-20px，容纳长竖排选项 */
     .score-col { width:24px; font-family:'SimSun','宋体',serif; font-size:9pt; }
-    .total-col { width:32px; } .risk-col { width:24px; } .measure-col { width:112px; } .sign-col { width:44px; }
+    .total-col { width:32px; } .risk-col { width:44px; } .measure-col { width:92px; } .sign-col { width:44px; }
     .dt-date,.dt-time { display:block; white-space:nowrap; word-break:normal; text-align:center; line-height:1.2; }
     .record-table th.date-col,
     .record-table td.date-col { white-space:nowrap; word-break:normal; overflow:hidden; }
@@ -293,7 +299,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   private blurTimer: any = null;
   private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
 
-  maxRowsPerPage = 4;
+  maxRowsPerPage = 9;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -420,7 +426,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
         '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>' +
         '<td></td><td></td><td></td><td></td><td></td></tr></table>';
       const capacity = await measureRowCapacity(fixedHtml, rowHtml, { safetyMargin: 8 });
-      this.maxRowsPerPage = 4;
+      this.maxRowsPerPage = 9;
     } catch(e) { /* keep fallback */ }
     this.paginate();
     this.cdr.detectChanges();
@@ -699,12 +705,18 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       .info-item{flex:0 0 auto;white-space:nowrap;} .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
       .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:1px;word-break:break-all;vertical-align:middle;overflow:hidden;}
+      .record-table th{height:60px;}
+      .method-col{height:30px;}
+      .situation-row th{height:30px;}
+      .eval-row th{height:170px;}
+      .score-row th{height:45px;}
+      .cond-short{height:40px;}
       .record-table td{height:26px;}
-      .vtext{writing-mode:vertical-rl;text-orientation:upright;white-space:normal;line-height:1.08;letter-spacing:0.5px;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;}
+      .vtext{writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:1.08;letter-spacing:0.5px;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;overflow:hidden;}
       .date-col{width:82px;min-width:82px;} .method-col{width:22px;} .cond-col{width:26px;}
       .rowlabel-col{width:16px;writing-mode:vertical-rl;text-orientation:upright;white-space:nowrap;font-family:'SimSun','宋体',serif;font-size:9pt;letter-spacing:1px;}
-      .opt-col{width:24px;height:165px;writing-mode:vertical-rl;text-orientation:upright;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;color:#000;}
-      .score-col{width:24px;font-family:'SimSun','宋体',serif;font-size:9pt;} .total-col{width:32px;} .risk-col{width:24px;} .measure-col{width:112px;} .sign-col{width:44px;}
+      .opt-col{width:24px;height:50px;writing-mode:vertical-rl;text-orientation:upright;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;color:#000;}
+      .score-col{width:24px;font-family:'SimSun','宋体',serif;font-size:9pt;} .total-col{width:32px;} .risk-col{width:44px;} .measure-col{width:92px;} .sign-col{width:44px;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;} .measure-cell{text-align:left;padding-left:4px;letter-spacing:2px;}
       .result-line{display:flex;flex-wrap:wrap;gap:80px;margin-top:8px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
       .rl-item{display:inline-flex;align-items:center;} .screen-only{display:none !important;} .print-only{display:inline !important;}
