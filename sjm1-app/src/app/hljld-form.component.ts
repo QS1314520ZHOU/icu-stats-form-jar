@@ -352,13 +352,13 @@ export class HljldFormComponent implements OnInit, OnDestroy {
   private initializeDateForPatient(): void {
     let targetDate = new Date();
 
-    const admissionTs = parsePatientDateTime(this.patient.admissionTime);
-    if (Number.isFinite(admissionTs)) {
-      // 无论是否出科，都根据入科时间确定默认护理日
-      targetDate = this.nursingDateForTimestamp(admissionTs);
-    } else if (this.patient.isDischarged) {
+    if (this.patient.isDischarged) {
+      const admissionTs = parsePatientDateTime(this.patient.admissionTime);
       const dischargeTs = parsePatientDateTime(this.patient.dischargeTime);
-      if (Number.isFinite(dischargeTs)) {
+
+      if (Number.isFinite(admissionTs)) {
+        targetDate = this.nursingDateForTimestamp(admissionTs);
+      } else if (Number.isFinite(dischargeTs)) {
         targetDate = this.nursingDateForTimestamp(dischargeTs);
       }
     }
