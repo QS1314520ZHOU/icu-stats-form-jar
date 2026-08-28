@@ -533,7 +533,7 @@ public class HljldFlowPdfService {
         addHeaderCell(table, "药物治疗", 3, 1, font);
         addHeaderCell(table, "胃肠摄入", 3, 1, font);
         addHeaderCell(table, "尿量\n(ml)", 1, 2, font);
-        addHeaderCell(table, "净超滤量\n(ml)", 1, 2, font);
+        addHeaderCell(table, "净超滤\n量(ml)", 1, 2, font);
         addHeaderCell(table, "排出物", 2, 1, font);
         addHeaderCell(table, "引流液", 2, 1, font);
         addHeaderCell(table, "检查", 1, 2, font);
