@@ -19,12 +19,12 @@ interface BradenOption { score: number; label: string; }
 interface BradenItem { field: 'feel'|'damp'|'activityAbility'|'moveAbility'|'nutritionAbility'|'frictionAndShear'; title: string; options: BradenOption[]; }
 
 const BRADEN_ITEMS: BradenItem[] = [
-  { field:'feel',title:'感知能力',options:[{score:1,label:'完全受限'},{score:2,label:'非常受限'},{score:3,label:'轻微受限'},{score:4,label:'无损害'}] },
-  { field:'damp',title:'潮湿度',options:[{score:1,label:'持续潮湿'},{score:2,label:'非常潮湿'},{score:3,label:'偶尔潮湿'},{score:4,label:'罕见潮湿'}] },
-  { field:'activityAbility',title:'活动能力',options:[{score:1,label:'卧床不起'},{score:2,label:'能坐轮椅'},{score:3,label:'扶助行走'},{score:4,label:'活动自如'}] },
-  { field:'moveAbility',title:'移动能力',options:[{score:1,label:'完全受限'},{score:2,label:'重度受限'},{score:3,label:'轻度受限'},{score:4,label:'不受限'}] },
-  { field:'nutritionAbility',title:'营养摄取',options:[{score:1,label:'非常差'},{score:2,label:'可能不足'},{score:3,label:'充足'},{score:4,label:'良好'}] },
-  { field:'frictionAndShear',title:'摩擦力/剪切力',options:[{score:1,label:'存在问题'},{score:2,label:'潜在问题'},{score:3,label:'不存在问题'},{score:4,label:'不存在问题'}] },
+  { field:'feel',title:'感知\n能力',options:[{score:1,label:'完全\n受限'},{score:2,label:'非常\n受限'},{score:3,label:'轻微\n受限'},{score:4,label:'无损\n害'}] },
+  { field:'damp',title:'潮湿\n度',options:[{score:1,label:'持续\n潮湿'},{score:2,label:'非常\n潮湿'},{score:3,label:'偶尔\n潮湿'},{score:4,label:'罕见\n潮湿'}] },
+  { field:'activityAbility',title:'活动\n能力',options:[{score:1,label:'卧床\n不起'},{score:2,label:'能坐\n轮椅'},{score:3,label:'扶助\n行走'},{score:4,label:'活动\n自如'}] },
+  { field:'moveAbility',title:'移动\n能力',options:[{score:1,label:'完全\n受限'},{score:2,label:'重度\n受限'},{score:3,label:'轻度\n受限'},{score:4,label:'不受\n限'}] },
+  { field:'nutritionAbility',title:'营养\n摄取',options:[{score:1,label:'非常\n差'},{score:2,label:'可能\n不足'},{score:3,label:'充足'},{score:4,label:'良好'}] },
+  { field:'frictionAndShear',title:'摩擦力\n/剪切力',options:[{score:1,label:'存在\n问题'},{score:2,label:'潜在\n问题'},{score:3,label:'不存在\n问题'},{score:4,label:'不存在\n问题'}] },
 ];
 
 const MEASURE_COLUMNS = [
@@ -119,7 +119,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of pagePaddedRows(page)">
+            <tr *ngFor="let r of pagePaddedRows(page)" [style.height.px]="currentRowHeight">
               <td class="date-col"><span class="dt-date">{{r ? fmtDate(r.time) : ''}}</span><span class="dt-time">{{r ? fmtTime(r.time) : ''}}</span></td>
               <td class="score-index-col"></td>
               <td *ngFor="let item of BRADEN_ITEMS" class="score-cell">{{r ? bradenValue(r, item.field) : ''}}</td>
@@ -152,7 +152,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
           </div>
         </div>
 
-        <div class="footnote">
+        <div class="footnote" *ngIf="page.index === pages.length">
           <div class="fn-title">备注：</div>
           <div class="fn" *ngFor="let t of FOOT_NOTES">{{t}}</div>
         </div>
@@ -186,9 +186,9 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .info-item b{font-weight:700}
     .diagnosis-item{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
     .record-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:12px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;font-synthesis:none}
-    .record-table th,.record-table td{box-sizing:border-box;border:1px solid #000;text-align:center;vertical-align:middle;padding:1px 2px;overflow:hidden;font-family:'SimSun','宋体',serif;font-size:12px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;font-synthesis:none}
-    .record-table th{height:18px;line-height:1.15}
-    .record-table td{height:22px;line-height:1.15}
+    .record-table th,.record-table td{box-sizing:border-box;border:1px solid #000;text-align:center;vertical-align:middle;padding:1px 2px;overflow:hidden;font-family:'SimSun','宋体',serif;font-size:12px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;font-synthesis:none;max-height:35px}
+    .record-table th{height:18px!important;line-height:1.15}
+    .record-table td{line-height:1.15}
     .group-head{height:18px;font-weight:400}
     .date-col{width:74px;min-width:74px;white-space:nowrap;word-break:normal}
     .score-index-col{width:24px;min-width:24px}
@@ -196,11 +196,11 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .braden-desc-col{width:54px;min-width:54px;height:18px;line-height:1.1;font-size:12px;white-space:normal}
     .score-cell{width:54px;min-width:54px;font-size:12px}
     .total-col{width:28px;min-width:28px}
-    .risk-col{width:42px;min-width:42px}
+    .risk-col{width:57px;min-width:57px}
     .measure-head{width:42px;min-width:42px;height:92px}
     .measure-cell{width:42px;min-width:42px;font-size:12px}
-    .other-col{width:120px;min-width:120px}
-    .other-cell{width:120px;min-width:120px;text-align:center;padding-left:2px}
+    .other-col{width:105px;min-width:105px}
+    .other-cell{width:105px;min-width:105px;text-align:center;padding-left:2px}
     .sign-col{width:44px;min-width:44px}
     .vtext{display:inline-block;writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:14px;letter-spacing:0;font-family:'SimSun','宋体',serif;font-size:12px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;margin:0 auto}
     .dt-date,.dt-time{display:block;white-space:nowrap;word-break:normal;text-align:center;line-height:1.2}
@@ -221,7 +221,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .footnote{margin-top:5px;font-family:'SimSun','宋体',serif;font-size:9.5pt;line-height:1.25;text-align:left;margin-bottom:10mm}
     .footnote .fn-title{font-weight:700;display:inline}
     .footnote .fn{margin:0}
-    .review-sign{margin-top:6px;text-align:right;font-family:'SimSun','宋体',serif;font-size:13pt;font-weight:400;padding-right:6px}
+    .review-sign{margin-top:-24px;text-align:right;font-family:'SimSun','宋体',serif;font-size:13pt;font-weight:400;padding-right:6px}
     .sheet-pageno{position:absolute;right:0;bottom:35px;left:0;width:auto;margin:0;padding:0;box-sizing:border-box;text-align:center;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;line-height:1;color:#000;white-space:nowrap;pointer-events:none;z-index:20}
     @media screen{.sheet{width:calc(100vw - 32px);max-width:297mm;min-width:980px;zoom:1!important;transform:none!important}}
     @media print{
@@ -232,15 +232,15 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
       .sheet-hidden{display:none!important}
       .sheet{box-sizing:border-box;width:297mm!important;min-width:0!important;max-width:297mm!important;height:209mm!important;min-height:209mm!important;max-height:209mm!important;margin:0!important;padding:7mm 10mm!important;overflow:hidden!important;zoom:1!important;transform:none!important;filter:none!important;box-shadow:none!important;page-break-before:auto;page-break-inside:avoid;break-inside:avoid-page;page-break-after:always;break-after:page}
       .sheet.last-sheet{page-break-after:auto!important;break-after:auto!important}
-      .record-table,.record-table th,.record-table td{font-family:'SimSun','宋体',serif!important;transform:none!important;filter:none!important;text-shadow:none!important;-webkit-font-smoothing:antialiased}
-      .record-table th{height:18px}
-      .record-table td{height:22px}
+      .record-table,.record-table th,.record-table td{font-family:'SimSun','宋体',serif!important;transform:none!important;filter:none!important;text-shadow:none!important;-webkit-font-smoothing:antialiased;max-height:35px!important}
+      .record-table th{height:18px!important}
+      .record-table td{}
       .footnote{margin-bottom:6mm}
       .result-line{margin-top:5px}
       .print-only{display:inline!important}
       .screen-only{display:none!important}
       .result-combo,.result-datetime,.result-line input[type="radio"]{display:none!important}
-      .review-sign{margin-top:6px;text-align:right;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;padding-right:6px}
+      .review-sign{margin-top:-24px;text-align:right;font-family:'SimSun','宋体',serif;font-size:12pt;font-weight:400;padding-right:6px}
     }
   `],
 })
@@ -254,7 +254,11 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   readonly MEASURE_COLUMNS = MEASURE_COLUMNS;
   readonly FOOT_NOTES = FOOT_NOTES;
 
-  readonly maxRowsPerPage = 10;
+  readonly maxRowsPerPage = 8;
+  readonly maxRowsPerPageMultiPage = 11;
+  readonly maxRowsLastPage = 8;
+  readonly baseRowHeight = 35; // 基础行高（8行时的行高）
+  currentRowHeight = 35; // 当前页面的实际行高
 
   loading = true;
   patient: any = null;
@@ -625,7 +629,23 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     const list = Array.isArray(row.nurseMeasureList) ? row.nurseMeasureList : [];
     return list.some(m => m && m.value === true && measure.match.some(kw => String(m.code || '').trim().includes(kw))) ? '√' : '';
   }
-  pagePaddedRows(page: RenderPage): (BradenRow | null)[] { const r: (BradenRow | null)[] = page.rows.slice(0, this.maxRowsPerPage); while (r.length < this.maxRowsPerPage) r.push(null); return r; }
+  pagePaddedRows(page: RenderPage): (BradenRow | null)[] {
+    if (this.pages.length <= 1) {
+      // 单页模式：直接显示全部数据行，不填充空行，由zoom缩放
+      return page.rows.slice(0, this.maxRowsPerPageMultiPage);
+    }
+    // 多页模式：保持固定行数
+    let maxRows: number;
+    if (page.index === this.pages.length) {
+      maxRows = this.maxRowsLastPage; // 最后一页9行
+    } else {
+      maxRows = this.maxRowsPerPageMultiPage; // 中间页13行
+    }
+    const actualRows = Math.min(page.rows.length, maxRows);
+    const r: (BradenRow | null)[] = page.rows.slice(0, actualRows);
+    while (r.length < maxRows) r.push(null);
+    return r;
+  }
 
   pageExtra(pageIndex: number): FinalExtraData {
     return this.finalExtra;
@@ -636,12 +656,40 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private paginate(): void {
-    const per = this.maxRowsPerPage;
-    const pages: RenderPage[] = [];
-    if (!this.rows.length) { pages.push({ index: 1, rows: [] }); }
-    else { for (let i = 0; i < this.rows.length; i += per) { pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) }); } }
-    this.pages = pages;
-    this.normalizeSelectedPrintPages(pages.length);
+    if (!this.rows.length) {
+      this.pages = [{ index: 1, rows: [] }];
+      this.currentRowHeight = this.baseRowHeight;
+      this.normalizeSelectedPrintPages(this.pages.length);
+      this.loadFinalExtra();
+      return;
+    }
+
+    // 判断分页模式和行高
+    if (this.rows.length <= this.maxRowsPerPageMultiPage) {
+      // 单页模式：数据≤13行时，都在一页显示
+      this.pages = [{ index: 1, rows: this.rows.slice(0, this.maxRowsPerPageMultiPage) }];
+      // 计算动态行高：使总高度等于9行的基础高度
+      this.currentRowHeight = Math.floor((this.baseRowHeight * this.maxRowsPerPage) / this.rows.length);
+    } else {
+      // 多页模式：数据>13行时，分页显示
+      const pages: RenderPage[] = [];
+      let offset = 0;
+      // 第一页和中间页（maxRowsPerPageMultiPage行/页）
+      while (offset + this.maxRowsPerPageMultiPage < this.rows.length) {
+        pages.push({ index: pages.length + 1, rows: this.rows.slice(offset, offset + this.maxRowsPerPageMultiPage) });
+        offset += this.maxRowsPerPageMultiPage;
+      }
+      // 最后一页（maxRowsLastPage行，但不能超过实际剩余行数）
+      if (offset < this.rows.length) {
+        const lastPageRows = Math.min(this.maxRowsLastPage, this.rows.length - offset);
+        pages.push({ index: pages.length + 1, rows: this.rows.slice(offset, offset + lastPageRows) });
+      }
+      this.pages = pages;
+      // 多页时使用基础行高
+      this.currentRowHeight = this.baseRowHeight;
+    }
+
+    this.normalizeSelectedPrintPages(this.pages.length);
     this.loadFinalExtra();
   }
 

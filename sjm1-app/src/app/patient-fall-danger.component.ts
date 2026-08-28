@@ -28,7 +28,7 @@ const CLINICAL = [
 /** Morse 评分量表（数字 → 按分值列打√） */
 const MORSE = [
   { field: 'fallHistory', item: '跌倒史', opts: [{ label: '有', score: 25 }, { label: '无', score: 0 }] },
-  { field: 'otherDiagnosis', item: '超过一个疾病诊断', opts: [{ label: '有', score: 15 }, { label: '无', score: 0 }] },
+  { field: 'otherDiagnosis', item: '超过一个<br>疾病诊断', opts: [{ label: '有', score: 15 }, { label: '无', score: 0 }] },
   { field: 'useWalkTool', item: '使用助行器', opts: [{ label: '没有/卧床/轮椅/护士帮助', score: 0 }, { label: '拐杖/手杖/助行器', score: 15 }, { label: '依扶家具', score: 30 }] },
   { field: 'intravenousInjection', item: '静脉输液', opts: [{ label: '是', score: 20 }, { label: '否', score: 0 }] },
   { field: 'walk', item: '步态', opts: [{ label: '正常/卧床/轮椅', score: 0 }, { label: '虚弱', score: 10 }, { label: '受损', score: 20 }] },
@@ -101,9 +101,25 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
         </div>
 
         <table class="record-table">
+          <colgroup>
+            <col class="date-col" />
+            <col class="method-col" /><col class="method-col" />
+            <col class="cond-col cond-narrow" />
+            <col class="cond-col" /><col class="cond-col" /><col class="cond-col" />
+            <col class="cond-col cond-wide" /><col class="cond-col cond-wide" />
+            <col class="cond-col" />
+            <col class="rowlabel-col" />
+            <ng-container *ngFor="let m of MORSE">
+              <col *ngFor="let o of m.opts" class="opt-col" [class.opt-wide]="o.label.includes('没有')" />
+            </ng-container>
+            <col class="total-col" />
+            <col class="risk-col" />
+            <col class="measure-col" />
+            <col class="sign-col" />
+          </colgroup>
           <thead>
             <!-- HR1 顶层分组 -->
-            <tr>
+            <tr class="header-row1">
               <th class="date-col" rowspan="4">日期/时间</th>
               <th colspan="2">适用方法</th>
               <th colspan="7">临床判定法</th>
@@ -116,24 +132,24 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
             <tr class="situation-row">
               <th class="method-col vtext" rowspan="3">临床判定法</th>
               <th class="method-col vtext" rowspan="3">Morse评分量表</th>
-              <th class="cond-col vtext" rowspan="3">昏迷或完全瘫痪</th>
-              <th colspan="2">存在以下情况之一</th>
+              <th class="cond-col cond-narrow vtext" rowspan="3">昏迷或完全瘫痪</th>
+              <th colspan="2" [innerHTML]="'存在以下<br>情况之一'"></th>
               <th colspan="4">存在以下情况之一</th>
               <th class="rowlabel-col">项目</th>
-              <th *ngFor="let m of MORSE" [attr.colspan]="m.opts.length">{{ m.item }}</th>
+              <th *ngFor="let m of MORSE" [attr.colspan]="m.opts.length" [innerHTML]="m.item"></th>
               <th class="total-col" rowspan="3">总分</th>
             </tr>
             <!-- HR3 评估行 -->
             <tr class="eval-row">
               <th class="cond-col vtext" rowspan="2">过去24小时曾有手术麻醉史</th>
-              <th class="cond-col vtext" rowspan="2">使用两种及以上镇静安眠药物</th>
+              <th class="cond-col vtext" rowspan="2">使用两种及以<br>上镇静安眠药物</th>
               <th class="cond-col vtext" rowspan="2">年龄≥80岁</th>
-              <th class="cond-col vtext" rowspan="2">住院前6个月内有跌倒经历/住院期间此次有跌倒经历</th>
-              <th class="cond-col vtext" rowspan="2">存在步态不稳、关节疼痛、肌肉疼痛、视觉障碍等</th>
+              <th class="cond-col cond-wide vtext" rowspan="2">住院前6个月内有跌倒经历/住院期间此次有跌倒经历</th>
+              <th class="cond-col cond-wide vtext" rowspan="2">存在步态不稳、关节疼痛、肌肉疼痛、视觉障碍等</th>
               <th class="cond-col cond-short vtext" rowspan="2">6h内使用过以上镇静、安眠药物</th>
               <th class="rowlabel-col">评估</th>
               <ng-container *ngFor="let m of MORSE">
-                <th *ngFor="let o of m.opts" class="opt-col vtext">{{ o.label }}</th>
+                <th *ngFor="let o of m.opts" class="opt-col vtext" [class.opt-wide]="o.label.includes('没有')">{{ o.label }}</th>
               </ng-container>
             </tr>
             <!-- HR4 评分行 -->
@@ -150,12 +166,12 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
                 <div class="dt-date">{{ r ? fmtDate(r.time) : '' }}</div>
                 <div class="dt-time">{{ r ? fmtTime(r.time) : '' }}</div>
               </td>
-              <td>{{ r ? (clinicalUsed(r) ? '√' : '') : '' }}</td>
-              <td>{{ r ? (morseUsed(r) ? '√' : '') : '' }}</td>
-              <td *ngFor="let c of CLINICAL">{{ r ? clinicalCheck(r, c.key) : '' }}</td>
+              <td class="method-col">{{ r ? (clinicalUsed(r) ? '√' : '') : '' }}</td>
+              <td class="method-col">{{ r ? (morseUsed(r) ? '√' : '') : '' }}</td>
+              <td *ngFor="let c of CLINICAL; let i = index" [class.cond-narrow]="i===0" [class.cond-wide]="i===4||i===5">{{ r ? clinicalCheck(r, c.key) : '' }}</td>
               <td class="rowlabel-col"></td>
               <ng-container *ngFor="let m of MORSE">
-                <td *ngFor="let o of m.opts">{{ r ? morseCheck(r, m.field, o.score) : '' }}</td>
+                <td *ngFor="let o of m.opts" [class.opt-wide]="o.label.includes('没有')">{{ r ? morseCheck(r, m.field, o.score) : '' }}</td>
               </ng-container>
               <td>{{ r && showTotal(r) ? r.total : '' }}</td>
               <td>{{ r ? r.risk : '' }}</td>
@@ -220,21 +236,25 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .record-table { width:100%; border-collapse:collapse; font-family:'SimSun','宋体',serif; font-size:9pt; table-layout:fixed; }
     .record-table th,.record-table td { border:1px solid #000; text-align:center; padding:1px; word-break:break-all; vertical-align:middle; overflow:hidden; }
     .record-table th { height:60px; } /* 表头默认行高 */
-    .method-col { height:30px; } /* 适用方法行高-15px */
+    .header-row1 th { height:30px; } /* 适用方法/临床判定法/Morse评分量表 行高减半 */
+    .method-col { height:15px; } /* 适用方法竖排文字行高-30px */
     .situation-row th { height:30px; } /* "存在以下情况之一"行高+10px */
-    .eval-row th { height:170px; } /* 评估行高度+10px */
+    .eval-row th { height:70px; } /* 评估行高度-100px */
     .score-row th { height:45px; } /* 评分行高度-15px */
     .cond-short { height:40px; } /* 6h内使用过以上镇静、安眠药物 高-20px */
     .record-table td { height:26px; }
     /* 竖排文字：随行高自适应，从左往右换行；text-orientation:upright 保持字母数字直立；支持多列显示 */
     .vtext { writing-mode:vertical-lr; text-orientation:upright; white-space:normal; line-height:1.08; letter-spacing:0.5px; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; overflow:hidden; }
     .date-col { width:82px; min-width:82px; }
-    .method-col { width:22px; }
+    .method-col { width:17px; } /* 临床判定法/Morse评分量表：-10px 后再各+5px */
     .cond-col { width:26px; }
+    .cond-narrow { width:16px; } /* 昏迷或完全瘫痪 -10px */
+    .cond-wide { width:36px; } /* 住院前6个月内有跌倒经历/存在步态不稳 +10px */
     .rowlabel-col { width:16px; writing-mode:vertical-rl; text-orientation:upright; white-space:nowrap; font-family:'SimSun','宋体',serif; font-size:9pt; letter-spacing:1px; }
-    .opt-col { width:24px; height:50px; writing-mode:vertical-rl; text-orientation:upright; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; color:#000; }      /* 评估行：压缩行高-20px，容纳长竖排选项 */
+    .opt-col { width:24px; height:50px; writing-mode:vertical-lr; text-orientation:upright; font-family:'SimSun','宋体',serif; font-size:9pt; font-weight:700; color:#000; }      /* 评估行：压缩行高-20px，容纳长竖排选项，从左往右 */
+    .opt-wide { width:34px; } /* 没有/卧床/轮椅/护士帮助 +10px */
     .score-col { width:24px; font-family:'SimSun','宋体',serif; font-size:9pt; }
-    .total-col { width:32px; } .risk-col { width:44px; } .measure-col { width:92px; } .sign-col { width:44px; }
+    .total-col { width:22px; } .risk-col { width:44px; } .measure-col { width:92px; } .sign-col { width:44px; }
     .dt-date,.dt-time { display:block; white-space:nowrap; word-break:normal; text-align:center; line-height:1.2; }
     .record-table th.date-col,
     .record-table td.date-col { white-space:nowrap; word-break:normal; overflow:hidden; }
@@ -299,7 +319,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   private blurTimer: any = null;
   private readonly AUDITOR_BLOCK = ['工程师', '美康', '他科带入', '外院带入', '其他账号'];
 
-  maxRowsPerPage = 9;
+  maxRowsPerPage = 11;
   private pid = '';
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
@@ -426,7 +446,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
         '<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>' +
         '<td></td><td></td><td></td><td></td><td></td></tr></table>';
       const capacity = await measureRowCapacity(fixedHtml, rowHtml, { safetyMargin: 8 });
-      this.maxRowsPerPage = 9;
+      this.maxRowsPerPage = 11;
     } catch(e) { /* keep fallback */ }
     this.paginate();
     this.cdr.detectChanges();
@@ -706,17 +726,19 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       .record-table{width:100%;border-collapse:collapse;font-family:'SimSun','宋体',serif;font-size:9pt;table-layout:fixed;}
       .record-table th,.record-table td{border:1px solid #000;text-align:center;padding:1px;word-break:break-all;vertical-align:middle;overflow:hidden;}
       .record-table th{height:60px;}
-      .method-col{height:30px;}
+      .header-row1 th{height:30px;}
+      .method-col{height:15px;}
       .situation-row th{height:30px;}
-      .eval-row th{height:170px;}
+      .eval-row th{height:70px;}
       .score-row th{height:45px;}
       .cond-short{height:40px;}
       .record-table td{height:26px;}
       .vtext{writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:1.08;letter-spacing:0.5px;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;overflow:hidden;}
-      .date-col{width:82px;min-width:82px;} .method-col{width:22px;} .cond-col{width:26px;}
+      .date-col{width:82px;min-width:82px;} .method-col{width:17px;} .cond-col{width:26px;} .cond-narrow{width:16px;} .cond-wide{width:36px;}
       .rowlabel-col{width:16px;writing-mode:vertical-rl;text-orientation:upright;white-space:nowrap;font-family:'SimSun','宋体',serif;font-size:9pt;letter-spacing:1px;}
-      .opt-col{width:24px;height:50px;writing-mode:vertical-rl;text-orientation:upright;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;color:#000;}
-      .score-col{width:24px;font-family:'SimSun','宋体',serif;font-size:9pt;} .total-col{width:32px;} .risk-col{width:44px;} .measure-col{width:92px;} .sign-col{width:44px;}
+      .opt-col{width:24px;height:50px;writing-mode:vertical-lr;text-orientation:upright;font-family:'SimSun','宋体',serif;font-size:9pt;font-weight:700;color:#000;}
+      .opt-wide{width:34px;}
+      .score-col{width:24px;font-family:'SimSun','宋体',serif;font-size:9pt;} .total-col{width:22px;} .risk-col{width:44px;} .measure-col{width:92px;} .sign-col{width:44px;}
       .dt-date,.dt-time{display:block;white-space:nowrap;line-height:1.25;} .measure-cell{text-align:left;padding-left:4px;letter-spacing:2px;}
       .result-line{display:flex;flex-wrap:wrap;gap:80px;margin-top:8px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt;}
       .rl-item{display:inline-flex;align-items:center;} .screen-only{display:none !important;} .print-only{display:inline !important;}
