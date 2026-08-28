@@ -146,6 +146,7 @@ public class HandoverReportController {
      * 字段级补丁保存，支持并发修改。
      * 不再使用整份PUT覆盖。
      */
+    @SuppressWarnings("unchecked")
     @PatchMapping("/draft")
     public ResponseEntity<?> patchDraft(@RequestBody Map<String, Object> body) {
         String departmentId = String.valueOf(body.getOrDefault("departmentId", ""));
