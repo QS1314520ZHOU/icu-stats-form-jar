@@ -90,8 +90,27 @@ public class HljldSummaryCalculator {
         List<Document> drugsInPeriod = source.getDrugExecutions().stream()
             .filter(HljldUtils::isRenderableDrugExecution)
             .filter(item -> {
-                long t = (long) HljldUtils.databaseTimeValue(str(item, "startTime"));
+                long t = (long) HljldUtils.toTimestampMs(item.get("startTime"));
                 return t >= startMs && t < effectiveEndMs;
+            })
+            .collect(Collectors.toList());
+
+        // 续用药物：startTime 在护理日之前，但 endTime 在护理日之内或之后（仍在执行的持续泵注）
+        List<Document> carryOverDrugs = source.getDrugExecutions().stream()
+            .filter(HljldUtils::isRenderableDrugExecution)
+            .filter(item -> {
+                long t = (long) HljldUtils.toTimestampMs(item.get("startTime"));
+                return t < startMs; // startTime 在护理日之前
+            })
+            .filter(item -> {
+                Document method = HljldUtils.findDrugMethod(str(item, "methodCode"), source.getDrugMethods());
+                return method != null && Boolean.FALSE.equals(method.get("isOnce")); // 仅持续泵注
+            })
+            .filter(item -> {
+                // endTime 在护理日之内或之后（或未结束）
+                double endRaw = HljldUtils.toTimestampMs(item.get("endTime"));
+                if (!Double.isFinite(endRaw)) return true; // 未结束
+                return endRaw > startMs; // endTime 在护理日开始之后
             })
             .collect(Collectors.toList());
 
@@ -111,7 +130,7 @@ public class HljldSummaryCalculator {
         // 带入药量（bedside 记录，code = param_带入药量）
         double broughtMedication = sumBedsideByCode(bedsideInPeriod, "param_带入药量");
         if (broughtMedication > 0) {
-            log.debug("[hljld] 入量-带入药量={} ml", HljldUtils.round1(broughtMedication));
+            log.info("[hljld] 入量-带入药量={} ml", HljldUtils.round1(broughtMedication));
         }
 
         // 入量：药品（静脉入量）
@@ -137,8 +156,8 @@ public class HljldSummaryCalculator {
             String inChannel = str(method, "inChannel");
             String methodName = str(method, "name");
 
-            // 使用 inChannel 判断是否计入入量（与前端逻辑一致）
-            if (!HljldUtils.COUNTED_IN_CHANNELS.contains(inChannel)) {
+            // 药物治疗只统计静脉/输血，胃肠入量在下面单独统计
+            if (!"静脉".equals(inChannel) && !"输血".equals(inChannel)) {
                 continue;
             }
 
@@ -154,33 +173,77 @@ public class HljldSummaryCalculator {
             Boolean isOnce = method.getBoolean("isOnce");
             if (isOnce == null || isOnce) {
                 // 单次给药：检查 startTime 是否在统计区间内
-                long drugStartMs = (long) HljldUtils.databaseTimeValue(str(execution, "startTime"));
+                long drugStartMs = (long) HljldUtils.toTimestampMs(execution.get("startTime"));
                 if (drugStartMs >= startMs && drugStartMs < effectiveEndMs) {
                     amt = liquidAmount > 0 ? liquidAmount : dose;
                 } else {
                     amt = 0;
                 }
             } else {
-                // 持续泵注：使用精确的 action-driven 计算
-                HljldUtils.DrugActualAmount result = HljldUtils.calcContinuousDrugAmountMs(
-                    execution, startMs, endMs, true);
-                amt = result.inRange;
+                // 持续泵注：使用差值法（与结算行一致），确保总结 = 日间小结 + 夜班小结
+                amt = HljldUtils.calcSegmentUsage(execution,
+                    new Date(startMs), new Date(endMs));
             }
 
             if (amt > 0) {
-                medicationAmounts.merge(name, amt, Double::sum);
-                log.debug("[hljld] 入量-药物: name={}, methodCode={}, inChannel={}, route={}, amt={} ml",
-                    name, methodCode, inChannel, HljldUtils.routeLabel(methodName), HljldUtils.round1(amt));
+                // 逐条四舍五入后累加（与前端一致）
+                double roundedAmt = HljldUtils.round1(amt);
+                medicationAmounts.merge(name, roundedAmt, Double::sum);
+                log.info("[hljld] 入量-药物: name={}, methodCode={}, inChannel={}, route={}, amt={} ml",
+                    name, methodCode, inChannel, HljldUtils.routeLabel(methodName), roundedAmt);
 
                 // 统计各途径的量（ivgtt、iv泵、iv）
                 String route = HljldUtils.routeLabel(methodName);
                 if ("ivgtt".equals(route)) {
-                    ivgttTotal += amt;
+                    ivgttTotal += roundedAmt;
                 } else if ("iv泵".equals(route)) {
-                    ivPumpTotal += amt;
+                    ivPumpTotal += roundedAmt;
                 } else if ("iv".equals(route)) {
-                    ivTotal += amt;
+                    ivTotal += roundedAmt;
                 }
+            }
+        }
+
+        // ═══ 续用药物统计（startTime 在护理日之前，但护理日内仍在执行的持续泵注） ═══
+        for (Document execution : carryOverDrugs) {
+            String methodCode = str(execution, "methodCode");
+            Document method = HljldUtils.findDrugMethod(methodCode, source.getDrugMethods());
+            String drugName = HljldUtils.drugDisplayName(execution);
+
+            if (method == null) continue;
+
+            String inChannel = str(method, "inChannel");
+            String methodName = str(method, "name");
+
+            // 仅统计静脉/输血类续用药物
+            if (!"静脉".equals(inChannel) && !"输血".equals(inChannel)) {
+                continue;
+            }
+
+            String name = HljldUtils.drugDisplayName(execution);
+            if (name.isEmpty()) continue;
+
+            // 续用药物在当前护理日内的用量：使用差值法
+            double amt = HljldUtils.calcSegmentUsage(execution,
+                new Date(startMs), new Date(endMs));
+
+            if (amt > 0) {
+                double roundedAmt = HljldUtils.round1(amt);
+                medicationAmounts.merge(name, roundedAmt, Double::sum);
+                log.info("[hljld] 入量-续用药物: name={}, methodCode={}, inChannel={}, route={}, amt={} ml (startTime在护理日前)",
+                    name, methodCode, inChannel, HljldUtils.routeLabel(methodName), roundedAmt);
+
+                String route = HljldUtils.routeLabel(methodName);
+                if ("ivgtt".equals(route)) {
+                    ivgttTotal += roundedAmt;
+                } else if ("iv泵".equals(route)) {
+                    ivPumpTotal += roundedAmt;
+                } else if ("iv".equals(route)) {
+                    ivTotal += roundedAmt;
+                }
+            } else {
+                log.info("[hljld] 入量-续用药物跳过: name={}, methodCode={}, amt=0 (护理日内无用量)",
+                    name, methodCode);
             }
         }
 
@@ -192,12 +255,11 @@ public class HljldSummaryCalculator {
             String drugName = HljldUtils.drugDisplayName(execution);
 
             if (method == null) {
+                log.info("[hljld] 入量-肠内跳过: name={}, methodCode={}, 原因=方法未找到", drugName, methodCode);
                 continue;
             }
 
             String inChannel = str(method, "inChannel");
-            // 使用 inChannel 判断是否为胃肠入量（与前端逻辑一致）
-            // 所有 inChannel=胃肠 的药物都计入，不限于肠内营养配方
             if (!"胃肠".equals(inChannel)) {
                 continue;
             }
@@ -205,8 +267,8 @@ public class HljldSummaryCalculator {
             String displayName = HljldUtils.enteralDisplayName(drugName);
             List<Map<String, Object>> actionList = getList(execution, "drugActionList");
 
-            // 判断是否为单次给药
-            Boolean isOnce = execution.getBoolean("isOnce");
+            // 判断是否为单次给药（与药物循环一致，从 method 读取）
+            Boolean isOnce = method.getBoolean("isOnce");
             boolean once = isOnce == null || isOnce;
 
             double amt = 0;
@@ -225,27 +287,73 @@ public class HljldSummaryCalculator {
                 }
                 if (totalQuickAdd > 0) {
                     amt = totalQuickAdd;
-                } else if (once) {
-                    // 单次给药无 quickadd：用 liquidAmount
+                } else {
+                    // 无 quickadd：fallback 到 liquidAmount（肠内药物的量就是 liquidAmount）
                     amt = HljldUtils.parseAmount(execution.get("liquidAmount"));
+                    if (amt <= 0) {
+                        amt = HljldUtils.parseAmount(execution.get("dose"));
+                    }
                 }
             }
             if (amt > 0) {
-                enteralAmounts.merge(displayName, amt, Double::sum);
-                log.debug("[hljld] 入量-肠内: name={}, methodCode={}, amt={} ml", displayName, methodCode, HljldUtils.round1(amt));
+                double roundedAmt = HljldUtils.round1(amt);
+                enteralAmounts.merge(displayName, roundedAmt, Double::sum);
+                log.info("[hljld] 入量-肠内: name={}, methodCode={}, amt={} ml", displayName, methodCode, roundedAmt);
+            } else {
+                log.info("[hljld] 入量-肠内跳过: name={}, methodCode={}, isOnce={}, actionList={}, liquidAmount={}, dose={}",
+                    drugName, methodCode, method.getBoolean("isOnce"),
+                    execution.get("drugActionList") != null ? execution.get("drugActionList").toString().substring(0, Math.min(80, execution.get("drugActionList").toString().length())) : "null",
+                    execution.get("liquidAmount"), execution.get("dose"));
             }
         }
 
-        // 肠内营养：加 bedside 口服量和鼻饲量
+        // ═══ 续用肠内营养药物统计 ═══
+        for (Document execution : carryOverDrugs) {
+            String methodCode = str(execution, "methodCode");
+            Document method = HljldUtils.findDrugMethod(methodCode, source.getDrugMethods());
+            if (method == null) continue;
+
+            String inChannel = str(method, "inChannel");
+            if (!"胃肠".equals(inChannel)) continue;
+
+            String drugName = HljldUtils.drugDisplayName(execution);
+            String displayName = HljldUtils.enteralDisplayName(drugName);
+
+            // 续用肠内药物在当前护理日内的 quickAdd 量
+            List<Map<String, Object>> actionList = getList(execution, "drugActionList");
+            double amt = 0;
+            if (actionList != null) {
+                for (Map<String, Object> action : actionList) {
+                    String act = str(action, "action").trim().toLowerCase();
+                    if ("quickadd".equals(act)) {
+                        long actionTime = (long) HljldUtils.databaseTimeValue(str(action, "time"));
+                        if (actionTime >= startMs && actionTime < effectiveEndMs) {
+                            amt += HljldUtils.parseAmount(action.get("quickAddAmount"));
+                        }
+                    }
+                }
+            }
+            // 无 quickAdd 则用 liquidAmount
+            if (amt <= 0) {
+                amt = HljldUtils.parseAmount(execution.get("liquidAmount"));
+                if (amt <= 0) amt = HljldUtils.parseAmount(execution.get("dose"));
+            }
+            if (amt > 0) {
+                double roundedAmt = HljldUtils.round1(amt);
+                enteralAmounts.merge(displayName, roundedAmt, Double::sum);
+                log.info("[hljld] 入量-续用肠内: name={}, methodCode={}, amt={} ml (startTime在护理日前)",
+                    displayName, methodCode, roundedAmt);
+            }
+        }
+
+        // 肠内营养：bedside 口服量和鼻饲量单独统计（不合并到肠内药物）
         double oralTotal = sumBedsideByCode(bedsideInPeriod, "param_kouFu");
         double tubeFeedingManual = sumBedsideByCode(bedsideInPeriod, "param_biSi");
         if (oralTotal > 0) {
-            enteralAmounts.merge("口服", oralTotal, Double::sum);
-            log.debug("[hljld] 入量-肠内bedside: 口服={} ml", HljldUtils.round1(oralTotal));
+            log.info("[hljld] 入量-bedside口服: {} ml", HljldUtils.round1(oralTotal));
         }
         if (tubeFeedingManual > 0) {
-            enteralAmounts.merge("鼻饲", tubeFeedingManual, Double::sum);
-            log.debug("[hljld] 入量-肠内bedside: 鼻饲={} ml", HljldUtils.round1(tubeFeedingManual));
+            log.info("[hljld] 入量-bedside鼻饲: {} ml", HljldUtils.round1(tubeFeedingManual));
         }
 
         // 出量
@@ -371,27 +479,44 @@ public class HljldSummaryCalculator {
         double totalOtherOutput = otherOutAll.stream().mapToDouble(NameAmount::getNumericAmount).sum();
         double totalOutput = totalUrine + totalUltrafiltration + totalDrain + totalOtherOutput;
 
-        log.info("[hljld] 出入量汇总: 总入量={} ml (带入药量={}, 药物={}, 肠内={}), 总出量={} ml (尿={}, 超滤={}, 引流={}, 其他={}), 平衡={} ml",
-            broughtMedication + totalMedication + totalEnteral, broughtMedication, totalMedication, totalEnteral,
-            totalOutput, totalUrine, totalUltrafiltration, totalDrain, totalOtherOutput,
-            broughtMedication + totalMedication + totalEnteral - totalOutput);
+        // 药物治疗 = 静脉/输血药物 + 带入药量
+        double drugTreatment = broughtMedication + totalMedication;
+        // 胃肠摄入 = 胃肠药物 + 口服量 + 鼻饲量
+        double gastrointestinalInput = totalEnteral + oralTotal + tubeFeedingManual;
+        // 总入量 = 药物治疗 + 胃肠摄入
+        double totalInput = drugTreatment + gastrointestinalInput;
 
-        summary.setMedicationSum(HljldUtils.round1(totalMedication));
-        summary.setEnteralSum(HljldUtils.round1(totalEnteral));
-        summary.setInputSum(HljldUtils.round1(broughtMedication + totalMedication + totalEnteral));
+        log.info("[hljld] 出入量汇总: 总入量={} ml (药物治疗={}, 带入药量={}, 静脉/输血={}, 胃肠摄入={} (药物={}, 口服={}, 鼻饲={})), 总出量={} ml (尿={}, 超滤={}, 引流={}, 其他={}), 平衡={} ml",
+            HljldUtils.round1(totalInput), HljldUtils.round1(drugTreatment), HljldUtils.round1(broughtMedication), HljldUtils.round1(totalMedication), HljldUtils.round1(gastrointestinalInput),
+            HljldUtils.round1(totalEnteral), HljldUtils.round1(oralTotal), HljldUtils.round1(tubeFeedingManual),
+            HljldUtils.round1(totalOutput), HljldUtils.round1(totalUrine), HljldUtils.round1(totalUltrafiltration), HljldUtils.round1(totalDrain), HljldUtils.round1(totalOtherOutput),
+            HljldUtils.round1(totalInput - totalOutput));
+
+        // 详细药物明细日志（便于排查出入量）
+        log.info("[hljld] 静脉药物明细: drugsInPeriod={}, carryOverDrugs={}", drugsInPeriod.size(), carryOverDrugs.size());
+        for (Map.Entry<String, Double> entry : medicationAmounts.entrySet()) {
+            log.info("[hljld]   静脉药物: {} = {} ml", entry.getKey(), HljldUtils.round1(entry.getValue()));
+        }
+        for (Map.Entry<String, Double> entry : enteralAmounts.entrySet()) {
+            log.info("[hljld]   肠内药物: {} = {} ml", entry.getKey(), HljldUtils.round1(entry.getValue()));
+        }
+
+        summary.setMedicationSum(HljldUtils.round1(drugTreatment));
+        summary.setEnteralSum(HljldUtils.round1(gastrointestinalInput));
+        summary.setInputSum(HljldUtils.round1(totalInput));
         summary.setUrineSum(HljldUtils.round1(totalUrine));
         summary.setUltrafiltrationSum(HljldUtils.round1(totalUltrafiltration));
         summary.setOutputSum(HljldUtils.round1(totalOutput));
 
         // 赋值前端对应字段
-        // 药物治疗总量 = 带入药量 + 静脉入量（medicationSum）
-        summary.setDrugTreatmentTotal(HljldUtils.round1(broughtMedication + totalMedication));
-        // 胃肠入量总量 = 胃肠入量（enteralSum）
-        summary.setGastrointestinalInputTotal(HljldUtils.round1(totalEnteral));
-        // 总入量 = 带入药量 + 药物治疗 + 胃肠入量
-        summary.setTotalInput(HljldUtils.round1(broughtMedication + totalMedication + totalEnteral));
+        // 药物治疗总量 = 带入药量 + 静脉/输血药物
+        summary.setDrugTreatmentTotal(HljldUtils.round1(drugTreatment));
+        // 胃肠摄入总量 = 胃肠药物 + 口服量 + 鼻饲量
+        summary.setGastrointestinalInputTotal(HljldUtils.round1(gastrointestinalInput));
+        // 总入量
+        summary.setTotalInput(HljldUtils.round1(totalInput));
         // 平衡量
-        summary.setBalance(HljldUtils.round1(broughtMedication + totalMedication + totalEnteral - totalOutput));
+        summary.setBalance(HljldUtils.round1(totalInput - totalOutput));
 
         // 详细项目
         List<SummaryItem> medicationItems = new ArrayList<>();
