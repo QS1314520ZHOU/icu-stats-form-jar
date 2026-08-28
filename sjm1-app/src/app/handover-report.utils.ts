@@ -21,9 +21,9 @@ export function buildShiftRanges(selectedDate: Date): Record<ShiftKey, ShiftRang
     new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + dayOffset, hour, minute, 0, 0);
 
   return {
-    night: { key: 'night', label: '夜班', start: at(0, 0), end: at(0, 8), settlementTime: at(0, 8) },
     day: { key: 'day', label: '白班', start: at(0, 8), end: at(0, 18, 1), settlementTime: at(0, 18) },
     evening: { key: 'evening', label: '中班', start: at(0, 18, 1), end: at(1, 0), settlementTime: at(1, 0) },
+    night: { key: 'night', label: '夜班', start: at(1, 0), end: at(1, 8), settlementTime: at(1, 8) },
   };
 }
 
