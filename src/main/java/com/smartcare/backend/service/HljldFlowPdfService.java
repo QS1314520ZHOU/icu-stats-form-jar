@@ -437,31 +437,33 @@ public class HljldFlowPdfService {
         StringBuilder sb = new StringBuilder();
         sb.append("总入量：").append(formatVal(s.getInputSum())).append(" ml；");
 
-        // 药物治疗
+        // 药物治疗 + 静脉入量明细
         if (s.getMedicationSum() > 0) {
             sb.append("药物治疗：").append(formatVal(s.getMedicationSum())).append(" ml");
-
-            // 静脉入量细分（ivgtt、iv泵、iv）
+            // 静脉入量明细
             if (s.getVeinItems() != null && !s.getVeinItems().isEmpty()) {
-                double veinTotal = s.getVeinItems().stream()
-                    .mapToDouble(item -> item.getAmount())
-                    .sum();
-                if (veinTotal > 0) {
-                    sb.append("（静脉入量：").append(formatVal(veinTotal)).append(" ml（");
-
-                    List<String> veinDetails = new ArrayList<>();
-                    for (SummaryItem item : s.getVeinItems()) {
-                        veinDetails.add(item.getKey() + "：" + formatVal(item.getAmount()) + " ml");
-                    }
-                    sb.append(String.join("、", veinDetails));
-                    sb.append("））");
+                sb.append("（");
+                List<String> veinDetails = new ArrayList<>();
+                for (SummaryItem item : s.getVeinItems()) {
+                    veinDetails.add(item.getKey() + "：" + formatVal(item.getAmount()) + " ml");
                 }
+                sb.append(String.join("、", veinDetails));
+                sb.append("）");
             }
         }
 
-        // 胃肠入量
+        // 胃肠入量 + 明细
         if (s.getEnteralSum() > 0) {
             sb.append("；胃肠入量：").append(formatVal(s.getEnteralSum())).append(" ml");
+            if (s.getEnteralItems() != null && !s.getEnteralItems().isEmpty()) {
+                sb.append("（");
+                List<String> enteralDetails = new ArrayList<>();
+                for (SummaryItem item : s.getEnteralItems()) {
+                    enteralDetails.add(item.getKey() + "：" + formatVal(item.getAmount()) + " ml");
+                }
+                sb.append(String.join("、", enteralDetails));
+                sb.append("）");
+            }
         }
 
         return sb.toString();
@@ -602,6 +604,15 @@ public class HljldFlowPdfService {
     private void addDataRow(Table table, Map<String, Object> row, PdfFont font) {
         String[] keys = HljldPdfLayoutConstants.DATA_KEYS;
 
+        // Debug: 追踪氨溴索药物所在行
+        if (row != null) {
+            String medName = mapStr(row, "medName");
+            String timeText = mapStr(row, "timeText");
+            if (medName.contains("氨溴索")) {
+                log.info("[hljld] addDataRow: timeText={}, medName={}", timeText, medName);
+            }
+        }
+
         for (int i = 0; i < 19; i++) {
             String text = (row != null) ? mapStr(row, keys[i]) : "";
 
@@ -656,6 +667,11 @@ public class HljldFlowPdfService {
                     || tItem.getKind() == HljldTimelineItem.Kind.CONTINUATION)
                     && tItem.getGroup() != null) {
                     for (HljldDisplayRow row : tItem.getGroup().getRows()) {
+                        if (row.getMedication() != null && row.getMedication().getName() != null
+                            && row.getMedication().getName().contains("氨溴索")) {
+                            log.info("[hljld] PDF行渲染: timeText={}, sortTime={}, medName={}",
+                                row.getTimeText(), tItem.getTimestamp(), row.getMedication().getName());
+                        }
                         PrintableItem pi = new PrintableItem();
                         pi.sortTime = tItem.getTimestamp();
                         pi.sortPriority = 20;
@@ -720,6 +736,12 @@ public class HljldFlowPdfService {
     private Map<String, Object> displayRowToMap(HljldDisplayRow row) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("timeText", row.getTimeText() != null ? row.getTimeText() : "");
+        // Debug: 追踪氨溴索药物的timeText映射
+        if (row.getMedication() != null && row.getMedication().getName() != null
+            && row.getMedication().getName().contains("氨溴索")) {
+            log.info("[hljld] displayRowToMap: timeText={}, timestamp={}, medName={}",
+                row.getTimeText(), row.getTimestamp(), row.getMedication().getName());
+        }
         if (row.getMedication() != null && row.getMedication().hasNameOrAmount()) {
             map.put("medName", row.getMedication().getName());
             map.put("medAmount", row.getMedication().getAmount());

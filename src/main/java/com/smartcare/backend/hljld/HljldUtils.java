@@ -73,6 +73,7 @@ public final class HljldUtils {
     static {
         Set<String> s = new LinkedHashSet<>(Arrays.asList(
             CODE_BROUGHT, CODE_ORAL, CODE_TUBE_FEEDING,
+            "param_YaoYeti_in_hour", "param_YaoStomach_in_hour",
             ULTRAFILTRATION_CODE, URINE_CODE, "param_daBianAmount",
             "param_造瘘口量", "param_outuwuliang",
             "param_咯血", "param_tanLiang",
@@ -223,6 +224,7 @@ public final class HljldUtils {
             // fall through
         }
 
+        log.info("[hljld] databaseTimeValue 解析失败: raw={}", raw);
         return Double.NaN;
     }
 
@@ -241,37 +243,66 @@ public final class HljldUtils {
     }
 
     /**
-     * 解析 "Fri Jul 24 09:00:00 CST 2026" 格式。
+     * 解析 Java Date.toString() 格式的时间字符串（如 "Fri Jul 24 09:00:00 CST 2026"），
+     * 也支持 "Fri Aug 28 2026 12:36:00 GMT+0800" 格式。
      * CST = China Standard Time (UTC+8)，手工解析避免歧义。
      */
     private static Double parseLegacyCstString(String raw) {
-        Matcher m = Pattern.compile(
-            "^[A-Za-z]{3}\\s+([A-Za-z]{3})\\s+(\\d{1,2})\\s+(\\d{2}):(\\d{2}):(\\d{2})\\s+[A-Za-z]{2,5}\\s+(\\d{4})$"
-        ).matcher(raw);
-        if (!m.find()) return null;
-
         Map<String, Integer> months = new HashMap<>();
         months.put("Jan", 0); months.put("Feb", 1); months.put("Mar", 2);
         months.put("Apr", 3); months.put("May", 4); months.put("Jun", 5);
         months.put("Jul", 6); months.put("Aug", 7); months.put("Sep", 8);
         months.put("Oct", 9); months.put("Nov", 10); months.put("Dec", 11);
 
-        Integer mi = months.get(m.group(1));
-        if (mi == null) return null;
+        // Pattern 1: "Fri Jul 24 09:00:00 CST 2026" — timezone is letters only
+        Matcher m1 = Pattern.compile(
+            "^[A-Za-z]{3}\\s+([A-Za-z]{3})\\s+(\\d{1,2})\\s+(\\d{2}):(\\d{2}):(\\d{2})\\s+[A-Za-z]{2,5}\\s+(\\d{4})$"
+        ).matcher(raw);
+        if (m1.find()) {
+            Integer mi = months.get(m1.group(1));
+            if (mi != null) {
+                int year = Integer.parseInt(m1.group(6));
+                int day = Integer.parseInt(m1.group(2));
+                int hh = Integer.parseInt(m1.group(3));
+                int mm = Integer.parseInt(m1.group(4));
+                int ss = Integer.parseInt(m1.group(5));
+                Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+                cal.set(year, mi, day, hh, mm, ss);
+                cal.set(Calendar.MILLISECOND, 0);
+                long utcMs = cal.getTimeInMillis() - CST_OFFSET_MS;
+                return (double) utcMs;
+            }
+        }
 
-        int year = Integer.parseInt(m.group(6));
-        int day = Integer.parseInt(m.group(2));
-        int hh = Integer.parseInt(m.group(3));
-        int mm = Integer.parseInt(m.group(4));
-        int ss = Integer.parseInt(m.group(5));
+        // Pattern 2: "Fri Aug 28 2026 12:36:00 GMT+0800" — year BEFORE time
+        Matcher m2 = Pattern.compile(
+            "^[A-Za-z]{3}\\s+([A-Za-z]{3})\\s+(\\d{1,2})\\s+(\\d{4})\\s+(\\d{2}):(\\d{2}):(\\d{2})\\s+GMT([+-]\\d{4})$"
+        ).matcher(raw);
+        if (m2.find()) {
+            Integer mi = months.get(m2.group(1));
+            if (mi != null) {
+                int year = Integer.parseInt(m2.group(4));
+                int day = Integer.parseInt(m2.group(3));
+                int hh = Integer.parseInt(m2.group(5));
+                int mm = Integer.parseInt(m2.group(6));
+                int ss = Integer.parseInt(m2.group(7));
+                // Parse offset like "+0800" or "-0500"
+                String offsetStr = m2.group(8);
+                boolean negative = offsetStr.startsWith("-");
+                String digits = offsetStr.substring(1);
+                int offsetHours = Integer.parseInt(digits.substring(0, 2));
+                int offsetMins = Integer.parseInt(digits.substring(2, 4));
+                long offsetMs = (offsetHours * 3600L + offsetMins * 60L) * 1000L;
+                if (negative) offsetMs = -offsetMs;
+                Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+                cal.set(year, mi, day, hh, mm, ss);
+                cal.set(Calendar.MILLISECOND, 0);
+                long utcMs = cal.getTimeInMillis() - offsetMs;
+                return (double) utcMs;
+            }
+        }
 
-        // 按 CST (UTC+8) 解析：减去8小时得到UTC
-        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-        cal.set(year, mi, day, hh, mm, ss);
-        cal.set(Calendar.MILLISECOND, 0);
-        long localMs = cal.getTimeInMillis();
-        long utcMs = localMs - CST_OFFSET_MS;
-        return (double) utcMs;
+        return null;
     }
 
     /**
@@ -871,10 +902,51 @@ public final class HljldUtils {
             .sorted(Comparator.comparingLong(item -> (long) ((double) item.get("__ts"))))
             .collect(Collectors.toList());
 
-        // 无动作数据：回退为开始时点全额计入
+        // 无动作数据：回退按 drugActionList 分段计算
         if (sortedActions.isEmpty()) {
             boolean hit = inNursingRange(execution.get("startTime"), rangeStart, rangeEnd, startExclusive);
-            return new DrugActualAmount(hit ? cap : 0, cap, true);
+            if (!hit) return new DrugActualAmount(0, 0, false);
+
+            double amt = 0;
+            double currentSpeed = 0;
+            long segStartMs = startMs;
+            // 按 actionList 分段计算（忽略时间解析，直接用 action 的 time 字段）
+            for (int i = 0; i < actionList.size(); i++) {
+                Map<String, Object> item = actionList.get(i);
+                long actionTime = ((Date) item.get("time")).getTime();
+                String action = String.valueOf(item.get("action"));
+                Object spdObj = item.get("speed");
+
+                // 记录上一段的用量
+                if (currentSpeed > 0 && actionTime > segStartMs) {
+                    long segEnd = Math.min(actionTime, cutoff);
+                    if (segEnd > segStartMs) {
+                        amt += currentSpeed * (segEnd - segStartMs) / MS_PER_HOUR;
+                    }
+                }
+
+                // 更新速度
+                if ("start".equals(action) || "recovery".equals(action) || "add".equals(action)) {
+                    if (spdObj instanceof Number) currentSpeed = ((Number) spdObj).doubleValue();
+                } else if ("stop".equals(action) || "pause".equals(action) || "minus".equals(action)) {
+                    if ("minus".equals(action) && spdObj instanceof Number) {
+                        currentSpeed = ((Number) spdObj).doubleValue();
+                    } else {
+                        currentSpeed = 0;
+                    }
+                }
+                segStartMs = actionTime;
+            }
+            // 最后一段到 cutoff
+            if (currentSpeed > 0 && cutoff > segStartMs) {
+                amt += currentSpeed * (cutoff - segStartMs) / MS_PER_HOUR;
+            }
+
+            // 没有结束时间（仍在进行中）且有总量封顶时，超过才封顶
+            if (!Double.isFinite(endRaw) && hasCap && amt > cap) {
+                amt = cap;
+            }
+            return new DrugActualAmount(Math.min(amt, hasCap ? cap : amt), Math.min(amt, hasCap ? cap : amt), false);
         }
 
         List<long[]> segments = new ArrayList<>(); // [start, end, speed_as_bits]
@@ -968,6 +1040,11 @@ public final class HljldUtils {
             }
         }
 
+        // 当没有结束时间（仍在进行中）且计算量超出总量时，按总量算
+        boolean hasEnd = Double.isFinite(endRaw);
+        if (!hasEnd && hasCap && inRange > cap) {
+            inRange = cap;
+        }
         return new DrugActualAmount(hasCap ? Math.min(inRange, cap) : inRange, used, false);
     }
 
@@ -1455,8 +1532,14 @@ public final class HljldUtils {
      */
     public static boolean isRenderableDrugExecution(Document item) {
         if (item == null) return false;
-        if ("invalid".equalsIgnoreCase(strOrNull(item, "status"))) return false;
-        if (strOrNull(item, "startTime") == null) return false;
+        String status = strOrNull(item, "status");
+        // 只保留 working（执行中）和 finished（已完成），排除 invalid（无效）和 ready（未执行）
+        if (!"working".equalsIgnoreCase(status) && !"finished".equalsIgnoreCase(status)) return false;
+        if (strOrNull(item, "startTime") == null) {
+            log.info("[hljld] 药物记录被过滤: startTime为空, id={}, status={}, drugName={}",
+                item.get("_id"), status, drugDisplayName(item));
+            return false;
+        }
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> drugList = (List<Map<String, Object>>) item.get("drugList");
         if (drugList == null) return false;

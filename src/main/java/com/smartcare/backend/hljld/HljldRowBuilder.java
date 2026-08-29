@@ -93,7 +93,9 @@ public class HljldRowBuilder {
             if (k != Long.MIN_VALUE) uniqueKeys.add(k);
         }
         for (Document d : drugsInPeriod) {
-            long k = HljldUtils.minuteKey(str(d, "startTime"));
+            String startTimeStr = str(d, "startTime");
+            long k = HljldUtils.minuteKey(startTimeStr);
+            log.info("[hljld] 药物时间Key: drugName={}, startTime(str)={}, minuteKey={}, id={}", HljldUtils.drugDisplayName(d), startTimeStr, k, d.get("_id"));
             if (k != Long.MIN_VALUE) uniqueKeys.add(k);
         }
         for (Document r : nurseInPeriod) {

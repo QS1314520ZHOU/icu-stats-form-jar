@@ -93,6 +93,7 @@ public class HljldSummaryCalculator {
 
         List<Document> drugsInPeriod = source.getDrugExecutions().stream()
             .filter(HljldUtils::isRenderableDrugExecution)
+            .filter(item -> item.get("startTime") != null) // 排除startTime为空的无效记录
             .filter(item -> {
                 long t = (long) HljldUtils.toTimestampMs(item.get("startTime"));
                 return t >= startMs && t < effectiveEndMs;
@@ -102,6 +103,7 @@ public class HljldSummaryCalculator {
         // 续用药物：startTime 在护理日之前，但 endTime 在护理日之内或之后（仍在执行的持续泵注）
         List<Document> carryOverDrugs = source.getDrugExecutions().stream()
             .filter(HljldUtils::isRenderableDrugExecution)
+            .filter(item -> item.get("startTime") != null) // 排除startTime为空的无效记录
             .filter(item -> {
                 long t = (long) HljldUtils.toTimestampMs(item.get("startTime"));
                 return t < startMs; // startTime 在护理日之前
@@ -111,11 +113,10 @@ public class HljldSummaryCalculator {
                 return method != null && Boolean.FALSE.equals(method.get("isOnce")); // 仅持续泵注
             })
             .filter(item -> {
-                // endTime 在护理日之内或之后（或未结束）
+                // endTime 在统计开始时间之后（或未结束），只要与统计区间有重叠即可
                 double endRaw = HljldUtils.toTimestampMs(item.get("endTime"));
                 if (!Double.isFinite(endRaw)) return true; // 未结束
-                // endTime 必须在统计开始时间之后，且在统计结束时间之前（确保在统计范围内）
-                return endRaw > startMs && endRaw <= effectiveEndMs;
+                return endRaw > startMs;
             })
             .collect(Collectors.toList());
 
@@ -138,125 +139,12 @@ public class HljldSummaryCalculator {
             log.info("[hljld] 入量-带入药量={} ml", HljldUtils.round1(broughtMedication));
         }
 
-        // 入量：药品（静脉入量）
-        // 使用 HljldUtils.calcContinuousDrugAmountMs 进行精确计算，支持 liquidAmount 封顶
+        // 入量：药物治疗（从 bedside param_YaoYeti_in_hour 获取，不再从 drugExe 计算）
+        double totalMedication = sumBedsideByCode(bedsideInPeriod, "param_YaoYeti_in_hour");
+        log.info("[hljld] 药物治疗(param_YaoYeti_in_hour)={} ml, bedsideInPeriod记录数={}", HljldUtils.round1(totalMedication), bedsideInPeriod.size());
         Map<String, Double> medicationAmounts = new LinkedHashMap<>();
-        // 静脉入量细分：ivgtt、iv泵、iv
-        double ivgttTotal = 0;
-        double ivPumpTotal = 0;
-        double ivTotal = 0;
-
-        for (Document execution : drugsInPeriod) {
-            String methodCode = str(execution, "methodCode");
-            Document method = HljldUtils.findDrugMethod(methodCode, source.getDrugMethods());
-            String drugName = HljldUtils.drugDisplayName(execution);
-            double liquidAmount = HljldUtils.parseAmount(execution.get("liquidAmount"));
-            double dose = HljldUtils.parseAmount(execution.get("dose"));
-
-            if (method == null) {
-                log.warn("[hljld] 药物方法未找到: name={}, methodCode={}", drugName, methodCode);
-                continue;
-            }
-
-            String inChannel = str(method, "inChannel");
-            String methodName = str(method, "name");
-
-            // 药物治疗只统计静脉/输血，胃肠入量在下面单独统计
-            if (!"静脉".equals(inChannel) && !"输血".equals(inChannel)) {
-                continue;
-            }
-
-            String name = HljldUtils.drugDisplayName(execution);
-            if (name.isEmpty()) {
-                log.warn("[hljld] 药物名称为空，跳过");
-                continue;
-            }
-
-            // 判断是否为单次给药（isOnce=true 或 null）
-            // 对于单次给药，直接使用 liquidAmount；对于持续泵注，使用精确计算
-            double amt;
-            Boolean isOnce = method.getBoolean("isOnce");
-            if (isOnce == null || isOnce) {
-                // 单次给药：检查 startTime 是否在统计区间内
-                long drugStartMs = (long) HljldUtils.toTimestampMs(execution.get("startTime"));
-                if (drugStartMs >= startMs && drugStartMs < effectiveEndMs) {
-                    amt = liquidAmount > 0 ? liquidAmount : dose;
-                } else {
-                    amt = 0;
-                }
-            } else {
-                // 持续泵注：使用差值法（与结算行一致），确保总结 = 日间小结 + 夜班小结
-                // 注意：使用 effectiveEndMs 而不是 endMs，确保日间小结只统计到17:00
-                amt = HljldUtils.calcSegmentUsage(execution,
-                    new Date(startMs), new Date(effectiveEndMs));
-                log.debug("[hljld] 持续药物计算: name={}, startMs={}, effectiveEndMs={}, amt={} ml",
-                    name, new Date(startMs), new Date(effectiveEndMs), amt);
-            }
-
-            if (amt > 0) {
-                // 每组药物计算完后四舍五入，再累加到总入量
-                double roundedAmt = HljldUtils.round1(amt);
-                medicationAmounts.merge(name, roundedAmt, Double::sum);
-                log.info("[hljld] 入量-药物: name={}, methodCode={}, inChannel={}, route={}, amt={} ml (rounded={})",
-                    name, methodCode, inChannel, HljldUtils.routeLabel(methodName), amt, roundedAmt);
-
-                // 统计各途径的量（ivgtt、iv泵、iv）
-                String route = HljldUtils.routeLabel(methodName);
-                if ("ivgtt".equals(route)) {
-                    ivgttTotal += roundedAmt;
-                } else if ("iv泵".equals(route)) {
-                    ivPumpTotal += roundedAmt;
-                } else if ("iv".equals(route)) {
-                    ivTotal += roundedAmt;
-                }
-            }
-        }
-
-        // ═══ 续用药物统计（startTime 在护理日之前，但护理日内仍在执行的持续泵注） ═══
-        for (Document execution : carryOverDrugs) {
-            String methodCode = str(execution, "methodCode");
-            Document method = HljldUtils.findDrugMethod(methodCode, source.getDrugMethods());
-            String drugName = HljldUtils.drugDisplayName(execution);
-
-            if (method == null) continue;
-
-            String inChannel = str(method, "inChannel");
-            String methodName = str(method, "name");
-
-            // 仅统计静脉/输血类续用药物
-            if (!"静脉".equals(inChannel) && !"输血".equals(inChannel)) {
-                continue;
-            }
-
-            String name = HljldUtils.drugDisplayName(execution);
-            if (name.isEmpty()) continue;
-
-            // 续用药物在当前护理日内的用量：使用差值法
-            // 注意：使用 effectiveEndMs 而不是 endMs，确保日间小结只统计到17:00
-            double amt = HljldUtils.calcSegmentUsage(execution,
-                new Date(startMs), new Date(effectiveEndMs));
-            log.debug("[hljld] 续用药物计算: name={}, startMs={}, effectiveEndMs={}, amt={} ml",
-                name, new Date(startMs), new Date(effectiveEndMs), amt);
-
-            if (amt > 0) {
-                // 每组药物计算完后四舍五入，再累加到总入量
-                double roundedAmt = HljldUtils.round1(amt);
-                medicationAmounts.merge(name, roundedAmt, Double::sum);
-                log.info("[hljld] 入量-续用药物: name={}, methodCode={}, inChannel={}, route={}, amt={} ml (startTime在护理日前, rounded={})",
-                    name, methodCode, inChannel, HljldUtils.routeLabel(methodName), amt, roundedAmt);
-
-                String route = HljldUtils.routeLabel(methodName);
-                if ("ivgtt".equals(route)) {
-                    ivgttTotal += roundedAmt;
-                } else if ("iv泵".equals(route)) {
-                    ivPumpTotal += roundedAmt;
-                } else if ("iv".equals(route)) {
-                    ivTotal += roundedAmt;
-                }
-            } else {
-                log.info("[hljld] 入量-续用药物跳过: name={}, methodCode={}, amt=0 (护理日内无用量)",
-                    name, methodCode);
-            }
+        if (totalMedication > 0) {
+            medicationAmounts.put("药物治疗", totalMedication);
         }
 
         // 入量：肠内营养（药物执行 + bedside 口服/鼻饲）
@@ -307,19 +195,11 @@ public class HljldSummaryCalculator {
                 // 持续泵注：使用差值法计算实际用量（与ivgtt药物一致）
                 amt = HljldUtils.calcSegmentUsage(execution,
                     new Date(startMs), new Date(effectiveEndMs));
-                log.debug("[hljld] 肠内持续药物计算: name={}, methodCode={}, startMs={}, effectiveEndMs={}, amt={} ml",
-                    drugName, methodCode, new Date(startMs), new Date(effectiveEndMs), amt);
             }
             if (amt > 0) {
                 // 每组药物计算完后四舍五入，再累加到总入量
                 double roundedAmt = HljldUtils.round1(amt);
                 enteralAmounts.merge(displayName, roundedAmt, Double::sum);
-                log.info("[hljld] 入量-肠内: name={}, methodCode={}, amt={} ml (rounded={})", displayName, methodCode, amt, roundedAmt);
-            } else {
-                log.info("[hljld] 入量-肠内跳过: name={}, methodCode={}, isOnce={}, actionList={}, liquidAmount={}, dose={}",
-                    drugName, methodCode, method.getBoolean("isOnce"),
-                    execution.get("drugActionList") != null ? execution.get("drugActionList").toString().substring(0, Math.min(80, execution.get("drugActionList").toString().length())) : "null",
-                    execution.get("liquidAmount"), execution.get("dose"));
             }
         }
 
@@ -363,15 +243,11 @@ public class HljldSummaryCalculator {
                 // 持续泵注：使用差值法计算实际用量（与ivgtt药物一致）
                 amt = HljldUtils.calcSegmentUsage(execution,
                     new Date(startMs), new Date(effectiveEndMs));
-                log.debug("[hljld] 续用肠内持续药物计算: name={}, methodCode={}, startMs={}, effectiveEndMs={}, amt={} ml",
-                    drugName, methodCode, new Date(startMs), new Date(effectiveEndMs), amt);
             }
             if (amt > 0) {
                 // 每组药物计算完后四舍五入，再累加到总入量
                 double roundedAmt = HljldUtils.round1(amt);
                 enteralAmounts.merge(displayName, roundedAmt, Double::sum);
-                log.info("[hljld] 入量-续用肠内: name={}, methodCode={}, amt={} ml (startTime在护理日前, rounded={})",
-                    displayName, methodCode, amt, roundedAmt);
             }
         }
 
@@ -500,7 +376,6 @@ public class HljldSummaryCalculator {
         summary.setNightText(buildNightText(nightSegments));
 
         // 汇总数据
-        double totalMedication = medicationAmounts.values().stream().mapToDouble(Double::doubleValue).sum();
         double totalEnteral = enteralAmounts.values().stream().mapToDouble(Double::doubleValue).sum();
         double totalUrine = urineMap.values().stream().mapToDouble(Double::doubleValue).sum();
         double totalUltrafiltration = ultrafiltrationMap.values().stream().mapToDouble(Double::doubleValue).sum();
@@ -508,30 +383,28 @@ public class HljldSummaryCalculator {
         double totalOtherOutput = otherOutAll.stream().mapToDouble(NameAmount::getNumericAmount).sum();
         double totalOutput = totalUrine + totalUltrafiltration + totalDrain + totalOtherOutput;
 
-        // 药物治疗 = 静脉/输血药物 + 带入药量
-        double drugTreatment = broughtMedication + totalMedication;
-        // 胃肠摄入 = 胃肠药物 + 口服量 + 鼻饲量
-        double gastrointestinalInput = totalEnteral + oralTotal + tubeFeedingManual;
+        // 药物治疗 = bedside param_YaoYeti_in_hour（已在上面赋值 totalMedication）
+        double drugTreatment = totalMedication;
+        // 胃肠摄入 = bedside param_YaoStomach_in_hour（肠内营养泵入）+ 口服量 + 鼻饲量
+        double stomachTotal = sumBedsideByCode(bedsideInPeriod, "param_YaoStomach_in_hour");
+        log.info("[hljld] 胃肠入量: param_YaoStomach_in_hour={} ml, oral={} ml, biSi={} ml", HljldUtils.round1(stomachTotal), HljldUtils.round1(oralTotal), HljldUtils.round1(tubeFeedingManual));
+        double gastrointestinalInput = stomachTotal + oralTotal + tubeFeedingManual;
         // 总入量 = 药物治疗 + 胃肠摄入
         double totalInput = drugTreatment + gastrointestinalInput;
 
-        log.info("[hljld] 出入量汇总: 总入量={} ml (药物治疗={}, 带入药量={}, 静脉/输血={}, 胃肠摄入={} (药物={}, 口服={}, 鼻饲={})), 总出量={} ml (尿={}, 超滤={}, 引流={}, 其他={}), 平衡={} ml",
-            HljldUtils.round1(totalInput), HljldUtils.round1(drugTreatment), HljldUtils.round1(broughtMedication), HljldUtils.round1(totalMedication), HljldUtils.round1(gastrointestinalInput),
+        log.info("[hljld] 出入量汇总: 总入量={} ml (药物治疗={}, 带入药量={}, 胃肠摄入={} (药物={}, 口服={}, 鼻饲={})), 总出量={} ml (尿={}, 超滤={}, 引流={}, 其他={}), 平衡={} ml",
+            HljldUtils.round1(totalInput), HljldUtils.round1(drugTreatment), HljldUtils.round1(broughtMedication), HljldUtils.round1(gastrointestinalInput),
             HljldUtils.round1(totalEnteral), HljldUtils.round1(oralTotal), HljldUtils.round1(tubeFeedingManual),
             HljldUtils.round1(totalOutput), HljldUtils.round1(totalUrine), HljldUtils.round1(totalUltrafiltration), HljldUtils.round1(totalDrain), HljldUtils.round1(totalOtherOutput),
             HljldUtils.round1(totalInput - totalOutput));
 
-        // 详细药物明细日志（便于排查出入量）
-        log.info("[hljld] 静脉药物明细: drugsInPeriod={}, carryOverDrugs={}", drugsInPeriod.size(), carryOverDrugs.size());
+        // 药物治疗明细日志（从 bedside param_YaoYeti_in_hour 获取）
         for (Map.Entry<String, Double> entry : medicationAmounts.entrySet()) {
-            log.info("[hljld]   静脉药物: {} = {} ml", entry.getKey(), HljldUtils.round1(entry.getValue()));
+            log.info("[hljld]   药物治疗: {} = {} ml", entry.getKey(), HljldUtils.round1(entry.getValue()));
         }
         for (Map.Entry<String, Double> entry : enteralAmounts.entrySet()) {
             log.info("[hljld]   肠内药物: {} = {} ml", entry.getKey(), HljldUtils.round1(entry.getValue()));
         }
-        // ivgtt和iv泵详细汇总
-        log.info("[hljld] 静脉入量细分: ivgtt={} ml, iv泵={} ml, iv={} ml, 带入药量={} ml",
-            HljldUtils.round1(ivgttTotal), HljldUtils.round1(ivPumpTotal), HljldUtils.round1(ivTotal), HljldUtils.round1(broughtMedication));
 
         summary.setMedicationSum(HljldUtils.round1(drugTreatment));
         summary.setEnteralSum(HljldUtils.round1(gastrointestinalInput));
@@ -557,23 +430,23 @@ public class HljldSummaryCalculator {
         summary.setMedicationItems(medicationItems);
 
         List<SummaryItem> enteralItems = new ArrayList<>();
-        enteralAmounts.forEach((name, amount) ->
-            enteralItems.add(new SummaryItem(name, name, HljldUtils.round1(amount))));
+        // 胃肠入量明细：从param_YaoStomach_in_hour获取肠内营养泵入
+        if (stomachTotal > 0) {
+            enteralItems.add(new SummaryItem("胃肠入量", "胃肠入量", HljldUtils.round1(stomachTotal)));
+        }
+        // 添加 bedside 的口服和鼻饲
+        if (oralTotal > 0) {
+            enteralItems.add(new SummaryItem("po", "po", HljldUtils.round1(oralTotal)));
+        }
+        if (tubeFeedingManual > 0) {
+            enteralItems.add(new SummaryItem("鼻饲", "鼻饲", HljldUtils.round1(tubeFeedingManual)));
+        }
         summary.setEnteralItems(enteralItems);
 
-        // 静脉入量细分（带入药量、ivgtt、iv泵、iv）
+        // 静脉入量细分（只展示总量，不展示iv/ivgtt/iv泵明细）
         List<SummaryItem> veinItems = new ArrayList<>();
-        if (broughtMedication > 0) {
-            veinItems.add(new SummaryItem("带入药量", "带入药量", HljldUtils.round1(broughtMedication)));
-        }
-        if (ivgttTotal > 0) {
-            veinItems.add(new SummaryItem("ivgtt", "ivgtt", HljldUtils.round1(ivgttTotal)));
-        }
-        if (ivPumpTotal > 0) {
-            veinItems.add(new SummaryItem("iv泵", "iv泵", HljldUtils.round1(ivPumpTotal)));
-        }
-        if (ivTotal > 0) {
-            veinItems.add(new SummaryItem("iv", "iv", HljldUtils.round1(ivTotal)));
+        if (totalMedication > 0) {
+            veinItems.add(new SummaryItem("静脉入量", "静脉入量", HljldUtils.round1(totalMedication)));
         }
         summary.setVeinItems(veinItems);
 
