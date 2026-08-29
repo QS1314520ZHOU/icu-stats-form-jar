@@ -80,6 +80,7 @@ public class HljldFlowPdfService {
         long sortTime;
         int sortPriority;
         String stableId;
+        long stableSequence;
         PrintableItemType type;
         Map<String, Object> normalRow;
         HljldSummary summary;
@@ -657,6 +658,7 @@ public class HljldFlowPdfService {
         List<PrintableItem> items = new ArrayList<>();
 
         List<HljldTimelineItem> timeline = viewModel.getTimeline();
+        long seqCounter = 0; // 数字型稳定序号，避免字符串排序跨位数边界错乱
 
         if (timeline != null) {
             for (int ti = 0; ti < timeline.size(); ti++) {
@@ -676,6 +678,7 @@ public class HljldFlowPdfService {
                         pi.sortTime = tItem.getTimestamp();
                         pi.sortPriority = 20;
                         pi.stableId = tsPrefix + "-row-" + items.size();
+                        pi.stableSequence = seqCounter++;
                         pi.type = PrintableItemType.NORMAL_ROW;
                         pi.normalRow = displayRowToMap(row);
                         items.add(pi);
@@ -686,6 +689,7 @@ public class HljldFlowPdfService {
                         pi.sortTime = tItem.getTimestamp();
                         pi.sortPriority = 25;
                         pi.stableId = tsPrefix + "-settlement-" + items.size();
+                        pi.stableSequence = seqCounter++;
                         pi.type = PrintableItemType.NORMAL_ROW;
                         pi.normalRow = displayRowToMap(row);
                         items.add(pi);
@@ -694,6 +698,7 @@ public class HljldFlowPdfService {
                     PrintableItem pi = new PrintableItem();
                     pi.sortTime = tItem.getTimestamp();
                     pi.stableId = tsPrefix + "-summary-" + tItem.getKind().name();
+                    pi.stableSequence = seqCounter++;
                     if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SUMMARY) {
                         pi.type = PrintableItemType.DAY_SUMMARY;
                         pi.sortPriority = 30;
@@ -717,6 +722,7 @@ public class HljldFlowPdfService {
                     pi.sortTime = group.getTimestamp();
                     pi.sortPriority = 20;
                     pi.stableId = "row-" + items.size();
+                    pi.stableSequence = seqCounter++;
                     pi.type = PrintableItemType.NORMAL_ROW;
                     pi.normalRow = displayRowToMap(row);
                     items.add(pi);
@@ -724,11 +730,11 @@ public class HljldFlowPdfService {
             }
         }
 
-        // 稳定排序：sortTime → sortPriority → stableId
+        // 稳定排序：sortTime → sortPriority → stableSequence（数字序号，避免字符串跨位数边界错乱）
         items.sort(Comparator
             .comparingLong((PrintableItem p) -> p.sortTime)
             .thenComparingInt((PrintableItem p) -> p.sortPriority)
-            .thenComparing((PrintableItem p) -> p.stableId));
+            .thenComparingLong((PrintableItem p) -> p.stableSequence));
 
         return items;
     }
