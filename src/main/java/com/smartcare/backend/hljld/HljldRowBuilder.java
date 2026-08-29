@@ -368,8 +368,10 @@ public class HljldRowBuilder {
 
             double usedAt0700 = HljldUtils.round1(HljldUtils.calcDrugUsageUpTo(execution, dayStartMs));
             double remaining = HljldUtils.round1(cap - usedAt0700);
-            double usedNow = HljldUtils.round1(HljldUtils.calcDrugUsageUpTo(execution, nowMs));
-            double currentUsage = HljldUtils.round1(Math.max(0, usedNow - usedAt0700));
+            // 实用量 = 整个日间段 [07:00, 17:00] 的完整用量
+            HljldUtils.NursingSegment daySeg = segments.get(0);
+            double currentUsage = HljldUtils.calcSegmentUsage(execution,
+                daySeg.start, daySeg.end);
 
             // 根据药物方法配置判断是胃肠还是非胃肠
             boolean isEnteral = "胃肠".equals(str(method, "group"));
@@ -513,14 +515,13 @@ public class HljldRowBuilder {
             if (!ongoing && !startsAtTime) return;
 
             if (startsAtTime) {
-                // 开始行：显示当天所在班段的实际用量
+                // 开始行：显示从实际开始时间到段末的用量
                 Optional<HljldUtils.NursingSegment> seg = segments.stream()
                     .filter(s -> startMs >= s.start.getTime() && startMs < s.end.getTime())
                     .findFirst();
-                long segStartMs = seg.isPresent() ? seg.get().start.getTime() : startMs;
                 long segEndMs = seg.isPresent() ? seg.get().end.getTime() : startMs + 3600000;
 
-                NameAmountRoute cell = HljldUtils.drugToCell(execution, method, isEnteral, startMs, segStartMs, segEndMs);
+                NameAmountRoute cell = HljldUtils.drugToCell(execution, method, isEnteral, startMs, startMs, segEndMs);
                 cell.setAmount("实用量 " + String.format("%.0f", cell.getNumericAmount()));
                 if (cell.hasNameOrAmount()) {
                     (isEnteral ? enteral : medications).add(cell);
@@ -546,9 +547,42 @@ public class HljldRowBuilder {
             long startMs = (long) HljldUtils.databaseTimeValue(str(execution, "startTime"));
             boolean startsAtTime = startMs != Long.MIN_VALUE && HljldUtils.minuteKey(new Date(startMs)) == key;
             if (startsAtTime) {
-                NameAmountRoute cell = HljldUtils.drugToCell(execution, method, isEnteral, startMs);
-                if (cell.hasNameOrAmount()) {
-                    (isEnteral ? enteral : medications).add(cell);
+                // 检查是否会被 collectEnteralQuickAdd 或 processEnteralStop 处理
+                // 如果有 quickAdd 动作或 stop 动作满足条件，则不添加
+                boolean willBeHandled = false;
+                if (isTargetEnteral) {
+                    List<Map<String, Object>> actionList = getList(execution, "drugActionList");
+                    if (actionList != null) {
+                        // 检查是否有任何 quickAdd 动作
+                        boolean hasAnyQuickAdd = actionList.stream()
+                            .anyMatch(a -> "quickadd".equals(str(a, "action").trim().toLowerCase()));
+
+                        // 检查是否有 stop 动作且 quickAdd 累计 == liquidCap
+                        double liquidCap = HljldUtils.resolveLiquidCap(execution);
+                        double cumulativeQuickAdd = 0;
+                        boolean hasStopWithFullAmount = false;
+                        for (Map<String, Object> action : actionList) {
+                            String act = str(action, "action").trim().toLowerCase();
+                            if ("quickadd".equals(act)) {
+                                cumulativeQuickAdd += HljldUtils.parseAmount(action.get("quickAddAmount"));
+                            }
+                            if ("stop".equals(act)) {
+                                cumulativeQuickAdd += HljldUtils.parseAmount(action.get("quickAddAmount"));
+                                if (Math.abs(cumulativeQuickAdd - liquidCap) < 0.05) {
+                                    hasStopWithFullAmount = true;
+                                }
+                            }
+                        }
+
+                        // 如果有 quickAdd 动作，或者有 stop 动作且累计 == liquidCap
+                        willBeHandled = hasAnyQuickAdd || hasStopWithFullAmount;
+                    }
+                }
+                if (!willBeHandled) {
+                    NameAmountRoute cell = HljldUtils.drugToCell(execution, method, isEnteral, startMs);
+                    if (cell.hasNameOrAmount()) {
+                        (isEnteral ? enteral : medications).add(cell);
+                    }
                 }
             }
         }

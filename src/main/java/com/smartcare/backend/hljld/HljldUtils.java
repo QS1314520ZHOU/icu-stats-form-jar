@@ -1003,11 +1003,12 @@ public final class HljldUtils {
     /**
      * 段内用量 = 累计(段末) - 累计(段初)。
      * 用差值而非重新积分，天然保证 sum(段用量) === 总用量，且复用已有的 cap 封顶逻辑。
+     * 注意：此方法返回精确值，不进行四舍五入，避免累积误差。
      */
     public static double calcSegmentUsage(Document execution, Date segStart, Date segEnd) {
         double from = calcDrugUsageUpTo(execution, segStart.getTime());
         double to = calcDrugUsageUpTo(execution, segEnd.getTime());
-        return Math.max(0, round1(to - from));
+        return Math.max(0, to - from);
     }
 
     /**
@@ -1315,7 +1316,7 @@ public final class HljldUtils {
             double endMs = Double.isFinite(endRaw) ? endRaw : Double.NaN;
 
             double cap = round1(resolveLiquidCap(execution));
-            double segmentUsed = calcSegmentUsage(execution, segment.start, new Date(cutoffMs));
+            double segmentUsed = calcSegmentUsage(execution, segment.start, segment.end);
             double cumulativeUsed = round1(calcDrugUsageUpTo(execution, cutoffMs));
             double cumulativeAtSegStart = round1(calcDrugUsageUpTo(execution, segStartMs));
             double remainder = round1(cap - cumulativeAtSegStart);

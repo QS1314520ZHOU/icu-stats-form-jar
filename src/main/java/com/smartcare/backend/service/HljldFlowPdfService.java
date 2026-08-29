@@ -477,6 +477,11 @@ public class HljldFlowPdfService {
             sb.append("尿量：").append(formatVal(s.getUrineSum())).append(" ml；");
         }
 
+        // 净超滤量
+        if (s.getUltrafiltrationSum() > 0) {
+            sb.append("净超滤量：").append(formatVal(s.getUltrafiltrationSum())).append(" ml；");
+        }
+
         // 排出物（痰液量、大便量等）
         if (s.getOutputItems() != null && !s.getOutputItems().isEmpty()) {
             double outputTotal = s.getOutputItems().stream()
