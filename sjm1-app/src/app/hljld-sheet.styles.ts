@@ -262,8 +262,10 @@ body {
   background: #fff;
 }
 
-.print-record-table tfoot th,
-.print-record-table tfoot td {
+/* 备注可能位于普通页的 tfoot，也可能位于当天最后一页的 tbody。
+   使用备注自身类名统一样式，确保两种位置的外观和高度一致。 */
+.print-record-table .print-remark-row th,
+.print-record-table .print-remark-row td {
   font-size: 6.8pt;
   line-height: 1.25;
   text-align: left;
@@ -271,7 +273,7 @@ body {
   padding: 0.8mm 1mm;
 }
 
-.print-record-table tfoot th {
+.print-record-table .print-remark-row th {
   width: 8%;
   text-align: center;
   font-weight: 700;
