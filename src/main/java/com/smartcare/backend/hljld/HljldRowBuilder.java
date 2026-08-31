@@ -377,6 +377,16 @@ public class HljldRowBuilder {
 
             // 根据药物方法配置判断是胃肠还是非胃肠
             boolean isEnteral = "胃肠".equals(str(method, "group"));
+
+            // 药物治疗列过滤：不展示血液净化；其它中只展示含"雾化吸入"/"冲洗"的
+            if (!isEnteral) {
+                String group = str(method, "group");
+                if ("血液净化".equals(group)
+                    || ("其它".equals(group) && !name.contains("雾化吸入") && !name.contains("冲洗"))) {
+                    continue;
+                }
+            }
+
             String displayName = isEnteral ? HljldUtils.enteralDisplayName(name) : name;
 
             NameAmountRoute cell = new NameAmountRoute(displayName,
@@ -491,6 +501,16 @@ public class HljldRowBuilder {
 
         boolean isEnteral = "胃肠".equals(str(method, "group"));
         String drugName = HljldUtils.drugDisplayName(execution);
+
+        // 药物治疗列过滤：不展示血液净化；其它中只展示含"雾化吸入"/"冲洗"的
+        if (!isEnteral) {
+            String group = str(method, "group");
+            if ("血液净化".equals(group)
+                || ("其它".equals(group) && !drugName.contains("雾化吸入") && !drugName.contains("冲洗"))) {
+                return;
+            }
+        }
+
         boolean isTargetEnteral = isEnteral && HljldUtils.isTargetEnteral(drugName);
 
         // 检查当前时间点是否有 quickAdd
@@ -678,6 +698,14 @@ public class HljldRowBuilder {
                                      List<NameAmountRoute> medications,
                                      List<NameAmountRoute> enteral) {
         for (HljldUtils.SegmentSettlement s : settlements) {
+            // 药物治疗列过滤：不展示血液净化；其它中只展示含"雾化吸入"/"冲洗"的
+            if (!s.isEnteral) {
+                if ("血液净化".equals(s.group)
+                    || ("其它".equals(s.group) && !s.name.contains("雾化吸入") && !s.name.contains("冲洗"))) {
+                    continue;
+                }
+            }
+
             String amountText = HljldUtils.formatSegmentAmountText(s);
             String displayName = s.isEnteral ? HljldUtils.enteralDisplayName(s.name) : s.name;
             NameAmountRoute cell = new NameAmountRoute(displayName, amountText, s.route, s.segmentUsed);

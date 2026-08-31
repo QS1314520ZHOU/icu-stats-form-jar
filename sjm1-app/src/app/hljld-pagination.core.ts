@@ -607,10 +607,10 @@ function moveCutToNaturalBoundary(text: string, index: number): number {
 function getRemainingPrintableHeight(page: PageRefs): number {
   const tbodyRect = page.tbodyEl.getBoundingClientRect();
   const wrapRect = page.tableWrapEl.getBoundingClientRect();
-  const tfootRect = page.tfootEl.getBoundingClientRect();
   const safetyGap = 4;
-  // 可用空间 = 容器底部 - tbody底部 - 备注高度 - 安全间距
-  return Math.max(0, wrapRect.bottom - tbodyRect.bottom - tfootRect.height - safetyGap);
+  // 渲染时备注会移到 tbody 末尾（紧跟内容），tfoot 为空。
+  // 度量时不再预留 tfoot 中的备注高度，使剩余空间反映实际渲染情况。
+  return Math.max(0, wrapRect.bottom - tbodyRect.bottom - safetyGap);
 }
 
 /** 获取当前页剩余空间占容器高度的比例 */
@@ -1008,15 +1008,15 @@ function tryAppendNodes(
 function isOverflowing(page: PageRefs): boolean {
   const tableRect = page.tableEl.getBoundingClientRect();
   const tableWrapRect = page.tableWrapEl.getBoundingClientRect();
-  const tfootRect = page.tfootEl.getBoundingClientRect();
+  const tbodyRect = page.tbodyEl.getBoundingClientRect();
   const pageNoRect = page.pageNoEl.getBoundingClientRect();
   const tolerance = 2;
   // 表格底部越过容器底部，或内容高度超出容器 → 溢出
   const exceedsTableWrap =
     tableRect.bottom > tableWrapRect.bottom + tolerance
     || page.tableEl.scrollHeight > page.tableWrapEl.clientHeight + tolerance;
-  // 小结块底部越过页码区 → 溢出
-  const overlapsPageNumber = tfootRect.bottom > pageNoRect.top - tolerance;
+  // tbody 底部（含备注行）越过页码区 → 溢出
+  const overlapsPageNumber = tbodyRect.bottom > pageNoRect.top - tolerance;
   return exceedsTableWrap || overlapsPageNumber;
 }
 
@@ -1430,63 +1430,75 @@ function extractDisplayRowFromTr(tr: HTMLElement): HljldDisplayRow | null {
 // ── 空白行填充 ──
 
 /**
- * 在最后一页的表格末尾添加空白行 + "以下空白"。
+ * 在每个护理日最后一页的表格末尾添加空白行 + "以下空白"。
  * 按单倍行高计算还能塞几行，补等量的空白 <tr>，
  * 并在数据末行下面加一行"以下空白"，撑满页面。
+ * 多日打印时，每个护理日的最后一页都会被处理。
  */
 export function addTrailingBlankRows(root: HTMLElement, doc: Document): void {
   const pages = root.querySelectorAll('.print-page');
   if (pages.length === 0) return;
 
-  const lastPage = pages[pages.length - 1];
-  const tbody = lastPage.querySelector('tbody');
-  if (!tbody) return;
-
-  // 收集所有非 filler 的数据行
-  const dataRows = Array.from(tbody.querySelectorAll('tr')).filter(
-    tr => !tr.classList.contains('print-filler-row') && !tr.classList.contains('print-blank-row'),
+  // 找到所有"每天最后一页"（有 data-last-of-day 标记），或回退到最后一页
+  let lastPages = Array.from(pages).filter(
+    p => p.getAttribute('data-last-of-day') === 'true',
   );
-
-  if (dataRows.length === 0) return;
-
-  // 测量单行高度（用第一个数据行作为参考）
-  const sampleRow = dataRows[0] as HTMLElement;
-  const rowHeight = sampleRow.getBoundingClientRect().height;
-  if (rowHeight <= 0) return;
-
-  // 计算表格容器可用高度
-  const table = lastPage.querySelector('.print-record-table') as HTMLElement | null;
-  const tableWrap = lastPage.querySelector('.print-table-wrap') as HTMLElement | null;
-  const tfoot = lastPage.querySelector('tfoot') as HTMLElement | null;
-  if (!table || !tableWrap) return;
-
-  const wrapHeight = tableWrap.getBoundingClientRect().height;
-  const tableHeight = table.getBoundingClientRect().height;
-  const tfootHeight = tfoot ? tfoot.getBoundingClientRect().height : 0;
-  const availableHeight = wrapHeight - tableHeight + tfootHeight;  // tbody剩余空间
-
-  const blankRowsNeeded = Math.max(0, Math.floor(availableHeight / rowHeight) - 1);  // -1 给"以下空白"行
-
-  // 添加空白行
-  for (let i = 0; i < blankRowsNeeded; i++) {
-    const tr = doc.createElement('tr');
-    tr.className = 'print-blank-row';
-    const td = doc.createElement('td');
-    td.colSpan = 19;
-    td.style.cssText = 'border:1px solid #000;height:' + rowHeight + 'px;padding:0;';
-    tr.appendChild(td);
-    tbody.appendChild(tr);
+  if (lastPages.length === 0) {
+    // 回退：单日模式，只处理最后一页
+    lastPages = [pages[pages.length - 1]];
   }
 
-  // 添加"以下空白"行
-  const blankTr = doc.createElement('tr');
-  blankTr.className = 'print-blank-row print-blank-label';
-  const blankTd = doc.createElement('td');
-  blankTd.colSpan = 19;
-  blankTd.style.cssText = 'border:1px solid #000;text-align:center;padding:1mm;font-size:7pt;color:#666;';
-  blankTd.textContent = '以下空白';
-  blankTr.appendChild(blankTd);
-  tbody.appendChild(blankTr);
+  for (const targetPage of lastPages) {
+    const tbody = targetPage.querySelector('tbody');
+    if (!tbody) continue;
+
+    // 收集所有非 filler 的数据行
+    const dataRows = Array.from(tbody.querySelectorAll('tr')).filter(
+      tr => !tr.classList.contains('print-filler-row') && !tr.classList.contains('print-blank-row'),
+    );
+
+    if (dataRows.length === 0) continue;
+
+    // 测量单行高度（用第一个数据行作为参考）
+    const sampleRow = dataRows[0] as HTMLElement;
+    const rowHeight = sampleRow.getBoundingClientRect().height;
+    if (rowHeight <= 0) continue;
+
+    // 计算表格容器可用高度
+    const table = targetPage.querySelector('.print-record-table') as HTMLElement | null;
+    const tableWrap = targetPage.querySelector('.print-table-wrap') as HTMLElement | null;
+    if (!table || !tableWrap) continue;
+
+    const wrapHeight = tableWrap.getBoundingClientRect().height;
+    const tableHeight = table.getBoundingClientRect().height;
+    // tfoot 始终存在于 DOM 中（渲染时为空），其高度计入剩余空间
+    const tfoot = targetPage.querySelector('tfoot') as HTMLElement | null;
+    const tfootHeight = tfoot ? tfoot.getBoundingClientRect().height : 0;
+    const availableHeight = wrapHeight - tableHeight + tfootHeight;  // tbody剩余空间
+
+    const blankRowsNeeded = Math.max(0, Math.floor(availableHeight / rowHeight) - 1);  // -1 给"以下空白"行
+
+    // 添加空白行
+    for (let i = 0; i < blankRowsNeeded; i++) {
+      const tr = doc.createElement('tr');
+      tr.className = 'print-blank-row';
+      const td = doc.createElement('td');
+      td.colSpan = 19;
+      td.style.cssText = 'border:1px solid #000;height:' + rowHeight + 'px;padding:0;';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+
+    // 添加"以下空白"行
+    const blankTr = doc.createElement('tr');
+    blankTr.className = 'print-blank-row print-blank-label';
+    const blankTd = doc.createElement('td');
+    blankTd.colSpan = 19;
+    blankTd.style.cssText = 'border:1px solid #000;text-align:center;padding:1mm;font-size:7pt;color:#666;';
+    blankTd.textContent = '以下空白';
+    blankTr.appendChild(blankTd);
+    tbody.appendChild(blankTr);
+  }
 }
 
 // ── 校验函数 ──
@@ -1506,7 +1518,11 @@ export function validateGeneratedPages(pages: PageRefs[]): boolean {
       ok = false;
     }
 
-    if (!page.tfootEl.querySelector('.print-remark-row')) {
+    // 备注行可在 tfoot（度量阶段）或 tbody（渲染阶段最后一页）
+    const hasRemark =
+      page.tfootEl.querySelector('.print-remark-row')
+      || page.tbodyEl.querySelector('.print-remark-row');
+    if (!hasRemark) {
       console.error('[HLJLD][print-validate] missing remark row', pageIndex + 1);
       ok = false;
     }
@@ -1535,8 +1551,9 @@ export function validateGeneratedPages(pages: PageRefs[]): boolean {
       ok = false;
     }
 
-    // 备注完整校验
-    const remarkRow = page.tfootEl.querySelector<HTMLElement>('.print-remark-row');
+    // 备注完整校验（可在 tfoot 或 tbody）
+    const remarkRow = (page.tfootEl.querySelector<HTMLElement>('.print-remark-row')
+      || page.tbodyEl.querySelector<HTMLElement>('.print-remark-row'));
     if (remarkRow) {
       const remarkRect = remarkRow.getBoundingClientRect();
       const wrapRect = page.tableWrapEl.getBoundingClientRect();

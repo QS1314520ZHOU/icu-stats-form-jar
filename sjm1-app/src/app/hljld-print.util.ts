@@ -151,10 +151,10 @@ export async function printAllHljldRecords({
       // 使用分页内核获取页模型，传入累计页码偏移实现连续编号
       const pageModels = paginateHljld(printWindow.document, root, vm, remarkLines, totalPages);
 
-      // 渲染每一页
-      for (const pageModel of pageModels) {
-        pageModel.showRemark = true;
-        const pageEl = renderPageModel(printWindow.document, vm, remarkLines, pageModel);
+      // 渲染每一页 — 只有每个护理日的最后一页显示备注
+      for (let pi = 0; pi < pageModels.length; pi++) {
+        pageModels[pi].showRemark = pi === pageModels.length - 1;
+        const pageEl = renderPageModel(printWindow.document, vm, remarkLines, pageModels[pi]);
         root.appendChild(pageEl);
       }
 
@@ -263,10 +263,10 @@ export async function printAllViaIframe({
     for (const vm of vms) {
       const pageModels = paginateHljld(ifrDoc, root, vm, remarkLines, totalPages);
 
-      // 渲染每一页
-      for (const pageModel of pageModels) {
-        pageModel.showRemark = true;
-        const pageEl = renderPageModel(ifrDoc, vm, remarkLines, pageModel);
+      // 渲染每一页 — 只有每个护理日的最后一页显示备注
+      for (let pi = 0; pi < pageModels.length; pi++) {
+        pageModels[pi].showRemark = pi === pageModels.length - 1;
+        const pageEl = renderPageModel(ifrDoc, vm, remarkLines, pageModels[pi]);
         root.appendChild(pageEl);
       }
 
@@ -319,6 +319,9 @@ function renderPageModel(
 ): HTMLElement {
   const pageEl = doc.createElement('div');
   pageEl.className = 'print-page';
+  if (pageModel.lastOfDay) {
+    pageEl.setAttribute('data-last-of-day', 'true');
+  }
 
   const sheet = doc.createElement('div');
   sheet.className = 'sheet';
@@ -511,9 +514,12 @@ function renderPageModel(
   }
   table.appendChild(tbody);
 
-  // tfoot
+  // tfoot — 始终添加空 tfoot 保持 DOM 结构一致（度量时 tfoot 含备注，渲染时为空）
   const foot = doc.createElement('tfoot');
-  if (pageModel.showRemark) {
+  table.appendChild(foot);
+
+  // 备注行：showRemark 页面放到 tbody 末尾，紧跟最后一个内容行（消除底部空白）
+  if (pageModel.showRemark && remarkLines.length > 0) {
     const remarkRow = doc.createElement('tr');
     remarkRow.className = 'print-remark-row';
 
@@ -534,9 +540,8 @@ function renderPageModel(
     }
     td.appendChild(remarkLinesDiv);
     remarkRow.appendChild(td);
-    foot.appendChild(remarkRow);
+    tbody.appendChild(remarkRow);
   }
-  table.appendChild(foot);
 
   tableWrap.appendChild(table);
   sheet.appendChild(tableWrap);

@@ -1330,12 +1330,14 @@ public final class HljldUtils {
         public final boolean consistent;
         /** 是否为胃肠类药物（用于分类到 enteral 列） */
         public final boolean isEnteral;
+        /** 给药途径 group（静脉/其它/胃肠等） */
+        public final String group;
 
         public SegmentSettlement(Document execution, String name, String route,
                                   double segmentUsed, double cumulativeUsed,
                                   double remainder, double cap,
                                   boolean ongoing, boolean partial, boolean consistent,
-                                  boolean isEnteral) {
+                                  boolean isEnteral, String group) {
             this.execution = execution;
             this.name = name;
             this.route = route;
@@ -1347,6 +1349,7 @@ public final class HljldUtils {
             this.partial = partial;
             this.consistent = consistent;
             this.isEnteral = isEnteral;
+            this.group = group;
         }
     }
 
@@ -1417,7 +1420,7 @@ public final class HljldUtils {
             out.add(new SegmentSettlement(
                 execution, drugDisplayName(execution), routeLabel(strOrNull(method, "name")),
                 segmentUsed, cumulativeUsed, remainder, cap,
-                ongoing, partial, consistent, isEnteral));
+                ongoing, partial, consistent, isEnteral, methodGroup));
         }
         return out;
     }
