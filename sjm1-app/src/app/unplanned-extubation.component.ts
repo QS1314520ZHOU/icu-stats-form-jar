@@ -69,7 +69,7 @@ const DGSL_OPTIONS = [
 /** 导管固定评分 */
 const DGGD_OPTIONS = [
   { label: '使用胶布或贴膜固定或系带固定', score: 3 },
-  { label: '使用胶布+贴膜固定或系带+胶布/贴膜固定', score: 2 },
+  { label: '使用胶布+贴膜固定/系带+胶布固定/系带+贴膜固定', score: 2 },
   { label: '缝线固定或固定器固定或水囊(气囊)固定', score: 1 },
 ];
 
@@ -132,6 +132,8 @@ interface ScoreRecord {
   inputUserId?: string;
   inputUser?: string;
   nurseMeasureList?: NurseMeasure[];
+  /** 无导管：true 时在该行打钩 */
+  noTube?: boolean;
   unPlannedCGZYYScore?: UnPlannedScore;
 }
 
@@ -149,6 +151,8 @@ interface EvalColumn {
   total: number | null;
   conclusion: string;
   measures: boolean[];
+  /** 无导管：true 时在该行打钩 */
+  noTube?: boolean;
   signUserId?: string;
   signName?: string;
 }
@@ -402,6 +406,12 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
               <td *ngIf="measure.rowspan > 0" [attr.rowspan]="measure.rowspan" class="measure-label">{{ measure.group }}</td>
               <td colspan="2" class="measure-item">{{ measure.label }}</td>
               <td *ngFor="let c of pagePaddedCols(page)" class="data-cell measure-check-cell">{{ checkMeasure(c, measureIndex) }}</td>
+            </tr>
+
+            <!-- 无导管（数据源字段 noTube，true 打钩） -->
+            <tr>
+              <td colspan="4" class="sum-label">无导管</td>
+              <td *ngFor="let c of pagePaddedCols(page)" class="data-cell">{{ checkNoTube(c) }}</td>
             </tr>
 
             <!-- 护士签名 -->
@@ -741,6 +751,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
           total: this.num(record.total),
           conclusion: record.conclusion || '',
           measures: this.parseMeasures(record.nurseMeasureList),
+          noTube: record.noTube === true,
           signUserId: record.inputUserId,
           signName: record.inputUser || '',
         };
@@ -824,6 +835,12 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   checkMeasure(col: EvalColumn | null, index: number): string {
     if (!col) return '';
     return col.measures[index] === true ? '√' : '';
+  }
+
+  /** 无导管：字段 noTube 为 true 才打钩，否则置空 */
+  checkNoTube(col: EvalColumn | null): string {
+    if (!col) return '';
+    return col.noTube === true ? '√' : '';
   }
 
   private paginate(): void {
