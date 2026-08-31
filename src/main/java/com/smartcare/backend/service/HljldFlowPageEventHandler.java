@@ -15,6 +15,8 @@ import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
 
+import java.util.Set;
+
 /**
  * 护理记录单流式 PDF 页事件处理器。
  *
@@ -39,16 +41,21 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     private final PdfFont font;
     private final String patientInfo;
     private final int startPageNo;
+    /** 需要跳过固定备注绘制的全局页码集合（这些页已有流式备注Table） */
+    private final Set<Integer> skipRemarkPageNos;
 
     /**
-     * @param font        当前 PdfDocument 的 PdfFont
-     * @param patientInfo 患者信息文本
-     * @param startPageNo 全局起始页码
+     * @param font             当前 PdfDocument 的 PdfFont
+     * @param patientInfo      患者信息文本
+     * @param startPageNo      全局起始页码
+     * @param skipRemarkPageNos 需要跳过固定备注绘制的全局页码集合（可变，可在注册后更新）
      */
-    public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo) {
+    public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo,
+                                     Set<Integer> skipRemarkPageNos) {
         this.font = font;
         this.patientInfo = patientInfo == null ? "" : patientInfo;
         this.startPageNo = startPageNo;
+        this.skipRemarkPageNos = skipRemarkPageNos;
     }
 
     @Override
@@ -61,6 +68,9 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         int localPageNumber = pdfDoc.getPageNumber(page);
         int globalPageNumber = startPageNo + localPageNumber - 1;
 
+        // 该页是否已有流式备注Table → 跳过固定底部备注的绘制
+        boolean skipRemarks = skipRemarkPageNos.contains(globalPageNumber);
+
         Rectangle pageSize = page.getPageSize();
         float pw = pageSize.getWidth();
         float ph = pageSize.getHeight();
@@ -71,12 +81,16 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         // 使用 Canvas 绘制文字（在内容流之上）
         try (Canvas canvas = new Canvas(pdfCanvas, new Rectangle(0, 0, pw, ph))) {
             drawHeader(canvas, pw, ph);
-            drawRemarksText(canvas, pdfCanvas, pw);
+            if (!skipRemarks) {
+                drawRemarksText(canvas, pdfCanvas, pw);
+            }
             drawPageNumber(canvas, pw, globalPageNumber);
         }
 
         // 使用 PdfCanvas 绘制备注区边框和线条
-        drawRemarksBorders(pdfCanvas, pw);
+        if (!skipRemarks) {
+            drawRemarksBorders(pdfCanvas, pw);
+        }
     }
 
     // ══════════════════════════════════════════════════════════

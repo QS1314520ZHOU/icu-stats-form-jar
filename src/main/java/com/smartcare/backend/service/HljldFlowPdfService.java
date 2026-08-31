@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ICU 护理记录单 PDF 生成服务（流式分页版）
@@ -192,9 +193,14 @@ public class HljldFlowPdfService {
             HljldPdfLayoutConstants.MARGIN_LEFT
         );
 
+        // 可变集合：记录每个护理日最后一页的全局页码
+        // 使用 ConcurrentHashMap.newKeySet() 支持并发安全，可在事件处理器中实时读取
+        Set<Integer> skipRemarkPageNos = ConcurrentHashMap.newKeySet();
+
         // 先创建事件处理器并注册（在添加内容之前）
+        // skipRemarkPageNos 为可变集合，后续添加流式备注时动态更新
         HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
-            font, patientInfo, startPageNo);
+            font, patientInfo, startPageNo, skipRemarkPageNos);
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
 
         int totalRowCount = 0;
@@ -206,9 +212,43 @@ public class HljldFlowPdfService {
             }
             firstDay = false;
 
-            // 构建并添加单张父级流式 Table（普通行 + 小结/总结容器行交错输出）
+            // 构建单张父级流式 Table（普通行 + 小结/总结容器行交错输出）
             Table dailyTable = buildDailyStreamingTable(dayItems, font);
+
+            // ── 最后一页备注：作为流式Table追加到dailyTable ──
+            // 在添加dailyTable之前记录当前物理页码
+            int beforePageCount = pdfDoc.getNumberOfPages();
+
+            // 添加流式备注Table到dailyTable末尾
+            // 备注将紧跟24小时总结或最后一条正文内容
+            Table remarksTable = buildRemarksTable(font);
+            dailyTable.addCell(
+                new Cell(1, 19)
+                    .add(remarksTable)
+                    .setPadding(0)
+                    .setMargin(0)
+                    .setBorder(Border.NO_BORDER));
+
+            // 将完整的dailyTable（含流式备注）添加到文档
             doc.add(dailyTable);
+
+            // 添加后检查物理页数 → 检测是否发生分页
+            int afterPageCount = pdfDoc.getNumberOfPages();
+            // 最后一页的全局页码 = startPageNo + afterPageCount - 1
+            int lastPageGlobalNo = startPageNo + afterPageCount - 1;
+
+            if (afterPageCount > beforePageCount) {
+                // 发生了分页：备注可能跨越了分界点
+                // 标记分界前最后一页和分界后最后一页
+                int breakPageGlobalNo = startPageNo + beforePageCount - 1;
+                skipRemarkPageNos.add(breakPageGlobalNo);
+                skipRemarkPageNos.add(lastPageGlobalNo);
+                log.debug("护理日备注分页: breakPage={}, lastPage={}", breakPageGlobalNo, lastPageGlobalNo);
+            } else {
+                // 未分页：备注在当前页内
+                skipRemarkPageNos.add(lastPageGlobalNo);
+            }
+
             totalRowCount += dayItems.size();
         }
 
@@ -315,7 +355,7 @@ public class HljldFlowPdfService {
             doc.add(table);
 
             HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-                font, patientInfo, 1);
+                font, patientInfo, 1, Collections.emptySet());
             pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
             doc.close();
 
@@ -361,6 +401,58 @@ public class HljldFlowPdfService {
         table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
         table.setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_OUTER));
         table.setKeepTogether(false);
+        return table;
+    }
+
+    /**
+     * 构建流式备注Table，用于嵌入每个护理日最后一页的dailyTable中。
+     * <p>
+     * 布局：2列（colspan=1 + colspan=18），4行，总宽与主表一致。
+     * 左侧"备注"纵向合并4行，右侧4行每行合并18列。
+     * 外观与事件处理器绘制的固定备注完全一致。
+     *
+     * @param font 当前PdfFont
+     * @return 包含4行备注的Table
+     */
+    private Table buildRemarksTable(PdfFont font) {
+        String[] remarks = HljldPdfLayoutConstants.REMARK_LINES;
+        float col0Width = HljldPdfLayoutConstants.COL_WIDTHS_PT[0];
+        float contentWidth = HljldPdfLayoutConstants.TABLE_WIDTH - col0Width;
+
+        // 创建2列表格：col0(43pt) + content(743pt) = 786pt
+        Table table = new Table(new float[]{col0Width, contentWidth});
+        table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
+        table.setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_OUTER));
+
+        // 左侧"备注"标签：合并4行
+        Cell labelCell = new Cell(4, 1)
+            .add(new Paragraph("备注")
+                .setFont(font)
+                .setFontSize(HljldPdfLayoutConstants.REMARK_LABEL_FONT_SIZE)
+                .setTextAlignment(TextAlignment.CENTER)
+                .setMargin(0))
+            .setTextAlignment(TextAlignment.CENTER)
+            .setVerticalAlignment(VerticalAlignment.MIDDLE)
+            .setHeight(HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT)
+            .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_REMARK));
+        table.addCell(labelCell);
+
+        // 右侧4行备注内容
+        for (String line : remarks) {
+            Cell contentCell = new Cell(1, 1)
+                .add(new Paragraph(line)
+                    .setFont(font)
+                    .setFontSize(HljldPdfLayoutConstants.REMARK_FONT_SIZE)
+                    .setTextAlignment(TextAlignment.LEFT)
+                    .setVerticalAlignment(VerticalAlignment.MIDDLE)
+                    .setMargin(0))
+                .setTextAlignment(TextAlignment.LEFT)
+                .setVerticalAlignment(VerticalAlignment.MIDDLE)
+                .setHeight(HljldPdfLayoutConstants.REMARK_ROW_HEIGHT)
+                .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstants.BORDER_REMARK));
+            table.addCell(contentCell);
+        }
+
         return table;
     }
 
