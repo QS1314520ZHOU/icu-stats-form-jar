@@ -607,10 +607,10 @@ function moveCutToNaturalBoundary(text: string, index: number): number {
 function getRemainingPrintableHeight(page: PageRefs): number {
   const tbodyRect = page.tbodyEl.getBoundingClientRect();
   const wrapRect = page.tableWrapEl.getBoundingClientRect();
+  const tfootRect = page.tfootEl.getBoundingClientRect();
   const safetyGap = 4;
-  // 渲染时备注会移到 tbody 末尾（紧跟内容），tfoot 为空。
-  // 度量时不再预留 tfoot 中的备注高度，使剩余空间反映实际渲染情况。
-  return Math.max(0, wrapRect.bottom - tbodyRect.bottom - safetyGap);
+  // 可用空间 = 容器底部 - tbody底部 - 备注高度(tfoot) - 安全间距
+  return Math.max(0, wrapRect.bottom - tbodyRect.bottom - tfootRect.height - safetyGap);
 }
 
 /** 获取当前页剩余空间占容器高度的比例 */
@@ -1008,15 +1008,15 @@ function tryAppendNodes(
 function isOverflowing(page: PageRefs): boolean {
   const tableRect = page.tableEl.getBoundingClientRect();
   const tableWrapRect = page.tableWrapEl.getBoundingClientRect();
-  const tbodyRect = page.tbodyEl.getBoundingClientRect();
+  const tfootRect = page.tfootEl.getBoundingClientRect();
   const pageNoRect = page.pageNoEl.getBoundingClientRect();
   const tolerance = 2;
   // 表格底部越过容器底部，或内容高度超出容器 → 溢出
   const exceedsTableWrap =
     tableRect.bottom > tableWrapRect.bottom + tolerance
     || page.tableEl.scrollHeight > page.tableWrapEl.clientHeight + tolerance;
-  // tbody 底部（含备注行）越过页码区 → 溢出
-  const overlapsPageNumber = tbodyRect.bottom > pageNoRect.top - tolerance;
+  // 备注底部越过页码区 → 溢出
+  const overlapsPageNumber = tfootRect.bottom > pageNoRect.top - tolerance;
   return exceedsTableWrap || overlapsPageNumber;
 }
 

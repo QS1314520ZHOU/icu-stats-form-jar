@@ -151,10 +151,10 @@ export async function printAllHljldRecords({
       // 使用分页内核获取页模型，传入累计页码偏移实现连续编号
       const pageModels = paginateHljld(printWindow.document, root, vm, remarkLines, totalPages);
 
-      // 渲染每一页 — 只有每个护理日的最后一页显示备注
-      for (let pi = 0; pi < pageModels.length; pi++) {
-        pageModels[pi].showRemark = pi === pageModels.length - 1;
-        const pageEl = renderPageModel(printWindow.document, vm, remarkLines, pageModels[pi]);
+      // 渲染每一页 — 每页都显示备注
+      for (const pageModel of pageModels) {
+        pageModel.showRemark = true;
+        const pageEl = renderPageModel(printWindow.document, vm, remarkLines, pageModel);
         root.appendChild(pageEl);
       }
 
@@ -263,10 +263,10 @@ export async function printAllViaIframe({
     for (const vm of vms) {
       const pageModels = paginateHljld(ifrDoc, root, vm, remarkLines, totalPages);
 
-      // 渲染每一页 — 只有每个护理日的最后一页显示备注
-      for (let pi = 0; pi < pageModels.length; pi++) {
-        pageModels[pi].showRemark = pi === pageModels.length - 1;
-        const pageEl = renderPageModel(ifrDoc, vm, remarkLines, pageModels[pi]);
+      // 渲染每一页 — 每页都显示备注
+      for (const pageModel of pageModels) {
+        pageModel.showRemark = true;
+        const pageEl = renderPageModel(ifrDoc, vm, remarkLines, pageModel);
         root.appendChild(pageEl);
       }
 
@@ -514,33 +514,38 @@ function renderPageModel(
   }
   table.appendChild(tbody);
 
-  // tfoot — 始终添加空 tfoot 保持 DOM 结构一致（度量时 tfoot 含备注，渲染时为空）
+  // tfoot — 每页都必须有备注
   const foot = doc.createElement('tfoot');
   table.appendChild(foot);
 
-  // 备注行：showRemark 页面放到 tbody 末尾，紧跟最后一个内容行（消除底部空白）
-  if (pageModel.showRemark && remarkLines.length > 0) {
-    const remarkRow = doc.createElement('tr');
-    remarkRow.className = 'print-remark-row';
+  // 创建备注行（每页且仅一页一个）
+  const remarkRow = doc.createElement('tr');
+  remarkRow.className = 'print-remark-row';
 
-    const th = doc.createElement('th');
-    th.textContent = '备注';
-    remarkRow.appendChild(th);
+  const remarkTh = doc.createElement('th');
+  remarkTh.textContent = '备注';
+  remarkRow.appendChild(remarkTh);
 
-    const td = doc.createElement('td');
-    td.colSpan = 18;
+  const remarkTd = doc.createElement('td');
+  remarkTd.colSpan = 18;
 
-    const remarkLinesDiv = doc.createElement('div');
-    remarkLinesDiv.className = 'print-remark-lines';
-    for (const line of remarkLines) {
-      const lineDiv = doc.createElement('div');
-      lineDiv.className = 'print-remark-line';
-      lineDiv.textContent = line;
-      remarkLinesDiv.appendChild(lineDiv);
-    }
-    td.appendChild(remarkLinesDiv);
-    remarkRow.appendChild(td);
+  const remarkLinesDiv = doc.createElement('div');
+  remarkLinesDiv.className = 'print-remark-lines';
+  for (const line of remarkLines) {
+    const lineDiv = doc.createElement('div');
+    lineDiv.className = 'print-remark-line';
+    lineDiv.textContent = line;
+    remarkLinesDiv.appendChild(lineDiv);
+  }
+  remarkTd.appendChild(remarkLinesDiv);
+  remarkRow.appendChild(remarkTd);
+
+  // 当天最后一页：备注放到 tbody 末尾，紧跟24小时总结或最后一个内容行
+  // 非最后一页：备注保持在 tfoot 中（原有布局不变）
+  if (pageModel.lastOfDay) {
     tbody.appendChild(remarkRow);
+  } else {
+    foot.appendChild(remarkRow);
   }
 
   tableWrap.appendChild(table);
