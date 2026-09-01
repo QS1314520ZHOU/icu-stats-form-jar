@@ -355,12 +355,15 @@ public final class HljldPdfRequestContext {
      * 判断是否应该显示24小时总结。
      * 规则：
      * 1. 当前时间必须 >= 次日07:00
-     * 2. 如果是出科当天且不是"转出"类型，不显示（出科时停止统计）
+     * 2. 如果是出科当天，且出科时间 < 次日07:00，不显示（出科时停止统计）
      */
     public boolean shouldShowFullDaySummary() {
-        // 如果是出科当天，且不是"转出"类型，不显示24小时总结
-        if (isDischargeDay()) {
-            if (dischargedType == null || !"转出".equals(dischargedType.trim())) {
+        // 如果是出科当天，检查出科时间是否在次日07:00之前
+        if (isDischargeDay() && dischargeTime != null) {
+            long dischargeMs = dischargeTime.toEpochMilli();
+            long nursingDayEndMs = getNursingDayEndMs();
+            // 出科时间在次日07:00之前，停止显示24小时总结
+            if (dischargeMs < nursingDayEndMs) {
                 return false;
             }
         }
