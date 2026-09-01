@@ -70,8 +70,38 @@ public class HljldPdfDataAssembler {
                 admissionTimeStr = (String) admissionTimeObj;
             }
         }
+
+        // 3.1 获取出科时间（优先使用 icuDischargeTime，其次 dischargeTime）
+        String dischargeTimeStr = null;
+        if (source.getPatientInfo() != null) {
+            Object dischargeTimeObj = source.getPatientInfo().get("icuDischargeTime");
+            if (dischargeTimeObj == null) {
+                dischargeTimeObj = source.getPatientInfo().get("dischargeTime");
+            }
+            if (dischargeTimeObj instanceof Date) {
+                // 使用 ISO 8601 格式，时区偏移量带冒号
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+                sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
+                dischargeTimeStr = sdf.format((Date) dischargeTimeObj);
+            } else if (dischargeTimeObj instanceof String) {
+                dischargeTimeStr = (String) dischargeTimeObj;
+            }
+        }
+
+        // 3.2 获取出科类型（转出/转科/死亡/治愈/好转/自动出院等）
+        String dischargedType = null;
+        if (source.getPatientInfo() != null) {
+            Object dischargedTypeObj = source.getPatientInfo().get("dischargedType");
+            if (dischargedTypeObj == null) {
+                dischargedTypeObj = source.getPatientInfo().get("dischargeType");
+            }
+            if (dischargedTypeObj instanceof String) {
+                dischargedType = (String) dischargedTypeObj;
+            }
+        }
+
         // 使用 HljldPdfRequestContext 统一管理时间
-        HljldPdfRequestContext context = HljldPdfRequestContext.of(nursingDay, referenceTime, admissionTimeStr);
+        HljldPdfRequestContext context = HljldPdfRequestContext.of(nursingDay, referenceTime, admissionTimeStr, dischargeTimeStr, dischargedType);
         long nowMs = context.getReferenceTimeMs();
 
         // 3. 获取当前护士签名
@@ -112,7 +142,7 @@ public class HljldPdfDataAssembler {
 
         // 11. 构建时间轴（使用 context 控制门禁）
         List<HljldTimelineItem> timeline = summaryCalculator.buildTimeline(
-            context, regularGroups, continuationGroups, daySummary, fullDaySummary);
+            context, regularGroups, continuationGroups, daySummary, fullDaySummary, dischargeSummary);
 
         // 12. 构建分页数据
         // 将续用行和普通行合并用于分页计算

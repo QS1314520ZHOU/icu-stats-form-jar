@@ -15,28 +15,53 @@ public final class HljldPdfRequestContext {
     private final LocalDate nursingDate;
     private final Instant referenceTime;
     private final Instant admissionTime;  // 入科时间
+    private final Instant dischargeTime;  // 出科时间
+    private final String dischargedType;  // 出科类型（转出/转科/死亡/治愈/好转/自动出院等）
 
     private HljldPdfRequestContext(
         LocalDate nursingDate,
         Instant referenceTime,
-        Instant admissionTime
+        Instant admissionTime,
+        Instant dischargeTime,
+        String dischargedType
     ) {
         this.nursingDate = nursingDate;
         this.referenceTime = referenceTime;
         this.admissionTime = admissionTime;
+        this.dischargeTime = dischargeTime;
+        this.dischargedType = dischargedType;
     }
 
     public static HljldPdfRequestContext of(
         String nursingDateText,
         String referenceTimeText
     ) {
-        return of(nursingDateText, referenceTimeText, null);
+        return of(nursingDateText, referenceTimeText, null, null, null);
     }
 
     public static HljldPdfRequestContext of(
         String nursingDateText,
         String referenceTimeText,
         String admissionTimeText
+    ) {
+        return of(nursingDateText, referenceTimeText, admissionTimeText, null, null);
+    }
+
+    public static HljldPdfRequestContext of(
+        String nursingDateText,
+        String referenceTimeText,
+        String admissionTimeText,
+        String dischargeTimeText
+    ) {
+        return of(nursingDateText, referenceTimeText, admissionTimeText, dischargeTimeText, null);
+    }
+
+    public static HljldPdfRequestContext of(
+        String nursingDateText,
+        String referenceTimeText,
+        String admissionTimeText,
+        String dischargeTimeText,
+        String dischargedType
     ) {
         LocalDate nursingDate =
             LocalDate.parse(nursingDateText);
@@ -66,10 +91,29 @@ public final class HljldPdfRequestContext {
             }
         }
 
+        Instant dischargeTime = null;
+        if (dischargeTimeText != null && !dischargeTimeText.trim().isEmpty()) {
+            try {
+                dischargeTime = OffsetDateTime.parse(dischargeTimeText.trim()).toInstant();
+            } catch (Exception e) {
+                // 尝试解析日期时间格式
+                try {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
+                    Date d = sdf.parse(dischargeTimeText.trim());
+                    dischargeTime = d.toInstant();
+                } catch (Exception ex) {
+                    // 忽略解析错误
+                }
+            }
+        }
+
         return new HljldPdfRequestContext(
             nursingDate,
             referenceTime,
-            admissionTime
+            admissionTime,
+            dischargeTime,
+            dischargedType
         );
     }
 
@@ -87,6 +131,18 @@ public final class HljldPdfRequestContext {
 
     public long getAdmissionTimeMs() {
         return admissionTime != null ? admissionTime.toEpochMilli() : 0;
+    }
+
+    public Instant getDischargeTime() {
+        return dischargeTime;
+    }
+
+    public long getDischargeTimeMs() {
+        return dischargeTime != null ? dischargeTime.toEpochMilli() : 0;
+    }
+
+    public String getDischargedType() {
+        return dischargedType;
     }
 
     public ZonedDateTime getNursingDayStart() {
@@ -134,12 +190,131 @@ public final class HljldPdfRequestContext {
     }
 
     /**
+     * 判断是否是入科第一天。
+     * 规则：入科时间在本护理日范围内（07:00 - 次日07:00）
+     */
+    public boolean isFirstDayOfAdmission() {
+        if (admissionTime == null) {
+            return false;
+        }
+        long admissionMs = admissionTime.toEpochMilli();
+        long nursingDayStartMs = getNursingDayStartMs();
+        long nursingDayEndMs = getNursingDayEndMs();
+        return admissionMs >= nursingDayStartMs && admissionMs < nursingDayEndMs;
+    }
+
+    /**
+     * 判断是否是出科当天。
+     * 规则：出科时间在本护理日范围内（07:00 - 次日07:00）
+     */
+    public boolean isDischargeDay() {
+        if (dischargeTime == null) {
+            return false;
+        }
+        long dischargeMs = dischargeTime.toEpochMilli();
+        long nursingDayStartMs = getNursingDayStartMs();
+        long nursingDayEndMs = getNursingDayEndMs();
+        return dischargeMs >= nursingDayStartMs && dischargeMs < nursingDayEndMs;
+    }
+
+    /**
+     * 计算入科第一天的小时数（用于xx小时小结标题）。
+     * 从入科时间到当前参考时间的小时数，分钟>=30则+1小时。
+     * 如果当前时间超过17:00，则计算到17:00的小时数。
+     */
+    public long getDaySummaryHours() {
+        if (admissionTime == null) {
+            return 0;
+        }
+        long admissionMs = admissionTime.toEpochMilli();
+        long daySummaryTimeMs = getDaySummaryTimeMs();
+        long referenceMs = getReferenceTimeMs();
+
+        // 计算结束时间：取17:00和当前时间的较小值
+        long endMs = Math.min(daySummaryTimeMs, referenceMs);
+
+        // 如果入科时间在17:00之后，不生成小结
+        if (admissionMs >= daySummaryTimeMs) {
+            return 0;
+        }
+
+        // 计算时长
+        long durationMs = endMs - admissionMs;
+        long hours = durationMs / (1000 * 60 * 60);
+        long minutes = (durationMs % (1000 * 60 * 60)) / (1000 * 60);
+
+        // 分钟>=30则+1小时
+        if (minutes >= 30) {
+            hours++;
+        }
+
+        return hours;
+    }
+
+    /**
+     * 计算出科总结的小时数。
+     * - 如果是入科当天出科：从入科时间到出科时间
+     * - 否则：从7:00到出科时间
+     * 分钟>=30则+1小时。
+     */
+    public long getDischargeSummaryHours() {
+        if (dischargeTime == null) {
+            return 0;
+        }
+        long dischargeMs = dischargeTime.toEpochMilli();
+
+        // 判断是否是入科当天出科
+        if (isFirstDayOfAdmission() && isDischargeDay()) {
+            // 入科当天出科：从入科时间开始计算
+            long admissionMs = admissionTime.toEpochMilli();
+            long durationMs = dischargeMs - admissionMs;
+            long hours = durationMs / (1000 * 60 * 60);
+            long minutes = (durationMs % (1000 * 60 * 60)) / (1000 * 60);
+            if (minutes >= 30) {
+                hours++;
+            }
+            return hours;
+        } else {
+            // 非入科当天出科：从7:00开始计算
+            long nursingDayStartMs = getNursingDayStartMs();
+            long durationMs = dischargeMs - nursingDayStartMs;
+            long hours = durationMs / (1000 * 60 * 60);
+            long minutes = (durationMs % (1000 * 60 * 60)) / (1000 * 60);
+            if (minutes >= 30) {
+                hours++;
+            }
+            return hours;
+        }
+    }
+
+    /**
      * 判断是否应该显示日间小结。
      * 规则：
-     * 1. 当前时间必须 >= 17:00
-     * 2. 患者入科时间必须在当天 17:00 之前（如果入科时间在当天）
+     * 1. 入科第一天：
+     *    - 17:00之前：显示xx小时小结
+     *    - 17:00之后：不显示小结
+     * 2. 非入科第一天：
+     *    - 当前时间必须 >= 17:00
+     *    - 患者入科时间必须在当天 17:00 之前（如果入科时间在当天）
+     * 3. 出科当天：正常显示日间小结
      */
     public boolean shouldShowDaySummary() {
+        // 入科第一天的特殊逻辑
+        if (isFirstDayOfAdmission()) {
+            long admissionMs = admissionTime.toEpochMilli();
+            long daySummaryTimeMs = getDaySummaryTimeMs();
+            long referenceMs = getReferenceTimeMs();
+
+            // 入科时间在17:00之后，不显示小结
+            if (admissionMs >= daySummaryTimeMs) {
+                return false;
+            }
+
+            // 入科时间在17:00之前，且当前时间 >= 入科时间，显示xx小时小结
+            return referenceMs >= admissionMs;
+        }
+
+        // 非入科第一天的正常逻辑（包括出科当天）
         if (getReferenceTimeMs() < getDaySummaryTimeMs()) {
             return false;
         }
@@ -169,8 +344,43 @@ public final class HljldPdfRequestContext {
      * 规则：当前时间必须 >= 次日07:00
      */
     public boolean shouldShowFullDaySummary() {
-        return getReferenceTimeMs() >=
-            getNursingDayEndMs();
+        return getReferenceTimeMs() >= getNursingDayEndMs();
+    }
+
+    /**
+     * 判断是否应该显示出科总结。
+     * 规则：
+     * 1. 必须是出科当天
+     * 2. 当前时间必须 >= 出科时间
+     * 3. 必须是"转出"类型才显示（其他出科类型如死亡、治愈、好转等不显示）
+     */
+    public boolean shouldShowDischargeSummary() {
+        // 只有"转出"类型才显示
+        if (dischargedType == null || !"转出".equals(dischargedType.trim())) {
+            return false;
+        }
+
+        if (!isDischargeDay()) {
+            return false;
+        }
+
+        long dischargeMs = dischargeTime.toEpochMilli();
+        long referenceMs = getReferenceTimeMs();
+
+        // 当前时间必须 >= 出科时间
+        return referenceMs >= dischargeMs;
+    }
+
+    /**
+     * 获取出科总结标题（如"9小时出科总结"）。
+     * 从7:00到出科时间的小时数，分钟>=30则+1小时。
+     */
+    public String getDischargeSummaryTitle() {
+        long hours = getDischargeSummaryHours();
+        if (hours <= 0) {
+            return "出科总结";
+        }
+        return hours + "小时出科总结";
     }
 
     /**
@@ -205,5 +415,21 @@ public final class HljldPdfRequestContext {
         }
 
         return durationHours + "小时总结";
+    }
+
+    /**
+     * 获取日间小结标题（如"9小时小结"）。
+     * 入科第一天时，从入科时间到17:00或当前时间的小时数。
+     */
+    public String getDaySummaryTitle() {
+        if (!isFirstDayOfAdmission()) {
+            return "日间小结";
+        }
+
+        long hours = getDaySummaryHours();
+        if (hours <= 0) {
+            return "日间小结";
+        }
+        return hours + "小时小结";
     }
 }

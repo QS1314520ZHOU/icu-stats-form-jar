@@ -59,6 +59,26 @@ public class HljldSummaryCalculator {
                                       Date nursingDayStart, Date nursingDayEnd,
                                       Date nursingDayStartOfYesterday, long nowMs) {
 
+        // 获取出科时间（用于出科总结）
+        Date dischargeTime = null;
+        if (source.getPatientInfo() != null) {
+            Object dischargeTimeObj = source.getPatientInfo().get("icuDischargeTime");
+            if (dischargeTimeObj == null) {
+                dischargeTimeObj = source.getPatientInfo().get("dischargeTime");
+            }
+            if (dischargeTimeObj instanceof Date) {
+                dischargeTime = (Date) dischargeTimeObj;
+            } else if (dischargeTimeObj instanceof String) {
+                try {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
+                    dischargeTime = sdf.parse((String) dischargeTimeObj);
+                } catch (Exception e) {
+                    // 忽略解析错误
+                }
+            }
+        }
+
         // 确定段落
         List<HljldUtils.NursingSegment> segments = HljldUtils.resolveNursingSegments(nursingDayStart);
 
@@ -73,8 +93,26 @@ public class HljldSummaryCalculator {
         long startMs = nursingDayStart.getTime();
         long endMs = nursingDayEnd.getTime();
 
-        // 日间小结在17:00截断
-        final long effectiveEndMs = (kind == HljldSummary.Kind.DAY) ? dayEndMs : endMs;
+        // 日间小结在17:00截断，出科总结在出科时间截断
+        final long effectiveEndMs;
+        if (kind == HljldSummary.Kind.DAY) {
+            effectiveEndMs = dayEndMs;
+        } else if (kind == HljldSummary.Kind.DISCHARGE) {
+            // 出科总结：使用出科时间作为结束时间（如果出科时间在护理日范围内）
+            if (dischargeTime != null) {
+                long dischargeMs = dischargeTime.getTime();
+                // 出科时间在护理日范围内，使用出科时间
+                if (dischargeMs >= nursingDayStart.getTime() && dischargeMs < nursingDayEnd.getTime()) {
+                    effectiveEndMs = dischargeMs;
+                } else {
+                    effectiveEndMs = endMs;
+                }
+            } else {
+                effectiveEndMs = endMs;
+            }
+        } else {
+            effectiveEndMs = endMs;
+        }
 
         long effectiveNow = nowMs < effectiveEndMs ? nowMs : effectiveEndMs;
 
@@ -367,6 +405,14 @@ public class HljldSummaryCalculator {
                 // 24小时总结：时间锚点为次日07:00
                 summary.setTime(new Date(nursingDayEnd.getTime()));
                 break;
+            case DISCHARGE:
+                // 出科总结：时间锚点为出科时间
+                if (dischargeTime != null) {
+                    summary.setTime(dischargeTime);
+                } else {
+                    summary.setTime(new Date(nursingDayStart.getTime()));
+                }
+                break;
             default:
                 // 其他类型使用护理日开始时间
                 summary.setTime(new Date(nursingDayStart.getTime()));
@@ -632,7 +678,8 @@ public class HljldSummaryCalculator {
         List<HljldTimeGroup> displayGroups,
         List<HljldTimeGroup> continuationGroups,
         HljldSummary daySummary,
-        HljldSummary fullDaySummary
+        HljldSummary fullDaySummary,
+        HljldSummary dischargeSummary
     ) {
         List<HljldTimelineItem> timeline = new ArrayList<>();
 
@@ -714,6 +761,23 @@ public class HljldSummaryCalculator {
                     nursingDayEnd,
                     null,
                     fullDaySummary
+                )
+            );
+        }
+
+        // 出科总结
+        if (context.shouldShowDischargeSummary() &&
+            dischargeSummary != null &&
+            dischargeSummary.isAvailable()) {
+            long dischargeTimeMs = context.getDischargeTimeMs();
+            dischargeSummary.setTime(new Date(dischargeTimeMs));
+            timeline.add(
+                createTimelineItem(
+                    HljldTimelineItem.Kind.DISCHARGE_SUMMARY,
+                    "discharge-summary",
+                    dischargeTimeMs,
+                    null,
+                    dischargeSummary
                 )
             );
         }

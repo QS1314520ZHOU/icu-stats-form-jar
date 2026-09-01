@@ -75,7 +75,7 @@ public class HljldFlowPdfService {
     //  可打印项模型
     // ══════════════════════════════════════════════════════════
 
-    enum PrintableItemType { NORMAL_ROW, DAY_SUMMARY, FULL_DAY_SUMMARY }
+    enum PrintableItemType { NORMAL_ROW, DAY_SUMMARY, FULL_DAY_SUMMARY, DISCHARGE_SUMMARY }
 
     static class PrintableItem {
         long sortTime;
@@ -794,11 +794,15 @@ public class HljldFlowPdfService {
                     if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SUMMARY) {
                         pi.type = PrintableItemType.DAY_SUMMARY;
                         pi.sortPriority = 30;
-                        pi.title = "日间小结";
+                        pi.title = (context != null) ? context.getDaySummaryTitle() : "日间小结";
                     } else if (tItem.getKind() == HljldTimelineItem.Kind.FULL_DAY_SUMMARY) {
                         pi.type = PrintableItemType.FULL_DAY_SUMMARY;
                         pi.sortPriority = 50;
                         pi.title = (context != null) ? context.getFullDaySummaryTitle() : "24小时总结";
+                    } else if (tItem.getKind() == HljldTimelineItem.Kind.DISCHARGE_SUMMARY) {
+                        pi.type = PrintableItemType.DISCHARGE_SUMMARY;
+                        pi.sortPriority = 60;
+                        pi.title = (context != null) ? context.getDischargeSummaryTitle() : "出科总结";
                     } else {
                         continue;
                     }
