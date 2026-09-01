@@ -296,9 +296,21 @@ public final class HljldPdfRequestContext {
      * 2. 非入科第一天：
      *    - 当前时间必须 >= 17:00
      *    - 患者入科时间必须在当天 17:00 之前（如果入科时间在当天）
-     * 3. 出科当天：正常显示日间小结
+     * 3. 出科当天：
+     *    - 如果出科时间 < 17:00，不显示日间小结（患者已离开）
+     *    - 如果出科时间 >= 17:00，正常显示日间小结
      */
     public boolean shouldShowDaySummary() {
+        // 出科当天的特殊逻辑：如果出科时间 < 17:00，不显示日间小结
+        if (isDischargeDay() && dischargeTime != null) {
+            long dischargeMs = dischargeTime.toEpochMilli();
+            long daySummaryTimeMs = getDaySummaryTimeMs();
+            if (dischargeMs < daySummaryTimeMs) {
+                // 出科时间在17:00之前，患者已离开，不显示日间小结
+                return false;
+            }
+        }
+
         // 入科第一天的特殊逻辑
         if (isFirstDayOfAdmission()) {
             long admissionMs = admissionTime.toEpochMilli();

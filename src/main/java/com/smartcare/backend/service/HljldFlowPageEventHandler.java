@@ -14,8 +14,10 @@ import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.Set;
+import java.util.Map;
 
 /**
  * 护理记录单流式 PDF 页事件处理器。
@@ -25,9 +27,15 @@ import java.util.Set;
  * 2. 备注区：左侧"备注"纵向合并4行 + 右侧4行每行合并18列
  * 3. 页码："第 N 页"
  *
+ * 备注区支持两种位置：
+ * - 普通页：固定在页面底部（REMARK_BOTTOM）
+ * - 护理日最后一页：紧跟正文结束位置（动态Y坐标）
+ *
  * 使用 PdfCanvas 绘制边框和线条，使用 Canvas 绘制文字。
  */
 public class HljldFlowPageEventHandler implements IEventHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(HljldFlowPageEventHandler.class);
 
     // ── 引用布局常量 ──
     private static final float PW = HljldPdfLayoutConstants.PAGE_WIDTH;
@@ -41,21 +49,21 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     private final PdfFont font;
     private final String patientInfo;
     private final int startPageNo;
-    /** 需要跳过固定备注绘制的全局页码集合（这些页已有流式备注Table） */
-    private final Set<Integer> skipRemarkPageNos;
+    /** 动态备注位置映射：键为本地物理页码，值为正文结束Y坐标 */
+    private final Map<Integer, Float> dynamicRemarkTopByLocalPage;
 
     /**
-     * @param font             当前 PdfDocument 的 PdfFont
-     * @param patientInfo      患者信息文本
-     * @param startPageNo      全局起始页码
-     * @param skipRemarkPageNos 需要跳过固定备注绘制的全局页码集合（可变，可在注册后更新）
+     * @param font                       当前 PdfDocument 的 PdfFont
+     * @param patientInfo                患者信息文本
+     * @param startPageNo                全局起始页码
+     * @param dynamicRemarkTopByLocalPage 动态备注位置映射（可变，由 DayEndMarker 在 draw 阶段更新）
      */
     public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo,
-                                     Set<Integer> skipRemarkPageNos) {
+                                     Map<Integer, Float> dynamicRemarkTopByLocalPage) {
         this.font = font;
         this.patientInfo = patientInfo == null ? "" : patientInfo;
         this.startPageNo = startPageNo;
-        this.skipRemarkPageNos = skipRemarkPageNos;
+        this.dynamicRemarkTopByLocalPage = dynamicRemarkTopByLocalPage;
     }
 
     @Override
@@ -68,12 +76,34 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         int localPageNumber = pdfDoc.getPageNumber(page);
         int globalPageNumber = startPageNo + localPageNumber - 1;
 
-        // 该页是否已有流式备注Table → 跳过固定底部备注的绘制
-        boolean skipRemarks = skipRemarkPageNos.contains(globalPageNumber);
-
         Rectangle pageSize = page.getPageSize();
         float pw = pageSize.getWidth();
         float ph = pageSize.getHeight();
+
+        // 计算备注区底部Y坐标
+        // 如果当前页是护理日最后一页，使用动态位置；否则使用固定底部位置
+        Float dynamicContentEndY = dynamicRemarkTopByLocalPage.get(localPageNumber);
+        float remarksBottom;
+
+        if (dynamicContentEndY != null) {
+            // 动态位置：备注紧跟正文结束位置
+            float dynamicBottom = dynamicContentEndY - HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
+
+            // 安全检查：确保备注不超出安全边界（允许2pt浮点误差）
+            if (dynamicBottom >= HljldPdfLayoutConstants.REMARK_BOTTOM - 2f) {
+                remarksBottom = dynamicBottom;
+                log.debug("[hljld] 备注动态位置: localPage={}, contentEndY={}, remarksBottom={}",
+                    localPageNumber, dynamicContentEndY, remarksBottom);
+            } else {
+                // 回退到固定底部位置
+                remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
+                log.warn("[hljld] 备注动态位置低于安全边界，回退固定位置: localPage={}, " +
+                    "dynamicBottom={}, safeBottom={}", localPageNumber, dynamicBottom, remarksBottom);
+            }
+        } else {
+            // 固定位置：普通页备注在页面底部
+            remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
+        }
 
         // 使用 PdfCanvas 绘制边框和线条
         PdfCanvas pdfCanvas = new PdfCanvas(page.newContentStreamBefore(), page.getResources(), pdfDoc);
@@ -81,16 +111,12 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         // 使用 Canvas 绘制文字（在内容流之上）
         try (Canvas canvas = new Canvas(pdfCanvas, new Rectangle(0, 0, pw, ph))) {
             drawHeader(canvas, pw, ph);
-            if (!skipRemarks) {
-                drawRemarksText(canvas, pdfCanvas, pw);
-            }
+            drawRemarksText(canvas, pdfCanvas, pw, remarksBottom);
             drawPageNumber(canvas, pw, globalPageNumber);
         }
 
         // 使用 PdfCanvas 绘制备注区边框和线条
-        if (!skipRemarks) {
-            drawRemarksBorders(pdfCanvas, pw);
-        }
+        drawRemarksBorders(pdfCanvas, pw, remarksBottom);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -121,13 +147,13 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     //  备注区文字（使用 Canvas 绘制）
     // ══════════════════════════════════════════════════════════
 
-    private void drawRemarksText(Canvas canvas, PdfCanvas pdfCanvas, float pw) {
-        float remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
+    private void drawRemarksText(Canvas canvas, PdfCanvas pdfCanvas, float pw, float remarksBottom) {
         float leftX = ML;
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
 
         // "备注"文字：水平居中、垂直居中于4行
+        float remarksTop = remarksBottom + HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
         float labelCenterY = remarksBottom + HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT / 2f;
         canvas.showTextAligned(
             new Paragraph("备注")
@@ -164,9 +190,8 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     //  备注区边框和线条（使用 PdfCanvas 绘制）
     // ══════════════════════════════════════════════════════════
 
-    private void drawRemarksBorders(PdfCanvas pdfCanvas, float pw) {
-        float remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
-        float remarksTop = HljldPdfLayoutConstants.REMARK_TOP;
+    private void drawRemarksBorders(PdfCanvas pdfCanvas, float pw, float remarksBottom) {
+        float remarksTop = remarksBottom + HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
         float leftX = ML;
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
