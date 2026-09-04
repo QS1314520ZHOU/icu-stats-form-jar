@@ -56,7 +56,7 @@ public class HljldPdfFontBundle {
         SUPERSCRIPT_MAP.put(0x00B2, (int)'2');   // ²
         SUPERSCRIPT_MAP.put(0x00B3, (int)'3');   // ³
         for (int i = 4; i <= 9; i++) {
-            SUPERSCRIPT_MAP.put(0x2074 + i, (int)('0' + i));  // ⁴⁵⁶⁷⁸⁹ → 456789
+            SUPERSCRIPT_MAP.put(0x2070 + i, (int)('0' + i));  // ⁴⁵⁶⁷⁸⁹ → 456789
         }
         // 上下标正负号
         SIGN_MAP.put(0x208A, (int)'+');  // ₊

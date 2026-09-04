@@ -61,9 +61,20 @@ public class HljldPdfTextRenderer {
 
         // 将 run 转换为 iText Text 对象
         for (TextRun run : mergedRuns) {
+            // 检查字体不为空
+            if (run.font == null) {
+                throw new IllegalStateException("TextRun 字体为空，无法渲染字符: U+" +
+                    Integer.toHexString(run.originalCodePoint));
+            }
+
             Text textElement = new Text(run.content);
             textElement.setFont(run.font);
-            textElement.setFontSize(run.actualFontSize);
+
+            // 计算有效字号：只有下标/上标使用缩放字号，其他使用传入的 fontSize
+            float effectiveFontSize = (run.isFallbackSubscript || run.isFallbackSuperscript)
+                ? fontSize * SUBSCRIPT_SUPERSCRIPT_SCALE
+                : fontSize;
+            textElement.setFontSize(effectiveFontSize);
 
             if (run.textRise != 0) {
                 textElement.setTextRise(run.textRise);
@@ -108,7 +119,6 @@ public class HljldPdfTextRenderer {
         // 1. 检查字体是否直接支持该字符
         if (fonts.hasGlyph(codePoint)) {
             run.font = fonts.resolve(codePoint);
-            run.actualFontSize = 0;  // 使用段落默认字号
             run.textRise = 0;
             return run;
         }
@@ -116,7 +126,6 @@ public class HljldPdfTextRenderer {
         // 2. 检查是否为 Unicode 下标字符
         if (HljldPdfFontBundle.isSubscript(codePoint)) {
             run.font = fonts.getPrimaryFont();
-            run.actualFontSize = 0;  // 使用段落默认字号 * SUBSCRIPT_SUPERSCRIPT_SCALE
             run.textRise = SUBSCRIPT_RISE;
             run.content = new String(Character.toChars(HljldPdfFontBundle.getSubscriptFallback(codePoint)));
             run.isFallbackSubscript = true;
@@ -126,7 +135,6 @@ public class HljldPdfTextRenderer {
         // 3. 检查是否为 Unicode 上标字符
         if (HljldPdfFontBundle.isSuperscript(codePoint)) {
             run.font = fonts.getPrimaryFont();
-            run.actualFontSize = 0;  // 使用段落默认字号 * SUBSCRIPT_SUPERSCRIPT_SCALE
             run.textRise = SUPERSCRIPT_RISE;
             run.content = new String(Character.toChars(HljldPdfFontBundle.getSuperscriptFallback(codePoint)));
             run.isFallbackSuperscript = true;
@@ -136,7 +144,6 @@ public class HljldPdfTextRenderer {
         // 4. 检查是否为上下标正负号
         if (HljldPdfFontBundle.isSign(codePoint)) {
             run.font = fonts.getPrimaryFont();
-            run.actualFontSize = 0;
             run.textRise = 0;
             run.content = new String(Character.toChars(HljldPdfFontBundle.getSignFallback(codePoint)));
             run.isFallbackSign = true;
@@ -147,7 +154,6 @@ public class HljldPdfTextRenderer {
         log.warn("字体无法显示字符 U+{}, 使用占位符",
             Integer.toHexString(codePoint));
         run.font = fonts.getPrimaryFont() != null ? fonts.getPrimaryFont() : fonts.getFallbackFont();
-        run.actualFontSize = 0;
         run.textRise = 0;
         run.content = "□";  // 占位符
         run.isUnsupported = true;
@@ -206,7 +212,6 @@ public class HljldPdfTextRenderer {
     private static class TextRun {
         String content;
         PdfFont font;
-        float actualFontSize;  // 0 表示使用段落默认字号
         float textRise;
         int originalCodePoint;
         boolean isFallbackSubscript;
