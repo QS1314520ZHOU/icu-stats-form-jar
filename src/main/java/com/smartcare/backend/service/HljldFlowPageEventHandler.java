@@ -77,17 +77,6 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         this.policy = policy;
     }
 
-    /**
-     * 兼容旧构造函数（无策略参数，默认每页绘制备注）。
-     *
-     * @deprecated 使用带 {@link HljldPdfFooterPolicy} 参数的构造函数
-     */
-    @Deprecated
-    public HljldFlowPageEventHandler(HljldPdfFontBundle fonts, String patientInfo, int startPageNo,
-                                     Map<Integer, Float> dynamicRemarkTopByLocalPage) {
-        this(fonts, patientInfo, startPageNo, dynamicRemarkTopByLocalPage, 0, null);
-    }
-
     @Override
     public void handleEvent(Event event) {
         PdfDocumentEvent docEvent = (PdfDocumentEvent) event;

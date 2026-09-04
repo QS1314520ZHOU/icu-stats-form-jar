@@ -66,6 +66,16 @@ public class HljldPdfController {
                     .getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
 
+        // referenceTime 非空时严格验证格式
+        if (referenceTime != null && !referenceTime.trim().isEmpty()) {
+            String rtErr = validateReferenceTimeFormat(referenceTime);
+            if (rtErr != null) {
+                return ResponseEntity.badRequest()
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(rtErr.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+
         try {
             byte[] pdfData = flowPdfService.generateDailyPdf(pid, date, referenceTime, renderPurpose);
             HttpHeaders headers = new HttpHeaders();
@@ -86,6 +96,16 @@ public class HljldPdfController {
     public ResponseEntity<byte[]> getAllPdfs(
             @PathVariable String pid,
             @RequestParam(required = false) String referenceTime) {
+        // referenceTime 非空时严格验证格式
+        if (referenceTime != null && !referenceTime.trim().isEmpty()) {
+            String rtErr = validateReferenceTimeFormat(referenceTime);
+            if (rtErr != null) {
+                return ResponseEntity.badRequest()
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(rtErr.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+
         try {
             byte[] pdfData = flowPdfService.generateAllPagesPdf(pid, referenceTime);
             HttpHeaders headers = new HttpHeaders();
@@ -122,6 +142,16 @@ public class HljldPdfController {
                 .body(validationError.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
 
+        // referenceTime 非空时严格验证格式
+        if (referenceTime != null && !referenceTime.trim().isEmpty()) {
+            String rtErr = validateReferenceTimeFormat(referenceTime);
+            if (rtErr != null) {
+                return ResponseEntity.badRequest()
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(rtErr.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+
         try {
             byte[] pdfData = flowPdfService.generateRangePdf(pid, startDate, endDate, referenceTime);
             HttpHeaders headers = new HttpHeaders();
@@ -144,6 +174,16 @@ public class HljldPdfController {
             @PathVariable String pid,
             @RequestParam String date,
             @RequestParam(required = false) String referenceTime) {
+        // referenceTime 非空时严格验证格式
+        if (referenceTime != null && !referenceTime.trim().isEmpty()) {
+            String rtErr = validateReferenceTimeFormat(referenceTime);
+            if (rtErr != null) {
+                Map<String, Object> errResp = new HashMap<>();
+                errResp.put("error", rtErr);
+                return ResponseEntity.badRequest().body(errResp);
+            }
+        }
+
         try {
             FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, "hljld2-flow", date, referenceTime);
             Map<String, Object> response = new HashMap<>();
@@ -185,5 +225,28 @@ public class HljldPdfController {
             @PathVariable String pid) {
         Map<String, Object> response = pageIndexService.getCalculationStatus(pid, "hljld2-flow");
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 验证 referenceTime 字符串格式。
+     * 空/null 返回 null（合法），非空非法返回错误信息字符串。
+     *
+     * @param referenceTime 原始字符串
+     * @return null 表示合法，否则为错误信息
+     */
+    private static String validateReferenceTimeFormat(String referenceTime) {
+        if (referenceTime == null || referenceTime.trim().isEmpty()) {
+            return null;
+        }
+        String trimmed = referenceTime.trim();
+        try {
+            java.time.OffsetDateTime.parse(trimmed);
+            return null;
+        } catch (java.time.format.DateTimeParseException ignored) {}
+        try {
+            java.time.Instant.parse(trimmed);
+            return null;
+        } catch (java.time.format.DateTimeParseException ignored) {}
+        return "referenceTime 格式无效（支持 ISO-8601，如 2026-09-04T14:00:00+08:00）: " + trimmed;
     }
 }

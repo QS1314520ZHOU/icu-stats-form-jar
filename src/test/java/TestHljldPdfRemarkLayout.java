@@ -771,9 +771,9 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testAuditSigOffsetConstant() {
-        // 验证偏移常量为 -4f
-        assertEquals(-4f, HljldPdfLayoutConstants.AUDIT_SIG_BELOW_REMARK_OFFSET,
-            0.01f, "审核护士签名偏移应为 -4f");
+        // 验证偏移常量为 -10f（8pt 字体需要至少 10pt 间距避免与边框重叠）
+        assertEquals(-10f, HljldPdfLayoutConstants.AUDIT_SIG_BELOW_REMARK_OFFSET,
+            0.01f, "审核护士签名偏移应为 -10f");
 
         // 验证 Y_BASE = REMARK_BOTTOM + 4f
         assertEquals(HljldPdfLayoutConstants.REMARK_BOTTOM + 4f,

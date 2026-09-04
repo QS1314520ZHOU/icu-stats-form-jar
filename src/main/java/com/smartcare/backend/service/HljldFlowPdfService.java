@@ -254,7 +254,8 @@ public class HljldFlowPdfService {
         }
 
         if (actualPageCount != totalPages) {
-            log.warn("预渲染页数({})与实际页数({})不一致", totalPages, actualPageCount);
+            throw new IllegalStateException(
+                String.format("预渲染页数(%d)与实际页数(%d)不一致，PDF 页码定位可能不准确，拒绝返回", totalPages, actualPageCount));
         }
 
         return new FlowPdfRenderResult(pdfBytes, actualPageCount, totalRowCount);
@@ -308,8 +309,7 @@ public class HljldFlowPdfService {
              PdfDocument rendered = new PdfDocument(reader)) {
             return rendered.getNumberOfPages();
         } catch (Exception e) {
-            log.error("预渲染统计页数失败", e);
-            return 1;
+            throw new RuntimeException("预渲染统计页数失败，无法生成 PDF", e);
         }
     }
 
@@ -362,32 +362,63 @@ public class HljldFlowPdfService {
     /**
      * 生成全部记录的 PDF（流式分页，多护理日用 AreaBreak 分隔）。
      * 内部固定使用 PRINT_ALL 渲染目的。
+     *
+     * <p>日期范围由入科时间和出科时间/referenceTime 决定，不依赖索引。
+     * 索引仅用于获取 startPageNo。每个护理日都调用 buildPrintableItems 查询真实数据。</p>
      */
     public byte[] generateAllPagesPdf(String pid, String referenceTime) {
         log.info("Flow PDF 生成全部: pid={}, referenceTime={}", pid, referenceTime);
 
-        Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, "hljld2-flow");
-        if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
-            log.warn("Flow PDF 索引不存在或为空: pid={}", pid);
-            return generateEmptyPagePdf(pid, "全部");
+        Document patient = patientResolver.findPatient(pid);
+
+        // 计算日期范围：入科护理日 ~ 出科护理日(若已出科) / 当前护理日
+        LocalDate startDay = null;
+        LocalDate endDay = null;
+        if (patient != null) {
+            startDay = resolveAdmissionNursingDate(patient);
+        }
+        LocalDate effectiveDischargeDay = resolveEffectiveDischargeNursingDate(pid, referenceTime);
+        if (effectiveDischargeDay != null) {
+            endDay = effectiveDischargeDay;
+        } else {
+            endDay = resolveReferenceTimeNursingDate(referenceTime);
         }
 
-        FormPageIndex index = indexOpt.get();
+        // 若入科时间为空且出科/当前日期也为空，默认生成一天
+        if (startDay == null && endDay == null) {
+            endDay = HljldPdfRequestContext.nursingDateOf(null);
+            startDay = endDay;
+        }
+        // 入科为空但出科有值：从出科日开始（含当天）
+        if (startDay == null) {
+            startDay = endDay;
+        }
+
+        // 确保 startDay <= endDay
+        if (startDay.isAfter(endDay)) {
+            startDay = endDay;
+        }
+
         List<List<PrintableItem>> itemsPerDay = new ArrayList<>();
         List<LocalDate> dates = new ArrayList<>();
 
-        for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
-            dates.add(LocalDate.parse(dailyPage.getDate()));
-            itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid, referenceTime));
+        for (LocalDate d = startDay; !d.isAfter(endDay); d = d.plusDays(1)) {
+            String dStr = d.toString();
+            dates.add(d);
+            itemsPerDay.add(buildPrintableItems(dStr, pid, referenceTime));
         }
 
-        int startPageNo = 1;
-        if (!index.getDailyPages().isEmpty()) {
-            startPageNo = index.getDailyPages().get(0).getStartPageNo();
+        // 若确实没有任何日期，至少生成一天（出科日）
+        if (itemsPerDay.isEmpty()) {
+            LocalDate fallbackDay = endDay != null ? endDay : HljldPdfRequestContext.nursingDateOf(null);
+            dates.add(fallbackDay);
+            itemsPerDay.add(buildPrintableItems(fallbackDay.toString(), pid, referenceTime));
         }
 
-        LocalDate referenceDate = dates.isEmpty()
-            ? HljldPdfRequestContext.nursingDateOf(null) : dates.get(0);
+        // startPageNo 仅从索引获取（第一个日期的起始页码）
+        int startPageNo = getStartPageNo(pid, dates.get(0).toString(), "hljld2-flow");
+
+        LocalDate referenceDate = dates.get(0);
 
         // PRINT_ALL：始终在整份 PDF 最后一页展示备注和签名
         HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
@@ -402,59 +433,33 @@ public class HljldFlowPdfService {
      * 生成时间范围的 PDF（流式分页）。
      * 内部固定使用 PRINT_RANGE 渲染目的。
      *
-     * @param pid           患者ID
-     * @param startDate     范围开始护理日 yyyy-MM-dd
-     * @param endDate       范围结束护理日 yyyy-MM-dd
-     * @param referenceTime 参考时间（ISO-8601）
-     * @return PDF 字节数组
+     * <p>每个护理日都调用 buildPrintableItems 查询真实数据，不依赖索引判断是否有数据。
+     * 索引仅用于获取 startPageNo。空数据也生成带表头的空页。</p>
      */
     public byte[] generateRangePdf(String pid, String startDate, String endDate, String referenceTime) {
         log.info("Flow PDF 生成范围: pid={}, startDate={}, endDate={}, referenceTime={}",
             pid, startDate, endDate, referenceTime);
 
-        Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, "hljld2-flow");
-        if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
-            log.warn("Flow PDF 索引不存在或为空: pid={}", pid);
-            return generateEmptyPagePdf(pid, startDate);
-        }
-
-        FormPageIndex index = indexOpt.get();
         List<List<PrintableItem>> itemsPerDay = new ArrayList<>();
         List<LocalDate> dates = new ArrayList<>();
 
-        // 收索引中已有的日期
-        Set<String> indexDates = new HashSet<>();
-        for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
-            indexDates.add(dailyPage.getDate());
-        }
-
-        // 按请求的 startDate ~ endDate 逐日迭代，空日期也生成空页
+        // 按请求的 startDate ~ endDate 逐日迭代，每天查询真实数据
         LocalDate start = LocalDate.parse(startDate);
         LocalDate end = LocalDate.parse(endDate);
         for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
             String dStr = d.toString();
             dates.add(d);
-            if (indexDates.contains(dStr)) {
-                itemsPerDay.add(buildPrintableItems(dStr, pid, referenceTime));
-            } else {
-                // 空日期：生成空列表，仍会输出表头
-                itemsPerDay.add(new ArrayList<>());
-            }
+            itemsPerDay.add(buildPrintableItems(dStr, pid, referenceTime));
         }
 
         if (itemsPerDay.isEmpty()) {
-            log.warn("Flow PDF 范围内无数据: pid={}, startDate={}, endDate={}", pid, startDate, endDate);
-            return generateEmptyPagePdf(pid, startDate);
+            // 至少为 startDate 生成一天（buildPrintableItems 返回空列表时也会输出表头）
+            dates.add(start);
+            itemsPerDay.add(buildPrintableItems(start.toString(), pid, referenceTime));
         }
 
-        // 使用范围开始护理日在索引中的起始页码
-        int startPageNo = 1;
-        for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
-            if (dailyPage.getDate().equals(startDate)) {
-                startPageNo = dailyPage.getStartPageNo();
-                break;
-            }
-        }
+        // startPageNo 仅从索引获取（第一个日期的起始页码）
+        int startPageNo = getStartPageNo(pid, startDate, "hljld2-flow");
 
         LocalDate referenceDate = dates.get(0);
 
@@ -462,7 +467,6 @@ public class HljldFlowPdfService {
         LocalDate effectiveDischargeDay = resolveEffectiveDischargeNursingDate(pid, referenceTime);
 
         // PRINT_RANGE：签名始终显示，备注仅在范围结束日 == 出科护理日时显示
-        // 使用请求的 endDate（而非索引中最后一个日期）确保策略正确
         LocalDate rangeEndNursingDate = LocalDate.parse(endDate);
         HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.ofRange(rangeEndNursingDate, effectiveDischargeDay);
 
@@ -538,48 +542,6 @@ public class HljldFlowPdfService {
         FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, pid, referenceDate, null);
         log.info("Flow PDF 页数: pid={}, date={}, pageCount={}", pid, date, result.pageCount);
         return result.pageCount;
-    }
-
-    /** 生成空白页 PDF */
-    private byte[] generateEmptyPagePdf(String pid, String date) {
-        HljldPdfFontBundle fonts = HljldPdfFontBundle.createForDocument();
-        PdfFont font = fonts.getPrimaryFont();
-        if (font == null) {
-            throw new IllegalStateException("主字体加载失败，无法生成空白页 PDF");
-        }
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            PdfWriter writer = new PdfWriter(baos);
-            PdfDocument pdfDoc = new PdfDocument(writer);
-            com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
-
-            doc.setMargins(
-                HljldPdfLayoutConstants.MARGIN_TOP,
-                HljldPdfLayoutConstants.MARGIN_RIGHT,
-                HljldPdfLayoutConstants.MARGIN_BOTTOM,
-                HljldPdfLayoutConstants.MARGIN_LEFT
-            );
-
-            LocalDate referenceDate = "全部".equals(date)
-                ? HljldPdfRequestContext.nursingDateOf(null) : LocalDate.parse(date);
-            String patientInfo = getPatientInfoString(pid, referenceDate);
-
-            // 空数据：创建带表头的空表格
-            Table table = createMainTable();
-            addTableHeader(table, font);
-            addDataRow(table, null, fonts);
-            doc.add(table);
-
-            // 空白页：固定1页，不绘制备注和签名（policy=null）
-            HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-                fonts, patientInfo, 1, Collections.emptyMap(), 1, null);
-            pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
-            doc.close();
-
-            return baos.toByteArray();
-        } catch (Exception e) {
-            throw new RuntimeException("Flow PDF 空白页失败", e);
-        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1131,7 +1093,7 @@ public class HljldFlowPdfService {
             Instant refInstant = OffsetDateTime.parse(referenceTime.trim()).toInstant();
             return HljldPdfRequestContext.nursingDateOf(refInstant);
         } catch (Exception e) {
-            return HljldPdfRequestContext.nursingDateOf(null);
+            throw new IllegalArgumentException("referenceTime 格式无效（支持 ISO-8601，如 2026-09-04T14:00:00+08:00）: " + referenceTime.trim());
         }
     }
 

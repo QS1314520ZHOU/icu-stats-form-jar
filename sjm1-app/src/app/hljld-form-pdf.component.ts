@@ -544,8 +544,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     }
 
     // maxDateInput：出科患者用出科护理日，在院患者用当前护理日
-    if (this.patient.isDischarged && this.patient.dischargeTime) {
-      const dischargeDate = this.parseTimeField(this.patient.dischargeTime);
+    // 出科判断：后端 isDischarged 标记或 dischargeTime 已填入
+    const hasDischargeTime = this.patient.dischargeTime && this.patient.dischargeTime.trim().length > 0;
+    if ((this.patient.isDischarged || hasDischargeTime) && hasDischargeTime) {
+      const dischargeDate = this.parseTimeField(this.patient.dischargeTime!);
       if (dischargeDate) {
         this.maxDateInput = this.toDateString(this.nursingDate(dischargeDate));
       }
@@ -578,11 +580,26 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 根据时间戳计算所属护理日日期
+   * 获取上海时区的时间分量（年/月/日/时）
+   */
+  private getShanghaiComponents(date: Date): { year: number; month: number; day: number; hour: number } {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric',
+      hour12: false,
+    });
+    const parts = fmt.formatToParts(date);
+    const get = (type: string) => Number(parts.find(p => p.type === type)!.value);
+    return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') };
+  }
+
+  /**
+   * 根据时间戳计算所属护理日日期（Asia/Shanghai 07:00 边界）
    */
   private nursingDate(date: Date): Date {
-    const cal = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    if (date.getHours() < 7) {
+    const sh = this.getShanghaiComponents(date);
+    const cal = new Date(sh.year, sh.month - 1, sh.day);
+    if (sh.hour < 7) {
       cal.setDate(cal.getDate() - 1);
     }
     return cal;
@@ -663,10 +680,11 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     const hhmmssMatch = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(str);
     if (hhmmssMatch) {
       const [, y, m, d, hh, mm, ss] = hhmmssMatch;
-      const date = new Date(
+      // 构造表示 Shanghai 本地时间的 Date 对象（通过 UTC + 8h 偏移）
+      const date = new Date(Date.UTC(
         Number(y), Number(m) - 1, Number(d),
-        Number(hh), Number(mm), Number(ss || '0'),
-      );
+        Number(hh) - 8, Number(mm), Number(ss || '0'),
+      ));
       return isNaN(date.getTime()) ? null : date;
     }
 

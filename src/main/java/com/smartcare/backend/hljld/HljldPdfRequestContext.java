@@ -104,42 +104,16 @@ public final class HljldPdfRequestContext {
             referenceTimeText == null ||
             referenceTimeText.trim().isEmpty()
                 ? Instant.now()
-                : OffsetDateTime
-                    .parse(referenceTimeText.trim())
-                    .toInstant();
+                : HljldPatientTimeResolver.parseTimeStringStrict(referenceTimeText.trim());
 
         Instant admissionTime = null;
         if (admissionTimeText != null && !admissionTimeText.trim().isEmpty()) {
-            try {
-                admissionTime = OffsetDateTime.parse(admissionTimeText.trim()).toInstant();
-            } catch (Exception e) {
-                // 尝试解析日期时间格式
-                try {
-                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
-                    Date d = sdf.parse(admissionTimeText.trim());
-                    admissionTime = d.toInstant();
-                } catch (Exception ex) {
-                    // 忽略解析错误
-                }
-            }
+            admissionTime = HljldPatientTimeResolver.parseTimeStringStrict(admissionTimeText.trim());
         }
 
         Instant dischargeTime = null;
         if (dischargeTimeText != null && !dischargeTimeText.trim().isEmpty()) {
-            try {
-                dischargeTime = OffsetDateTime.parse(dischargeTimeText.trim()).toInstant();
-            } catch (Exception e) {
-                // 尝试解析日期时间格式
-                try {
-                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
-                    Date d = sdf.parse(dischargeTimeText.trim());
-                    dischargeTime = d.toInstant();
-                } catch (Exception ex) {
-                    // 忽略解析错误
-                }
-            }
+            dischargeTime = HljldPatientTimeResolver.parseTimeStringStrict(dischargeTimeText.trim());
         }
 
         return new HljldPdfRequestContext(
