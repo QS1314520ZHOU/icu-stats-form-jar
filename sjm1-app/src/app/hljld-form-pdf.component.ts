@@ -37,6 +37,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   isLoadingPdf = false;
   isPrinting = false;
   isLoadingAllPdf = false;
+  isPrintingRange = false;
   printError = '';
   error = '';
   pageWarning = '';
@@ -45,9 +46,13 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   pageState: 'waiting-patient' | 'loading' | 'ready' | 'error' | 'calculating' = 'waiting-patient';
 
-  // 日期范围
+  // 日期范围（预览用）
   minDateInput = '';
   maxDateInput = '';
+
+  // 范围打印
+  rangeStartInput = '';
+  rangeEndInput = '';
 
   // 业务参考时间（从路由或宿主数据读取，不伪造）
   businessReferenceTime = '';
@@ -89,6 +94,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
         this.updateDateRange();
         this.selectedDate = this.getDefaultDate();
         this.dateInput = this.toDateString(this.selectedDate);
+        this.initRangeDefaults();
       }
 
       this.pageState = 'loading';
@@ -104,7 +110,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 加载PDF - 只设置iframe URL，由浏览器原生查看器加载
+   * 加载PDF — 使用 PREVIEW 模式
    */
   private loadPdf(): void {
     if (!this.patient.pid) {
@@ -149,8 +155,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
         this.updatePageOptions();
       }
 
-      // 生成PDF URL（传递当前业务时间）
-      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr, referenceTime);
+      // 生成PREVIEW PDF URL
+      this.basePdfUrl = this.pdfService.getPreviewPdfUrl(this.patient.pid, dateStr, referenceTime);
 
       // 默认显示第1页，缩放135%
       this.updateViewerUrl();
@@ -193,7 +199,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 选择页码 - 只修改fragment，不重新请求后端PDF
+   * 选择页码 — 只修改fragment，不重新请求后端PDF
    */
   onPageSelect(pageNo: number): void {
     this.selectedPageNo = pageNo;
@@ -295,10 +301,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 打印当前日PDF
+   * 打印当日PDF — 使用 PRINT_DAY 模式
    */
   async printCurrentDay(): Promise<void> {
-    if (!this.basePdfUrl || this.isPrinting) {
+    if (!this.patient.pid || this.isPrinting || this.isPrintingRange || this.isLoadingAllPdf) {
       return;
     }
 
@@ -307,7 +313,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      const blob = await this.pdfPrintService.fetchPdfBlob(this.basePdfUrl);
+      const dateStr = this.toDateString(this.selectedDate);
+      const referenceTime = this.resolveReferenceTime();
+      const printUrl = this.pdfService.getDailyPrintPdfUrl(this.patient.pid, dateStr, referenceTime);
+      const blob = await this.pdfPrintService.fetchPdfBlob(printUrl);
       await this.pdfPrintService.printPdfBlob(blob);
     } catch (err: any) {
       console.error('[HLJLD] 打印失败', err);
@@ -323,10 +332,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 一键打印全部护理记录
+   * 一键打印全部护理记录 — 使用 PRINT_ALL 模式
    */
   async printAll(): Promise<void> {
-    if (!this.patient.pid || this.isLoadingAllPdf || this.isPrinting) {
+    if (!this.patient.pid || this.isLoadingAllPdf || this.isPrinting || this.isPrintingRange) {
       return;
     }
 
@@ -349,6 +358,69 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       }, 5000);
     } finally {
       this.isLoadingAllPdf = false;
+      this.isPrinting = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * 打印时间范围 — 使用 PRINT_RANGE 模式
+   */
+  async printRange(): Promise<void> {
+    if (!this.patient.pid || this.isPrintingRange || this.isPrinting || this.isLoadingAllPdf) {
+      return;
+    }
+
+    // 校验
+    if (!this.rangeStartInput || !this.rangeEndInput) {
+      this.printError = '请选择开始和结束护理日';
+      this.cdr.markForCheck();
+      setTimeout(() => { this.printError = ''; this.cdr.markForCheck(); }, 5000);
+      return;
+    }
+
+    if (this.rangeStartInput > this.rangeEndInput) {
+      this.printError = '开始日期不能晚于结束日期';
+      this.cdr.markForCheck();
+      setTimeout(() => { this.printError = ''; this.cdr.markForCheck(); }, 5000);
+      return;
+    }
+
+    // 边界校验
+    if (this.minDateInput && this.rangeStartInput < this.minDateInput) {
+      this.printError = '开始日期不能早于入科护理日';
+      this.cdr.markForCheck();
+      setTimeout(() => { this.printError = ''; this.cdr.markForCheck(); }, 5000);
+      return;
+    }
+
+    if (this.maxDateInput && this.rangeEndInput > this.maxDateInput) {
+      this.printError = '结束日期不能晚于' + (this.patient.isDischarged ? '出科护理日' : '当前护理日');
+      this.cdr.markForCheck();
+      setTimeout(() => { this.printError = ''; this.cdr.markForCheck(); }, 5000);
+      return;
+    }
+
+    this.isPrintingRange = true;
+    this.isPrinting = true;
+    this.printError = '';
+    this.cdr.markForCheck();
+
+    try {
+      const referenceTime = this.resolveReferenceTime();
+      const printUrl = this.pdfService.getRangePrintPdfUrl(
+        this.patient.pid, this.rangeStartInput, this.rangeEndInput, referenceTime);
+      const blob = await this.pdfPrintService.fetchPdfBlob(printUrl);
+      await this.pdfPrintService.printPdfBlob(blob);
+    } catch (err: any) {
+      console.error('[HLJLD] 范围打印失败', err);
+      this.printError = err.message || '范围打印失败';
+      setTimeout(() => {
+        this.printError = '';
+        this.cdr.markForCheck();
+      }, 5000);
+    } finally {
+      this.isPrintingRange = false;
       this.isPrinting = false;
       this.cdr.markForCheck();
     }
@@ -451,19 +523,22 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * 任何打印是否正在进行
+   */
+  isAnyPrinting(): boolean {
+    return this.isPrinting || this.isLoadingAllPdf || this.isPrintingRange;
+  }
+
+  /**
    * 更新日期范围
-   * 出科患者：限制入科~出科日期范围
-   * 在科患者：不限制范围
    */
   private updateDateRange(): void {
     if (!this.patient.isDischarged) {
-      // 在科患者：不限制日期范围
       this.minDateInput = '';
       this.maxDateInput = '';
       return;
     }
 
-    // 出科患者：限制入科护理日~出科范围
     if (this.patient.admissionTime) {
       const admissionDate = this.parseTimeField(this.patient.admissionTime);
       if (admissionDate) {
@@ -485,7 +560,6 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
 
   /**
    * 获取默认日期
-   * 出科患者：默认入科护理日；在科患者：默认今天
    */
   private getDefaultDate(): Date {
     if (this.patient.isDischarged && this.patient.admissionTime) {
@@ -498,8 +572,16 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
+   * 初始化范围打印默认值
+   */
+  private initRangeDefaults(): void {
+    const dateStr = this.toDateString(this.selectedDate);
+    this.rangeStartInput = dateStr;
+    this.rangeEndInput = dateStr;
+  }
+
+  /**
    * 根据时间戳计算所属护理日日期
-   * 护理日为 [当日07:00, 次日07:00)，07:00属于当天，07:00之前归上一护理日
    */
   private nursingDate(date: Date): Date {
     const cal = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -524,6 +606,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     this.selectedPageNo = 1;
     this.minDateInput = '';
     this.maxDateInput = '';
+    this.rangeStartInput = '';
+    this.rangeEndInput = '';
   }
 
   // 保留totalPages和currentPage用于模板状态显示
@@ -559,7 +643,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 解析时间字段 — 兼容字符串(yyyy-MM-dd)和数字(毫秒时间戳)
+   * 解析时间字段
    */
   private parseTimeField(value: string | number | undefined): Date | null {
     if (!value) {
@@ -569,14 +653,12 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       const d = new Date(value);
       return isNaN(d.getTime()) ? null : d;
     }
-    // 字符串：取前10位 yyyy-MM-dd
     const str = String(value).substring(0, 10);
     return this.parseLocalDate(str);
   }
 
   /**
    * 本地日期解析（避免UTC偏移）
-   * yyyy-MM-dd 格式日期在JavaScript中可能按UTC解析导致日期偏移
    */
   private parseLocalDate(dateStr: string): Date | null {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
@@ -600,23 +682,16 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
 
   /**
    * 获取业务时间（参考时间）
-   * 优先使用上游传入的businessReferenceTime，不伪造时间
-   * 使用Asia/Shanghai时区，返回ISO格式字符串
    */
   private resolveReferenceTime(): string {
-    // 优先使用已传入的业务参考时间（原样透传）
     if (this.businessReferenceTime) {
       return this.businessReferenceTime;
     }
-
-    // 兼容回退：使用当前时间作为业务时间
-    // 仅在业务调用链确实没有传referenceTime时使用
     return this.formatShanghaiTime(new Date());
   }
 
   /**
    * 格式化为上海时区ISO格式
-   * 使用Intl.DateTimeFormat确保时区正确
    */
   private formatShanghaiTime(value: Date): string {
     const parts =

@@ -13,6 +13,7 @@ import com.itextpdf.layout.Canvas;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.VerticalAlignment;
+import com.smartcare.backend.hljld.HljldPdfFooterPolicy;
 import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,16 +23,15 @@ import java.util.Map;
 /**
  * 护理记录单流式 PDF 页事件处理器。
  *
- * 在每页 END_PAGE 时绘制：
- * 1. 页眉：标题（居中）+ 患者信息（左对齐）
- * 2. 备注区：左侧"备注"纵向合并4行 + 右侧4行每行合并18列
- * 3. 页码："第 N 页"
+ * <p>在每页 END_PAGE 时绘制：</p>
+ * <ol>
+ *   <li>页眉：标题（居中）+ 患者信息（左对齐）— 每页必绘</li>
+ *   <li>页码："第 N 页" — 每页必绘</li>
+ *   <li>备注区 + 审核护士签名 — 仅在本次输出的最后一个物理页，且
+ *       {@link HljldPdfFooterPolicy} 要求时绘制</li>
+ * </ol>
  *
- * 备注区支持两种位置：
- * - 普通页：固定在页面底部（REMARK_BOTTOM）
- * - 护理日最后一页：紧跟正文结束位置（动态Y坐标）
- *
- * 使用 PdfCanvas 绘制边框和线条，使用 Canvas 绘制文字。
+ * <p>中间页不绘制备注区和审核护士签名，但仍保留底部预留空间以确保分页一致。</p>
  */
 public class HljldFlowPageEventHandler implements IEventHandler {
 
@@ -52,20 +52,40 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     private final int startPageNo;
     /** 动态备注位置映射：键为本地物理页码，值为正文结束Y坐标 */
     private final Map<Integer, Float> dynamicRemarkTopByLocalPage;
+    /** 本次输出的总物理页数（用于判断最终页） */
+    private final int totalPages;
+    /** 页脚渲染策略 */
+    private final HljldPdfFooterPolicy policy;
 
     /**
      * @param fonts                       字体包（支持 Unicode 下标/上标回退）
      * @param patientInfo                 患者信息文本
      * @param startPageNo                 全局起始页码
      * @param dynamicRemarkTopByLocalPage 动态备注位置映射（可变，由 DayEndMarker 在 draw 阶段更新）
+     * @param totalPages                  本次输出的总物理页数
+     * @param policy                      页脚渲染策略（决定是否在最终页绘制备注和签名）
      */
     public HljldFlowPageEventHandler(HljldPdfFontBundle fonts, String patientInfo, int startPageNo,
-                                     Map<Integer, Float> dynamicRemarkTopByLocalPage) {
+                                     Map<Integer, Float> dynamicRemarkTopByLocalPage,
+                                     int totalPages, HljldPdfFooterPolicy policy) {
         this.fonts = fonts;
         this.font = fonts.getPrimaryFont();
         this.patientInfo = patientInfo == null ? "" : patientInfo;
         this.startPageNo = startPageNo;
         this.dynamicRemarkTopByLocalPage = dynamicRemarkTopByLocalPage;
+        this.totalPages = totalPages;
+        this.policy = policy;
+    }
+
+    /**
+     * 兼容旧构造函数（无策略参数，默认每页绘制备注）。
+     *
+     * @deprecated 使用带 {@link HljldPdfFooterPolicy} 参数的构造函数
+     */
+    @Deprecated
+    public HljldFlowPageEventHandler(HljldPdfFontBundle fonts, String patientInfo, int startPageNo,
+                                     Map<Integer, Float> dynamicRemarkTopByLocalPage) {
+        this(fonts, patientInfo, startPageNo, dynamicRemarkTopByLocalPage, 0, null);
     }
 
     @Override
@@ -82,29 +102,34 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         float pw = pageSize.getWidth();
         float ph = pageSize.getHeight();
 
-        // 计算备注区底部Y坐标
-        // 如果当前页是护理日最后一页，使用动态位置；否则使用固定底部位置
-        Float dynamicContentEndY = dynamicRemarkTopByLocalPage.get(localPageNumber);
-        float remarksBottom;
-
-        if (dynamicContentEndY != null) {
-            // 动态位置：备注紧跟正文结束位置
-            float dynamicBottom = dynamicContentEndY - HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
-
-            // 安全检查：确保备注不超出安全边界（允许2pt浮点误差）
-            if (dynamicBottom >= HljldPdfLayoutConstants.REMARK_BOTTOM - 2f) {
-                remarksBottom = dynamicBottom;
-                log.debug("[hljld] 备注动态位置: localPage={}, contentEndY={}, remarksBottom={}",
-                    localPageNumber, dynamicContentEndY, remarksBottom);
-            } else {
-                // 回退到固定底部位置
-                remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
-                log.warn("[hljld] 备注动态位置低于安全边界，回退固定位置: localPage={}, " +
-                    "dynamicBottom={}, safeBottom={}", localPageNumber, dynamicBottom, remarksBottom);
-            }
+        // 判断是否为最终页
+        boolean isFinalPage;
+        if (totalPages > 0) {
+            isFinalPage = (localPageNumber == totalPages);
         } else {
-            // 固定位置：普通页备注在页面底部
-            remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
+            // 兼容旧模式：无 totalPages 时使用动态位置判断
+            isFinalPage = dynamicRemarkTopByLocalPage.containsKey(localPageNumber);
+        }
+
+        // 是否在最终页绘制备注和签名
+        boolean drawRemark = isFinalPage && policy != null && policy.isShowRemarkOnFinalPage();
+        boolean drawSignature = isFinalPage && policy != null && policy.isShowAuditSignatureOnFinalPage();
+
+        // 计算备注区底部Y坐标（仅绘制时需要）
+        float remarksBottom = HljldPdfLayoutConstants.REMARK_BOTTOM;
+        if (drawRemark) {
+            Float dynamicContentEndY = dynamicRemarkTopByLocalPage.get(localPageNumber);
+            if (dynamicContentEndY != null) {
+                float dynamicBottom = dynamicContentEndY - HljldPdfLayoutConstants.REMARK_TOTAL_HEIGHT;
+                if (dynamicBottom >= HljldPdfLayoutConstants.REMARK_BOTTOM - 2f) {
+                    remarksBottom = dynamicBottom;
+                    log.debug("[hljld] 备注动态位置: localPage={}, contentEndY={}, remarksBottom={}",
+                        localPageNumber, dynamicContentEndY, remarksBottom);
+                } else {
+                    log.warn("[hljld] 备注动态位置低于安全边界，回退固定位置: localPage={}, " +
+                        "dynamicBottom={}, safeBottom={}", localPageNumber, dynamicBottom, remarksBottom);
+                }
+            }
         }
 
         // 使用 PdfCanvas 绘制边框和线条
@@ -113,12 +138,23 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         // 使用 Canvas 绘制文字（在内容流之上）
         try (Canvas canvas = new Canvas(pdfCanvas, new Rectangle(0, 0, pw, ph))) {
             drawHeader(canvas, pw, ph);
-            drawRemarksText(canvas, pdfCanvas, pw, remarksBottom);
             drawPageNumber(canvas, pw, globalPageNumber);
+
+            // 仅最终页且策略要求时绘制备注
+            if (drawRemark) {
+                drawRemarksText(canvas, pdfCanvas, pw, remarksBottom);
+            }
+
+            // 仅最终页且策略要求时绘制审核护士签名
+            if (drawSignature) {
+                drawAuditNurseSignature(canvas, pw, drawRemark, remarksBottom);
+            }
         }
 
-        // 使用 PdfCanvas 绘制备注区边框和线条
-        drawRemarksBorders(pdfCanvas, pw, remarksBottom);
+        // 仅最终页且策略要求时绘制备注区边框
+        if (drawRemark) {
+            drawRemarksBorders(pdfCanvas, pw, remarksBottom);
+        }
     }
 
     // ══════════════════════════════════════════════════════════
@@ -223,6 +259,37 @@ public class HljldFlowPageEventHandler implements IEventHandler {
             pdfCanvas.lineTo(leftX + TABLE_W, lineY);
             pdfCanvas.stroke();
         }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  审核护士签名
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * 绘制审核护士签名区。
+     * <p>位于页脚右下角，右边界与主表格右边界对齐，文字右对齐。
+     * 当备注区存在时，签名位于备注区下方；否则位于页脚右下角。</p>
+     *
+     * @param canvas       Canvas 绘制上下文
+     * @param pw           页面宽度
+     * @param hasRemark    本页是否同时绘制了备注区
+     * @param remarksBottom 备注区底部 Y 坐标（hasRemark 时有效）
+     */
+    private void drawAuditNurseSignature(Canvas canvas, float pw, boolean hasRemark, float remarksBottom) {
+        float rightX = ML + TABLE_W;
+        float sigY;
+        if (hasRemark) {
+            sigY = remarksBottom - 4f;
+        } else {
+            sigY = HljldPdfLayoutConstants.AUDIT_SIG_Y_BASE;
+        }
+
+        canvas.showTextAligned(
+            new Paragraph(HljldPdfLayoutConstants.AUDIT_SIG_TEXT)
+                .setFont(font)
+                .setFontSize(HljldPdfLayoutConstants.AUDIT_SIG_FONT_SIZE)
+                .setMargin(0),
+            rightX, sigY, TextAlignment.RIGHT);
     }
 
     // ══════════════════════════════════════════════════════════

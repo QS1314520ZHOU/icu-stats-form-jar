@@ -32,6 +32,40 @@ public final class HljldPdfRequestContext {
         this.dischargedType = dischargedType;
     }
 
+    /**
+     * 统一护理日计算：根据时间戳计算所属护理日。
+     * 护理日边界为 [D 07:00, D+1 07:00)，07:00 属于当天，06:59 属于前一天。
+     *
+     * @param instant 时间戳
+     * @return 所属护理日日期（Asia/Shanghai 时区）
+     */
+    public static LocalDate nursingDateOf(Instant instant) {
+        if (instant == null) {
+            return LocalDate.now(ZONE);
+        }
+        ZonedDateTime zdt = instant.atZone(ZONE);
+        // 07:00 边界：小时 < 7 → 归前一天
+        if (zdt.getHour() < 7) {
+            return zdt.toLocalDate().minusDays(1);
+        }
+        return zdt.toLocalDate();
+    }
+
+    /**
+     * 获取有效出科护理日。
+     * <p>仅当出科时间存在且 referenceTime >= dischargeTime 时返回出科护理日，
+     * 否则返回 null（表示患者尚未出科或时间未到）。</p>
+     */
+    public LocalDate getEffectiveDischargeNursingDate() {
+        if (dischargeTime == null) {
+            return null;
+        }
+        if (referenceTime.toEpochMilli() < dischargeTime.toEpochMilli()) {
+            return null;
+        }
+        return nursingDateOf(dischargeTime);
+    }
+
     public static HljldPdfRequestContext of(
         String nursingDateText,
         String referenceTimeText

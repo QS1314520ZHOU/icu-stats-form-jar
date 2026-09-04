@@ -67,12 +67,49 @@
 
     <div class="toolbar-spacer"></div>
 
+    <!-- 范围打印 -->
+    <div class="range-tools" role="group" aria-label="时间范围打印">
+      <label class="range-label">
+        <span class="sr-only">开始护理日</span>
+        <input
+          type="date"
+          class="range-date-input"
+          [(ngModel)]="rangeStartInput"
+          [min]="minDateInput"
+          [max]="maxDateInput || rangeEndInput"
+          aria-label="开始护理日"
+          title="开始护理日"
+        />
+      </label>
+      <span class="range-separator">至</span>
+      <label class="range-label">
+        <span class="sr-only">结束护理日</span>
+        <input
+          type="date"
+          class="range-date-input"
+          [(ngModel)]="rangeEndInput"
+          [min]="rangeStartInput || minDateInput"
+          [max]="maxDateInput"
+          aria-label="结束护理日"
+          title="结束护理日"
+        />
+      </label>
+      <button
+        type="button"
+        class="print-button range-print-button"
+        [disabled]="!patient.pid || isAnyPrinting()"
+        (click)="printRange()"
+      >
+        {{ isPrintingRange ? '生成中...' : (isPrinting ? '打印中...' : '打印时间范围') }}
+      </button>
+    </div>
+
     <!-- 操作按钮 -->
     <div class="action-tools">
       <button
         type="button"
         class="refresh-button"
-        [disabled]="isLoadingPdf || isLoadingAllPdf"
+        [disabled]="isLoadingPdf || isAnyPrinting()"
         (click)="refreshPdf()"
         title="刷新"
       >刷新</button>
@@ -80,7 +117,7 @@
       <button
         type="button"
         class="recalculate-button"
-        [disabled]="recalculating || !patient.pid"
+        [disabled]="recalculating || !patient.pid || isAnyPrinting()"
         (click)="recalculatePageIndexes()"
         title="重新计算页码"
       >
@@ -90,7 +127,7 @@
       <button
         type="button"
         class="print-button"
-        [disabled]="!basePdfUrl || isPrinting"
+        [disabled]="!basePdfUrl || isAnyPrinting()"
         (click)="printCurrentDay()"
       >
         {{ isPrinting ? '打印中...' : '打印当日' }}
@@ -99,7 +136,7 @@
       <button
         type="button"
         class="print-button print-all-button"
-        [disabled]="!patient.pid || isLoadingAllPdf || isPrinting"
+        [disabled]="!patient.pid || isAnyPrinting()"
         (click)="printAll()"
       >
         {{ isLoadingAllPdf ? '生成中...' : (isPrinting ? '打印中...' : '一键打印全部') }}
@@ -108,9 +145,10 @@
   </header>
 
   <!-- 加载提示 -->
-  <div class="loading-banner" *ngIf="isLoadingAllPdf">
+  <div class="loading-banner" *ngIf="isLoadingAllPdf || isPrintingRange">
     <div class="spinner" aria-hidden="true"></div>
-    <span>正在生成全部护理记录PDF，请稍候...</span>
+    <span *ngIf="isLoadingAllPdf">正在生成全部护理记录PDF，请稍候...</span>
+    <span *ngIf="isPrintingRange">正在生成时间范围PDF，请稍候...</span>
   </div>
 
   <!-- 打印错误提示 -->

@@ -7,6 +7,7 @@ import com.itextpdf.kernel.geom.PageSize;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfReader;
 import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.kernel.pdf.canvas.parser.PdfTextExtractor;
 import com.itextpdf.layout.Document;
 import com.itextpdf.layout.borders.Border;
 import com.itextpdf.layout.borders.SolidBorder;
@@ -15,12 +16,19 @@ import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.UnitValue;
 import com.smartcare.backend.hljld.HljldDayEndMarker;
+import com.smartcare.backend.hljld.HljldPdfFooterPolicy;
 import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
+import com.smartcare.backend.hljld.HljldPdfRenderPurpose;
+import com.smartcare.backend.hljld.HljldPdfRequestContext;
 import com.smartcare.backend.service.HljldFlowPageEventHandler;
 import com.smartcare.backend.service.HljldPdfFontBundle;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -28,14 +36,15 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 护理记录单 PDF 备注布局回归测试。
+ * 护理记录单 PDF 页脚渲染回归测试。
  *
- * 验证动态备注定位系统：
- * 1. 每页恰好一套备注（通过页数和事件处理器逻辑验证）
- * 2. 备注不拆页
- * 3. 备注不跨护理日
- * 4. 备注不跨患者
- * 5. 备注紧跟正文结束位置
+ * <p>验证：
+ * 1. 布局常量一致性
+ * 2. 备注和审核护士签名仅在最终页显示
+ * 3. 中间页不显示备注和签名
+ * 4. FooterPolicy 在各场景下的正确性
+ * 5. 07:00 边界计算
+ * 6. PDF 文本提取验证
  */
 public class TestHljldPdfRemarkLayout {
 
@@ -45,7 +54,6 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testLayoutConstantsConsistency() {
-        // 验证备注区域坐标一致性
         assertEquals(HljldPdfLayoutConstants.REMARK_BOTTOM,
             HljldPdfLayoutConstants.PAGE_BOTTOM_PADDING
                 + HljldPdfLayoutConstants.PAGE_NUMBER_HEIGHT
@@ -64,13 +72,11 @@ public class TestHljldPdfRemarkLayout {
             HljldPdfLayoutConstants.MARGIN_BOTTOM,
             0.01f, "CONTENT_BOTTOM = MARGIN_BOTTOM");
 
-        // 验证备注宽度 = 主表宽度
         float col0Width = HljldPdfLayoutConstants.COL_WIDTHS_PT[0];
         float contentWidth = HljldPdfLayoutConstants.TABLE_WIDTH - col0Width;
         assertEquals(HljldPdfLayoutConstants.TABLE_WIDTH, col0Width + contentWidth, 0.01f,
             "备注Table宽度应等于主表宽度");
 
-        // 验证备注行数
         assertEquals(4, HljldPdfLayoutConstants.REMARK_LINES.length, "应有4行备注");
         assertEquals(4, HljldPdfLayoutConstants.REMARK_ROWS, "REMARK_ROWS应为4");
 
@@ -78,16 +84,19 @@ public class TestHljldPdfRemarkLayout {
     }
 
     // ══════════════════════════════════════════════════════════
-    //  测试2：单页PDF
+    //  测试2：单页PDF — 最终页有备注和签名
     // ══════════════════════════════════════════════════════════
 
     @Test
-    public void testSinglePagePdf() throws Exception {
+    public void testSinglePageWithRemarkAndSignature() throws Exception {
         HljldPdfFontBundle fonts = createTestFontBundle();
-        Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_ALL, LocalDate.now(), null);
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
+            fonts, "测试患者", 1, dynamicMap, 1, policy);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -102,38 +111,43 @@ public class TestHljldPdfRemarkLayout {
 
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
-        // 添加少量数据
         Table table = createTestTable(fonts.getPrimaryFont(), 5);
         doc.add(table);
-
-        // 添加结束标记
-        doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
-
+        doc.add(new HljldDayEndMarker(dynamicMap));
         doc.close();
 
         byte[] pdfBytes = baos.toByteArray();
         assertTrue(pdfBytes.length > 0, "PDF应生成有效字节");
 
-        // 验证PDF只有1页
         PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
         PdfDocument rendered = new PdfDocument(reader);
         assertEquals(1, rendered.getNumberOfPages(), "单页PDF应只有1页");
 
-        System.out.println("[PASS] testSinglePagePdf - PDF=" + pdfBytes.length + " bytes");
+        // 提取文本验证
+        String text = PdfTextExtractor.getTextFromPage(rendered.getPage(1));
+        assertTrue(text.contains("备注"), "最终页应包含'备注'");
+        assertTrue(text.contains("审核护士签名"), "最终页应包含'审核护士签名'");
+        assertTrue(text.contains("第 1 页"), "应包含页码");
+
+        System.out.println("[PASS] testSinglePageWithRemarkAndSignature - PDF=" + pdfBytes.length + " bytes");
         rendered.close();
     }
 
     // ══════════════════════════════════════════════════════════
-    //  测试3：动态备注位置已记录
+    //  测试3：多页PDF — 仅最终页有备注和签名
     // ══════════════════════════════════════════════════════════
 
     @Test
-    public void testDynamicRemarksPositionRecorded() throws Exception {
-        HljldPdfFontBundle fonts = createTestFontBundle();
-        Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
+    public void testMultiPageOnlyFinalPageHasRemark() throws Exception {
+        // 先预渲染获取页数（独立字体）
+        int totalPages = 预渲染获取页数(null, 40);
 
-        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
+        // 正式渲染（独立字体）
+        HljldPdfFontBundle fonts = createTestFontBundle();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_ALL, LocalDate.now(), null);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -146,99 +160,54 @@ public class TestHljldPdfRemarkLayout {
             HljldPdfLayoutConstants.MARGIN_LEFT
         );
 
-        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
-
-        // 添加适量数据
-        Table table = createTestTable(fonts.getPrimaryFont(), 10);
-        doc.add(table);
-
-        // 添加结束标记
-        HljldDayEndMarker marker = new HljldDayEndMarker(dynamicRemarkTopByLocalPage);
-        doc.add(marker);
-
-        doc.close();
-
-        byte[] pdfBytes = baos.toByteArray();
-
-        // 验证PDF只有1页
-        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
-        PdfDocument rendered = new PdfDocument(reader);
-        assertEquals(1, rendered.getNumberOfPages(), "适量数据应只有1页");
-
-        // 验证动态位置已记录
-        assertFalse(dynamicRemarkTopByLocalPage.isEmpty(), "动态位置应已记录");
-        assertTrue(dynamicRemarkTopByLocalPage.containsKey(1), "应记录第1页的位置");
-
-        float contentEndY = dynamicRemarkTopByLocalPage.get(1);
-        assertTrue(contentEndY > 0, "内容结束Y坐标应大于0: " + contentEndY);
-        assertTrue(contentEndY < HljldPdfLayoutConstants.PAGE_HEIGHT, "内容结束Y坐标应小于页面高度: " + contentEndY);
-
-        System.out.println("[PASS] testDynamicRemarksPositionRecorded - 动态位置=" + dynamicRemarkTopByLocalPage);
-        rendered.close();
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  测试4：多页PDF
-    // ══════════════════════════════════════════════════════════
-
-    @Test
-    public void testMultiPagePdf() throws Exception {
-        HljldPdfFontBundle fonts = createTestFontBundle();
-        Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
-
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PdfWriter writer = new PdfWriter(baos);
-        PdfDocument pdfDoc = new PdfDocument(writer);
-        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
-        doc.setMargins(
-            HljldPdfLayoutConstants.MARGIN_TOP,
-            HljldPdfLayoutConstants.MARGIN_RIGHT,
-            HljldPdfLayoutConstants.MARGIN_BOTTOM,
-            HljldPdfLayoutConstants.MARGIN_LEFT
-        );
-
+            fonts, "测试患者", 1, dynamicMap, totalPages, policy);
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
-        // 添加大量数据使其跨页
         Table table = createTestTable(fonts.getPrimaryFont(), 40);
         doc.add(table);
-
-        // 添加结束标记
-        doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
-
+        doc.add(new HljldDayEndMarker(dynamicMap));
         doc.close();
 
         byte[] pdfBytes = baos.toByteArray();
-
-        // 验证PDF有多页
         PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
         PdfDocument rendered = new PdfDocument(reader);
         int pageCount = rendered.getNumberOfPages();
         assertTrue(pageCount >= 2, "大量数据应产生多页: pageCount=" + pageCount);
 
-        // 验证最后一页的位置已记录
-        assertTrue(dynamicRemarkTopByLocalPage.containsKey(pageCount),
-            "应记录最后一页的位置: pageCount=" + pageCount);
+        // 验证：只有最后一页有备注和签名
+        for (int i = 1; i <= pageCount; i++) {
+            String text = PdfTextExtractor.getTextFromPage(rendered.getPage(i));
+            boolean isLastPage = (i == pageCount);
+            if (isLastPage) {
+                assertTrue(text.contains("备注"), "第" + i + "页(最终页)应包含'备注'");
+                assertTrue(text.contains("审核护士签名"), "第" + i + "页(最终页)应包含'审核护士签名'");
+            } else {
+                assertFalse(text.contains("备注"), "第" + i + "页(中间页)不应包含'备注'");
+                assertFalse(text.contains("审核护士签名"), "第" + i + "页(中间页)不应包含'审核护士签名'");
+            }
+            assertTrue(text.contains("第 " + i + " 页"), "第" + i + "页应有正确页码");
+        }
 
-        System.out.println("[PASS] testMultiPagePdf - 页数=" + pageCount
-            + ", 动态位置=" + dynamicRemarkTopByLocalPage);
+        System.out.println("[PASS] testMultiPageOnlyFinalPageHasRemark - 页数=" + pageCount);
         rendered.close();
     }
 
     // ══════════════════════════════════════════════════════════
-    //  测试5：多护理日 - 备注不跨护理日
+    //  测试4：中间页不出现备注
     // ══════════════════════════════════════════════════════════
 
     @Test
-    public void testMultiDayRemarksDoNotCross() throws Exception {
-        HljldPdfFontBundle fonts = createTestFontBundle();
-        Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
+    public void testIntermediatePagesNoRemark() throws Exception {
+        // 先预渲染获取页数（独立字体）
+        int totalPages = 预渲染获取页数(null, 50);
 
-        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
+        // 正式渲染（独立字体）
+        HljldPdfFontBundle fonts = createTestFontBundle();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_ALL, LocalDate.now(), null);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -251,146 +220,56 @@ public class TestHljldPdfRemarkLayout {
             HljldPdfLayoutConstants.MARGIN_LEFT
         );
 
-        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
-
-        // 护理日1：适量数据
-        Table table1 = createTestTable(fonts.getPrimaryFont(), 10);
-        doc.add(table1);
-        doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
-
-        // 护理日2（新页）
-        doc.add(new AreaBreak());
-        Table table2 = createTestTable(fonts.getPrimaryFont(), 10);
-        doc.add(table2);
-        doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
-
-        doc.close();
-
-        byte[] pdfBytes = baos.toByteArray();
-
-        // 验证PDF有2页
-        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
-        PdfDocument rendered = new PdfDocument(reader);
-        assertEquals(2, rendered.getNumberOfPages(), "两个护理日应有2页");
-
-        // 验证每页的位置都已记录
-        assertTrue(dynamicRemarkTopByLocalPage.containsKey(1), "应记录第1页的位置");
-        assertTrue(dynamicRemarkTopByLocalPage.containsKey(2), "应记录第2页的位置");
-
-        // 验证两个护理日的位置不同（因为内容不同）
-        float pos1 = dynamicRemarkTopByLocalPage.get(1);
-        float pos2 = dynamicRemarkTopByLocalPage.get(2);
-        assertTrue(pos1 > 0, "第1页位置应大于0");
-        assertTrue(pos2 > 0, "第2页位置应大于0");
-
-        System.out.println("[PASS] testMultiDayRemarksDoNotCross - 页数=2, 位置=" + dynamicRemarkTopByLocalPage);
-        rendered.close();
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  测试6：空护理日 - 仍有备注
-    // ══════════════════════════════════════════════════════════
-
-    @Test
-    public void testEmptyDayStillHasRemarks() throws Exception {
-        HljldPdfFontBundle fonts = createTestFontBundle();
-        Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
-
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PdfWriter writer = new PdfWriter(baos);
-        PdfDocument pdfDoc = new PdfDocument(writer);
-        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
-        doc.setMargins(
-            HljldPdfLayoutConstants.MARGIN_TOP,
-            HljldPdfLayoutConstants.MARGIN_RIGHT,
-            HljldPdfLayoutConstants.MARGIN_BOTTOM,
-            HljldPdfLayoutConstants.MARGIN_LEFT
-        );
-
+            fonts, "测试患者", 1, dynamicMap, totalPages, policy);
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
-        // 空护理日：只添加一个空行
-        Table emptyTable = createTestTable(fonts.getPrimaryFont(), 1);
-        doc.add(emptyTable);
-
-        // 添加结束标记
-        doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
-
-        doc.close();
-
-        byte[] pdfBytes = baos.toByteArray();
-
-        // 验证PDF有1页
-        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
-        PdfDocument rendered = new PdfDocument(reader);
-        assertEquals(1, rendered.getNumberOfPages(), "空护理日应有1页");
-
-        // 验证位置已记录
-        assertFalse(dynamicRemarkTopByLocalPage.isEmpty(), "应记录位置");
-
-        System.out.println("[PASS] testEmptyDayStillHasRemarks - PDF=" + pdfBytes.length + " bytes");
-        rendered.close();
-    }
-
-    // ══════════════════════════════════════════════════════════
-    //  测试7：安全边界检查 - 动态位置过低时回退
-    // ══════════════════════════════════════════════════════════
-
-    @Test
-    public void testSafetyBoundaryFallback() throws Exception {
-        HljldPdfFontBundle fonts = createTestFontBundle();
-        Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
-
-        // 模拟动态位置过低（低于安全边界）
-        dynamicRemarkTopByLocalPage.put(1, HljldPdfLayoutConstants.REMARK_BOTTOM + 10f);
-
-        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PdfWriter writer = new PdfWriter(baos);
-        PdfDocument pdfDoc = new PdfDocument(writer);
-        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
-        doc.setMargins(
-            HljldPdfLayoutConstants.MARGIN_TOP,
-            HljldPdfLayoutConstants.MARGIN_RIGHT,
-            HljldPdfLayoutConstants.MARGIN_BOTTOM,
-            HljldPdfLayoutConstants.MARGIN_LEFT
-        );
-
-        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
-
-        // 添加少量数据
-        Table table = createTestTable(fonts.getPrimaryFont(), 3);
+        Table table = createTestTable(fonts.getPrimaryFont(), 50);
         doc.add(table);
-
+        doc.add(new HljldDayEndMarker(dynamicMap));
         doc.close();
 
         byte[] pdfBytes = baos.toByteArray();
-
-        // 验证PDF正常生成（没有崩溃）
         PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
         PdfDocument rendered = new PdfDocument(reader);
-        assertEquals(1, rendered.getNumberOfPages(), "应正常生成1页");
+        int pageCount = rendered.getNumberOfPages();
+        assertTrue(pageCount >= 3, "大量数据应产生3+页: pageCount=" + pageCount);
 
-        System.out.println("[PASS] testSafetyBoundaryFallback - 动态位置过低时正确回退");
+        // 中间页（1 到 pageCount-1）不应有备注
+        for (int i = 1; i < pageCount; i++) {
+            String text = PdfTextExtractor.getTextFromPage(rendered.getPage(i));
+            assertFalse(text.contains("备注"), "中间页第" + i + "页不应包含'备注'");
+            assertFalse(text.contains("审核护士签名"), "中间页第" + i + "页不应包含'审核护士签名'");
+        }
+
+        // 最后一页应有
+        String lastText = PdfTextExtractor.getTextFromPage(rendered.getPage(pageCount));
+        assertTrue(lastText.contains("备注"), "最终页应包含'备注'");
+        assertTrue(lastText.contains("审核护士签名"), "最终页应包含'审核护士签名'");
+
+        System.out.println("[PASS] testIntermediatePagesNoRemark - 页数=" + pageCount);
         rendered.close();
     }
 
     // ══════════════════════════════════════════════════════════
-    //  测试8：多患者合并 - 备注不跨患者
+    //  测试5：PRINT_DAY 未出科 — 只有签名无备注
     // ══════════════════════════════════════════════════════════
 
     @Test
-    public void testMultiPatientRemarksDoNotCross() throws Exception {
+    public void testPrintDayNotDischarged() throws Exception {
         HljldPdfFontBundle fonts = createTestFontBundle();
-        Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        // 未出科：effectiveDischargeNursingDate = null
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_DAY, today, null);
+
+        assertFalse(policy.isShowRemarkOnFinalPage(), "PRINT_DAY未出科不应显示备注");
+        assertTrue(policy.isShowAuditSignatureOnFinalPage(), "PRINT_DAY应显示签名");
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            fonts, "患者A", 1, dynamicRemarkTopByLocalPage);
+            fonts, "测试患者", 1, dynamicMap, 1, policy);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -404,42 +283,391 @@ public class TestHljldPdfRemarkLayout {
         );
 
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
+        Table table = createTestTable(fonts.getPrimaryFont(), 5);
+        doc.add(table);
+        doc.add(new HljldDayEndMarker(dynamicMap));
+        doc.close();
 
-        // 患者A：适量数据
+        byte[] pdfBytes = baos.toByteArray();
+        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
+        PdfDocument rendered = new PdfDocument(reader);
+        String text = PdfTextExtractor.getTextFromPage(rendered.getPage(1));
+
+        assertFalse(text.contains("备注"), "PRINT_DAY未出科最终页不应包含'备注'");
+        assertTrue(text.contains("审核护士签名"), "PRINT_DAY最终页应包含'审核护士签名'");
+
+        System.out.println("[PASS] testPrintDayNotDischarged");
+        rendered.close();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试6：PRINT_DAY 出科护理日 — 备注+签名
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testPrintDayDischargedDay() throws Exception {
+        HljldPdfFontBundle fonts = createTestFontBundle();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        LocalDate dischargeDay = LocalDate.of(2026, 9, 3);
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_DAY, dischargeDay, dischargeDay);
+
+        assertTrue(policy.isShowRemarkOnFinalPage(), "PRINT_DAY出科护理日应显示备注");
+        assertTrue(policy.isShowAuditSignatureOnFinalPage(), "PRINT_DAY应显示签名");
+
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+            fonts, "测试患者", 1, dynamicMap, 1, policy);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
+        PdfDocument pdfDoc = new PdfDocument(writer);
+        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+        doc.setMargins(
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
+        );
+
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
+        Table table = createTestTable(fonts.getPrimaryFont(), 5);
+        doc.add(table);
+        doc.add(new HljldDayEndMarker(dynamicMap));
+        doc.close();
+
+        byte[] pdfBytes = baos.toByteArray();
+        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
+        PdfDocument rendered = new PdfDocument(reader);
+        String text = PdfTextExtractor.getTextFromPage(rendered.getPage(1));
+
+        assertTrue(text.contains("备注"), "PRINT_DAY出科护理日最终页应包含'备注'");
+        assertTrue(text.contains("审核护士签名"), "PRINT_DAY最终页应包含'审核护士签名'");
+
+        System.out.println("[PASS] testPrintDayDischargedDay");
+        rendered.close();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试7：PREVIEW 未出科历史日 — 无备注无签名
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testPreviewHistoryNotDischarged() throws Exception {
+        HljldPdfFontBundle fonts = createTestFontBundle();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        LocalDate historyDay = LocalDate.of(2026, 8, 1);
+        // 未出科：effectiveDischargeNursingDate = null
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PREVIEW, historyDay, null);
+
+        assertFalse(policy.isShowRemarkOnFinalPage(), "PREVIEW历史日未出科不应显示备注");
+        assertFalse(policy.isShowAuditSignatureOnFinalPage(), "PREVIEW历史日未出科不应显示签名");
+
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+            fonts, "测试患者", 1, dynamicMap, 1, policy);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
+        PdfDocument pdfDoc = new PdfDocument(writer);
+        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+        doc.setMargins(
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
+        );
+
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
+        Table table = createTestTable(fonts.getPrimaryFont(), 5);
+        doc.add(table);
+        doc.add(new HljldDayEndMarker(dynamicMap));
+        doc.close();
+
+        byte[] pdfBytes = baos.toByteArray();
+        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
+        PdfDocument rendered = new PdfDocument(reader);
+        String text = PdfTextExtractor.getTextFromPage(rendered.getPage(1));
+
+        assertFalse(text.contains("备注"), "PREVIEW历史日最终页不应包含'备注'");
+        assertFalse(text.contains("审核护士签名"), "PREVIEW历史日最终页不应包含'审核护士签名'");
+        assertTrue(text.contains("第 1 页"), "应包含页码");
+
+        System.out.println("[PASS] testPreviewHistoryNotDischarged");
+        rendered.close();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试8：PRINT_ALL 多护理日 — 仅整份最后一页有二者
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testPrintAllMultiDay() throws Exception {
+        // 先预渲染获取页数（独立字体）
+        int totalPages = 预渲染获取多Day页数(null);
+
+        // 正式渲染（独立字体）
+        HljldPdfFontBundle fonts = createTestFontBundle();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_ALL, LocalDate.now(), null);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
+        PdfDocument pdfDoc = new PdfDocument(writer);
+        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+        doc.setMargins(
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
+        );
+
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+            fonts, "测试患者", 1, dynamicMap, totalPages, policy);
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
+
+        // 护理日1
         Table table1 = createTestTable(fonts.getPrimaryFont(), 10);
         doc.add(table1);
-        doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
+        // 不添加 DayEndMarker（中间护理日）
 
-        // 患者B（新页）
+        // 护理日2
         doc.add(new AreaBreak());
         Table table2 = createTestTable(fonts.getPrimaryFont(), 10);
         doc.add(table2);
-        doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
+        doc.add(new HljldDayEndMarker(dynamicMap));
 
         doc.close();
 
         byte[] pdfBytes = baos.toByteArray();
-
-        // 验证PDF有2页
         PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
         PdfDocument rendered = new PdfDocument(reader);
-        assertEquals(2, rendered.getNumberOfPages(), "两个患者应有2页");
+        int pageCount = rendered.getNumberOfPages();
+        assertTrue(pageCount >= 2, "两个护理日应产生2+页");
 
-        // 验证每页的位置都已记录
-        assertTrue(dynamicRemarkTopByLocalPage.containsKey(1), "应记录患者A最后一页的位置");
-        assertTrue(dynamicRemarkTopByLocalPage.containsKey(2), "应记录患者B最后一页的位置");
+        // 只有最后一页有备注和签名
+        for (int i = 1; i <= pageCount; i++) {
+            String text = PdfTextExtractor.getTextFromPage(rendered.getPage(i));
+            boolean isLast = (i == pageCount);
+            if (isLast) {
+                assertTrue(text.contains("备注"), "PRINT_ALL最终页应包含'备注'");
+                assertTrue(text.contains("审核护士签名"), "PRINT_ALL最终页应包含'审核护士签名'");
+            } else {
+                assertFalse(text.contains("备注"), "PRINT_ALL中间页第" + i + "页不应包含'备注'");
+                assertFalse(text.contains("审核护士签名"), "PRINT_ALL中间页第" + i + "页不应包含'审核护士签名'");
+            }
+        }
 
-        System.out.println("[PASS] testMultiPatientRemarksDoNotCross - 页数=2, 位置=" + dynamicRemarkTopByLocalPage);
+        System.out.println("[PASS] testPrintAllMultiDay - 页数=" + pageCount);
         rendered.close();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试9：PRINT_RANGE 结束日非出科日 — 只有签名无备注
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testPrintRangeNotDischargeDay() {
+        LocalDate rangeEnd = LocalDate.of(2026, 9, 2);
+        LocalDate dischargeDay = LocalDate.of(2026, 9, 3);
+
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.ofRange(rangeEnd, dischargeDay);
+
+        assertFalse(policy.isShowRemarkOnFinalPage(), "PRINT_RANGE结束日非出科日不应显示备注");
+        assertTrue(policy.isShowAuditSignatureOnFinalPage(), "PRINT_RANGE应显示签名");
+
+        System.out.println("[PASS] testPrintRangeNotDischargeDay");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试10：PRINT_RANGE 结束日等于出科日 — 备注+签名
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testPrintRangeDischargeDay() {
+        LocalDate dischargeDay = LocalDate.of(2026, 9, 3);
+
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.ofRange(dischargeDay, dischargeDay);
+
+        assertTrue(policy.isShowRemarkOnFinalPage(), "PRINT_RANGE结束日等于出科日应显示备注");
+        assertTrue(policy.isShowAuditSignatureOnFinalPage(), "PRINT_RANGE应显示签名");
+
+        System.out.println("[PASS] testPrintRangeDischargeDay");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试11：07:00 边界计算
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testNursingDateBoundary() {
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+
+        // 2026-09-04 06:59:59 → 属于 2026-09-03 护理日
+        Instant t1 = ZonedDateTime.of(2026, 9, 4, 6, 59, 59, 0, zone).toInstant();
+        assertEquals(LocalDate.of(2026, 9, 3), HljldPdfRequestContext.nursingDateOf(t1),
+            "06:59:59应属于前一天护理日");
+
+        // 2026-09-04 07:00:00 → 属于 2026-09-04 护理日
+        Instant t2 = ZonedDateTime.of(2026, 9, 4, 7, 0, 0, 0, zone).toInstant();
+        assertEquals(LocalDate.of(2026, 9, 4), HljldPdfRequestContext.nursingDateOf(t2),
+            "07:00:00应属于当天护理日");
+
+        // 2026-09-04 23:59:59 → 属于 2026-09-04 护理日
+        Instant t3 = ZonedDateTime.of(2026, 9, 4, 23, 59, 59, 0, zone).toInstant();
+        assertEquals(LocalDate.of(2026, 9, 4), HljldPdfRequestContext.nursingDateOf(t3),
+            "23:59:59应属于当天护理日");
+
+        // 2026-09-05 00:00:00 → 属于 2026-09-04 护理日
+        Instant t4 = ZonedDateTime.of(2026, 9, 5, 0, 0, 0, 0, zone).toInstant();
+        assertEquals(LocalDate.of(2026, 9, 4), HljldPdfRequestContext.nursingDateOf(t4),
+            "次日00:00应属于前一天护理日");
+
+        // null → 当前护理日
+        LocalDate today = LocalDate.now(zone);
+        assertEquals(today, HljldPdfRequestContext.nursingDateOf(null),
+            "null应返回当前护理日");
+
+        System.out.println("[PASS] testNursingDateBoundary");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试12：FooterPolicy 各场景覆盖
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testFooterPolicyScenarios() {
+        LocalDate day1 = LocalDate.of(2026, 9, 1);
+        LocalDate day2 = LocalDate.of(2026, 9, 2);
+        LocalDate dischargeDay = LocalDate.of(2026, 9, 3);
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+
+        // PREVIEW，未出科，历史日（current != refTimeNursingDate）
+        HljldPdfFooterPolicy p1 = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PREVIEW, day1, null, today);
+        assertFalse(p1.isShowRemarkOnFinalPage(), "PREVIEW未出科历史日不显示备注");
+        assertFalse(p1.isShowAuditSignatureOnFinalPage(), "PREVIEW未出科历史日不显示签名");
+
+        // PREVIEW，未出科，当前日（current == refTimeNursingDate）
+        HljldPdfFooterPolicy p2 = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PREVIEW, today, null, today);
+        assertTrue(p2.isShowRemarkOnFinalPage(), "PREVIEW未出科当前日应显示备注");
+        assertTrue(p2.isShowAuditSignatureOnFinalPage(), "PREVIEW未出科当前日应显示签名");
+
+        // PREVIEW，已出科，非出科日
+        HljldPdfFooterPolicy p3 = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PREVIEW, day1, dischargeDay, today);
+        assertFalse(p3.isShowRemarkOnFinalPage(), "PREVIEW已出科非出科日不显示备注");
+        assertFalse(p3.isShowAuditSignatureOnFinalPage(), "PREVIEW已出科非出科日不显示签名");
+
+        // PREVIEW，已出科，出科日
+        HljldPdfFooterPolicy p4 = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PREVIEW, dischargeDay, dischargeDay, today);
+        assertTrue(p4.isShowRemarkOnFinalPage(), "PREVIEW已出科出科日应显示备注");
+        assertTrue(p4.isShowAuditSignatureOnFinalPage(), "PREVIEW已出科出科日应显示签名");
+
+        // PRINT_DAY，未出科，今天
+        HljldPdfFooterPolicy p5 = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_DAY, day1, null);
+        assertFalse(p5.isShowRemarkOnFinalPage(), "PRINT_DAY未出科不显示备注");
+        assertTrue(p5.isShowAuditSignatureOnFinalPage(), "PRINT_DAY应显示签名");
+
+        // PRINT_DAY，出科日
+        HljldPdfFooterPolicy p6 = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_DAY, dischargeDay, dischargeDay);
+        assertTrue(p6.isShowRemarkOnFinalPage(), "PRINT_DAY出科日应显示备注");
+        assertTrue(p6.isShowAuditSignatureOnFinalPage(), "PRINT_DAY出科日应显示签名");
+
+        // PRINT_ALL
+        HljldPdfFooterPolicy p7 = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_ALL, day1, null);
+        assertTrue(p7.isShowRemarkOnFinalPage(), "PRINT_ALL应显示备注");
+        assertTrue(p7.isShowAuditSignatureOnFinalPage(), "PRINT_ALL应显示签名");
+
+        // PRINT_RANGE，结束日非出科日
+        HljldPdfFooterPolicy p8 = HljldPdfFooterPolicy.ofRange(day2, dischargeDay);
+        assertFalse(p8.isShowRemarkOnFinalPage(), "PRINT_RANGE结束日非出科日不显示备注");
+        assertTrue(p8.isShowAuditSignatureOnFinalPage(), "PRINT_RANGE应显示签名");
+
+        // PRINT_RANGE，结束日等于出科日
+        HljldPdfFooterPolicy p9 = HljldPdfFooterPolicy.ofRange(dischargeDay, dischargeDay);
+        assertTrue(p9.isShowRemarkOnFinalPage(), "PRINT_RANGE结束日等于出科日应显示备注");
+        assertTrue(p9.isShowAuditSignatureOnFinalPage(), "PRINT_RANGE应显示签名");
+
+        System.out.println("[PASS] testFooterPolicyScenarios - 9 scenarios verified");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试13：空护理日 — 签名仍显示（PRINT_DAY）
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testEmptyDayPrintDayHasSignature() throws Exception {
+        HljldPdfFontBundle fonts = createTestFontBundle();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_DAY, LocalDate.now(), null);
+
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+            fonts, "测试患者", 1, dynamicMap, 1, policy);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
+        PdfDocument pdfDoc = new PdfDocument(writer);
+        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+        doc.setMargins(
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
+        );
+
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
+        Table table = createTestTable(fonts.getPrimaryFont(), 1);
+        doc.add(table);
+        doc.add(new HljldDayEndMarker(dynamicMap));
+        doc.close();
+
+        byte[] pdfBytes = baos.toByteArray();
+        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
+        PdfDocument rendered = new PdfDocument(reader);
+        String text = PdfTextExtractor.getTextFromPage(rendered.getPage(1));
+
+        assertFalse(text.contains("备注"), "空护理日PRINT_DAY不应包含'备注'");
+        assertTrue(text.contains("审核护士签名"), "空护理日PRINT_DAY应包含'审核护士签名'");
+
+        System.out.println("[PASS] testEmptyDayPrintDayHasSignature");
+        rendered.close();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试14：PREVIEW 当前护理日未出科 — 最终页有二者
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testPreviewCurrentDayNotDischarged() {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        // 未出科：effectiveDischargeNursingDate = null
+        // referenceTimeNursingDate = today（当前护理日）
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PREVIEW, today, null, today);
+
+        assertTrue(policy.isShowRemarkOnFinalPage(),
+            "PREVIEW未出科当前护理日应显示备注");
+        assertTrue(policy.isShowAuditSignatureOnFinalPage(),
+            "PREVIEW未出科当前护理日应显示签名");
+
+        System.out.println("[PASS] testPreviewCurrentDayNotDischarged");
     }
 
     // ══════════════════════════════════════════════════════════
     //  辅助方法
     // ══════════════════════════════════════════════════════════
 
-    /**
-     * 创建测试表格
-     */
     private Table createTestTable(PdfFont font, int rowCount) {
         Table table = new Table(UnitValue.createPointArray(HljldPdfLayoutConstants.COL_WIDTHS_PT));
         table.setWidth(UnitValue.createPointValue(HljldPdfLayoutConstants.TABLE_WIDTH));
@@ -464,13 +692,78 @@ public class TestHljldPdfRemarkLayout {
         return HljldPdfFontBundle.createForDocument();
     }
 
-    private PdfFont createTestFont() {
-        HljldPdfFontBundle fonts = createTestFontBundle();
-        return fonts.getPrimaryFont();
+    /**
+     * 预渲染获取单Day页数（每次创建独立字体）
+     */
+    private int 预渲染获取页数(HljldPdfFontBundle unused, int rowCount) {
+        HljldPdfFontBundle localFonts = createTestFontBundle();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
+        PdfDocument pdfDoc = new PdfDocument(writer);
+        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+        doc.setMargins(
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
+        );
+
+        Map<Integer, Float> tempMap = new ConcurrentHashMap<>();
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+            localFonts, "测试患者", 1, tempMap, 0, null);
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
+
+        Table table = createTestTable(localFonts.getPrimaryFont(), rowCount);
+        doc.add(table);
+        doc.close();
+
+        try {
+            PdfReader reader = new PdfReader(new ByteArrayInputStream(baos.toByteArray()));
+            PdfDocument rendered = new PdfDocument(reader);
+            int count = rendered.getNumberOfPages();
+            rendered.close();
+            return count;
+        } catch (Exception e) {
+            return 1;
+        }
     }
 
-    // 辅助方法：获取当前测试的字体
-    private PdfFont getCurrentFont(HljldPdfFontBundle fonts) {
-        return fonts.getPrimaryFont();
+    /**
+     * 预渲染获取多Day页数（每次创建独立字体）
+     */
+    private int 预渲染获取多Day页数(HljldPdfFontBundle unused) {
+        HljldPdfFontBundle localFonts = createTestFontBundle();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
+        PdfDocument pdfDoc = new PdfDocument(writer);
+        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+        doc.setMargins(
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
+        );
+
+        Map<Integer, Float> tempMap = new ConcurrentHashMap<>();
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+            localFonts, "测试患者", 1, tempMap, 0, null);
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
+
+        Table table1 = createTestTable(localFonts.getPrimaryFont(), 10);
+        doc.add(table1);
+        doc.add(new AreaBreak());
+        Table table2 = createTestTable(localFonts.getPrimaryFont(), 10);
+        doc.add(table2);
+        doc.close();
+
+        try {
+            PdfReader reader = new PdfReader(new ByteArrayInputStream(baos.toByteArray()));
+            PdfDocument rendered = new PdfDocument(reader);
+            int count = rendered.getNumberOfPages();
+            rendered.close();
+            return count;
+        } catch (Exception e) {
+            return 2;
+        }
     }
 }

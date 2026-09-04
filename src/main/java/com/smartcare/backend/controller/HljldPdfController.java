@@ -1,5 +1,6 @@
 package com.smartcare.backend.controller;
 
+import com.smartcare.backend.hljld.HljldPdfRenderPurpose;
 import com.smartcare.backend.service.FormPageIndexService;
 import com.smartcare.backend.service.HljldFlowPdfService;
 import org.slf4j.Logger;
@@ -33,24 +34,43 @@ public class HljldPdfController {
         this.pageIndexService = pageIndexService;
     }
 
+    /**
+     * 获取指定日期的 PDF（默认 PREVIEW，可通过 purpose 参数切换）。
+     *
+     * @param pid           患者ID
+     * @param date          护理日日期 yyyy-MM-dd
+     * @param referenceTime 参考时间（可选）
+     * @param purpose       渲染目的（可选：PREVIEW / PRINT_DAY / PRINT_ALL / PRINT_RANGE）
+     */
     @GetMapping("/pdf/{pid}/{date}")
     public ResponseEntity<byte[]> getPdf(
             @PathVariable String pid,
             @PathVariable String date,
-            @RequestParam(required = false) String referenceTime) {
+            @RequestParam(required = false) String referenceTime,
+            @RequestParam(required = false, defaultValue = "PREVIEW") String purpose) {
         try {
-            byte[] pdfData = flowPdfService.generateDailyPdf(pid, date, referenceTime);
+            HljldPdfRenderPurpose renderPurpose;
+            try {
+                renderPurpose = HljldPdfRenderPurpose.valueOf(purpose.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                renderPurpose = HljldPdfRenderPurpose.PREVIEW;
+            }
+
+            byte[] pdfData = flowPdfService.generateDailyPdf(pid, date, referenceTime, renderPurpose);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
             headers.setContentLength(pdfData.length);
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
-            log.error("生成PDF失败: pid={}, date={}, referenceTime={}", pid, date, referenceTime, e);
+            log.error("生成PDF失败: pid={}, date={}, referenceTime={}, purpose={}", pid, date, referenceTime, purpose, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
+    /**
+     * 获取全部记录的 PDF（内部固定使用 PRINT_ALL）。
+     */
     @GetMapping("/pdf-all/{pid}")
     public ResponseEntity<byte[]> getAllPdfs(
             @PathVariable String pid,
@@ -64,6 +84,43 @@ public class HljldPdfController {
             return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
         } catch (Exception e) {
             log.error("生成全部PDF失败: pid={}, referenceTime={}", pid, referenceTime, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * 获取时间范围的 PDF（内部固定使用 PRINT_RANGE）。
+     *
+     * @param pid           患者ID
+     * @param startDate     范围开始护理日 yyyy-MM-dd
+     * @param endDate       范围结束护理日 yyyy-MM-dd
+     * @param referenceTime 参考时间（可选）
+     */
+    @GetMapping("/pdf-range/{pid}")
+    public ResponseEntity<byte[]> getRangePdf(
+            @PathVariable String pid,
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) String referenceTime) {
+        // 参数校验
+        String validationError = flowPdfService.validateRangeParams(pid, startDate, endDate, referenceTime);
+        if (validationError != null) {
+            log.warn("范围打印参数校验失败: {}", validationError);
+            return ResponseEntity.badRequest()
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(validationError.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+
+        try {
+            byte[] pdfData = flowPdfService.generateRangePdf(pid, startDate, endDate, referenceTime);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline");
+            headers.setContentLength(pdfData.length);
+            return new ResponseEntity<>(pdfData, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("生成范围PDF失败: pid={}, startDate={}, endDate={}, referenceTime={}",
+                pid, startDate, endDate, referenceTime, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

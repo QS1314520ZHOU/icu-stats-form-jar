@@ -156,6 +156,18 @@ public final class HljldPdfLayoutConstants {
     public static final float PAGE_NUM_FONT_SIZE = 10f;
 
     // ══════════════════════════════════════════════════════════
+    //  审核护士签名区
+    // ══════════════════════════════════════════════════════════
+    /** 审核护士签名文字 */
+    public static final String AUDIT_SIG_TEXT = "审核护士签名：________________";
+    /** 审核护士签名字号 */
+    public static final float AUDIT_SIG_FONT_SIZE = 8f;
+    /** 审核护士签名 Y 坐标（无备注时，位于页脚右下角） */
+    public static final float AUDIT_SIG_Y_BASE = REMARK_BOTTOM + 4f;
+    /** 审核护士签名 Y 坐标（有备注时，位于备注区下方） */
+    public static final float AUDIT_SIG_BELOW_REMARK_Y = REMARK_BOTTOM - 4f;
+
+    // ══════════════════════════════════════════════════════════
     //  19 列宽度（pt）
     // ══════════════════════════════════════════════════════════
     // A4横向页面宽度842pt，左右边距各28pt，可用宽度786pt

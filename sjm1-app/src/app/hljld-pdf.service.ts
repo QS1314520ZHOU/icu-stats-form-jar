@@ -31,18 +31,47 @@ export class HljldPdfService {
   constructor(private http: HttpClient) {}
 
   /**
-   * 获取指定日期的 PDF URL
+   * 获取预览 PDF URL（PREVIEW 模式）
    */
-  getPdfUrl(pid: string, date: string, referenceTime?: string): string {
+  getPreviewPdfUrl(pid: string, date: string, referenceTime?: string): string {
     const base = `${this.baseUrl}/pdf/${encodeURIComponent(pid)}/${encodeURIComponent(date)}`;
-    if (!referenceTime) {
-      return base;
+    const params = new URLSearchParams();
+    params.set('purpose', 'PREVIEW');
+    if (referenceTime) {
+      params.set('referenceTime', referenceTime);
     }
-    return `${base}?referenceTime=${encodeURIComponent(referenceTime)}`;
+    return `${base}?${params.toString()}`;
   }
 
   /**
-   * 获取全部记录的 PDF URL
+   * 获取打印当日 PDF URL（PRINT_DAY 模式）
+   */
+  getDailyPrintPdfUrl(pid: string, date: string, referenceTime?: string): string {
+    const base = `${this.baseUrl}/pdf/${encodeURIComponent(pid)}/${encodeURIComponent(date)}`;
+    const params = new URLSearchParams();
+    params.set('purpose', 'PRINT_DAY');
+    if (referenceTime) {
+      params.set('referenceTime', referenceTime);
+    }
+    return `${base}?${params.toString()}`;
+  }
+
+  /**
+   * 获取时间范围打印 PDF URL（PRINT_RANGE 模式）
+   */
+  getRangePrintPdfUrl(pid: string, startDate: string, endDate: string, referenceTime?: string): string {
+    const base = `${this.baseUrl}/pdf-range/${encodeURIComponent(pid)}`;
+    const params = new URLSearchParams();
+    params.set('startDate', startDate);
+    params.set('endDate', endDate);
+    if (referenceTime) {
+      params.set('referenceTime', referenceTime);
+    }
+    return `${base}?${params.toString()}`;
+  }
+
+  /**
+   * 获取全部记录的 PDF URL（PRINT_ALL 模式）
    */
   getAllPdfsUrl(pid: string, referenceTime?: string): string {
     const base = `${this.baseUrl}/pdf-all/${encodeURIComponent(pid)}`;

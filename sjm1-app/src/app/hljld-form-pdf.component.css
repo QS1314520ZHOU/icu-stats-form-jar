@@ -140,7 +140,49 @@
   flex: 1;
 }
 
-/* 操作按钮 */
+/* ═══════════════════════════════════════════════════════════════
+   范围打印
+   ═══════════════════════════════════════════════════════════════ */
+
+.range-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.range-label {
+  display: flex;
+  align-items: center;
+}
+
+.range-date-input {
+  width: 130px;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.range-separator {
+  font-size: 13px;
+  color: #666;
+  padding: 0 2px;
+}
+
+.range-print-button {
+  background: #e8f5e9;
+  border-color: #81c784;
+}
+
+.range-print-button:hover:not(:disabled) {
+  background: #c8e6c9;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   操作按钮
+   ═══════════════════════════════════════════════════════════════ */
+
 .action-tools {
   display: flex;
   align-items: center;

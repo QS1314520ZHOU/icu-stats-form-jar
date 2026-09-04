@@ -30,7 +30,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -160,20 +162,21 @@ public class HljldFlowPdfService {
     // ══════════════════════════════════════════════════════════
 
     /**
-     * 统一渲染入口。一次渲染同时得到 bytes 和 pageCount。
-     * 页数通过最终关闭后的 PDF 字节数统计，不从未关闭的布局文档读取。
+     * 统一渲染入口。两次渲染：第一次预渲染获取总页数，第二次正式渲染带上最终页标记。
      *
      * @param itemsPerDay   每个护理日的可打印项列表（有序，包含普通行和小结/总结）
      * @param startPageNo   全局起始页码
      * @param pid           患者ID
      * @param referenceDate 参考日期（护理日日期）
+     * @param policy        页脚渲染策略
      * @return 渲染结果（包含 pdfBytes 和 pageCount）
      */
     private FlowPdfRenderResult renderFlowPdf(
             List<List<PrintableItem>> itemsPerDay,
             int startPageNo,
             String pid,
-            LocalDate referenceDate) {
+            LocalDate referenceDate,
+            HljldPdfFooterPolicy policy) {
 
         // 使用字体包（主字体 + 回退字体）
         HljldPdfFontBundle fonts = HljldPdfFontBundle.createForDocument();
@@ -183,14 +186,16 @@ public class HljldFlowPdfService {
         }
         String patientInfo = getPatientInfoString(pid, referenceDate);
 
+        // ── 第一次渲染：预渲染获取总页数 ──
+        int totalPages = preRenderForPageCount(itemsPerDay, fonts, patientInfo, startPageNo);
+
+        // ── 第二次渲染：正式渲染，带上 totalPages 和 policy ──
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
         PdfDocument pdfDoc = new PdfDocument(writer);
         com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
 
         // 设置边距：精确匹配事件处理器绘制区域
-        // topMargin = 标题+患者信息高度 → 内容从 CONTENT_TOP 开始
-        // bottomMargin = 备注+页码高度 → 内容到 CONTENT_BOTTOM 结束
         doc.setMargins(
             HljldPdfLayoutConstants.MARGIN_TOP,
             HljldPdfLayoutConstants.MARGIN_RIGHT,
@@ -198,17 +203,19 @@ public class HljldFlowPdfService {
             HljldPdfLayoutConstants.MARGIN_LEFT
         );
 
-        // 动态备注位置映射：记录每个护理日最后一页的正文结束Y坐标
-        // 使用 ConcurrentHashMap 支持并发安全，键为本地物理页码
+        // 动态备注位置映射：记录正文结束Y坐标
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
         // 创建事件处理器并注册（在添加内容之前）
         HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
-            fonts, patientInfo, startPageNo, dynamicRemarkTopByLocalPage);
+            fonts, patientInfo, startPageNo, dynamicRemarkTopByLocalPage,
+            totalPages, policy);
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
 
         int totalRowCount = 0;
         boolean firstDay = true;
+        int dayIndex = 0;
+        int lastDayIndex = itemsPerDay.size() - 1;
 
         for (List<PrintableItem> dayItems : itemsPerDay) {
             if (!firstDay) {
@@ -216,54 +223,140 @@ public class HljldFlowPdfService {
             }
             firstDay = false;
 
-            // 构建单张父级流式 Table（普通行 + 小结/总结容器行交错输出）
+            // 构建单张父级流式 Table
             Table dailyTable = buildDailyStreamingTable(dayItems, fonts);
-
-            // 将 dailyTable 添加到文档（不添加流式备注）
             doc.add(dailyTable);
 
-            // 添加零高度护理日结束标记，记录当前页码和内容结束Y坐标
-            doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
+            // 仅在最后一个护理日后添加结束标记（记录最终页的正文结束Y坐标）
+            if (dayIndex == lastDayIndex) {
+                doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
+            }
 
             totalRowCount += dayItems.size();
+            dayIndex++;
         }
 
-        // 关闭文档（触发 END_PAGE 事件，绘制页眉/备注/页码）
+        // 关闭文档（触发 END_PAGE 事件，绘制页眉/页码/备注/签名）
         doc.close();
 
-        // 通过最终关闭后的 PDF 字节数统计物理页数
         byte[] pdfBytes = baos.toByteArray();
-        int pageCount;
+
+        // 验证页数（预渲染和正式渲染应一致）
+        int actualPageCount;
         try (PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
              PdfDocument rendered = new PdfDocument(reader)) {
-            pageCount = rendered.getNumberOfPages();
+            actualPageCount = rendered.getNumberOfPages();
         } catch (Exception e) {
             log.error("统计PDF页数失败", e);
-            pageCount = 1;
+            actualPageCount = totalPages;
         }
 
-        return new FlowPdfRenderResult(pdfBytes, pageCount, totalRowCount);
+        if (actualPageCount != totalPages) {
+            log.warn("预渲染页数({})与实际页数({})不一致", totalPages, actualPageCount);
+        }
+
+        return new FlowPdfRenderResult(pdfBytes, actualPageCount, totalRowCount);
+    }
+
+    /**
+     * 预渲染：生成 PDF 到临时流，仅用于统计总页数。
+     * 不绘制备注和签名（totalPages=0, policy=null）。
+     */
+    private int preRenderForPageCount(
+            List<List<PrintableItem>> itemsPerDay,
+            HljldPdfFontBundle fonts,
+            String patientInfo,
+            int startPageNo) {
+
+        ByteArrayOutputStream tempBaos = new ByteArrayOutputStream();
+        PdfWriter tempWriter = new PdfWriter(tempBaos);
+        PdfDocument tempPdfDoc = new PdfDocument(tempWriter);
+        com.itextpdf.layout.Document tempDoc = new com.itextpdf.layout.Document(tempPdfDoc, PageSize.A4.rotate());
+
+        tempDoc.setMargins(
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
+        );
+
+        // totalPages=0, policy=null → 不绘制备注和签名
+        Map<Integer, Float> tempDynamicMap = new ConcurrentHashMap<>();
+        HljldFlowPageEventHandler tempHandler = new HljldFlowPageEventHandler(
+            fonts, patientInfo, startPageNo, tempDynamicMap, 0, null);
+        tempPdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, tempHandler);
+
+        boolean firstDay = true;
+        for (List<PrintableItem> dayItems : itemsPerDay) {
+            if (!firstDay) {
+                tempDoc.add(new AreaBreak());
+            }
+            firstDay = false;
+            Table dailyTable = buildDailyStreamingTable(dayItems, fonts);
+            tempDoc.add(dailyTable);
+        }
+
+        tempDoc.close();
+
+        try (PdfReader reader = new PdfReader(new ByteArrayInputStream(tempBaos.toByteArray()));
+             PdfDocument rendered = new PdfDocument(reader)) {
+            return rendered.getNumberOfPages();
+        } catch (Exception e) {
+            log.error("预渲染统计页数失败", e);
+            return 1;
+        }
     }
 
     // ══════════════════════════════════════════════════════════
     //  PDF 生成入口
     // ══════════════════════════════════════════════════════════
 
-    /** 生成指定日期的护理记录 PDF（流式分页） */
-    public byte[] generateDailyPdf(String pid, String date, String referenceTime) {
-        log.info("Flow PDF 生成: pid={}, date={}, referenceTime={}", pid, date, referenceTime);
+    /**
+     * 生成指定日期的护理记录 PDF（流式分页）。
+     *
+     * @param pid           患者ID
+     * @param date          护理日日期 yyyy-MM-dd
+     * @param referenceTime 参考时间（ISO-8601）
+     * @param purpose       渲染目的（null 默认 PREVIEW）
+     */
+    public byte[] generateDailyPdf(String pid, String date, String referenceTime,
+                                    HljldPdfRenderPurpose purpose) {
+        log.info("Flow PDF 生成: pid={}, date={}, referenceTime={}, purpose={}", pid, date, referenceTime, purpose);
+
+        if (purpose == null) {
+            purpose = HljldPdfRenderPurpose.PREVIEW;
+        }
 
         LocalDate referenceDate = LocalDate.parse(date);
         List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
         int startPageNo = getStartPageNo(pid, date, "hljld2-flow");
 
-        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
-        log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}", pid, date, result.pageCount, items.size());
+        // 计算有效出科护理日
+        LocalDate effectiveDischargeDay = resolveEffectiveDischargeNursingDate(pid, referenceTime);
+
+        // 计算 referenceTime 所属护理日（用于 PREVIEW 未出科判断）
+        LocalDate refTimeNursingDate = resolveReferenceTimeNursingDate(referenceTime);
+
+        // 构建页脚策略
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            purpose, referenceDate, effectiveDischargeDay, refTimeNursingDate);
+
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate, policy);
+        log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}, policy={}",
+            pid, date, result.pageCount, items.size(), policy);
         return result.pdfBytes;
     }
 
-    /** 生成全部记录的 PDF（流式分页，多护理日用 AreaBreak 分隔） */
+    /** 兼容旧签名（默认 PREVIEW） */
+    public byte[] generateDailyPdf(String pid, String date, String referenceTime) {
+        return generateDailyPdf(pid, date, referenceTime, HljldPdfRenderPurpose.PREVIEW);
+    }
+
+    /**
+     * 生成全部记录的 PDF（流式分页，多护理日用 AreaBreak 分隔）。
+     * 内部固定使用 PRINT_ALL 渲染目的。
+     */
     public byte[] generateAllPagesPdf(String pid, String referenceTime) {
         log.info("Flow PDF 生成全部: pid={}, referenceTime={}", pid, referenceTime);
 
@@ -287,20 +380,141 @@ public class HljldFlowPdfService {
             startPageNo = index.getDailyPages().get(0).getStartPageNo();
         }
 
-        // 使用第一个护理日作为参考日期
         LocalDate referenceDate = dates.isEmpty() ? LocalDate.now() : dates.get(0);
 
-        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
+        // PRINT_ALL：始终在整份 PDF 最后一页展示备注和签名
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.of(
+            HljldPdfRenderPurpose.PRINT_ALL, referenceDate, null);
+
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate, policy);
         log.info("Flow PDF 全部完成: pid={}, days={}, pageCount={}", pid, itemsPerDay.size(), result.pageCount);
         return result.pdfBytes;
     }
 
-    /** 计算某天的页数（使用真实渲染） */
+    /**
+     * 生成时间范围的 PDF（流式分页）。
+     * 内部固定使用 PRINT_RANGE 渲染目的。
+     *
+     * @param pid           患者ID
+     * @param startDate     范围开始护理日 yyyy-MM-dd
+     * @param endDate       范围结束护理日 yyyy-MM-dd
+     * @param referenceTime 参考时间（ISO-8601）
+     * @return PDF 字节数组
+     */
+    public byte[] generateRangePdf(String pid, String startDate, String endDate, String referenceTime) {
+        log.info("Flow PDF 生成范围: pid={}, startDate={}, endDate={}, referenceTime={}",
+            pid, startDate, endDate, referenceTime);
+
+        Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, "hljld2-flow");
+        if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
+            log.warn("Flow PDF 索引不存在或为空: pid={}", pid);
+            return generateEmptyPagePdf(pid, startDate);
+        }
+
+        FormPageIndex index = indexOpt.get();
+        List<List<PrintableItem>> itemsPerDay = new ArrayList<>();
+        List<LocalDate> dates = new ArrayList<>();
+
+        // 按护理日逐日、闭区间生成数据
+        for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
+            String d = dailyPage.getDate();
+            if (d.compareTo(startDate) >= 0 && d.compareTo(endDate) <= 0) {
+                dates.add(LocalDate.parse(d));
+                itemsPerDay.add(buildPrintableItems(d, pid, referenceTime));
+            }
+        }
+
+        if (itemsPerDay.isEmpty()) {
+            log.warn("Flow PDF 范围内无数据: pid={}, startDate={}, endDate={}", pid, startDate, endDate);
+            return generateEmptyPagePdf(pid, startDate);
+        }
+
+        // 使用范围开始护理日在索引中的起始页码
+        int startPageNo = 1;
+        for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
+            if (dailyPage.getDate().equals(startDate)) {
+                startPageNo = dailyPage.getStartPageNo();
+                break;
+            }
+        }
+
+        LocalDate referenceDate = dates.get(0);
+
+        // 计算有效出科护理日
+        LocalDate effectiveDischargeDay = resolveEffectiveDischargeNursingDate(pid, referenceTime);
+
+        // PRINT_RANGE：签名始终显示，备注仅在范围结束日 == 出科护理日时显示
+        LocalDate rangeEndNursingDate = dates.get(dates.size() - 1);
+        HljldPdfFooterPolicy policy = HljldPdfFooterPolicy.ofRange(rangeEndNursingDate, effectiveDischargeDay);
+
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate, policy);
+        log.info("Flow PDF 范围完成: pid={}, days={}, pageCount={}, policy={}",
+            pid, itemsPerDay.size(), result.pageCount, policy);
+        return result.pdfBytes;
+    }
+
+    /**
+     * 校验范围打印参数。
+     *
+     * @param pid           患者ID
+     * @param startDate     范围开始护理日
+     * @param endDate       范围结束护理日
+     * @param referenceTime 参考时间
+     * @return 错误信息（null 表示校验通过）
+     */
+    public String validateRangeParams(String pid, String startDate, String endDate, String referenceTime) {
+        if (pid == null || pid.trim().isEmpty()) {
+            return "患者ID不能为空";
+        }
+        if (startDate == null || startDate.trim().isEmpty()) {
+            return "开始日期不能为空";
+        }
+        if (endDate == null || endDate.trim().isEmpty()) {
+            return "结束日期不能为空";
+        }
+
+        try {
+            LocalDate.parse(startDate);
+        } catch (Exception e) {
+            return "开始日期格式不正确，应为 yyyy-MM-dd";
+        }
+        try {
+            LocalDate.parse(endDate);
+        } catch (Exception e) {
+            return "结束日期格式不正确，应为 yyyy-MM-dd";
+        }
+
+        if (startDate.compareTo(endDate) > 0) {
+            return "开始日期不能晚于结束日期";
+        }
+
+        // 校验范围不早于入科护理日、不晚于有效出科护理日/当前护理日
+        Document patient = patientResolver.findPatient(pid);
+        if (patient != null) {
+            LocalDate admissionDay = resolveAdmissionNursingDate(patient);
+            if (admissionDay != null && startDate.compareTo(admissionDay.toString()) < 0) {
+                return "开始日期不能早于入科护理日 " + admissionDay;
+            }
+
+            LocalDate effectiveDischargeDay = resolveEffectiveDischargeNursingDate(patient, referenceTime);
+            LocalDate maxEndDay = effectiveDischargeDay != null ? effectiveDischargeDay : LocalDate.now(SHANGHAI_ZONE);
+            if (endDate.compareTo(maxEndDay.toString()) > 0) {
+                String limitDesc = effectiveDischargeDay != null
+                    ? "出科护理日 " + effectiveDischargeDay
+                    : "当前护理日 " + maxEndDay;
+                return "结束日期不能晚于" + limitDesc;
+            }
+        }
+
+        return null; // 校验通过
+    }
+
+    /** 计算某天的页数（使用真实渲染，不绘制备注和签名） */
     public int calculateFlowPageCount(String pid, String date, String referenceTime) {
         LocalDate referenceDate = LocalDate.parse(date);
         List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
-        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, pid, referenceDate);
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, pid, referenceDate, null);
         log.info("Flow PDF 页数: pid={}, date={}, pageCount={}", pid, date, result.pageCount);
         return result.pageCount;
     }
@@ -837,6 +1051,82 @@ public class HljldFlowPdfService {
 
         String age = HljldPatientAgeResolver.resolveAge(patient, referenceDate);
         return patientResolver.buildPatientInfo(patient, age);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  护理日解析辅助方法
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * 根据患者信息和参考时间解析有效出科护理日。
+     * 仅当出科时间存在且 referenceTime >= dischargeTime 时返回出科护理日。
+     */
+    private LocalDate resolveEffectiveDischargeNursingDate(String pid, String referenceTime) {
+        Document patient = patientResolver.findPatient(pid);
+        if (patient == null) {
+            return null;
+        }
+        return resolveEffectiveDischargeNursingDate(patient, referenceTime);
+    }
+
+    /**
+     * 根据患者文档和参考时间解析有效出科护理日。
+     */
+    private LocalDate resolveEffectiveDischargeNursingDate(Document patient, String referenceTime) {
+        Date dischargeTime = patient.getDate("icuDischargeTime");
+        if (dischargeTime == null) {
+            dischargeTime = patient.getDate("dischargeTime");
+        }
+        if (dischargeTime == null) {
+            return null;
+        }
+
+        Instant referenceInstant;
+        if (referenceTime != null && !referenceTime.trim().isEmpty()) {
+            try {
+                referenceInstant = OffsetDateTime.parse(referenceTime.trim()).toInstant();
+            } catch (Exception e) {
+                referenceInstant = Instant.now();
+            }
+        } else {
+            referenceInstant = Instant.now();
+        }
+
+        // 仅当 referenceTime >= dischargeTime 时才算出科
+        if (referenceInstant.toEpochMilli() < dischargeTime.toInstant().toEpochMilli()) {
+            return null;
+        }
+
+        return HljldPdfRequestContext.nursingDateOf(dischargeTime.toInstant());
+    }
+
+    /**
+     * 解析 referenceTime 所属护理日。
+     */
+    private LocalDate resolveReferenceTimeNursingDate(String referenceTime) {
+        if (referenceTime == null || referenceTime.trim().isEmpty()) {
+            return LocalDate.now(SHANGHAI_ZONE);
+        }
+        try {
+            Instant refInstant = OffsetDateTime.parse(referenceTime.trim()).toInstant();
+            return HljldPdfRequestContext.nursingDateOf(refInstant);
+        } catch (Exception e) {
+            return LocalDate.now(SHANGHAI_ZONE);
+        }
+    }
+
+    /**
+     * 根据患者文档解析入科护理日。
+     */
+    private LocalDate resolveAdmissionNursingDate(Document patient) {
+        Date admissionTime = patient.getDate("icuAdmissionTime");
+        if (admissionTime == null) {
+            admissionTime = patient.getDate("admissionTime");
+        }
+        if (admissionTime == null) {
+            return null;
+        }
+        return HljldPdfRequestContext.nursingDateOf(admissionTime.toInstant());
     }
 
     int getStartPageNo(String pid, String date, String formType) {
