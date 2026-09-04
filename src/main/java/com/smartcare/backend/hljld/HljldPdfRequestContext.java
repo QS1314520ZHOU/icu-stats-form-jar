@@ -41,7 +41,7 @@ public final class HljldPdfRequestContext {
      */
     public static LocalDate nursingDateOf(Instant instant) {
         if (instant == null) {
-            return LocalDate.now(ZONE);
+            instant = Instant.now();
         }
         ZonedDateTime zdt = instant.atZone(ZONE);
         // 07:00 边界：小时 < 7 → 归前一天

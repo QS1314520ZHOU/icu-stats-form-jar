@@ -279,7 +279,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
         float rightX = ML + TABLE_W;
         float sigY;
         if (hasRemark) {
-            sigY = remarksBottom - 4f;
+            sigY = remarksBottom + HljldPdfLayoutConstants.AUDIT_SIG_BELOW_REMARK_OFFSET;
         } else {
             sigY = HljldPdfLayoutConstants.AUDIT_SIG_Y_BASE;
         }

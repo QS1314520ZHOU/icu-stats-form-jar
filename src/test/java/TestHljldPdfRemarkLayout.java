@@ -665,6 +665,125 @@ public class TestHljldPdfRemarkLayout {
     }
 
     // ══════════════════════════════════════════════════════════
+    //  测试15：nursingDateOf(null) 返回正确护理日（07:00边界）
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testNursingDateOfNullUsesNow() {
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+        LocalDate today = LocalDate.now(zone);
+        java.time.LocalTime now = java.time.LocalTime.now(zone);
+
+        LocalDate result = HljldPdfRequestContext.nursingDateOf(null);
+        assertNotNull(result, "nursingDateOf(null) 不应返回 null");
+
+        if (now.getHour() < 7) {
+            // 07:00之前应返回昨天
+            assertEquals(today.minusDays(1), result,
+                "07:00之前 nursingDateOf(null) 应返回昨天护理日");
+        } else {
+            // 07:00之后应返回今天
+            assertEquals(today, result,
+                "07:00之后 nursingDateOf(null) 应返回今天护理日");
+        }
+
+        System.out.println("[PASS] testNursingDateOfNullUsesNow - now=" + now + ", result=" + result);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试16：nursingDateOf 固定时间验证
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testNursingDateOfFixedTimes() {
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+
+        // 边界：06:59:59 → 前一天
+        Instant t1 = ZonedDateTime.of(2026, 9, 4, 6, 59, 59, 0, zone).toInstant();
+        assertEquals(LocalDate.of(2026, 9, 3), HljldPdfRequestContext.nursingDateOf(t1),
+            "06:59:59 应属于前一天");
+
+        // 边界：07:00:00 → 当天
+        Instant t2 = ZonedDateTime.of(2026, 9, 4, 7, 0, 0, 0, zone).toInstant();
+        assertEquals(LocalDate.of(2026, 9, 4), HljldPdfRequestContext.nursingDateOf(t2),
+            "07:00:00 应属于当天");
+
+        // 午夜：00:00:00 → 前一天
+        Instant t3 = ZonedDateTime.of(2026, 9, 5, 0, 0, 0, 0, zone).toInstant();
+        assertEquals(LocalDate.of(2026, 9, 4), HljldPdfRequestContext.nursingDateOf(t3),
+            "00:00:00 应属于前一天");
+
+        // 23:59:59 → 当天
+        Instant t4 = ZonedDateTime.of(2026, 9, 4, 23, 59, 59, 0, zone).toInstant();
+        assertEquals(LocalDate.of(2026, 9, 4), HljldPdfRequestContext.nursingDateOf(t4),
+            "23:59:59 应属于当天");
+
+        System.out.println("[PASS] testNursingDateOfFixedTimes");
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试17：空数据 PDF 使用 6 参数构造函数
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testEmptyPdfUsesSixParamConstructor() throws Exception {
+        HljldPdfFontBundle fonts = createTestFontBundle();
+        Map<Integer, Float> dynamicMap = new ConcurrentHashMap<>();
+
+        // 使用 6 参数构造函数，policy=null，totalPages=1
+        HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
+            fonts, "测试患者", 1, dynamicMap, 1, null);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
+        PdfDocument pdfDoc = new PdfDocument(writer);
+        Document doc = new Document(pdfDoc, PageSize.A4.rotate());
+        doc.setMargins(
+            HljldPdfLayoutConstants.MARGIN_TOP,
+            HljldPdfLayoutConstants.MARGIN_RIGHT,
+            HljldPdfLayoutConstants.MARGIN_BOTTOM,
+            HljldPdfLayoutConstants.MARGIN_LEFT
+        );
+
+        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
+        Table table = createTestTable(fonts.getPrimaryFont(), 1);
+        doc.add(table);
+        doc.add(new HljldDayEndMarker(dynamicMap));
+        doc.close();
+
+        byte[] pdfBytes = baos.toByteArray();
+        PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
+        PdfDocument rendered = new PdfDocument(reader);
+        String text = PdfTextExtractor.getTextFromPage(rendered.getPage(1));
+
+        // policy=null → 不绘制备注和签名
+        assertFalse(text.contains("备注"), "空数据PDF不应包含'备注'（policy=null）");
+        assertFalse(text.contains("审核护士签名"), "空数据PDF不应包含'审核护士签名'（policy=null）");
+        assertTrue(text.contains("第 1 页"), "应包含页码");
+
+        System.out.println("[PASS] testEmptyPdfUsesSixParamConstructor");
+        rendered.close();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  测试18：AUDIT_SIG_BELOW_REMARK_OFFSET 常量验证
+    // ══════════════════════════════════════════════════════════
+
+    @Test
+    public void testAuditSigOffsetConstant() {
+        // 验证偏移常量为 -4f
+        assertEquals(-4f, HljldPdfLayoutConstants.AUDIT_SIG_BELOW_REMARK_OFFSET,
+            0.01f, "审核护士签名偏移应为 -4f");
+
+        // 验证 Y_BASE = REMARK_BOTTOM + 4f
+        assertEquals(HljldPdfLayoutConstants.REMARK_BOTTOM + 4f,
+            HljldPdfLayoutConstants.AUDIT_SIG_Y_BASE,
+            0.01f, "AUDIT_SIG_Y_BASE = REMARK_BOTTOM + 4f");
+
+        System.out.println("[PASS] testAuditSigOffsetConstant");
+    }
+
+    // ══════════════════════════════════════════════════════════
     //  辅助方法
     // ══════════════════════════════════════════════════════════
 

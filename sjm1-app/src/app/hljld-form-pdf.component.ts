@@ -468,10 +468,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 今天
+   * 今天 — 使用当前护理日（07:00 边界），而非自然日
    */
   today(): void {
-    this.selectedDate = new Date();
+    this.selectedDate = this.nursingDate(new Date());
     this.dateInput = this.toDateString(this.selectedDate);
     this.loadPdf();
   }
@@ -504,21 +504,21 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 是否是今天
+   * 是否是今天（使用护理日）
    */
   isTodaySelected(): boolean {
-    const today = new Date();
+    const today = this.nursingDate(new Date());
     return this.selectedDate.toDateString() === today.toDateString();
   }
 
   /**
-   * 是否可以选择今天
+   * 是否可以选择今天（使用护理日）
    */
   canSelectToday(): boolean {
+    const todayStr = this.toDateString(this.nursingDate(new Date()));
     if (!this.maxDateInput) {
       return true;
     }
-    const todayStr = this.toDateString(new Date());
     return todayStr <= this.maxDateInput;
   }
 
@@ -530,15 +530,10 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 更新日期范围
+   * 更新日期范围 — 在院患者上限为当前护理日，出科患者上限为出科护理日
    */
   private updateDateRange(): void {
-    if (!this.patient.isDischarged) {
-      this.minDateInput = '';
-      this.maxDateInput = '';
-      return;
-    }
-
+    // 入科时间 → minDateInput（所有患者）
     if (this.patient.admissionTime) {
       const admissionDate = this.parseTimeField(this.patient.admissionTime);
       if (admissionDate) {
@@ -548,18 +543,20 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       this.minDateInput = '';
     }
 
-    if (this.patient.dischargeTime) {
+    // maxDateInput：出科患者用出科护理日，在院患者用当前护理日
+    if (this.patient.isDischarged && this.patient.dischargeTime) {
       const dischargeDate = this.parseTimeField(this.patient.dischargeTime);
       if (dischargeDate) {
-        this.maxDateInput = this.toDateString(dischargeDate);
+        this.maxDateInput = this.toDateString(this.nursingDate(dischargeDate));
       }
     } else {
-      this.maxDateInput = '';
+      // 在院患者：上限为当前护理日（07:00 边界）
+      this.maxDateInput = this.toDateString(this.nursingDate(new Date()));
     }
   }
 
   /**
-   * 获取默认日期
+   * 获取默认日期 — 出科患者默认入科护理日，在院患者默认当前护理日
    */
   private getDefaultDate(): Date {
     if (this.patient.isDischarged && this.patient.admissionTime) {
@@ -568,7 +565,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
         return this.nursingDate(admissionTs);
       }
     }
-    return new Date();
+    return this.nursingDate(new Date());
   }
 
   /**
@@ -643,7 +640,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 解析时间字段
+   * 解析时间字段 — 支持完整 ISO-8601、yyyy-MM-dd HH:mm:ss、yyyy-MM-dd、epoch millis
    */
   private parseTimeField(value: string | number | undefined): Date | null {
     if (!value) {
@@ -653,8 +650,33 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       const d = new Date(value);
       return isNaN(d.getTime()) ? null : d;
     }
-    const str = String(value).substring(0, 10);
-    return this.parseLocalDate(str);
+    const str = String(value).trim();
+    if (!str) return null;
+
+    // 完整 ISO-8601（含 T 和时区偏移）
+    if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    // yyyy-MM-dd HH:mm:ss（无时区，视为 Asia/Shanghai 本地时间）
+    const hhmmssMatch = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(str);
+    if (hhmmssMatch) {
+      const [, y, m, d, hh, mm, ss] = hhmmssMatch;
+      const date = new Date(
+        Number(y), Number(m) - 1, Number(d),
+        Number(hh), Number(mm), Number(ss || '0'),
+      );
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    // yyyy-MM-dd（仅日期）
+    const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+    if (dateOnlyMatch) {
+      return this.parseLocalDate(str);
+    }
+
+    return null;
   }
 
   /**

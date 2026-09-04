@@ -164,8 +164,8 @@ public final class HljldPdfLayoutConstants {
     public static final float AUDIT_SIG_FONT_SIZE = 8f;
     /** 审核护士签名 Y 坐标（无备注时，位于页脚右下角） */
     public static final float AUDIT_SIG_Y_BASE = REMARK_BOTTOM + 4f;
-    /** 审核护士签名 Y 坐标（有备注时，位于备注区下方） */
-    public static final float AUDIT_SIG_BELOW_REMARK_Y = REMARK_BOTTOM - 4f;
+    /** 审核护士签名 Y 偏移（有备注时，位于备注区下方的偏移量） */
+    public static final float AUDIT_SIG_BELOW_REMARK_OFFSET = -4f;
 
     // ══════════════════════════════════════════════════════════
     //  19 列宽度（pt）

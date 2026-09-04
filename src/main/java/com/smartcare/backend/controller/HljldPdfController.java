@@ -48,14 +48,25 @@ public class HljldPdfController {
             @PathVariable String date,
             @RequestParam(required = false) String referenceTime,
             @RequestParam(required = false, defaultValue = "PREVIEW") String purpose) {
+        // 单日端点只允许 PREVIEW / PRINT_DAY
+        HljldPdfRenderPurpose renderPurpose;
         try {
-            HljldPdfRenderPurpose renderPurpose;
-            try {
-                renderPurpose = HljldPdfRenderPurpose.valueOf(purpose.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                renderPurpose = HljldPdfRenderPurpose.PREVIEW;
-            }
+            renderPurpose = HljldPdfRenderPurpose.valueOf(purpose.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(("无效的 purpose 参数: " + purpose + "，仅支持 PREVIEW / PRINT_DAY")
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        if (renderPurpose != HljldPdfRenderPurpose.PREVIEW
+            && renderPurpose != HljldPdfRenderPurpose.PRINT_DAY) {
+            return ResponseEntity.badRequest()
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(("单日端点仅支持 PREVIEW / PRINT_DAY，当前: " + purpose)
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
 
+        try {
             byte[] pdfData = flowPdfService.generateDailyPdf(pid, date, referenceTime, renderPurpose);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
