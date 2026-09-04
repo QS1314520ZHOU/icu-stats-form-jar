@@ -17,6 +17,7 @@ import com.itextpdf.layout.properties.UnitValue;
 import com.smartcare.backend.hljld.HljldDayEndMarker;
 import com.smartcare.backend.hljld.HljldPdfLayoutConstants;
 import com.smartcare.backend.service.HljldFlowPageEventHandler;
+import com.smartcare.backend.service.HljldPdfFontBundle;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -82,11 +83,11 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testSinglePagePdf() throws Exception {
-        PdfFont font = createTestFont();
+        HljldPdfFontBundle fonts = createTestFontBundle();
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "测试患者", 1, dynamicRemarkTopByLocalPage);
+            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -102,7 +103,7 @@ public class TestHljldPdfRemarkLayout {
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
         // 添加少量数据
-        Table table = createTestTable(font, 5);
+        Table table = createTestTable(fonts.getPrimaryFont(), 5);
         doc.add(table);
 
         // 添加结束标记
@@ -128,11 +129,11 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testDynamicRemarksPositionRecorded() throws Exception {
-        PdfFont font = createTestFont();
+        HljldPdfFontBundle fonts = createTestFontBundle();
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "测试患者", 1, dynamicRemarkTopByLocalPage);
+            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -148,7 +149,7 @@ public class TestHljldPdfRemarkLayout {
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
         // 添加适量数据
-        Table table = createTestTable(font, 10);
+        Table table = createTestTable(fonts.getPrimaryFont(), 10);
         doc.add(table);
 
         // 添加结束标记
@@ -182,11 +183,11 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testMultiPagePdf() throws Exception {
-        PdfFont font = createTestFont();
+        HljldPdfFontBundle fonts = createTestFontBundle();
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "测试患者", 1, dynamicRemarkTopByLocalPage);
+            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -202,7 +203,7 @@ public class TestHljldPdfRemarkLayout {
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
         // 添加大量数据使其跨页
-        Table table = createTestTable(font, 40);
+        Table table = createTestTable(fonts.getPrimaryFont(), 40);
         doc.add(table);
 
         // 添加结束标记
@@ -233,11 +234,11 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testMultiDayRemarksDoNotCross() throws Exception {
-        PdfFont font = createTestFont();
+        HljldPdfFontBundle fonts = createTestFontBundle();
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "测试患者", 1, dynamicRemarkTopByLocalPage);
+            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -253,13 +254,13 @@ public class TestHljldPdfRemarkLayout {
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
         // 护理日1：适量数据
-        Table table1 = createTestTable(font, 10);
+        Table table1 = createTestTable(fonts.getPrimaryFont(), 10);
         doc.add(table1);
         doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
 
         // 护理日2（新页）
         doc.add(new AreaBreak());
-        Table table2 = createTestTable(font, 10);
+        Table table2 = createTestTable(fonts.getPrimaryFont(), 10);
         doc.add(table2);
         doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
 
@@ -292,11 +293,11 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testEmptyDayStillHasRemarks() throws Exception {
-        PdfFont font = createTestFont();
+        HljldPdfFontBundle fonts = createTestFontBundle();
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "测试患者", 1, dynamicRemarkTopByLocalPage);
+            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -312,7 +313,7 @@ public class TestHljldPdfRemarkLayout {
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
         // 空护理日：只添加一个空行
-        Table emptyTable = createTestTable(font, 1);
+        Table emptyTable = createTestTable(fonts.getPrimaryFont(), 1);
         doc.add(emptyTable);
 
         // 添加结束标记
@@ -340,14 +341,14 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testSafetyBoundaryFallback() throws Exception {
-        PdfFont font = createTestFont();
+        HljldPdfFontBundle fonts = createTestFontBundle();
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
         // 模拟动态位置过低（低于安全边界）
         dynamicRemarkTopByLocalPage.put(1, HljldPdfLayoutConstants.REMARK_BOTTOM + 10f);
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "测试患者", 1, dynamicRemarkTopByLocalPage);
+            fonts, "测试患者", 1, dynamicRemarkTopByLocalPage);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -363,7 +364,7 @@ public class TestHljldPdfRemarkLayout {
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
         // 添加少量数据
-        Table table = createTestTable(font, 3);
+        Table table = createTestTable(fonts.getPrimaryFont(), 3);
         doc.add(table);
 
         doc.close();
@@ -385,11 +386,11 @@ public class TestHljldPdfRemarkLayout {
 
     @Test
     public void testMultiPatientRemarksDoNotCross() throws Exception {
-        PdfFont font = createTestFont();
+        HljldPdfFontBundle fonts = createTestFontBundle();
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
         HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-            font, "患者A", 1, dynamicRemarkTopByLocalPage);
+            fonts, "患者A", 1, dynamicRemarkTopByLocalPage);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(baos);
@@ -405,13 +406,13 @@ public class TestHljldPdfRemarkLayout {
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
 
         // 患者A：适量数据
-        Table table1 = createTestTable(font, 10);
+        Table table1 = createTestTable(fonts.getPrimaryFont(), 10);
         doc.add(table1);
         doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
 
         // 患者B（新页）
         doc.add(new AreaBreak());
-        Table table2 = createTestTable(font, 10);
+        Table table2 = createTestTable(fonts.getPrimaryFont(), 10);
         doc.add(table2);
         doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
 
@@ -459,23 +460,17 @@ public class TestHljldPdfRemarkLayout {
         return table;
     }
 
+    private HljldPdfFontBundle createTestFontBundle() {
+        return HljldPdfFontBundle.createForDocument();
+    }
+
     private PdfFont createTestFont() {
-        String os = System.getProperty("os.name", "").toLowerCase();
-        String[] fontPaths = os.contains("windows")
-            ? new String[]{"C:/Windows/Fonts/simsun.ttc", "C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simhei.ttf"}
-            : new String[]{"/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"};
-        for (String path : fontPaths) {
-            try {
-                if (new java.io.File(path).exists()) {
-                    if (path.endsWith(".ttc")) {
-                        return PdfFontFactory.createFont(path + ",0", PdfEncodings.IDENTITY_H);
-                    }
-                    return PdfFontFactory.createFont(path, PdfEncodings.IDENTITY_H);
-                }
-            } catch (Exception e) {
-                // 继续尝试下一个
-            }
-        }
-        throw new RuntimeException("测试需要中文字体，请确保系统已安装中文字体");
+        HljldPdfFontBundle fonts = createTestFontBundle();
+        return fonts.getPrimaryFont();
+    }
+
+    // 辅助方法：获取当前测试的字体
+    private PdfFont getCurrentFont(HljldPdfFontBundle fonts) {
+        return fonts.getPrimaryFont();
     }
 }

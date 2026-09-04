@@ -175,7 +175,12 @@ public class HljldFlowPdfService {
             String pid,
             LocalDate referenceDate) {
 
-        PdfFont font = createPdfFont();
+        // 使用字体包（主字体 + 回退字体）
+        HljldPdfFontBundle fonts = HljldPdfFontBundle.createForDocument();
+        PdfFont font = fonts.getPrimaryFont();
+        if (font == null) {
+            throw new IllegalStateException("主字体加载失败，无法生成 PDF");
+        }
         String patientInfo = getPatientInfoString(pid, referenceDate);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -199,7 +204,7 @@ public class HljldFlowPdfService {
 
         // 创建事件处理器并注册（在添加内容之前）
         HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
-            font, patientInfo, startPageNo, dynamicRemarkTopByLocalPage);
+            fonts, patientInfo, startPageNo, dynamicRemarkTopByLocalPage);
         pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
 
         int totalRowCount = 0;
@@ -212,7 +217,7 @@ public class HljldFlowPdfService {
             firstDay = false;
 
             // 构建单张父级流式 Table（普通行 + 小结/总结容器行交错输出）
-            Table dailyTable = buildDailyStreamingTable(dayItems, font);
+            Table dailyTable = buildDailyStreamingTable(dayItems, fonts);
 
             // 将 dailyTable 添加到文档（不添加流式备注）
             doc.add(dailyTable);
@@ -302,7 +307,11 @@ public class HljldFlowPdfService {
 
     /** 生成空白页 PDF */
     private byte[] generateEmptyPagePdf(String pid, String date) {
-        PdfFont font = createPdfFont();
+        HljldPdfFontBundle fonts = HljldPdfFontBundle.createForDocument();
+        PdfFont font = fonts.getPrimaryFont();
+        if (font == null) {
+            throw new IllegalStateException("主字体加载失败，无法生成空白页 PDF");
+        }
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             PdfWriter writer = new PdfWriter(baos);
@@ -322,11 +331,11 @@ public class HljldFlowPdfService {
             // 空数据：创建带表头的空表格
             Table table = createMainTable();
             addTableHeader(table, font);
-            addDataRow(table, null, font);
+            addDataRow(table, null, fonts);
             doc.add(table);
 
             HljldFlowPageEventHandler handler = new HljldFlowPageEventHandler(
-                font, patientInfo, 1, Collections.emptyMap());
+                fonts, patientInfo, 1, Collections.emptyMap());
             pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
             doc.close();
 
@@ -345,7 +354,8 @@ public class HljldFlowPdfService {
      * 包含两层表头 + 所有普通数据行 + 小结/总结容器行。
      * 跨页时 iText 自动重复表头。
      */
-    private Table buildDailyStreamingTable(List<PrintableItem> items, PdfFont font) {
+    private Table buildDailyStreamingTable(List<PrintableItem> items, HljldPdfFontBundle fonts) {
+        PdfFont font = fonts.getPrimaryFont();
         Table table = createMainTable();
 
         // 双层表头（通过 addHeaderCell 添加，跨页自动重复）
@@ -354,7 +364,7 @@ public class HljldFlowPdfService {
         // 按时间轴顺序交错输出普通行和小结/总结容器行
         for (PrintableItem item : items) {
             if (item.type == PrintableItemType.NORMAL_ROW) {
-                addDataRow(table, item.normalRow, font);
+                addDataRow(table, item.normalRow, fonts);
             } else {
                 addSummaryContainerRow(table, item, font);
             }
@@ -613,7 +623,7 @@ public class HljldFlowPdfService {
     //  数据行（动态行高 + 跨页）
     // ══════════════════════════════════════════════════════════
 
-    private void addDataRow(Table table, Map<String, Object> row, PdfFont font) {
+    private void addDataRow(Table table, Map<String, Object> row, HljldPdfFontBundle fonts) {
         String[] keys = HljldPdfLayoutConstants.DATA_KEYS;
 
         // Debug: 追踪氨溴索药物所在行
@@ -628,7 +638,7 @@ public class HljldFlowPdfService {
         for (int i = 0; i < 19; i++) {
             String text = (row != null) ? mapStr(row, keys[i]) : "";
 
-            Cell cell = createDataCell(text, font, i);
+            Cell cell = createDataCell(text, fonts, i);
             table.addCell(cell);
         }
     }
@@ -637,20 +647,30 @@ public class HljldFlowPdfService {
      * 创建数据单元格。
      * - 索引17（护理记录）：LEFT + TOP，自动换行
      * - 其他18列：CENTER + MIDDLE
+     *
+     * @param text         文本内容
+     * @param fonts        字体包（支持 Unicode 下标/上标回退）
+     * @param columnIndex  列索引
+     * @return 数据单元格
      */
-    private Cell createDataCell(String text, PdfFont font, int columnIndex) {
+    private Cell createDataCell(String text, HljldPdfFontBundle fonts, int columnIndex) {
         boolean nursingRecord = columnIndex == HljldPdfLayoutConstants.NURSING_RECORD_COLUMN_INDEX;
         TextAlignment horizontal = nursingRecord ? TextAlignment.LEFT : TextAlignment.CENTER;
         VerticalAlignment vertical = nursingRecord ? VerticalAlignment.TOP : VerticalAlignment.MIDDLE;
 
+        // 使用富文本渲染器，支持 Unicode 下标/上标
+        Paragraph paragraph = HljldPdfTextRenderer.createParagraph(
+            text,
+            fonts,
+            HljldPdfLayoutConstants.DATA_FONT_SIZE,
+            horizontal
+        );
+        paragraph.setMargin(0)
+            .setPadding(0)
+            .setMultipliedLeading(1.0f);
+
         Cell cell = new Cell(1, 1)
-            .add(new Paragraph(text)
-                .setFont(font)
-                .setFontSize(HljldPdfLayoutConstants.DATA_FONT_SIZE)
-                .setTextAlignment(horizontal)
-                .setMargin(0)
-                .setPadding(0)
-                .setMultipliedLeading(1.0f))
+            .add(paragraph)
             .setTextAlignment(horizontal)
             .setVerticalAlignment(vertical)
             .setMinHeight(HljldPdfLayoutConstants.DATA_ROW_MIN_HEIGHT)

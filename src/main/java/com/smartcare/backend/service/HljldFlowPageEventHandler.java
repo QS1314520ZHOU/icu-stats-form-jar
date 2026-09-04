@@ -46,6 +46,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     private static final String[] REMARKS = HljldPdfLayoutConstants.REMARK_LINES;
 
     // ── 构造参数 ──
+    private final HljldPdfFontBundle fonts;
     private final PdfFont font;
     private final String patientInfo;
     private final int startPageNo;
@@ -53,14 +54,15 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     private final Map<Integer, Float> dynamicRemarkTopByLocalPage;
 
     /**
-     * @param font                       当前 PdfDocument 的 PdfFont
-     * @param patientInfo                患者信息文本
-     * @param startPageNo                全局起始页码
+     * @param fonts                       字体包（支持 Unicode 下标/上标回退）
+     * @param patientInfo                 患者信息文本
+     * @param startPageNo                 全局起始页码
      * @param dynamicRemarkTopByLocalPage 动态备注位置映射（可变，由 DayEndMarker 在 draw 阶段更新）
      */
-    public HljldFlowPageEventHandler(PdfFont font, String patientInfo, int startPageNo,
+    public HljldFlowPageEventHandler(HljldPdfFontBundle fonts, String patientInfo, int startPageNo,
                                      Map<Integer, Float> dynamicRemarkTopByLocalPage) {
-        this.font = font;
+        this.fonts = fonts;
+        this.font = fonts.getPrimaryFont();
         this.patientInfo = patientInfo == null ? "" : patientInfo;
         this.startPageNo = startPageNo;
         this.dynamicRemarkTopByLocalPage = dynamicRemarkTopByLocalPage;
@@ -124,7 +126,7 @@ public class HljldFlowPageEventHandler implements IEventHandler {
     // ══════════════════════════════════════════════════════════
 
     private void drawHeader(Canvas canvas, float pw, float ph) {
-        // 标题：水平居中，垂直居中于标题区域
+        // 标题：水平居中，垂直居中于标题区域（静态中文，使用主字体即可）
         float titleCenterY = HljldPdfLayoutConstants.TITLE_BOTTOM + HljldPdfLayoutConstants.TITLE_AREA_HEIGHT / 2f;
         canvas.showTextAligned(
             new Paragraph("重钢总医院重症医学科护理记录单")
@@ -133,13 +135,17 @@ public class HljldFlowPageEventHandler implements IEventHandler {
                 .setMargin(0),
             pw / 2, titleCenterY, TextAlignment.CENTER, VerticalAlignment.MIDDLE);
 
-        // 患者信息：整体左对齐，垂直居中于患者信息区域，左边缘与表格左边缘对齐
+        // 患者信息：使用富文本渲染，支持 Unicode 下标/上标
         float infoCenterY = HljldPdfLayoutConstants.INFO_BOTTOM + HljldPdfLayoutConstants.INFO_AREA_HEIGHT / 2f;
+        Paragraph infoParagraph = HljldPdfTextRenderer.createParagraph(
+            patientInfo,
+            fonts,
+            HljldPdfLayoutConstants.INFO_FONT_SIZE,
+            TextAlignment.LEFT
+        );
+        infoParagraph.setMargin(0);
         canvas.showTextAligned(
-            new Paragraph(patientInfo)
-                .setFont(font)
-                .setFontSize(HljldPdfLayoutConstants.INFO_FONT_SIZE)
-                .setMargin(0),
+            infoParagraph,
             ML, infoCenterY, TextAlignment.LEFT, VerticalAlignment.MIDDLE);
     }
 
