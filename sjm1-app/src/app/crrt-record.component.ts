@@ -40,7 +40,7 @@ const CRRT_GROUPS: CrrtGroup[] = [
     { label: '超滤率', code: 'param_CBP_set_UFR' },
     { label: '超滤量/总脱水量', code: 'param_净超滤量2' },
     { label: '生理盐水', code: 'param_生理盐水' },
-    { label: '净超滤量', code: 'param_chaoLvLiang' },
+    { label: '净超滤量', code: 'param_超滤量2' },
     { label: '分浆速度', code: 'param_分浆速度' },
     { label: '弃浆速度', code: 'param_弃浆速度' },
     { label: '补浆速度', code: 'param_补浆速度' },
