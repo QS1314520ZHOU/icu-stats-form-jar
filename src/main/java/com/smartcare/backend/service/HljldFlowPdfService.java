@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -192,7 +193,11 @@ public class HljldFlowPdfService {
         try {
             tempPdfFile = java.io.File.createTempFile("hljld_pdf_", ".pdf");
             tempPdfFile.deleteOnExit();
+        } catch (IOException e) {
+            throw new RuntimeException("创建临时文件失败", e);
+        }
 
+        try {
             PdfWriter writer = new PdfWriter(tempPdfFile);
             PdfDocument pdfDoc = new PdfDocument(writer);
             com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
@@ -241,7 +246,12 @@ public class HljldFlowPdfService {
             doc.close();
 
             // 从临时文件读取 PDF 字节
-            byte[] pdfBytes = java.nio.file.Files.readAllBytes(tempPdfFile.toPath());
+            byte[] pdfBytes;
+            try {
+                pdfBytes = java.nio.file.Files.readAllBytes(tempPdfFile.toPath());
+            } catch (IOException e) {
+                throw new RuntimeException("读取临时PDF文件失败", e);
+            }
 
             // 通过最终关闭后的 PDF 字节数统计物理页数
             int pageCount;
