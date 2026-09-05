@@ -264,6 +264,8 @@ public class HljldFlowPdfService {
             }
 
             return new FlowPdfRenderResult(pdfBytes, pageCount, totalRowCount);
+        } catch (Exception e) {
+            throw new RuntimeException("PDF生成失败", e);
         } finally {
             // 删除临时文件
             if (tempPdfFile != null && tempPdfFile.exists()) {
