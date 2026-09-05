@@ -70,14 +70,12 @@ public final class HljldPdfRequestContext {
             referenceTimeText == null ||
             referenceTimeText.trim().isEmpty()
                 ? Instant.now()
-                : OffsetDateTime
-                    .parse(referenceTimeText.trim())
-                    .toInstant();
+                : parseOffsetDateTime(referenceTimeText.trim());
 
         Instant admissionTime = null;
         if (admissionTimeText != null && !admissionTimeText.trim().isEmpty()) {
             try {
-                admissionTime = OffsetDateTime.parse(admissionTimeText.trim()).toInstant();
+                admissionTime = parseOffsetDateTime(admissionTimeText.trim());
             } catch (Exception e) {
                 // 尝试解析日期时间格式
                 try {
@@ -94,7 +92,7 @@ public final class HljldPdfRequestContext {
         Instant dischargeTime = null;
         if (dischargeTimeText != null && !dischargeTimeText.trim().isEmpty()) {
             try {
-                dischargeTime = OffsetDateTime.parse(dischargeTimeText.trim()).toInstant();
+                dischargeTime = parseOffsetDateTime(dischargeTimeText.trim());
             } catch (Exception e) {
                 // 尝试解析日期时间格式
                 try {
@@ -115,6 +113,25 @@ public final class HljldPdfRequestContext {
             dischargeTime,
             dischargedType
         );
+    }
+
+    /**
+     * 解析 OffsetDateTime，支持处理 24:xx:xx 这种边界情况
+     * 24:xx:xx 会转换为次日 00:xx:xx
+     */
+    private static Instant parseOffsetDateTime(String text) {
+        try {
+            return OffsetDateTime.parse(text).toInstant();
+        } catch (java.time.format.DateTimeParseException e) {
+            // 处理 24:xx:xx 的情况，转换为次日 00:xx:xx
+            if (text.contains("T24:")) {
+                String fixed = text.replace("T24:", "T00:");
+                OffsetDateTime odt = OffsetDateTime.parse(fixed);
+                // 加上24小时（1天）
+                return odt.plusHours(24).toInstant();
+            }
+            throw e;
+        }
     }
 
     public LocalDate getNursingDate() {
