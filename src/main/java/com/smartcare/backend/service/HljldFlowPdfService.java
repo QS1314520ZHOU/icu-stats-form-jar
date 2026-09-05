@@ -33,6 +33,7 @@ import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 
 /**
  * ICU 护理记录单 PDF 生成服务（流式分页版）
@@ -53,6 +54,9 @@ public class HljldFlowPdfService {
 
     /** 统一时区：Asia/Shanghai */
     private static final java.time.ZoneId SHANGHAI_ZONE = java.time.ZoneId.of("Asia/Shanghai");
+
+    /** PDF 生成并发控制：最多同时 3 个 PDF 生成任务 */
+    private static final Semaphore PDF_GENERATIONSemaphore = new Semaphore(3);
 
     private final FormPageIndexRepository pageIndexRepository;
     private final HljldPdfDataAssembler dataAssembler;
@@ -183,66 +187,79 @@ public class HljldFlowPdfService {
         }
         String patientInfo = getPatientInfoString(pid, referenceDate);
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        PdfWriter writer = new PdfWriter(baos);
-        PdfDocument pdfDoc = new PdfDocument(writer);
-        com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
+        // 使用临时文件存储 PDF，减少内存占用
+        java.io.File tempPdfFile = null;
+        try {
+            tempPdfFile = java.io.File.createTempFile("hljld_pdf_", ".pdf");
+            tempPdfFile.deleteOnExit();
 
-        // 设置边距：精确匹配事件处理器绘制区域
-        // topMargin = 标题+患者信息高度 → 内容从 CONTENT_TOP 开始
-        // bottomMargin = 备注+页码高度 → 内容到 CONTENT_BOTTOM 结束
-        doc.setMargins(
-            HljldPdfLayoutConstants.MARGIN_TOP,
-            HljldPdfLayoutConstants.MARGIN_RIGHT,
-            HljldPdfLayoutConstants.MARGIN_BOTTOM,
-            HljldPdfLayoutConstants.MARGIN_LEFT
-        );
+            PdfWriter writer = new PdfWriter(tempPdfFile);
+            PdfDocument pdfDoc = new PdfDocument(writer);
+            com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
 
-        // 动态备注位置映射：记录每个护理日最后一页的正文结束Y坐标
-        // 使用 ConcurrentHashMap 支持并发安全，键为本地物理页码
-        Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
+            // 设置边距：精确匹配事件处理器绘制区域
+            // topMargin = 标题+患者信息高度 → 内容从 CONTENT_TOP 开始
+            // bottomMargin = 备注+页码高度 → 内容到 CONTENT_BOTTOM 结束
+            doc.setMargins(
+                HljldPdfLayoutConstants.MARGIN_TOP,
+                HljldPdfLayoutConstants.MARGIN_RIGHT,
+                HljldPdfLayoutConstants.MARGIN_BOTTOM,
+                HljldPdfLayoutConstants.MARGIN_LEFT
+            );
 
-        // 创建事件处理器并注册（在添加内容之前）
-        HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
-            fonts, patientInfo, startPageNo, dynamicRemarkTopByLocalPage);
-        pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
+            // 动态备注位置映射：记录每个护理日最后一页的正文结束Y坐标
+            // 使用 ConcurrentHashMap 支持并发安全，键为本地物理页码
+            Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
-        int totalRowCount = 0;
-        boolean firstDay = true;
+            // 创建事件处理器并注册（在添加内容之前）
+            HljldFlowPageEventHandler eventHandler = new HljldFlowPageEventHandler(
+                fonts, patientInfo, startPageNo, dynamicRemarkTopByLocalPage);
+            pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, eventHandler);
 
-        for (List<PrintableItem> dayItems : itemsPerDay) {
-            if (!firstDay) {
-                doc.add(new AreaBreak());
+            int totalRowCount = 0;
+            boolean firstDay = true;
+
+            for (List<PrintableItem> dayItems : itemsPerDay) {
+                if (!firstDay) {
+                    doc.add(new AreaBreak());
+                }
+                firstDay = false;
+
+                // 构建单张父级流式 Table（普通行 + 小结/总结容器行交错输出）
+                Table dailyTable = buildDailyStreamingTable(dayItems, fonts);
+
+                // 将 dailyTable 添加到文档（不添加流式备注）
+                doc.add(dailyTable);
+
+                // 添加零高度护理日结束标记，记录当前页码和内容结束Y坐标
+                doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
+
+                totalRowCount += dayItems.size();
             }
-            firstDay = false;
 
-            // 构建单张父级流式 Table（普通行 + 小结/总结容器行交错输出）
-            Table dailyTable = buildDailyStreamingTable(dayItems, fonts);
+            // 关闭文档（触发 END_PAGE 事件，绘制页眉/备注/页码）
+            doc.close();
 
-            // 将 dailyTable 添加到文档（不添加流式备注）
-            doc.add(dailyTable);
+            // 从临时文件读取 PDF 字节
+            byte[] pdfBytes = java.nio.file.Files.readAllBytes(tempPdfFile.toPath());
 
-            // 添加零高度护理日结束标记，记录当前页码和内容结束Y坐标
-            doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
+            // 通过最终关闭后的 PDF 字节数统计物理页数
+            int pageCount;
+            try (PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
+                 PdfDocument rendered = new PdfDocument(reader)) {
+                pageCount = rendered.getNumberOfPages();
+            } catch (Exception e) {
+                log.error("统计PDF页数失败", e);
+                pageCount = 1;
+            }
 
-            totalRowCount += dayItems.size();
+            return new FlowPdfRenderResult(pdfBytes, pageCount, totalRowCount);
+        } finally {
+            // 删除临时文件
+            if (tempPdfFile != null && tempPdfFile.exists()) {
+                tempPdfFile.delete();
+            }
         }
-
-        // 关闭文档（触发 END_PAGE 事件，绘制页眉/备注/页码）
-        doc.close();
-
-        // 通过最终关闭后的 PDF 字节数统计物理页数
-        byte[] pdfBytes = baos.toByteArray();
-        int pageCount;
-        try (PdfReader reader = new PdfReader(new ByteArrayInputStream(pdfBytes));
-             PdfDocument rendered = new PdfDocument(reader)) {
-            pageCount = rendered.getNumberOfPages();
-        } catch (Exception e) {
-            log.error("统计PDF页数失败", e);
-            pageCount = 1;
-        }
-
-        return new FlowPdfRenderResult(pdfBytes, pageCount, totalRowCount);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -253,46 +270,76 @@ public class HljldFlowPdfService {
     public byte[] generateDailyPdf(String pid, String date, String referenceTime) {
         log.info("Flow PDF 生成: pid={}, date={}, referenceTime={}", pid, date, referenceTime);
 
-        LocalDate referenceDate = LocalDate.parse(date);
-        List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
-        List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
-        int startPageNo = getStartPageNo(pid, date, "hljld2-flow");
+        try {
+            // 获取并发许可，最多等待 60 秒
+            if (!PDF_GENERATIONSemaphore.tryAcquire(60, java.util.concurrent.TimeUnit.SECONDS)) {
+                log.warn("PDF 生成并发数已达上限，等待超时: pid={}", pid);
+                throw new RuntimeException("PDF 生成并发数已达上限，请稍后重试");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("PDF 生成等待被中断", e);
+        }
 
-        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
-        log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}", pid, date, result.pageCount, items.size());
-        return result.pdfBytes;
+        try {
+            LocalDate referenceDate = LocalDate.parse(date);
+            List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
+            List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
+            int startPageNo = getStartPageNo(pid, date, "hljld2-flow");
+
+            FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
+            log.info("Flow PDF 完成: pid={}, date={}, pageCount={}, items={}", pid, date, result.pageCount, items.size());
+            return result.pdfBytes;
+        } finally {
+            PDF_GENERATIONSemaphore.release();
+        }
     }
 
     /** 生成全部记录的 PDF（流式分页，多护理日用 AreaBreak 分隔） */
     public byte[] generateAllPagesPdf(String pid, String referenceTime) {
         log.info("Flow PDF 生成全部: pid={}, referenceTime={}", pid, referenceTime);
 
-        Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, "hljld2-flow");
-        if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
-            log.warn("Flow PDF 索引不存在或为空: pid={}", pid);
-            return generateEmptyPagePdf(pid, "全部");
+        try {
+            // 获取并发许可，最多等待 120 秒（全部页生成耗时更长）
+            if (!PDF_GENERATIONSemaphore.tryAcquire(120, java.util.concurrent.TimeUnit.SECONDS)) {
+                log.warn("PDF 生成并发数已达上限，等待超时: pid={}", pid);
+                throw new RuntimeException("PDF 生成并发数已达上限，请稍后重试");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("PDF 生成等待被中断", e);
         }
 
-        FormPageIndex index = indexOpt.get();
-        List<List<PrintableItem>> itemsPerDay = new ArrayList<>();
-        List<LocalDate> dates = new ArrayList<>();
+        try {
+            Optional<FormPageIndex> indexOpt = pageIndexRepository.findTopByPidAndFormType(pid, "hljld2-flow");
+            if (indexOpt.isEmpty() || indexOpt.get().getDailyPages().isEmpty()) {
+                log.warn("Flow PDF 索引不存在或为空: pid={}", pid);
+                return generateEmptyPagePdf(pid, "全部");
+            }
 
-        for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
-            dates.add(LocalDate.parse(dailyPage.getDate()));
-            itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid, referenceTime));
+            FormPageIndex index = indexOpt.get();
+            List<List<PrintableItem>> itemsPerDay = new ArrayList<>();
+            List<LocalDate> dates = new ArrayList<>();
+
+            for (FormPageIndex.DailyPageInfo dailyPage : index.getDailyPages()) {
+                dates.add(LocalDate.parse(dailyPage.getDate()));
+                itemsPerDay.add(buildPrintableItems(dailyPage.getDate(), pid, referenceTime));
+            }
+
+            int startPageNo = 1;
+            if (!index.getDailyPages().isEmpty()) {
+                startPageNo = index.getDailyPages().get(0).getStartPageNo();
+            }
+
+            // 使用第一个护理日作为参考日期
+            LocalDate referenceDate = dates.isEmpty() ? LocalDate.now() : dates.get(0);
+
+            FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
+            log.info("Flow PDF 全部完成: pid={}, days={}, pageCount={}", pid, itemsPerDay.size(), result.pageCount);
+            return result.pdfBytes;
+        } finally {
+            PDF_GENERATIONSemaphore.release();
         }
-
-        int startPageNo = 1;
-        if (!index.getDailyPages().isEmpty()) {
-            startPageNo = index.getDailyPages().get(0).getStartPageNo();
-        }
-
-        // 使用第一个护理日作为参考日期
-        LocalDate referenceDate = dates.isEmpty() ? LocalDate.now() : dates.get(0);
-
-        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate);
-        log.info("Flow PDF 全部完成: pid={}, days={}, pageCount={}", pid, itemsPerDay.size(), result.pageCount);
-        return result.pdfBytes;
     }
 
     /** 计算某天的页数（使用真实渲染） */

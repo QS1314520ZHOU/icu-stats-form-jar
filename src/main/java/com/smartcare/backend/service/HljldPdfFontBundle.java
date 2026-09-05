@@ -33,10 +33,14 @@ public class HljldPdfFontBundle {
     private static final String FALLBACK_FONT_RESOURCE = "/fonts/DejaVuSansMono.ttf";
 
     /** 缓存字体原始字节，避免重复磁盘 IO */
-    private static byte[] primaryFontBytes;
-    private static byte[] fallbackFontBytes;
-    private static String primaryFontName;
-    private static String fallbackFontName;
+    private static volatile byte[] primaryFontBytes;
+    private static volatile byte[] fallbackFontBytes;
+    private static volatile String primaryFontName;
+    private static volatile String fallbackFontName;
+
+    /** 缓存临时字体文件路径，避免重复创建临时文件 */
+    private static volatile String cachedPrimaryTempPath;
+    private static volatile boolean primaryTempPathResolved = false;
 
     /** Unicode 下标映射表 (U+2080 ~ U+2089) */
     private static final Map<Integer, Integer> SUBSCRIPT_MAP = new HashMap<>();
@@ -104,16 +108,15 @@ public class HljldPdfFontBundle {
             byte[] primaryBytes = loadFontBytesFromClasspath(primaryResource);
             if (primaryBytes != null) {
                 // TTC 字体需要写入临时文件才能指定 collection index
-                java.io.File tempFont = java.io.File.createTempFile("hljld_primary_", ".ttc");
-                tempFont.deleteOnExit();
-                java.nio.file.Files.write(tempFont.toPath(), primaryBytes);
+                // 使用缓存的临时文件路径，避免重复创建
+                String tempPath = getOrCreatePrimaryTempFile(primaryBytes);
 
                 primary = PdfFontFactory.createFont(
-                    tempFont.getAbsolutePath() + ",0",
+                    tempPath + ",0",
                     PdfEncodings.IDENTITY_H
                 );
                 primaryFontName = primary.getFontProgram().getFontNames().getFontName();
-                log.info("主字体加载成功: {} ({} bytes, temp: {})", primaryFontName, primaryBytes.length, tempFont.getAbsolutePath());
+                log.debug("主字体加载成功: {} ({} bytes)", primaryFontName, primaryBytes.length);
             } else {
                 log.error("主字体资源不存在: {}", primaryResource);
             }
@@ -270,5 +273,29 @@ public class HljldPdfFontBundle {
         }
         log.warn("classpath 字体资源不存在: {}", resourcePath);
         return null;
+    }
+
+    /**
+     * 获取或创建主字体临时文件（缓存路径，避免重复创建）
+     */
+    private static synchronized String getOrCreatePrimaryTempFile(byte[] fontBytes) throws IOException {
+        if (primaryTempPathResolved && cachedPrimaryTempPath != null) {
+            // 检查临时文件是否还存在
+            java.io.File tempFile = new java.io.File(cachedPrimaryTempPath);
+            if (tempFile.exists()) {
+                return cachedPrimaryTempPath;
+            }
+        }
+
+        // 创建新的临时文件
+        java.io.File tempFont = java.io.File.createTempFile("hljld_primary_", ".ttc");
+        tempFont.deleteOnExit();
+        java.nio.file.Files.write(tempFont.toPath(), fontBytes);
+
+        cachedPrimaryTempPath = tempFont.getAbsolutePath();
+        primaryTempPathResolved = true;
+        log.info("主字体临时文件创建: {} ({} bytes)", cachedPrimaryTempPath, fontBytes.length);
+
+        return cachedPrimaryTempPath;
     }
 }
