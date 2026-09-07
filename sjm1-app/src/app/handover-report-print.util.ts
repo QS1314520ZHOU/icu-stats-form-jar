@@ -67,6 +67,8 @@ export async function printHandoverReport(
   snapshot: DepartmentDailySnapshot,
   vm: HandoverReportViewModel,
   dateInput: string,
+  onBeforePrint?: () => void,
+  onAfterPrint?: () => void,
 ): Promise<void> {
   // 1. 清理旧的打印 DOM
   cleanupPrintDom();
@@ -79,7 +81,7 @@ export async function printHandoverReport(
 
   // 4. 渲染两份报告
   renderReport1(root, snapshot, vm, dateInput);
-  renderReport2(root, vm);
+  renderReport2(root, vm, snapshot);
 
   // 5. 挂载到 body
   document.body.appendChild(root);
@@ -87,10 +89,44 @@ export async function printHandoverReport(
   // 6. 等待渲染稳定
   await waitForRender();
 
-  // 7. 触发打印
-  window.print();
+  // 7. 生命周期管理：beforeprint / afterprint
+  let resolved = false;
+  let handleBeforePrint: (() => void) | undefined;
+  let handleAfterPrint: (() => void) | undefined;
 
-  // 8. 清理（打印完成后或取消后）
+  await new Promise<void>(resolve => {
+    handleBeforePrint = () => {
+      document.body.classList.add('is-printing');
+      onBeforePrint?.();
+    };
+    handleAfterPrint = () => {
+      if (!resolved) {
+        resolved = true;
+        document.body.classList.remove('is-printing');
+        onAfterPrint?.();
+        resolve();
+      }
+    };
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    // 8. 触发打印
+    window.print();
+
+    // 如果浏览器不支持 afterprint，超时后直接 resolve
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    }, 500);
+  });
+
+  // 9. 移除事件监听
+  if (handleBeforePrint) window.removeEventListener('beforeprint', handleBeforePrint);
+  if (handleAfterPrint) window.removeEventListener('afterprint', handleAfterPrint);
+
+  // 10. 清理打印 DOM
   cleanupPrintDom();
 }
 
@@ -119,11 +155,23 @@ function createPrintStyles(): void {
 
       #${PRINT_ROOT_ID} {
         display: block !important;
+        position: static !important;
+        z-index: auto !important;
+      }
+
+      body.is-printing {
+        position: static !important;
+      }
+    }
+
+    @media screen {
+      #${PRINT_ROOT_ID} {
+        display: none !important;
       }
     }
 
     #${PRINT_ROOT_ID} {
-      position: fixed;
+      position: relative;
       left: 0;
       top: 0;
       width: ${CONTENT_WIDTH_MM}mm;
@@ -135,7 +183,6 @@ function createPrintStyles(): void {
       color: #111;
       background: #fff;
       box-sizing: border-box;
-      z-index: -1;
     }
 
     /* 报告容器 */
@@ -282,7 +329,7 @@ function renderReport1(
   renderReport1Header(report, snapshot, vm, dateInput);
 
   // 渲染患者交班表
-  renderPatientTable(report, vm.rows);
+  renderPatientTable(report, vm.rows, snapshot);
 
   root.appendChild(report);
 }
@@ -394,7 +441,87 @@ function renderReport1Header(
 
 // ==================== 患者交班表 ====================
 
-function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[]): void {
+/**
+ * 测量患者行高度（Fix 2：DOM 测量用于检测超高行）。
+ * 创建屏幕外测量容器，使用打印样式测量每行实际高度。
+ */
+function measurePatientRowHeights(rows: HandoverPatientRow[]): number[] {
+  const heights: number[] = [];
+
+  // 创建测量容器
+  const measureHost = document.createElement('div');
+  measureHost.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;font-family:"Microsoft YaHei","Noto Sans SC","PingFang SC",Arial,sans-serif;font-size:9pt;';
+  document.body.appendChild(measureHost);
+
+  // 创建测量表格（使用与打印相同的列宽和样式）
+  const table = document.createElement('table');
+  table.className = 'print-table';
+  table.style.cssText = 'width:283mm;border-collapse:collapse;table-layout:fixed;';
+
+  const colWidths = ['6%', '7%', '6%', '10%', '17%', '18%', '18%', '18%'];
+  const colgroup = document.createElement('colgroup');
+  colWidths.forEach(w => {
+    const col = document.createElement('col');
+    col.style.width = w;
+    colgroup.appendChild(col);
+  });
+  table.appendChild(colgroup);
+
+  // 表头（用于测量表头高度）
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  ['床号', '姓名', '状态', '住院号', '诊断', '白班', '中班', '夜班'].forEach(text => {
+    const th = document.createElement('th');
+    th.textContent = text;
+    th.style.cssText = 'border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;font-size:9pt;line-height:1.4;background:#edf3f7;font-weight:600;';
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+  measureHost.appendChild(table);
+
+  // 测量每行高度
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'break-inside:avoid;page-break-inside:avoid;';
+
+    const statusDisplay = ['死亡', '转入', '入院', '手术'].includes(row.status)
+      ? `"${row.status}"` : row.status;
+
+    const cells = [
+      row.bedNo ? (row.bedNo.endsWith('床') ? row.bedNo : row.bedNo + '床') : '',
+      row.name,
+      statusDisplay,
+      row.mrn,
+      row.diagnosis,
+      row.shiftTexts.day || '',
+      row.shiftTexts.evening || '',
+      row.shiftTexts.night || '',
+    ];
+
+    cells.forEach((text, i) => {
+      const td = document.createElement('td');
+      td.textContent = text;
+      td.style.cssText = 'border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;vertical-align:top;font-size:9pt;line-height:1.4;word-break:break-word;overflow-wrap:anywhere;white-space:pre-wrap;';
+      if (i >= 5) {
+        td.style.whiteSpace = 'pre-wrap';
+      }
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+    heights.push(pxToMm(tr.getBoundingClientRect().height));
+    tbody.removeChild(tr);
+  }
+
+  document.body.removeChild(measureHost);
+  return heights;
+}
+
+function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[], snapshot: DepartmentDailySnapshot): void {
   const table = document.createElement('table');
   table.className = 'print-table';
 
@@ -420,8 +547,10 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   thead.appendChild(headerRow);
   table.appendChild(thead);
 
-  // 表体
+  // 表体（Fix 2：测量行高，超高行添加分页提示）
   const tbody = document.createElement('tbody');
+  const rowHeights = measurePatientRowHeights(rows);
+  const pageAvailHeight = CONTENT_HEIGHT_MM - SAFETY_GAP_MM; // 页面可用高度 mm
 
   if (rows.length === 0) {
     // 空患者处理
@@ -433,15 +562,23 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
     emptyRow.appendChild(emptyTd);
     tbody.appendChild(emptyRow);
   } else {
-    rows.forEach(row => {
+    rows.forEach((row, idx) => {
       const tr = createPatientRow(row);
+      const rowHeight = rowHeights[idx] || 0;
+
+      // 如果行高超过页面可用高度，添加分页提示样式
+      if (rowHeight > pageAvailHeight) {
+        tr.style.pageBreakBefore = 'always';
+        tr.style.breakBefore = 'page';
+      }
+
       tbody.appendChild(tr);
     });
   }
 
   table.appendChild(tbody);
 
-  // 签名行（仅最终页显示）
+  // 签名行（仅最终页显示，使用真实护士姓名）
   const tfoot = document.createElement('tfoot');
   const signatureRow = document.createElement('tr');
   signatureRow.className = 'print-signature-row';
@@ -450,10 +587,20 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   sigTd1.colSpan = 5;
   signatureRow.appendChild(sigTd1);
 
+  // 构建护士签名查找表
+  const nurseNameMap = new Map<string, string>();
+  if (snapshot.nurseAccounts) {
+    for (const account of snapshot.nurseAccounts) {
+      nurseNameMap.set(account.id, account.trueName);
+    }
+  }
+
   const shifts: ShiftKey[] = ['day', 'evening', 'night'];
   shifts.forEach(shift => {
     const td = document.createElement('td');
-    td.textContent = '护士签名：';
+    const accountId = snapshot.draft?.shiftSignatures?.[shift] || '';
+    const nurseName = accountId ? nurseNameMap.get(accountId) || '' : '';
+    td.textContent = nurseName ? `护士签名：${nurseName}` : '护士签名：';
     signatureRow.appendChild(td);
   });
 
@@ -501,7 +648,7 @@ function createPatientRow(row: HandoverPatientRow): HTMLTableRowElement {
 
 // ==================== 报告2：重症医学科病区交班报告 ====================
 
-function renderReport2(root: HTMLDivElement, vm: HandoverReportViewModel): void {
+function renderReport2(root: HTMLDivElement, vm: HandoverReportViewModel, snapshot: DepartmentDailySnapshot): void {
   const report = document.createElement('div');
   report.className = 'print-report';
 
@@ -514,12 +661,16 @@ function renderReport2(root: HTMLDivElement, vm: HandoverReportViewModel): void 
   report.appendChild(title);
 
   // 安全指标表格（无 rowspan，支持分页）
-  renderSafetyTable(report, vm.metrics);
+  renderSafetyTable(report, vm.metrics, snapshot);
 
   root.appendChild(report);
 }
 
-function renderSafetyTable(container: HTMLDivElement, metrics: MetricRow[]): void {
+function renderSafetyTable(
+  container: HTMLDivElement,
+  metrics: MetricRow[],
+  snapshot: DepartmentDailySnapshot,
+): void {
   const table = document.createElement('table');
   table.className = 'print-table';
 
@@ -548,28 +699,33 @@ function renderSafetyTable(container: HTMLDivElement, metrics: MetricRow[]): voi
   // 表体
   const tbody = document.createElement('tbody');
   const shifts: ShiftKey[] = ['day', 'evening', 'night'];
-  const shiftLabels: Record<ShiftKey, string> = { day: '白班', evening: '中班', night: '夜班' };
 
-  let lastCategory = '';
+  // 构建护士签名查找表
+  const nurseNameMap = new Map<string, string>();
+  if (snapshot.nurseAccounts) {
+    for (const account of snapshot.nurseAccounts) {
+      nurseNameMap.set(account.id, account.trueName);
+    }
+  }
 
   metrics.forEach(metric => {
     const tr = document.createElement('tr');
 
     if (!metric.category) {
-      // 独立项目
+      // 独立项目：分类列合并到项目列
       const th = document.createElement('th');
       th.colSpan = 2;
       th.textContent = metric.label;
       tr.appendChild(th);
     } else {
-      // 分类项目
+      // 分类项目：始终创建分类单元格（Fix 3：确保每行5列对齐）
+      const categoryTd = document.createElement('td');
+      categoryTd.className = 'print-category-cell';
       if (metric.showCategory) {
-        const categoryTd = document.createElement('td');
-        categoryTd.className = 'print-category-cell';
         categoryTd.textContent = metric.category;
-        tr.appendChild(categoryTd);
-        lastCategory = metric.category;
       }
+      // showCategory=false 时保持空单元格，确保列对齐
+      tr.appendChild(categoryTd);
 
       const labelTh = document.createElement('th');
       labelTh.className = 'print-metric-label';
@@ -577,10 +733,15 @@ function renderSafetyTable(container: HTMLDivElement, metrics: MetricRow[]): voi
       tr.appendChild(labelTh);
     }
 
-    // 数值
+    // 数值（Fix 5：手动指标从 draft.manualMetrics 读取最新值）
     shifts.forEach(shift => {
       const td = document.createElement('td');
-      const value = metric.values[shift] || '';
+      let value: string;
+      if (metric.mode === 'manual' && metric.key && snapshot.draft?.manualMetrics?.[metric.key]) {
+        value = snapshot.draft.manualMetrics[metric.key][shift] ?? '';
+      } else {
+        value = metric.values[shift] ?? '';
+      }
       td.textContent = value;
 
       if (metric.emphasize && value) {
@@ -593,7 +754,7 @@ function renderSafetyTable(container: HTMLDivElement, metrics: MetricRow[]): voi
     tbody.appendChild(tr);
   });
 
-  // 签名行
+  // 签名行（Fix 4：解析真实护士姓名）
   const signatureRow = document.createElement('tr');
   signatureRow.className = 'print-signature-row';
 
@@ -604,7 +765,9 @@ function renderSafetyTable(container: HTMLDivElement, metrics: MetricRow[]): voi
 
   shifts.forEach(shift => {
     const td = document.createElement('td');
-    td.textContent = shiftLabels[shift];
+    const accountId = snapshot.draft?.shiftSignatures?.[shift] || '';
+    const nurseName = accountId ? nurseNameMap.get(accountId) || '' : '';
+    td.textContent = nurseName;
     signatureRow.appendChild(td);
   });
 

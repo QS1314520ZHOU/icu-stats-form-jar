@@ -484,3 +484,12 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
     display: none !important;
   }
 }
+
+/* ==================== 打印状态 ==================== */
+
+/* Fix 1：打印期间主内容定位改为 static，确保浏览器分页正常 */
+body.is-printing .handover-shell {
+  position: static !important;
+  z-index: auto !important;
+  transform: none !important;
+}

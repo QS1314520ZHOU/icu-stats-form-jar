@@ -16,7 +16,7 @@ import {
 import { HandoverReportService } from './handover-report.service';
 import { HostPatientService } from './services/host-patient.service';
 import { buildHandoverReport } from './handover-report.utils';
-import { printHandoverReport } from './handover-report-print.util';
+import { printHandoverReport, cleanupPrintDom } from './handover-report-print.util';
 
 /**
  * 保存状态类型。
@@ -66,6 +66,11 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
    * 是否正在准备打印（测量、分页中）。
    */
   isPreparingPrint = false;
+
+  /**
+   * 是否处于打印状态（beforeprint ～ afterprint）。
+   */
+  isPrinting = false;
 
   snapshot?: DepartmentDailySnapshot;
   vm?: HandoverReportViewModel;
@@ -171,6 +176,11 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
     if (this.hasUnsavedChanges) {
       console.warn('[HANDOVER] 页面关闭时存在未保存内容');
     }
+
+    // 清理打印资源（Fix 6：确保销毁时移除打印 DOM 和样式）
+    cleanupPrintDom();
+    this.isPrinting = false;
+
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -904,14 +914,26 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
       // 2. 等待字体加载
       try { await document.fonts.ready; } catch { /* 静默跳过 */ }
 
-      // 3. 调用独立打印工具
-      await printHandoverReport(this.snapshot, this.vm, this.dateInput);
+      // 3. 调用独立打印工具（传入生命周期回调）
+      await printHandoverReport(
+        this.snapshot,
+        this.vm,
+        this.dateInput,
+        () => {
+          this.isPrinting = true;
+          this.cdr.markForCheck();
+        },
+        () => {
+          this.isPrinting = false;
+          this.cdr.markForCheck();
+        },
+      );
     } catch (err) {
       console.error('[HANDOVER] 打印准备失败', err);
-      // 显示错误提示
       alert('打印准备失败：' + (err instanceof Error ? err.message : String(err)));
     } finally {
       this.isPreparingPrint = false;
+      this.isPrinting = false;
       this.cdr.markForCheck();
     }
   }
