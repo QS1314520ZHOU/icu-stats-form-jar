@@ -2,10 +2,10 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnIni
 import { Subject } from 'rxjs';
 import { takeUntil, catchError } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
-import { HljldFormService } from './hljld-form.service';
-import { HljldPdfService, PageIndexInfo } from './hljld-pdf.service';
+import { HljldFormNewService } from './hljld-form-new.service';
+import { HljldPdfNewService, PageIndexInfo } from './hljld-pdf-new.service';
 import { PdfPrintService } from './services/pdf-viewer.service';
-import { PatientContext } from './hljld-form.models';
+import { PatientContext } from './hljld-form-new.models';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 
 @Component({
@@ -57,8 +57,8 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly hostPatient: HostPatientService,
-    private readonly hljldService: HljldFormService,
-    private readonly pdfService: HljldPdfService,
+    private readonly hljldService: HljldFormNewService,
+    private readonly pdfService: HljldPdfNewService,
     private readonly pdfPrintService: PdfPrintService,
     private readonly cdr: ChangeDetectorRef,
   ) {}

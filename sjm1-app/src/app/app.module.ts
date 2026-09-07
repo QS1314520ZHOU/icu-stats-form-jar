@@ -27,6 +27,8 @@ import { HljldFormPdfComponent } from './hljld-form-pdf.component';
 import { HljldFormPdfNewComponent } from './hljld-form-pdf-new.component';
 import { HljldFormService } from './hljld-form.service';
 import { HljldPdfService } from './hljld-pdf.service';
+import { HljldFormNewService } from './hljld-form-new.service';
+import { HljldPdfNewService } from './hljld-pdf-new.service';
 import { DomSafePipe } from './dom-safe.pipe';
 import { HandoverReportComponent } from './handover-report.component';
 import { PrintCenterComponent } from './print-center.component';
@@ -73,7 +75,7 @@ import { routes } from './app.routes';
     FormsModule,
     RouterModule.forRoot(routes),
   ],
-  providers: [HljldFormService, HljldPdfService, HandoverReportService, PrintCenterService],
+  providers: [HljldFormService, HljldPdfService, HljldFormNewService, HljldPdfNewService, HandoverReportService, PrintCenterService],
   bootstrap: [App],
 })
 export class AppModule {}
