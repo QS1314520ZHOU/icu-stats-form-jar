@@ -25,6 +25,7 @@ import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
 import { HljldFormPdfComponent } from './hljld-form-pdf.component';
 import { HljldFormPdfNewComponent } from './hljld-form-pdf-new.component';
+import { HljldFormNewComponent } from './hljld-form-new.component';
 import { HljldFormService } from './hljld-form.service';
 import { HljldPdfService } from './hljld-pdf.service';
 import { HljldFormNewService } from './hljld-form-new.service';
@@ -62,6 +63,7 @@ import { routes } from './app.routes';
     TemperatureRecordComponent,
     HljldFormPdfComponent,
     HljldFormPdfNewComponent,
+    HljldFormNewComponent,
     HandoverReportComponent,
     PrintCenterComponent,
     BloodSugarComponent,
