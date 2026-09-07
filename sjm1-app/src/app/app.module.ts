@@ -23,6 +23,10 @@ import { TemperatureRecordComponent } from './temperature-record.component';
 import { BradenFormComponent } from './braden-form.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
+import { HljldFormPdfComponent } from './hljld-form-pdf.component';
+import { HljldFormPdfNewComponent } from './hljld-form-pdf-new.component';
+import { HljldFormService } from './hljld-form.service';
+import { HljldPdfService } from './hljld-pdf.service';
 import { DomSafePipe } from './dom-safe.pipe';
 import { HandoverReportComponent } from './handover-report.component';
 import { PrintCenterComponent } from './print-center.component';
@@ -54,6 +58,8 @@ import { routes } from './app.routes';
     CrrtRecordComponent,
     CrrtOrderFormComponent,
     TemperatureRecordComponent,
+    HljldFormPdfComponent,
+    HljldFormPdfNewComponent,
     HandoverReportComponent,
     PrintCenterComponent,
     BloodSugarComponent,
@@ -67,7 +73,7 @@ import { routes } from './app.routes';
     FormsModule,
     RouterModule.forRoot(routes),
   ],
-  providers: [HandoverReportService, PrintCenterService],
+  providers: [HljldFormService, HljldPdfService, HandoverReportService, PrintCenterService],
   bootstrap: [App],
 })
 export class AppModule {}

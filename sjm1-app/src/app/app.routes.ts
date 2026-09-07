@@ -17,6 +17,8 @@ import { TemperatureRecordComponent } from './temperature-record.component';
 import { BradenFormComponent } from './braden-form.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
+import { HljldFormPdfComponent } from './hljld-form-pdf.component';
+import { HljldFormPdfNewComponent } from './hljld-form-pdf-new.component';
 import { HandoverReportComponent } from './handover-report.component';
 import { BloodSugarComponent } from './blood-sugar.component';
 import { UnplannedExtubationComponent } from './unplanned-extubation.component';
@@ -40,6 +42,8 @@ export const routes: Routes = [
   { path: 'iabpForm', component: IabpRecordComponent },
   { path: 'crrtForm', component: CrrtRecordComponent },
   { path: 'crrtOrderForm', component: CrrtOrderFormComponent },
+  { path: 'hljldFormPDF', component: HljldFormPdfComponent },
+  { path: 'hljldFormPDFNew', component: HljldFormPdfNewComponent },
   { path: 'handoverReport', component: HandoverReportComponent },
   { path: 'bloodSugar', component: BloodSugarComponent },
   { path: 'temperatureRecord', component: TemperatureRecordComponent },
