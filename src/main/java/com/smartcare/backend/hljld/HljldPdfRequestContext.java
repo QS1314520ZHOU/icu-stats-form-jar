@@ -2,10 +2,8 @@ package com.smartcare.backend.hljld;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Date;
 
 public final class HljldPdfRequestContext {
 
@@ -70,40 +68,16 @@ public final class HljldPdfRequestContext {
             referenceTimeText == null ||
             referenceTimeText.trim().isEmpty()
                 ? Instant.now()
-                : parseOffsetDateTime(referenceTimeText.trim());
+                : HljldPatientTimeResolverNew.parseTimeStringStrict(referenceTimeText.trim());
 
         Instant admissionTime = null;
         if (admissionTimeText != null && !admissionTimeText.trim().isEmpty()) {
-            try {
-                admissionTime = parseOffsetDateTime(admissionTimeText.trim());
-            } catch (Exception e) {
-                // 尝试解析日期时间格式
-                try {
-                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
-                    Date d = sdf.parse(admissionTimeText.trim());
-                    admissionTime = d.toInstant();
-                } catch (Exception ex) {
-                    // 忽略解析错误
-                }
-            }
+            admissionTime = HljldPatientTimeResolverNew.parseTimeStringStrict(admissionTimeText.trim());
         }
 
         Instant dischargeTime = null;
         if (dischargeTimeText != null && !dischargeTimeText.trim().isEmpty()) {
-            try {
-                dischargeTime = parseOffsetDateTime(dischargeTimeText.trim());
-            } catch (Exception e) {
-                // 尝试解析日期时间格式
-                try {
-                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
-                    Date d = sdf.parse(dischargeTimeText.trim());
-                    dischargeTime = d.toInstant();
-                } catch (Exception ex) {
-                    // 忽略解析错误
-                }
-            }
+            dischargeTime = HljldPatientTimeResolverNew.parseTimeStringStrict(dischargeTimeText.trim());
         }
 
         return new HljldPdfRequestContext(
@@ -113,25 +87,6 @@ public final class HljldPdfRequestContext {
             dischargeTime,
             dischargedType
         );
-    }
-
-    /**
-     * 解析 OffsetDateTime，支持处理 24:xx:xx 这种边界情况
-     * 24:xx:xx 会转换为次日 00:xx:xx
-     */
-    private static Instant parseOffsetDateTime(String text) {
-        try {
-            return OffsetDateTime.parse(text).toInstant();
-        } catch (java.time.format.DateTimeParseException e) {
-            // 处理 24:xx:xx 的情况，转换为次日 00:xx:xx
-            if (text.contains("T24:")) {
-                String fixed = text.replace("T24:", "T00:");
-                OffsetDateTime odt = OffsetDateTime.parse(fixed);
-                // 加上24小时（1天）
-                return odt.plusHours(24).toInstant();
-            }
-            throw e;
-        }
     }
 
     public LocalDate getNursingDate() {
@@ -160,6 +115,40 @@ public final class HljldPdfRequestContext {
 
     public String getDischargedType() {
         return dischargedType;
+    }
+
+    /**
+     * 统一护理日计算：根据时间戳计算所属护理日。
+     * 护理日边界为 [D 07:00, D+1 07:00)，07:00 属于当天，06:59 属于前一天。
+     *
+     * @param instant 时间戳
+     * @return 所属护理日日期（Asia/Shanghai 时区）
+     */
+    public static LocalDate nursingDateOf(Instant instant) {
+        if (instant == null) {
+            instant = Instant.now();
+        }
+        ZonedDateTime zdt = instant.atZone(ZONE);
+        // 07:00 边界：小时 < 7 → 归前一天
+        if (zdt.getHour() < 7) {
+            return zdt.toLocalDate().minusDays(1);
+        }
+        return zdt.toLocalDate();
+    }
+
+    /**
+     * 获取有效出科护理日。
+     * <p>仅当出科时间存在且 referenceTime >= dischargeTime 时返回出科护理日，
+     * 否则返回 null（表示患者尚未出科或时间未到）。</p>
+     */
+    public LocalDate getEffectiveDischargeNursingDate() {
+        if (dischargeTime == null) {
+            return null;
+        }
+        if (referenceTime.toEpochMilli() < dischargeTime.toEpochMilli()) {
+            return null;
+        }
+        return nursingDateOf(dischargeTime);
     }
 
     public ZonedDateTime getNursingDayStart() {

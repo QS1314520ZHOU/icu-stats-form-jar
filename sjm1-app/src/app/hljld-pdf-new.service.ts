@@ -26,7 +26,7 @@ export interface RecalculateStatus {
 @Injectable({ providedIn: 'root' })
 export class HljldPdfNewService {
 
-  private readonly baseUrl = '/api/v1/icu/hljld-new';
+  private readonly baseUrl = '/api/v1/icu/hljld-new-new';
 
   constructor(private http: HttpClient) {}
 
