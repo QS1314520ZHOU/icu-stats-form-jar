@@ -6,7 +6,6 @@ import {
   DepartmentDailySnapshot,
   DepartmentPatient,
   DraftConflictError,
-  HandoverPatientPrintPage,
   HandoverPatientRow,
   HandoverReportViewModel,
   MetricRow,
@@ -17,11 +16,7 @@ import {
 import { HandoverReportService } from './handover-report.service';
 import { HostPatientService } from './services/host-patient.service';
 import { buildHandoverReport } from './handover-report.utils';
-import {
-  measurePrintDimensions,
-  measurePatientRowHeights,
-  paginatePatientRows,
-} from './handover-report-pagination.util';
+import { printHandoverReport } from './handover-report-print.util';
 
 /**
  * 保存状态类型。
@@ -65,12 +60,7 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
    */
   hasUnsavedChanges = false;
 
-  // ==================== 打印分页 ====================
-
-  /**
-   * 打印页面数据，由 print() 方法在打印前填充。
-   */
-  printPages: HandoverPatientPrintPage[] = [];
+  // ==================== 打印 ====================
 
   /**
    * 是否正在准备打印（测量、分页中）。
@@ -895,15 +885,10 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
 
   /**
    * 打印流程：
-   * 1. resizeAllTextareas
-   * 2. 等待字体加载
-   * 3. Angular detectChanges 渲染打印模板
-   * 4. 等待两次 requestAnimationFrame 确保渲染稳定
-   * 5. 测量页面尺寸和行高
-   * 6. 分页算法生成 printPages
-   * 7. 再次 detectChanges 渲染分页结果
-   * 8. 等待渲染稳定
-   * 9. window.print()
+   * 1. 捕获当前数据快照
+   * 2. 调用独立打印工具创建临时 DOM
+   * 3. 触发 window.print()
+   * 4. 清理临时 DOM
    */
   async print(): Promise<void> {
     if (this.isPreparingPrint) { return; }
@@ -919,38 +904,12 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
       // 2. 等待字体加载
       try { await document.fonts.ready; } catch { /* 静默跳过 */ }
 
-      // 3. 渲染打印模板
-      this.cdr.detectChanges();
-
-      // 4. 等待渲染稳定（两次 rAF）
-      await new Promise<void>(resolve => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      });
-
-      // 5. 测量页面尺寸
-      const dims = measurePrintDimensions(document);
-
-      // 6. 测量每行患者高度
-      const measureHost = document.querySelector('.print-measure-host') as HTMLElement;
-      const rowHeights = measureHost
-        ? measurePatientRowHeights(this.vm.rows, measureHost, document)
-        : this.vm.rows.map(() => 15); // 兜底
-
-      // 7. 分页
-      this.printPages = paginatePatientRows(this.vm.rows, rowHeights, dims);
-
-      // 8. 再次渲染分页结果
-      this.cdr.detectChanges();
-
-      // 9. 等待渲染稳定
-      await new Promise<void>(resolve => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      });
-
-      // 10. 打印
-      window.print();
+      // 3. 调用独立打印工具
+      await printHandoverReport(this.snapshot, this.vm, this.dateInput);
     } catch (err) {
       console.error('[HANDOVER] 打印准备失败', err);
+      // 显示错误提示
+      alert('打印准备失败：' + (err instanceof Error ? err.message : String(err)));
     } finally {
       this.isPreparingPrint = false;
       this.cdr.markForCheck();
