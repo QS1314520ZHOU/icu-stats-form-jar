@@ -150,7 +150,7 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
       }
 
       // 生成PDF URL（传递当前业务时间）
-      this.basePdfUrl = this.pdfService.getPdfUrl(this.patient.pid, dateStr, referenceTime);
+      this.basePdfUrl = this.pdfService.getPreviewPdfUrl(this.patient.pid, dateStr, referenceTime);
 
       // 默认显示第1页，缩放135%
       this.updateViewerUrl();
