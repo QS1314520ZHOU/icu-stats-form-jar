@@ -63,41 +63,7 @@ check('不包含getDocument', !mainBundle.includes('getDocument'));
 check('不包含pdf.worker路径', !mainBundle.includes('pdf.worker'));
 check('不包含pdfjsLib', !mainBundle.includes('pdfjsLib'));
 
-// 4. 验证源码不导入pdfjs-dist
-const hljldFormPdfTs = join(SRC_DIR, 'hljld-form-pdf.component.ts');
-if (existsSync(hljldFormPdfTs)) {
-  const tsContent = readFileSync(hljldFormPdfTs, 'utf-8');
-  check('源码不导入pdfjs-dist', !tsContent.includes("from 'pdfjs-dist'"));
-  check('源码不使用pdfjsLib', !tsContent.includes('pdfjsLib'));
-  check('源码不使用PDFDocumentProxy', !tsContent.includes('PDFDocumentProxy'));
-  check('源码使用PdfPrintService', tsContent.includes('PdfPrintService'));
-  check('源码使用pdfViewerUrl', tsContent.includes('pdfViewerUrl'));
-}
-
-// 5. 验证HTML使用iframe
-const hljldFormPdfHtml = join(SRC_DIR, 'hljld-form-pdf.component.html');
-if (existsSync(hljldFormPdfHtml)) {
-  const htmlContent = readFileSync(hljldFormPdfHtml, 'utf-8');
-
-  check('HTML使用iframe', htmlContent.includes('<iframe'));
-  check('HTML使用domSafe pipe', htmlContent.includes('domSafe'));
-  check('HTML没有Canvas容器', !htmlContent.includes('pdf-pages-container'));
-  check('HTML没有pdfPagesContainer引用', !htmlContent.includes('pdfPagesContainer'));
-
-  // 验证没有下载按钮
-  check('页面没有download按钮', !htmlContent.includes('download'));
-  check('页面没有"下载当日"按钮', !htmlContent.includes('下载当日'));
-  check('页面没有"下载全部"按钮', !htmlContent.includes('下载全部'));
-
-  // 验证打印按钮存在
-  check('页面有打印当日按钮', htmlContent.includes('打印当日'));
-  check('页面有一键打印全部按钮', htmlContent.includes('一键打印全部'));
-
-  // 验证iframe title
-  check('iframe有title属性', htmlContent.includes('title="护理记录PDF预览"'));
-}
-
-// 6. 验证pdf-viewer.service.ts不再包含PDF.js
+// 4. 验证pdf-viewer.service.ts不再包含PDF.js
 const pdfViewerService = join(SRC_DIR, 'services', 'pdf-viewer.service.ts');
 if (existsSync(pdfViewerService)) {
   const serviceContent = readFileSync(pdfViewerService, 'utf-8');

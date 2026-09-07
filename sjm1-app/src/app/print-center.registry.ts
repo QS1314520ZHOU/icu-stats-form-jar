@@ -18,7 +18,6 @@ import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
 import { CrrtRecordComponent } from './crrt-record.component';
 import { CrrtOrderFormComponent } from './crrt-order-form.component';
-import { HljldFormComponent } from './hljld-form.component';
 
 export const PRINT_GROUP_NAMES: Record<PrintGroupKey, string> = {
   tube: '管道维护',
@@ -118,11 +117,6 @@ export const PRINT_FORMS: PrintFormDef[] = [
   },
 
   /* ── 护理记录 ── */
-  {
-    key: 'hljldForm', title: '护理记录单', route: 'hljldForm', group: 'nursing',
-    orientation: 'landscape', component: HljldFormComponent,
-    probe: { kind: 'url', url: '/api/v1/icu/hljld/nurse-records' },
-  },
   {
     key: 'transfusionForm', title: '输血记录单', route: 'transfusionForm', group: 'nursing',
     orientation: 'portrait', component: TransfusionRecordComponent,
