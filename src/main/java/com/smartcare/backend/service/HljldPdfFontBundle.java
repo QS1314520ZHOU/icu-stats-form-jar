@@ -38,6 +38,9 @@ public class HljldPdfFontBundle {
     private static String primaryFontName;
     private static String fallbackFontName;
 
+    /** 缓存 TTC 主字体临时文件路径，避免每次渲染都创建临时文件 */
+    private static String cachedPrimaryTempPath;
+
     /** Unicode 下标映射表 (U+2080 ~ U+2089) */
     private static final Map<Integer, Integer> SUBSCRIPT_MAP = new HashMap<>();
     /** Unicode 上标映射表 (U+2070, U+00B9, U+00B2, U+00B3, U+2074~U+2079) */
@@ -104,16 +107,24 @@ public class HljldPdfFontBundle {
             byte[] primaryBytes = loadFontBytesFromClasspath(primaryResource);
             if (primaryBytes != null) {
                 // TTC 字体需要写入临时文件才能指定 collection index
-                java.io.File tempFont = java.io.File.createTempFile("hljld_primary_", ".ttc");
-                tempFont.deleteOnExit();
-                java.nio.file.Files.write(tempFont.toPath(), primaryBytes);
+                // 复用已有的临时文件，避免每次渲染都创建新临时文件导致磁盘泄漏
+                synchronized (HljldPdfFontBundle.class) {
+                    java.io.File existingTemp = cachedPrimaryTempPath != null ? new java.io.File(cachedPrimaryTempPath) : null;
+                    if (cachedPrimaryTempPath == null || !existingTemp.exists()) {
+                        java.io.File tempFont = java.io.File.createTempFile("hljld_primary_", ".ttc");
+                        tempFont.deleteOnExit();
+                        java.nio.file.Files.write(tempFont.toPath(), primaryBytes);
+                        cachedPrimaryTempPath = tempFont.getAbsolutePath();
+                        log.info("主字体临时文件已创建: {}", cachedPrimaryTempPath);
+                    }
+                }
 
                 primary = PdfFontFactory.createFont(
-                    tempFont.getAbsolutePath() + ",0",
+                    cachedPrimaryTempPath + ",0",
                     PdfEncodings.IDENTITY_H
                 );
                 primaryFontName = primary.getFontProgram().getFontNames().getFontName();
-                log.info("主字体加载成功: {} ({} bytes, temp: {})", primaryFontName, primaryBytes.length, tempFont.getAbsolutePath());
+                log.info("主字体加载成功: {} ({} bytes, temp: {})", primaryFontName, primaryBytes.length, cachedPrimaryTempPath);
             } else {
                 log.error("主字体资源不存在: {}", primaryResource);
             }

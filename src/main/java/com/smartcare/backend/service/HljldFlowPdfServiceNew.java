@@ -327,7 +327,7 @@ public class HljldFlowPdfServiceNew {
      */
     public byte[] renderFlowPdf(String pid, LocalDate startDate, LocalDate endDate,
                                 String referenceTime,
-                                HljldPdfRenderPurposeNew.RenderPurpose purpose) {
+                                HljldPdfRenderPurposeNew purpose) {
         log.info("Flow PDF New 渲染: pid={}, startDate={}, endDate={}, purpose={}",
             pid, startDate, endDate, purpose);
 
@@ -373,7 +373,12 @@ public class HljldFlowPdfServiceNew {
             }
 
             LocalDate referenceDate = dates.get(0);
-            FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate, purpose);
+            HljldPdfFooterPolicyNew policy = HljldPdfFooterPolicyNew.of(
+                purpose, referenceDate,
+                resolveEffectiveDischargeNursingDate(pid, referenceTime),
+                resolveReferenceTimeNursingDate(referenceTime)
+            );
+            FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate, policy);
             log.info("Flow PDF New 完成: pid={}, days={}, pageCount={}", pid, itemsPerDay.size(), result.pageCount);
             return result.pdfBytes;
         } finally {
@@ -590,7 +595,7 @@ public class HljldFlowPdfServiceNew {
 
         // 创建页脚策略（PRINT_ALL 始终显示备注和签名）
         HljldPdfFooterPolicyNew policy = HljldPdfFooterPolicyNew.of(
-            HljldPdfRenderPurposeNew.RenderPurpose.PRINT_ALL, referenceDate,
+            HljldPdfRenderPurposeNew.PRINT_ALL, referenceDate,
             effectiveDischargeDay
         );
 
@@ -604,8 +609,12 @@ public class HljldFlowPdfServiceNew {
         LocalDate referenceDate = LocalDate.parse(date);
         List<PrintableItem> items = buildPrintableItems(date, pid, referenceTime);
         List<List<PrintableItem>> itemsPerDay = Collections.singletonList(items);
-        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, pid, referenceDate,
-            HljldPdfRenderPurposeNew.RenderPurpose.PREVIEW);
+        HljldPdfFooterPolicyNew policy = HljldPdfFooterPolicyNew.of(
+            HljldPdfRenderPurposeNew.PREVIEW, referenceDate,
+            resolveEffectiveDischargeNursingDate(pid, referenceTime),
+            resolveReferenceTimeNursingDate(referenceTime)
+        );
+        FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, 1, pid, referenceDate, policy);
         log.info("Flow PDF New 页数: pid={}, date={}, pageCount={}", pid, date, result.pageCount);
         return result.pageCount;
     }
@@ -640,8 +649,8 @@ public class HljldFlowPdfServiceNew {
             doc.add(table);
 
             HljldFlowPageEventHandlerNew handler = new HljldFlowPageEventHandlerNew(
-                fonts, patientInfo, 1, Collections.emptyMap(),
-                HljldPdfRenderPurposeNew.RenderPurpose.PREVIEW);
+                fonts, patientInfo, 1, Collections.emptyMap(), 1,
+                HljldPdfFooterPolicyNew.of(HljldPdfRenderPurposeNew.PREVIEW, referenceDate, null));
             pdfDoc.addEventHandler(PdfDocumentEvent.END_PAGE, handler);
             doc.close();
 

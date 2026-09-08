@@ -14,7 +14,7 @@ import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.hljld.HljldPdfFooterPolicyNew;
-import com.smartcare.backend.hljld.HljldPdfLayoutConstantsNewNew;
+import com.smartcare.backend.hljld.HljldPdfLayoutConstantsNew;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

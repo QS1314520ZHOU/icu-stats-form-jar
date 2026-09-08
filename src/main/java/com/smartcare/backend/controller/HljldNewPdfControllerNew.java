@@ -49,17 +49,17 @@ public class HljldNewPdfControllerNew {
             @RequestParam(required = false) String referenceTime,
             @RequestParam(required = false, defaultValue = "PREVIEW") String purpose) {
         // 单日端点只允许 PREVIEW / PRINT_DAY
-        HljldPdfRenderPurposeNew.RenderPurpose renderPurpose;
+        HljldPdfRenderPurposeNew renderPurpose;
         try {
-            renderPurpose = HljldPdfRenderPurposeNew.RenderPurpose.valueOf(purpose.toUpperCase());
+            renderPurpose = HljldPdfRenderPurposeNew.valueOf(purpose.toUpperCase());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest()
                 .contentType(MediaType.TEXT_PLAIN)
                 .body(("无效的 purpose 参数: " + purpose + "，仅支持 PREVIEW / PRINT_DAY")
                     .getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
-        if (renderPurpose != HljldPdfRenderPurposeNew.RenderPurpose.PREVIEW
-            && renderPurpose != HljldPdfRenderPurposeNew.RenderPurpose.PRINT_DAY) {
+        if (renderPurpose != HljldPdfRenderPurposeNew.PREVIEW
+            && renderPurpose != HljldPdfRenderPurposeNew.PRINT_DAY) {
             return ResponseEntity.badRequest()
                 .contentType(MediaType.TEXT_PLAIN)
                 .body(("单日端点仅支持 PREVIEW / PRINT_DAY，当前: " + purpose)
