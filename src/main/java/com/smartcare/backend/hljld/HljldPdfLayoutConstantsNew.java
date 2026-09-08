@@ -159,7 +159,7 @@ public final class HljldPdfLayoutConstantsNew {
     /** 审核护士签名 Y 坐标（无备注时，位于页脚右下角） */
     public static final float AUDIT_SIG_Y_BASE = REMARK_BOTTOM + 4f;
     /** 审核护士签名 Y 偏移（有备注时，位于备注区边框下方的偏移量，8pt 字体需要至少 10pt 间距避免与边框重叠） */
-    public static final float AUDIT_SIG_BELOW_REMARK_OFFSET = -10f;
+    public static final float AUDIT_SIG_BELOW_REMARK_OFFSET = -13f;
 
     // ══════════════════════════════════════════════════════════
     //  页码

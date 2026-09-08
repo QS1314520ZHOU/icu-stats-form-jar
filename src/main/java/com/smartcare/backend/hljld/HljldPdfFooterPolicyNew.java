@@ -17,7 +17,7 @@ import java.time.LocalDate;
  * │ PREVIEW     │ current == discharge (已出科有效)     │ 同左                          │
  * │             │ 或 current == refDay (未出科当前日)   │                              │
  * │ PRINT_DAY   │ current == discharge (有效)           │ 始终显示                      │
- * │ PRINT_RANGE │ 范围结束日 == discharge (有效)         │ 始终显示                      │
+ * │ PRINT_RANGE │ 范围结束日 == discharge (有效)         │ 结束日≠出科日且≠今天时显示    │
  * │ PRINT_ALL   │ 始终显示                               │ 始终显示                      │
  * └─────────────┴──────────────────────────────────────┴──────────────────────────────┘
  * </pre>
@@ -68,13 +68,20 @@ public final class HljldPdfFooterPolicyNew {
      *
      * @param rangeEndNursingDate          范围结束护理日
      * @param effectiveDischargeNursingDate 有效出科护理日
+     * @param referenceTimeNursingDate     referenceTime 所属护理日（用于判断是否是今天）
      * @return 页脚策略
      */
     public static HljldPdfFooterPolicyNew ofRange(LocalDate rangeEndNursingDate,
-                                                  LocalDate effectiveDischargeNursingDate) {
+                                                  LocalDate effectiveDischargeNursingDate,
+                                                  LocalDate referenceTimeNursingDate) {
         boolean isDischargeDay = rangeEndNursingDate != null
             && rangeEndNursingDate.equals(effectiveDischargeNursingDate);
-        return new HljldPdfFooterPolicyNew(isDischargeDay, true);
+        // 判断是否是今天（当前护理日）
+        boolean isCurrentDay = rangeEndNursingDate != null
+            && rangeEndNursingDate.equals(referenceTimeNursingDate);
+        // 如果结束日期是出科日期或今天，最后一页已有签名，不需要再加
+        boolean showSignature = !(isDischargeDay || isCurrentDay);
+        return new HljldPdfFooterPolicyNew(isDischargeDay, showSignature);
     }
 
     /**

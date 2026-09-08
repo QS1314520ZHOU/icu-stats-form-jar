@@ -284,10 +284,15 @@ public class HljldFlowPdfServiceNew {
         PdfDocument pdfDoc = new PdfDocument(writer);
         com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
 
+        // 使用与最终渲染相同的边距（只预留页码空间），确保页数一致
+        float marginBottom = HljldPdfLayoutConstantsNew.PAGE_BOTTOM_PADDING
+            + HljldPdfLayoutConstantsNew.PAGE_NUMBER_HEIGHT
+            + HljldPdfLayoutConstantsNew.PAGE_NUMBER_REMARK_GAP;
+
         doc.setMargins(
             HljldPdfLayoutConstantsNew.MARGIN_TOP,
             HljldPdfLayoutConstantsNew.MARGIN_RIGHT,
-            HljldPdfLayoutConstantsNew.MARGIN_BOTTOM,
+            marginBottom,
             HljldPdfLayoutConstantsNew.MARGIN_LEFT
         );
 
@@ -468,9 +473,10 @@ public class HljldFlowPdfServiceNew {
         // 计算有效出科护理日
         LocalDate effectiveDischargeDay = resolveEffectiveDischargeNursingDate(pid, referenceTime);
 
-        // PRINT_RANGE：签名始终显示，备注仅在范围结束日 == 出科护理日时显示
+        // PRINT_RANGE：签名在结束日期不是出科日期且不是今天时显示
         LocalDate rangeEndNursingDate = LocalDate.parse(endDate);
-        HljldPdfFooterPolicyNew policy = HljldPdfFooterPolicyNew.ofRange(rangeEndNursingDate, effectiveDischargeDay);
+        LocalDate referenceTimeNursingDate = resolveReferenceTimeNursingDate(referenceTime);
+        HljldPdfFooterPolicyNew policy = HljldPdfFooterPolicyNew.ofRange(rangeEndNursingDate, effectiveDischargeDay, referenceTimeNursingDate);
 
         FlowPdfRenderResult result = renderFlowPdf(itemsPerDay, startPageNo, pid, referenceDate, policy);
         log.info("Flow PDF New 范围完成: pid={}, days={}, pageCount={}, policy={}",
