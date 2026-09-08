@@ -17,7 +17,7 @@ import java.time.LocalDate;
  * │ PREVIEW     │ current == discharge (已出科有效)     │ 同左                          │
  * │             │ 或 current == refDay (未出科当前日)   │                              │
  * │ PRINT_DAY   │ current == discharge (有效)           │ 始终显示                      │
- * │ PRINT_RANGE │ 范围结束日 == discharge (有效)         │ 结束日≠出科日且≠今天时显示    │
+ * │ PRINT_RANGE │ 范围结束日 == discharge (有效)         │ 始终显示                      │
  * │ PRINT_ALL   │ 始终显示                               │ 始终显示                      │
  * └─────────────┴──────────────────────────────────────┴──────────────────────────────┘
  * </pre>
@@ -76,15 +76,12 @@ public final class HljldPdfFooterPolicyNew {
                                                   LocalDate referenceTimeNursingDate) {
         boolean isDischargeDay = rangeEndNursingDate != null
             && rangeEndNursingDate.equals(effectiveDischargeNursingDate);
-        // 判断是否是今天（当前护理日）
-        boolean isCurrentDay = rangeEndNursingDate != null
-            && rangeEndNursingDate.equals(referenceTimeNursingDate);
-        // 如果结束日期是出科日期或今天，最后一页已有签名，不需要再加
-        boolean showSignature = !(isDischargeDay || isCurrentDay);
+        // 时间范围打印时，始终显示审核护士签名
+        boolean showSignature = true;
         org.slf4j.LoggerFactory.getLogger(HljldPdfFooterPolicyNew.class)
-            .debug("[hljld-new] ofRange: rangeEnd={}, discharge={}, refDay={}, isDischargeDay={}, isCurrentDay={}, showSignature={}",
+            .debug("[hljld-new] ofRange: rangeEnd={}, discharge={}, refDay={}, isDischargeDay={}, showSignature={}",
                 rangeEndNursingDate, effectiveDischargeNursingDate, referenceTimeNursingDate,
-                isDischargeDay, isCurrentDay, showSignature);
+                isDischargeDay, showSignature);
         return new HljldPdfFooterPolicyNew(isDischargeDay, showSignature);
     }
 
