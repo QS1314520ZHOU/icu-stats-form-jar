@@ -704,8 +704,12 @@ public class HljldSummaryCalculator {
 
         // 普通记录
         for (HljldTimeGroup group : displayGroups) {
-            if (group.getTimestamp() > referenceTime ||
-                group.getTimestamp() >= nursingDayEnd) {
+            // 时间调整过的数据（尿量等整点数据+1小时显示）：允许时间等于 nursingDayEnd
+            // 其他数据：时间必须小于 nursingDayEnd
+            boolean timeExceeded = group.isTimeAdjusted()
+                ? group.getTimestamp() > referenceTime
+                : (group.getTimestamp() > referenceTime || group.getTimestamp() >= nursingDayEnd);
+            if (timeExceeded) {
                 continue;
             }
             timeline.add(

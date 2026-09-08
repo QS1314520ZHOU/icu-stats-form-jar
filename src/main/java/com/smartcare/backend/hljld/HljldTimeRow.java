@@ -14,6 +14,8 @@ public class HljldTimeRow {
     private String timeText = "";
     /** carryOver=-1, 明细=0, 小结=1, 结算=2 */
     private int sortRank = 0;
+    /** 是否经过时间调整（尿量等整点数据+1小时显示） */
+    private boolean timeAdjusted = false;
 
     private List<NameAmountRoute> medications = new ArrayList<>();
     private List<NameAmountRoute> enteral = new ArrayList<>();
@@ -62,6 +64,8 @@ public class HljldTimeRow {
     public void setNursingRecords(List<String> nursingRecords) { this.nursingRecords = nursingRecords; }
     public String getSignature() { return signature; }
     public void setSignature(String signature) { this.signature = signature; }
+    public boolean isTimeAdjusted() { return timeAdjusted; }
+    public void setTimeAdjusted(boolean timeAdjusted) { this.timeAdjusted = timeAdjusted; }
 
     /** 是否有任何非空内容 */
     public boolean hasContent() {

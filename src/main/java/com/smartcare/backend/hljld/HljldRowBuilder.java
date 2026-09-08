@@ -325,13 +325,14 @@ public class HljldRowBuilder {
     }
 
     /**
-     * 检查行是否包含尿量、净超滤量、排出物、引流液数据
+     * 检查行是否包含尿量、净超滤量、排出物、引流液、口服量、鼻饲量数据
      */
     private boolean hasOutputFieldData(HljldTimeRow row) {
         return (row.getUrines() != null && !row.getUrines().isEmpty())
             || (row.getUltrafiltrations() != null && !row.getUltrafiltrations().isEmpty())
             || (row.getOutputs() != null && !row.getOutputs().isEmpty())
-            || (row.getDrains() != null && !row.getDrains().isEmpty());
+            || (row.getDrains() != null && !row.getDrains().isEmpty())
+            || (row.getEnteral() != null && !row.getEnteral().isEmpty());
     }
 
     /**
@@ -360,7 +361,7 @@ public class HljldRowBuilder {
         row.setTimeText(original.getTimeText());
         row.setSortRank(original.getSortRank());
         row.setMedications(original.getMedications());
-        row.setEnteral(original.getEnteral());
+        row.setEnteral(new ArrayList<>()); // 清空口服量、鼻饲量
         row.setUrines(new ArrayList<>()); // 清空尿量等字段
         row.setUltrafiltrations(new ArrayList<>());
         row.setOutputs(new ArrayList<>());
@@ -375,11 +376,10 @@ public class HljldRowBuilder {
     }
 
     /**
-     * 检查行是否包含非尿量等字段的数据
+     * 检查行是否包含非尿量等字段的数据（不包含口服量、鼻饲量，因为它们也要被移动）
      */
     private boolean hasNonOutputFieldData(HljldTimeRow row) {
         return (row.getMedications() != null && !row.getMedications().isEmpty())
-            || (row.getEnteral() != null && !row.getEnteral().isEmpty())
             || (row.getExamination() != null && !row.getExamination().isEmpty())
             || (row.getTreatment() != null && !row.getTreatment().isEmpty())
             || (row.getBasicCare() != null && !row.getBasicCare().isEmpty())
@@ -396,8 +396,9 @@ public class HljldRowBuilder {
         boolean hasUltrafiltrations = original.getUltrafiltrations() != null && !original.getUltrafiltrations().isEmpty();
         boolean hasOutputs = original.getOutputs() != null && !original.getOutputs().isEmpty();
         boolean hasDrains = original.getDrains() != null && !original.getDrains().isEmpty();
+        boolean hasEnteral = original.getEnteral() != null && !original.getEnteral().isEmpty();
 
-        if (!hasUrines && !hasUltrafiltrations && !hasOutputs && !hasDrains) {
+        if (!hasUrines && !hasUltrafiltrations && !hasOutputs && !hasDrains && !hasEnteral) {
             return null; // 没有尿量等数据，不创建新行
         }
 
@@ -418,8 +419,9 @@ public class HljldRowBuilder {
         row.setTime(new Date(adjustedTimestamp));
         row.setTimeText(adjustedTimeText);
         row.setSortRank(original.getSortRank());
+        row.setTimeAdjusted(true); // 标记为时间调整过的行
         row.setMedications(new ArrayList<>()); // 不包含药物治疗
-        row.setEnteral(new ArrayList<>()); // 不包含胃肠摄入
+        row.setEnteral(original.getEnteral()); // 包含口服量、鼻饲量
         row.setUrines(original.getUrines());
         row.setUltrafiltrations(original.getUltrafiltrations());
         row.setOutputs(original.getOutputs());
@@ -648,6 +650,7 @@ public class HljldRowBuilder {
         group.setKey(groupKey);
         group.setTimestamp(timestamp);
         group.setRows(displayRows);
+        group.setTimeAdjusted(row.isTimeAdjusted()); // 传递时间调整标记
         return group;
     }
 
