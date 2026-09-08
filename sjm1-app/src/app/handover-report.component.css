@@ -45,12 +45,12 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   font-size: 12px;
   margin-bottom: 16px;
 
-  --bed-width: 6%;
-  --name-width: 7%;
-  --status-width: 6%;
-  --mrn-width: 10%;
-  --diagnosis-width: 17%;
-  --shift-width: 18%;
+  --bed-width: 3%;
+  --name-width: 4%;
+  --status-width: 3%;
+  --mrn-width: 7%;
+  --diagnosis-width: 20%;
+  --shift-width: 21%;
 }
 
 .patient-table td { text-align: left; vertical-align: top; }
@@ -436,6 +436,14 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   .print-only-table { display: table !important; }
   .signature-print-value { display: inline !important; white-space: pre-wrap; }
 
+  /* 打印时移除背景颜色 */
+  .summary-table th, .patient-table th,
+  .safety-report-table thead th,
+  .safety-report-table tbody th,
+  .category-cell {
+    background: transparent !important;
+  }
+
   /* 备注打印 */
   .remark-input {
     min-height: 0;
@@ -447,8 +455,8 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   }
 
   .safety-report-section {
-    break-before: page;
-    page-break-before: always;
+    break-before: auto;
+    page-break-before: auto;
     margin-top: 0;
   }
 

@@ -217,7 +217,7 @@ function createPrintStyles(): void {
     }
 
     .print-table th {
-      background: #edf3f7;
+      background: transparent;
       font-weight: 600;
     }
 
@@ -458,7 +458,7 @@ function measurePatientRowHeights(rows: HandoverPatientRow[]): number[] {
   table.className = 'print-table';
   table.style.cssText = 'width:283mm;border-collapse:collapse;table-layout:fixed;';
 
-  const colWidths = ['6%', '7%', '6%', '10%', '17%', '18%', '18%', '18%'];
+  const colWidths = ['3%', '4%', '3%', '7%', '20%', '21%', '21%', '21%'];
   const colgroup = document.createElement('colgroup');
   colWidths.forEach(w => {
     const col = document.createElement('col');
@@ -473,7 +473,7 @@ function measurePatientRowHeights(rows: HandoverPatientRow[]): number[] {
   ['床号', '姓名', '状态', '住院号', '诊断', '白班', '中班', '夜班'].forEach(text => {
     const th = document.createElement('th');
     th.textContent = text;
-    th.style.cssText = 'border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;font-size:9pt;line-height:1.4;background:#edf3f7;font-weight:600;';
+    th.style.cssText = 'border:1px solid #2b2b2b;padding:1mm 2mm;text-align:center;font-size:9pt;line-height:1.4;background:transparent;font-weight:600;';
     headerRow.appendChild(th);
   });
   thead.appendChild(headerRow);
@@ -526,7 +526,7 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   table.className = 'print-table';
 
   // 设置列宽
-  const colWidths = ['6%', '7%', '6%', '10%', '17%', '18%', '18%', '18%'];
+  const colWidths = ['3%', '4%', '3%', '7%', '20%', '21%', '21%', '21%'];
   const colgroup = document.createElement('colgroup');
   colWidths.forEach(width => {
     const col = document.createElement('col');
@@ -708,7 +708,25 @@ function renderSafetyTable(
     }
   }
 
-  metrics.forEach(metric => {
+  // 计算每个分类的行跨度（rowspan）
+  const categoryRowSpans = new Map<string, number>();
+  const categoryStartIndices = new Map<string, number>();
+
+  // 预处理：统计每个分类的行数
+  metrics.forEach((metric, index) => {
+    if (metric.category) {
+      if (!categoryRowSpans.has(metric.category)) {
+        categoryRowSpans.set(metric.category, 0);
+        categoryStartIndices.set(metric.category, index);
+      }
+      categoryRowSpans.set(metric.category, categoryRowSpans.get(metric.category)! + 1);
+    }
+  });
+
+  // 渲染行
+  const processedCategories = new Set<string>();
+
+  metrics.forEach((metric, index) => {
     const tr = document.createElement('tr');
 
     if (!metric.category) {
@@ -718,14 +736,16 @@ function renderSafetyTable(
       th.textContent = metric.label;
       tr.appendChild(th);
     } else {
-      // 分类项目：始终创建分类单元格（Fix 3：确保每行5列对齐）
-      const categoryTd = document.createElement('td');
-      categoryTd.className = 'print-category-cell';
-      if (metric.showCategory) {
+      // 分类项目：仅在分类首次出现时渲染分类单元格
+      if (!processedCategories.has(metric.category)) {
+        const categoryTd = document.createElement('td');
+        categoryTd.className = 'print-category-cell';
         categoryTd.textContent = metric.category;
+        const rowspan = categoryRowSpans.get(metric.category) || 1;
+        categoryTd.rowSpan = rowspan;
+        tr.appendChild(categoryTd);
+        processedCategories.add(metric.category);
       }
-      // showCategory=false 时保持空单元格，确保列对齐
-      tr.appendChild(categoryTd);
 
       const labelTh = document.createElement('th');
       labelTh.className = 'print-metric-label';
