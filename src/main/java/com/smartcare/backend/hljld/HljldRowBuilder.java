@@ -261,6 +261,9 @@ public class HljldRowBuilder {
     /**
      * 将 HljldTimeRow 列表展开为 HljldTimeGroup 列表。
      * 对应前端 buildDisplayGroups。
+     *
+     * 特殊处理：对尿量(ml)、净超滤量(ml)、排出物、引流液的整点数据（分钟为0），
+     * 从原时间行中拆分出来，时间+1小时显示。如果+1小时后的时间点已有其他数据，则合并显示。
      */
     public List<HljldTimeGroup> buildDisplayGroups(List<HljldTimeRow> sourceRows) {
         // 排序
@@ -269,79 +272,383 @@ public class HljldRowBuilder {
                 .thenComparingInt(HljldTimeRow::getSortRank))
             .collect(Collectors.toList());
 
+        // 第一步：处理尿量等字段的时间调整，生成调整后的行列表
+        List<HljldTimeRow> adjustedRows = adjustOutputFieldsTime(sorted);
+
+        // 第二步：按时间分组，合并相同时间的行
+        List<HljldTimeRow> mergedRows = mergeRowsByTime(adjustedRows);
+
+        // 第三步：按时间排序并生成 displayGroups
         List<HljldTimeGroup> groups = new ArrayList<>();
-
-        for (HljldTimeRow row : sorted) {
-            // 过滤
-            List<NameAmountRoute> medications = row.getMedications().stream()
-                .filter(NameAmountRoute::hasNameOrAmount).collect(Collectors.toList());
-            List<NameAmountRoute> enteral = row.getEnteral().stream()
-                .filter(NameAmountRoute::hasNameOrAmount).collect(Collectors.toList());
-            List<NameAmount> outputs = row.getOutputs().stream()
-                .filter(NameAmount::hasAmountValue).collect(Collectors.toList());
-            List<NameAmount> drains = row.getDrains().stream()
-                .filter(NameAmount::hasAmountValue).collect(Collectors.toList());
-            List<String> urines = row.getUrines().stream()
-                .filter(s -> !s.isEmpty()).collect(Collectors.toList());
-            List<String> ultrafiltrations = row.getUltrafiltrations().stream()
-                .filter(s -> !s.isEmpty()).collect(Collectors.toList());
-            List<String> examination = row.getExamination().stream()
-                .filter(s -> !s.isEmpty()).collect(Collectors.toList());
-            List<String> treatment = row.getTreatment().stream()
-                .filter(s -> !s.isEmpty()).collect(Collectors.toList());
-            List<String> basicCare = row.getBasicCare().stream()
-                .filter(s -> !s.isEmpty()).collect(Collectors.toList());
-            List<String> healthEducation = row.getHealthEducation().stream()
-                .filter(s -> !s.isEmpty()).collect(Collectors.toList());
-            List<String> nursingRecords = row.getNursingRecords().stream()
-                .filter(s -> !s.isEmpty()).collect(Collectors.toList());
-
-            // 确定最大行数
-            int lineCount = Math.max(1, Math.max(medications.size(), Math.max(enteral.size(),
-                Math.max(Math.max(urines.size(), ultrafiltrations.size()),
-                Math.max(Math.max(outputs.size(), drains.size()),
-                Math.max(Math.max(examination.size(), treatment.size()),
-                Math.max(Math.max(basicCare.size(), healthEducation.size()),
-                nursingRecords.size())))))));
-
-            if (lineCount <= 0) continue;
-
-            long timestamp = row.getTime().getTime();
-            String groupKey = row.getKey();
-            List<HljldDisplayRow> displayRows = new ArrayList<>();
-
-            for (int lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-                HljldDisplayRow dr = new HljldDisplayRow();
-                dr.setKey(groupKey + "::" + lineIndex);
-                dr.setGroupKey(groupKey);
-                dr.setTimestamp(timestamp);
-                dr.setLineIndex(lineIndex);
-                dr.setFirstLine(lineIndex == 0);
-                dr.setLastLine(lineIndex == lineCount - 1);
-                dr.setTimeText(lineIndex == 0 ? row.getTimeText() : "");
-                dr.setMedication(lineIndex < medications.size() ? medications.get(lineIndex) : null);
-                dr.setEnteral(lineIndex < enteral.size() ? enteral.get(lineIndex) : null);
-                dr.setUrine(lineIndex < urines.size() ? urines.get(lineIndex) : "");
-                dr.setUltrafiltration(lineIndex < ultrafiltrations.size() ? ultrafiltrations.get(lineIndex) : "");
-                dr.setOutput(lineIndex < outputs.size() ? outputs.get(lineIndex) : null);
-                dr.setDrain(lineIndex < drains.size() ? drains.get(lineIndex) : null);
-                dr.setExamination(lineIndex < examination.size() ? examination.get(lineIndex) : "");
-                dr.setTreatment(lineIndex < treatment.size() ? treatment.get(lineIndex) : "");
-                dr.setBasicCare(lineIndex < basicCare.size() ? basicCare.get(lineIndex) : "");
-                dr.setHealthEducation(lineIndex < healthEducation.size() ? healthEducation.get(lineIndex) : "");
-                dr.setNursingRecord(lineIndex < nursingRecords.size() ? nursingRecords.get(lineIndex) : "");
-                dr.setSignature(lineIndex == lineCount - 1 ? row.getSignature() : "");
-                displayRows.add(dr);
+        for (HljldTimeRow row : mergedRows) {
+            HljldTimeGroup group = buildGroupFromRow(row);
+            if (group != null) {
+                groups.add(group);
             }
-
-            HljldTimeGroup group = new HljldTimeGroup();
-            group.setKey(groupKey);
-            group.setTimestamp(timestamp);
-            group.setRows(displayRows);
-            groups.add(group);
         }
 
         return groups;
+    }
+
+    /**
+     * 处理尿量、净超滤量、排出物、引流液字段的时间调整。
+     * 整点数据（分钟为0）+1小时显示。
+     */
+    private List<HljldTimeRow> adjustOutputFieldsTime(List<HljldTimeRow> sortedRows) {
+        List<HljldTimeRow> result = new ArrayList<>();
+
+        for (HljldTimeRow row : sortedRows) {
+            long timestamp = row.getTime().getTime();
+
+            // 检查是否有尿量等字段需要时间调整
+            boolean hasOutputFields = hasOutputFieldData(row);
+            boolean isWholeHour = isWholeHour(timestamp);
+
+            if (hasOutputFields && isWholeHour) {
+                // 拆分尿量等字段到新行（时间+1小时）
+                HljldTimeRow originalRow = createRowWithoutOutputFields(row);
+                HljldTimeRow outputRow = createOutputFieldRow(row);
+
+                if (originalRow != null) {
+                    result.add(originalRow);
+                }
+                if (outputRow != null) {
+                    result.add(outputRow);
+                }
+            } else {
+                // 不需要调整，直接添加
+                result.add(row);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 检查行是否包含尿量、净超滤量、排出物、引流液数据
+     */
+    private boolean hasOutputFieldData(HljldTimeRow row) {
+        return (row.getUrines() != null && !row.getUrines().isEmpty())
+            || (row.getUltrafiltrations() != null && !row.getUltrafiltrations().isEmpty())
+            || (row.getOutputs() != null && !row.getOutputs().isEmpty())
+            || (row.getDrains() != null && !row.getDrains().isEmpty());
+    }
+
+    /**
+     * 判断时间戳是否为整点（分钟为0）
+     */
+    private boolean isWholeHour(long timestampMs) {
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        cal.setTimeInMillis(timestampMs);
+        return cal.get(Calendar.MINUTE) == 0 && cal.get(Calendar.SECOND) == 0;
+    }
+
+    /**
+     * 创建移除尿量等字段后的行（原时间）
+     */
+    private HljldTimeRow createRowWithoutOutputFields(HljldTimeRow original) {
+        // 检查是否还有其他数据
+        boolean hasOtherData = hasNonOutputFieldData(original);
+
+        if (!hasOtherData) {
+            return null; // 没有其他数据，不创建原时间行
+        }
+
+        HljldTimeRow row = new HljldTimeRow();
+        row.setKey(original.getKey());
+        row.setTime(original.getTime());
+        row.setTimeText(original.getTimeText());
+        row.setSortRank(original.getSortRank());
+        row.setMedications(original.getMedications());
+        row.setEnteral(original.getEnteral());
+        row.setUrines(new ArrayList<>()); // 清空尿量等字段
+        row.setUltrafiltrations(new ArrayList<>());
+        row.setOutputs(new ArrayList<>());
+        row.setDrains(new ArrayList<>());
+        row.setExamination(original.getExamination());
+        row.setTreatment(original.getTreatment());
+        row.setBasicCare(original.getBasicCare());
+        row.setHealthEducation(original.getHealthEducation());
+        row.setNursingRecords(original.getNursingRecords());
+        row.setSignature(original.getSignature());
+        return row;
+    }
+
+    /**
+     * 检查行是否包含非尿量等字段的数据
+     */
+    private boolean hasNonOutputFieldData(HljldTimeRow row) {
+        return (row.getMedications() != null && !row.getMedications().isEmpty())
+            || (row.getEnteral() != null && !row.getEnteral().isEmpty())
+            || (row.getExamination() != null && !row.getExamination().isEmpty())
+            || (row.getTreatment() != null && !row.getTreatment().isEmpty())
+            || (row.getBasicCare() != null && !row.getBasicCare().isEmpty())
+            || (row.getHealthEducation() != null && !row.getHealthEducation().isEmpty())
+            || (row.getNursingRecords() != null && !row.getNursingRecords().isEmpty());
+    }
+
+    /**
+     * 创建尿量等字段的新行（时间+1小时）
+     */
+    private HljldTimeRow createOutputFieldRow(HljldTimeRow original) {
+        // 检查是否有尿量等数据
+        boolean hasUrines = original.getUrines() != null && !original.getUrines().isEmpty();
+        boolean hasUltrafiltrations = original.getUltrafiltrations() != null && !original.getUltrafiltrations().isEmpty();
+        boolean hasOutputs = original.getOutputs() != null && !original.getOutputs().isEmpty();
+        boolean hasDrains = original.getDrains() != null && !original.getDrains().isEmpty();
+
+        if (!hasUrines && !hasUltrafiltrations && !hasOutputs && !hasDrains) {
+            return null; // 没有尿量等数据，不创建新行
+        }
+
+        // 时间+1小时
+        long originalTimestamp = original.getTime().getTime();
+        long adjustedTimestamp = originalTimestamp + 60 * 60 * 1000L; // +1小时
+
+        // 格式化调整后的时间文本
+        SimpleDateFormat tf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+        tf.setTimeZone(TimeZone.getTimeZone("Asia/Shanghai"));
+        String adjustedTimeText = tf.format(new Date(adjustedTimestamp));
+
+        // 生成新的 key（避免与原 key 冲突）
+        String adjustedKey = original.getKey() + "-adjusted";
+
+        HljldTimeRow row = new HljldTimeRow();
+        row.setKey(adjustedKey);
+        row.setTime(new Date(adjustedTimestamp));
+        row.setTimeText(adjustedTimeText);
+        row.setSortRank(original.getSortRank());
+        row.setMedications(new ArrayList<>()); // 不包含药物治疗
+        row.setEnteral(new ArrayList<>()); // 不包含胃肠摄入
+        row.setUrines(original.getUrines());
+        row.setUltrafiltrations(original.getUltrafiltrations());
+        row.setOutputs(original.getOutputs());
+        row.setDrains(original.getDrains());
+        row.setExamination(new ArrayList<>()); // 不包含检查
+        row.setTreatment(new ArrayList<>()); // 不包含治疗
+        row.setBasicCare(new ArrayList<>()); // 不包含基础护理
+        row.setHealthEducation(new ArrayList<>()); // 不包含健康教育
+        row.setNursingRecords(new ArrayList<>()); // 不包含护理记录
+        row.setSignature(""); // 不包含签名
+        return row;
+    }
+
+    /**
+     * 按时间分组，合并相同时间的行
+     */
+    private List<HljldTimeRow> mergeRowsByTime(List<HljldTimeRow> rows) {
+        // 按时间排序
+        List<HljldTimeRow> sorted = rows.stream()
+            .sorted(Comparator.comparingLong((HljldTimeRow r) -> r.getTime().getTime()))
+            .collect(Collectors.toList());
+
+        // 按时间分组合并
+        Map<Long, HljldTimeRow> mergedByTime = new LinkedHashMap<>();
+        for (HljldTimeRow row : sorted) {
+            long timestamp = row.getTime().getTime();
+            HljldTimeRow existing = mergedByTime.get(timestamp);
+            if (existing == null) {
+                mergedByTime.put(timestamp, row);
+            } else {
+                // 合并相同时间的行
+                mergeTimeRows(existing, row);
+            }
+        }
+
+        return new ArrayList<>(mergedByTime.values());
+    }
+
+    /**
+     * 合并两个相同时间的行
+     */
+    private void mergeTimeRows(HljldTimeRow target, HljldTimeRow source) {
+        // 合并药物治疗
+        if (source.getMedications() != null && !source.getMedications().isEmpty()) {
+            if (target.getMedications() == null) {
+                target.setMedications(new ArrayList<>(source.getMedications()));
+            } else {
+                target.getMedications().addAll(source.getMedications());
+            }
+        }
+
+        // 合并胃肠摄入
+        if (source.getEnteral() != null && !source.getEnteral().isEmpty()) {
+            if (target.getEnteral() == null) {
+                target.setEnteral(new ArrayList<>(source.getEnteral()));
+            } else {
+                target.getEnteral().addAll(source.getEnteral());
+            }
+        }
+
+        // 合并尿量
+        if (source.getUrines() != null && !source.getUrines().isEmpty()) {
+            if (target.getUrines() == null) {
+                target.setUrines(new ArrayList<>(source.getUrines()));
+            } else {
+                target.getUrines().addAll(source.getUrines());
+            }
+        }
+
+        // 合并净超滤量
+        if (source.getUltrafiltrations() != null && !source.getUltrafiltrations().isEmpty()) {
+            if (target.getUltrafiltrations() == null) {
+                target.setUltrafiltrations(new ArrayList<>(source.getUltrafiltrations()));
+            } else {
+                target.getUltrafiltrations().addAll(source.getUltrafiltrations());
+            }
+        }
+
+        // 合并排出物
+        if (source.getOutputs() != null && !source.getOutputs().isEmpty()) {
+            if (target.getOutputs() == null) {
+                target.setOutputs(new ArrayList<>(source.getOutputs()));
+            } else {
+                target.getOutputs().addAll(source.getOutputs());
+            }
+        }
+
+        // 合并引流液
+        if (source.getDrains() != null && !source.getDrains().isEmpty()) {
+            if (target.getDrains() == null) {
+                target.setDrains(new ArrayList<>(source.getDrains()));
+            } else {
+                target.getDrains().addAll(source.getDrains());
+            }
+        }
+
+        // 合并检查
+        if (source.getExamination() != null && !source.getExamination().isEmpty()) {
+            if (target.getExamination() == null) {
+                target.setExamination(new ArrayList<>(source.getExamination()));
+            } else {
+                target.getExamination().addAll(source.getExamination());
+            }
+        }
+
+        // 合并治疗
+        if (source.getTreatment() != null && !source.getTreatment().isEmpty()) {
+            if (target.getTreatment() == null) {
+                target.setTreatment(new ArrayList<>(source.getTreatment()));
+            } else {
+                target.getTreatment().addAll(source.getTreatment());
+            }
+        }
+
+        // 合并基础护理
+        if (source.getBasicCare() != null && !source.getBasicCare().isEmpty()) {
+            if (target.getBasicCare() == null) {
+                target.setBasicCare(new ArrayList<>(source.getBasicCare()));
+            } else {
+                target.getBasicCare().addAll(source.getBasicCare());
+            }
+        }
+
+        // 合并健康教育
+        if (source.getHealthEducation() != null && !source.getHealthEducation().isEmpty()) {
+            if (target.getHealthEducation() == null) {
+                target.setHealthEducation(new ArrayList<>(source.getHealthEducation()));
+            } else {
+                target.getHealthEducation().addAll(source.getHealthEducation());
+            }
+        }
+
+        // 合并护理记录
+        if (source.getNursingRecords() != null && !source.getNursingRecords().isEmpty()) {
+            if (target.getNursingRecords() == null) {
+                target.setNursingRecords(new ArrayList<>(source.getNursingRecords()));
+            } else {
+                target.getNursingRecords().addAll(source.getNursingRecords());
+            }
+        }
+
+        // 签名：优先使用 source 的签名（如果有）
+        if (source.getSignature() != null && !source.getSignature().isEmpty()) {
+            target.setSignature(source.getSignature());
+        }
+    }
+
+    /**
+     * 从单个 HljldTimeRow 构建 HljldTimeGroup
+     */
+    private HljldTimeGroup buildGroupFromRow(HljldTimeRow row) {
+        // 过滤
+        List<NameAmountRoute> medications = row.getMedications() != null
+            ? row.getMedications().stream().filter(NameAmountRoute::hasNameOrAmount).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<NameAmountRoute> enteral = row.getEnteral() != null
+            ? row.getEnteral().stream().filter(NameAmountRoute::hasNameOrAmount).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<NameAmount> outputs = row.getOutputs() != null
+            ? row.getOutputs().stream().filter(NameAmount::hasAmountValue).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<NameAmount> drains = row.getDrains() != null
+            ? row.getDrains().stream().filter(NameAmount::hasAmountValue).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<String> urines = row.getUrines() != null
+            ? row.getUrines().stream().filter(s -> !s.isEmpty()).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<String> ultrafiltrations = row.getUltrafiltrations() != null
+            ? row.getUltrafiltrations().stream().filter(s -> !s.isEmpty()).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<String> examination = row.getExamination() != null
+            ? row.getExamination().stream().filter(s -> !s.isEmpty()).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<String> treatment = row.getTreatment() != null
+            ? row.getTreatment().stream().filter(s -> !s.isEmpty()).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<String> basicCare = row.getBasicCare() != null
+            ? row.getBasicCare().stream().filter(s -> !s.isEmpty()).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<String> healthEducation = row.getHealthEducation() != null
+            ? row.getHealthEducation().stream().filter(s -> !s.isEmpty()).collect(Collectors.toList())
+            : new ArrayList<>();
+        List<String> nursingRecords = row.getNursingRecords() != null
+            ? row.getNursingRecords().stream().filter(s -> !s.isEmpty()).collect(Collectors.toList())
+            : new ArrayList<>();
+
+        // 确定最大行数
+        int lineCount = Math.max(1, Math.max(medications.size(), Math.max(enteral.size(),
+            Math.max(Math.max(urines.size(), ultrafiltrations.size()),
+            Math.max(Math.max(outputs.size(), drains.size()),
+            Math.max(Math.max(examination.size(), treatment.size()),
+            Math.max(Math.max(basicCare.size(), healthEducation.size()),
+            nursingRecords.size())))))));
+
+        if (lineCount <= 0) return null;
+
+        long timestamp = row.getTime().getTime();
+        String groupKey = row.getKey();
+        List<HljldDisplayRow> displayRows = new ArrayList<>();
+
+        for (int lineIndex = 0; lineIndex < lineCount; lineIndex++) {
+            HljldDisplayRow dr = new HljldDisplayRow();
+            dr.setKey(groupKey + "::" + lineIndex);
+            dr.setGroupKey(groupKey);
+            dr.setTimestamp(timestamp);
+            dr.setLineIndex(lineIndex);
+            dr.setFirstLine(lineIndex == 0);
+            dr.setLastLine(lineIndex == lineCount - 1);
+            dr.setTimeText(lineIndex == 0 ? row.getTimeText() : "");
+            dr.setMedication(lineIndex < medications.size() ? medications.get(lineIndex) : null);
+            dr.setEnteral(lineIndex < enteral.size() ? enteral.get(lineIndex) : null);
+            dr.setUrine(lineIndex < urines.size() ? urines.get(lineIndex) : "");
+            dr.setUltrafiltration(lineIndex < ultrafiltrations.size() ? ultrafiltrations.get(lineIndex) : "");
+            dr.setOutput(lineIndex < outputs.size() ? outputs.get(lineIndex) : null);
+            dr.setDrain(lineIndex < drains.size() ? drains.get(lineIndex) : null);
+            dr.setExamination(lineIndex < examination.size() ? examination.get(lineIndex) : "");
+            dr.setTreatment(lineIndex < treatment.size() ? treatment.get(lineIndex) : "");
+            dr.setBasicCare(lineIndex < basicCare.size() ? basicCare.get(lineIndex) : "");
+            dr.setHealthEducation(lineIndex < healthEducation.size() ? healthEducation.get(lineIndex) : "");
+            dr.setNursingRecord(lineIndex < nursingRecords.size() ? nursingRecords.get(lineIndex) : "");
+            dr.setSignature(lineIndex == lineCount - 1 ? row.getSignature() : "");
+            displayRows.add(dr);
+        }
+
+        HljldTimeGroup group = new HljldTimeGroup();
+        group.setKey(groupKey);
+        group.setTimestamp(timestamp);
+        group.setRows(displayRows);
+        return group;
     }
 
     // ══════════════════════════════════════════════════════════
