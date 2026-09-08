@@ -81,6 +81,10 @@ public final class HljldPdfFooterPolicyNew {
             && rangeEndNursingDate.equals(referenceTimeNursingDate);
         // 如果结束日期是出科日期或今天，最后一页已有签名，不需要再加
         boolean showSignature = !(isDischargeDay || isCurrentDay);
+        org.slf4j.LoggerFactory.getLogger(HljldPdfFooterPolicyNew.class)
+            .debug("[hljld-new] ofRange: rangeEnd={}, discharge={}, refDay={}, isDischargeDay={}, isCurrentDay={}, showSignature={}",
+                rangeEndNursingDate, effectiveDischargeNursingDate, referenceTimeNursingDate,
+                isDischargeDay, isCurrentDay, showSignature);
         return new HljldPdfFooterPolicyNew(isDischargeDay, showSignature);
     }
 

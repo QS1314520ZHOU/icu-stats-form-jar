@@ -104,6 +104,9 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
         boolean drawRemark = isFinalPage && policy != null && policy.isShowRemarkOnFinalPage();
         boolean drawSignature = isFinalPage && policy != null && policy.isShowAuditSignatureOnFinalPage();
 
+        log.debug("[hljld-new] END_PAGE: localPage={}, totalPages={}, isFinalPage={}, drawRemark={}, drawSignature={}, policy={}",
+            localPageNumber, totalPages, isFinalPage, drawRemark, drawSignature, policy);
+
         // 计算备注区底部Y坐标（仅绘制时需要）
         // 使用动态位置：根据实际内容结束位置计算，而不是固定位置
         float remarksBottom = HljldPdfLayoutConstantsNew.REMARK_BOTTOM;

@@ -524,13 +524,13 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
   /**
    * 更新日期范围
    * 出科患者：限制入科~出科日期范围
-   * 在科患者：不限制范围
+   * 在科患者：限制最大日期为今天（不能选择未来时间）
    */
   private updateDateRange(): void {
     if (!this.patient.isDischarged) {
-      // 在科患者：不限制日期范围
+      // 在科患者：最小日期为空，最大日期为今天（不能选择未来时间）
       this.minDateInput = '';
-      this.maxDateInput = '';
+      this.maxDateInput = this.toDateString(new Date());
       return;
     }
 

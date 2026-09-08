@@ -190,6 +190,7 @@ public class HljldFlowPdfServiceNew {
 
         // ── 第一次渲染：预渲染获取总页数（独立字体包，避免跨文档绑定） ──
         int totalPages = preRenderForPageCount(itemsPerDay, patientInfo, startPageNo);
+        log.debug("[hljld-new] 预渲染完成: totalPages={}, policy={}", totalPages, policy);
 
         // ── 第二次渲染：正式渲染，带上 totalPages 和 policy ──
         // 使用独立字体包（iText PdfFont 不能跨 PdfDocument 共享）
@@ -531,6 +532,8 @@ public class HljldFlowPdfServiceNew {
             // 使用 referenceTime 计算当前护理日（07:00 边界），而非 LocalDate.now()
             LocalDate currentNursingDay = resolveReferenceTimeNursingDate(referenceTime);
             LocalDate maxEndDay = effectiveDischargeDay != null ? effectiveDischargeDay : currentNursingDay;
+            log.debug("[hljld-new] 范围验证: startDate={}, endDate={}, effectiveDischargeDay={}, currentNursingDay={}, maxEndDay={}",
+                startDate, endDate, effectiveDischargeDay, currentNursingDay, maxEndDay);
             if (endDate.compareTo(maxEndDay.toString()) > 0) {
                 String limitDesc = effectiveDischargeDay != null
                     ? "出科护理日 " + effectiveDischargeDay

@@ -80,7 +80,17 @@ export class PdfPrintService {
   async fetchPdfBlob(url: string): Promise<Blob> {
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`加载PDF失败: ${response.status}`);
+      // 尝试读取响应体中的错误信息
+      let errorMsg = `加载PDF失败: ${response.status}`;
+      try {
+        const errorText = await response.text();
+        if (errorText) {
+          errorMsg = errorText;
+        }
+      } catch (e) {
+        // 忽略读取错误
+      }
+      throw new Error(errorMsg);
     }
     const blob = await response.blob();
     if (blob.type !== 'application/pdf') {
