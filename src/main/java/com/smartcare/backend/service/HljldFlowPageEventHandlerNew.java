@@ -105,18 +105,24 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
         boolean drawSignature = isFinalPage && policy != null && policy.isShowAuditSignatureOnFinalPage();
 
         // 计算备注区底部Y坐标（仅绘制时需要）
+        // 使用动态位置：根据实际内容结束位置计算，而不是固定位置
         float remarksBottom = HljldPdfLayoutConstantsNew.REMARK_BOTTOM;
         if (drawRemark) {
             Float dynamicContentEndY = dynamicRemarkTopByLocalPage.get(localPageNumber);
             if (dynamicContentEndY != null) {
+                // 使用动态位置：内容结束位置 - 备注区高度
                 float dynamicBottom = dynamicContentEndY - HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT;
-                if (dynamicBottom >= HljldPdfLayoutConstantsNew.REMARK_BOTTOM - 2f) {
+                // 确保不低于最小安全边界（页码区域上方）
+                float minSafeBottom = HljldPdfLayoutConstantsNew.PAGE_BOTTOM_PADDING
+                    + HljldPdfLayoutConstantsNew.PAGE_NUMBER_HEIGHT
+                    + HljldPdfLayoutConstantsNew.PAGE_NUMBER_REMARK_GAP;
+                if (dynamicBottom >= minSafeBottom) {
                     remarksBottom = dynamicBottom;
                     log.debug("[hljld-new] 备注动态位置: localPage={}, contentEndY={}, remarksBottom={}",
                         localPageNumber, dynamicContentEndY, remarksBottom);
                 } else {
                     log.warn("[hljld-new] 备注动态位置低于安全边界，回退固定位置: localPage={}, " +
-                        "dynamicBottom={}, safeBottom={}", localPageNumber, dynamicBottom, remarksBottom);
+                        "dynamicBottom={}, safeBottom={}", localPageNumber, dynamicBottom, minSafeBottom);
                 }
             }
         }

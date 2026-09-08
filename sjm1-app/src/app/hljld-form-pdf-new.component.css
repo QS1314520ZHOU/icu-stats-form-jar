@@ -39,6 +39,27 @@
   gap: 4px;
 }
 
+/* 打印时间范围选择 */
+.date-range-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.date-label {
+  font-size: 14px;
+  color: #333;
+  margin-right: 4px;
+}
+
+/* 打印按钮组 */
+.print-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .nav-arrow {
   width: 32px;
   height: 32px;
@@ -64,10 +85,12 @@
 
 .date-picker {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .date-picker input {
-  width: 140px;
+  width: 150px;
   height: 32px;
   padding: 0 8px;
   border: 1px solid #ccc;

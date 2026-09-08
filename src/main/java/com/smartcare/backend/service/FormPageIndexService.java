@@ -24,14 +24,17 @@ public class FormPageIndexService {
 
     private final FormPageIndexRepository pageIndexRepository;
     private final HljldFlowPdfService flowPdfService;
+    private final HljldFlowPdfServiceNew flowPdfServiceNew;
     private final HljldPatientResolver patientResolver;
 
     @Autowired
     public FormPageIndexService(FormPageIndexRepository pageIndexRepository,
                                  HljldFlowPdfService flowPdfService,
+                                 HljldFlowPdfServiceNew flowPdfServiceNew,
                                  HljldPatientResolver patientResolver) {
         this.pageIndexRepository = pageIndexRepository;
         this.flowPdfService = flowPdfService;
+        this.flowPdfServiceNew = flowPdfServiceNew;
         this.patientResolver = patientResolver;
     }
 
@@ -213,7 +216,13 @@ public class FormPageIndexService {
                 String dateStr = dateFormat.format(cal.getTime());
                 // 使用当前时间作为referenceTime进行页码计算
                 String referenceTime = java.time.OffsetDateTime.now(java.time.ZoneId.of("Asia/Shanghai")).toString();
-                int pageCount = flowPdfService.calculateFlowPageCount(pid, dateStr, referenceTime);
+                // 根据 formType 使用不同的服务计算页数
+                int pageCount;
+                if ("hljld2-flow-new".equals(formType)) {
+                    pageCount = flowPdfServiceNew.calculateFlowPageCount(pid, dateStr, referenceTime);
+                } else {
+                    pageCount = flowPdfService.calculateFlowPageCount(pid, dateStr, referenceTime);
+                }
 
                 FormPageIndex.DailyPageInfo dailyInfo = new FormPageIndex.DailyPageInfo();
                 dailyInfo.setDate(dateStr);

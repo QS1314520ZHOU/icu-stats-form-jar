@@ -204,11 +204,17 @@ public class HljldFlowPdfServiceNew {
         PdfDocument pdfDoc = new PdfDocument(writer);
         com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
 
+        // 底部边距：只预留页码空间，备注区使用动态位置
+        // 这样非最终页不会预留备注空间，最终页根据实际内容动态调整
+        float marginBottom = HljldPdfLayoutConstantsNew.PAGE_BOTTOM_PADDING
+            + HljldPdfLayoutConstantsNew.PAGE_NUMBER_HEIGHT
+            + HljldPdfLayoutConstantsNew.PAGE_NUMBER_REMARK_GAP;
+
         // 设置边距：精确匹配事件处理器绘制区域
         doc.setMargins(
             HljldPdfLayoutConstantsNew.MARGIN_TOP,
             HljldPdfLayoutConstantsNew.MARGIN_RIGHT,
-            HljldPdfLayoutConstantsNew.MARGIN_BOTTOM,
+            marginBottom,
             HljldPdfLayoutConstantsNew.MARGIN_LEFT
         );
 

@@ -1,7 +1,7 @@
 <section class="hljld-shell">
   <!-- 工具栏 -->
   <header class="toolbar no-print" aria-label="护理记录工具栏">
-    <!-- 日期选择 -->
+    <!-- 日期选择（用于预览查询） -->
     <div class="date-tools" role="group" aria-label="护理记录日期选择">
       <button
         type="button"
@@ -46,11 +46,6 @@
       >今天</button>
     </div>
 
-    <!-- 缩放提示 -->
-    <div class="zoom-tools">
-      <span class="zoom-label">默认135%（使用浏览器原生缩放）</span>
-    </div>
-
     <!-- 页码选择 -->
     <div class="page-tools" *ngIf="pageOptions.length > 0">
       <label class="page-label">页码：</label>
@@ -65,9 +60,7 @@
       </select>
     </div>
 
-    <div class="toolbar-spacer"></div>
-
-    <!-- 操作按钮 -->
+    <!-- 操作按钮（刷新、纠正页码） -->
     <div class="action-tools">
       <button
         type="button"
@@ -86,14 +79,52 @@
       >
         {{ recalculating ? '计算中...' : '纠正页码' }}
       </button>
+    </div>
 
+    <!-- 打印时间范围选择 -->
+    <div class="date-range-tools" role="group" aria-label="打印时间范围选择">
+      <label class="date-picker">
+        <span class="date-label">打印开始：</span>
+        <input
+          type="date"
+          [value]="startDateInput"
+          [min]="minDateInput"
+          [max]="maxDateInput"
+          aria-label="选择打印开始日期"
+          title="选择打印开始日期"
+          (click)="openDatePicker($event)"
+          (keydown.enter)="openDatePicker($event)"
+          (keydown.space)="openDatePicker($event)"
+          (change)="onStartDateInput($any($event.target).value)"
+        />
+      </label>
+
+      <label class="date-picker">
+        <span class="date-label">打印结束：</span>
+        <input
+          type="date"
+          [value]="endDateInput"
+          [min]="minDateInput"
+          [max]="maxDateInput"
+          aria-label="选择打印结束日期"
+          title="选择打印结束日期"
+          (click)="openDatePicker($event)"
+          (keydown.enter)="openDatePicker($event)"
+          (keydown.space)="openDatePicker($event)"
+          (change)="onEndDateInput($any($event.target).value)"
+        />
+      </label>
+    </div>
+
+    <!-- 打印按钮 -->
+    <div class="print-tools">
       <button
         type="button"
         class="print-button"
-        [disabled]="!basePdfUrl || isPrinting"
-        (click)="printCurrentDay()"
+        [disabled]="!patient.pid || isPrinting"
+        (click)="printDateRange()"
       >
-        {{ isPrinting ? '打印中...' : '打印当日' }}
+        {{ isPrinting ? '打印中...' : '时间范围打印' }}
       </button>
 
       <button

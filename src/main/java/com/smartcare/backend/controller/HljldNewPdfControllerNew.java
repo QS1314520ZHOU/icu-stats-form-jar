@@ -175,7 +175,7 @@ public class HljldNewPdfControllerNew {
             @RequestParam String date,
             @RequestParam(required = false) String referenceTime) {
         try {
-            FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, "hljld-new-new", date, referenceTime);
+            FormPageIndexService.PageIndexResult result = pageIndexService.getPageInfo(pid, "hljld2-flow-new", date, referenceTime);
             Map<String, Object> response = new HashMap<>();
             response.put("startPageNo", result.getStartPageNo());
             response.put("pageCount", result.getPageCount());
@@ -194,7 +194,7 @@ public class HljldNewPdfControllerNew {
     public ResponseEntity<Map<String, String>> recalculatePageIndexes(
             @PathVariable String pid) {
         try {
-            pageIndexService.recalculatePageIndexes(pid, "hljld-new-new");
+            pageIndexService.recalculatePageIndexes(pid, "hljld2-flow-new");
             Map<String, String> response = new HashMap<>();
             response.put("status", "started");
             response.put("message", "页码重新计算已开始");
@@ -213,7 +213,7 @@ public class HljldNewPdfControllerNew {
     @GetMapping("/recalculate-status/{pid}")
     public ResponseEntity<Map<String, Object>> getRecalculateStatus(
             @PathVariable String pid) {
-        Map<String, Object> response = pageIndexService.getCalculationStatus(pid, "hljld-new-new");
+        Map<String, Object> response = pageIndexService.getCalculationStatus(pid, "hljld2-flow-new");
         return ResponseEntity.ok(response);
     }
 

@@ -22,6 +22,10 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
   selectedDate = new Date();
   dateInput = this.toDateString(this.selectedDate);
 
+  // 时间范围选择
+  startDateInput = this.toDateString(this.selectedDate);
+  endDateInput = this.toDateString(this.selectedDate);
+
   // 默认显示缩放 135%
   readonly defaultZoom = 135;
 
@@ -89,6 +93,9 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
         this.updateDateRange();
         this.selectedDate = this.getDefaultDate();
         this.dateInput = this.toDateString(this.selectedDate);
+        // 初始化时间范围选择
+        this.startDateInput = this.toDateString(this.selectedDate);
+        this.endDateInput = this.toDateString(this.selectedDate);
       }
 
       this.pageState = 'loading';
@@ -193,16 +200,25 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 选择页码 - 只修改fragment，不重新请求后端PDF
+   * 选择页码 - 直接跳转到对应页面
    */
   onPageSelect(pageNo: number): void {
     this.selectedPageNo = pageNo;
-    this.updateViewerUrl();
+    // 直接修改URL跳转到指定页码
+    const localPage = this.getSelectedLocalPage();
+    const newUrl = `${this.basePdfUrl}#page=${localPage}&zoom=${this.defaultZoom}`;
+    // 强制重新赋值以触发iframe更新
+    this.pdfViewerUrl = '';
     this.cdr.markForCheck();
+    // 延迟设置新URL，确保Angular检测到变化
+    setTimeout(() => {
+      this.pdfViewerUrl = newUrl;
+      this.cdr.markForCheck();
+    }, 50);
   }
 
   /**
-   * 日期变化
+   * 查询日期变化 - 切换预览日期，同时同步打印时间范围
    */
   onDateInput(dateStr: string): void {
     if (!dateStr) {
@@ -216,7 +232,44 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     }
 
     this.selectedDate = date;
+    // 同步更新打印时间范围为当天
+    this.startDateInput = dateStr;
+    this.endDateInput = dateStr;
     this.loadPdf();
+  }
+
+  /**
+   * 打印开始日期变化
+   */
+  onStartDateInput(dateStr: string): void {
+    if (!dateStr) {
+      return;
+    }
+
+    // 使用本地日期解析，避免UTC偏移
+    const date = this.parseLocalDate(dateStr);
+    if (!date) {
+      return;
+    }
+
+    this.startDateInput = dateStr;
+  }
+
+  /**
+   * 打印结束日期变化
+   */
+  onEndDateInput(dateStr: string): void {
+    if (!dateStr) {
+      return;
+    }
+
+    // 使用本地日期解析，避免UTC偏移
+    const date = this.parseLocalDate(dateStr);
+    if (!date) {
+      return;
+    }
+
+    this.endDateInput = dateStr;
   }
 
   /**
@@ -295,10 +348,10 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 打印当前日PDF
+   * 打印时间范围PDF
    */
-  async printCurrentDay(): Promise<void> {
-    if (!this.basePdfUrl || this.isPrinting) {
+  async printDateRange(): Promise<void> {
+    if (!this.patient.pid || this.isPrinting) {
       return;
     }
 
@@ -307,7 +360,14 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      const blob = await this.pdfPrintService.fetchPdfBlob(this.basePdfUrl);
+      const referenceTime = this.resolveReferenceTime();
+      const pdfUrl = this.pdfService.getRangePrintPdfUrl(
+        this.patient.pid,
+        this.startDateInput,
+        this.endDateInput,
+        referenceTime
+      );
+      const blob = await this.pdfPrintService.fetchPdfBlob(pdfUrl);
       await this.pdfPrintService.printPdfBlob(blob);
     } catch (err: any) {
       console.error('[HLJLD] 打印失败', err);
@@ -375,6 +435,9 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     }
     this.selectedDate = date;
     this.dateInput = this.toDateString(date);
+    // 同步更新打印时间范围
+    this.startDateInput = this.toDateString(date);
+    this.endDateInput = this.toDateString(date);
     this.loadPdf();
   }
 
@@ -392,6 +455,9 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     }
     this.selectedDate = date;
     this.dateInput = this.toDateString(date);
+    // 同步更新打印时间范围
+    this.startDateInput = this.toDateString(date);
+    this.endDateInput = this.toDateString(date);
     this.loadPdf();
   }
 
@@ -399,8 +465,12 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
    * 今天
    */
   today(): void {
-    this.selectedDate = new Date();
-    this.dateInput = this.toDateString(this.selectedDate);
+    const today = new Date();
+    this.selectedDate = today;
+    this.dateInput = this.toDateString(today);
+    // 同步更新打印时间范围
+    this.startDateInput = this.toDateString(today);
+    this.endDateInput = this.toDateString(today);
     this.loadPdf();
   }
 
@@ -436,7 +506,8 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
    */
   isTodaySelected(): boolean {
     const today = new Date();
-    return this.selectedDate.toDateString() === today.toDateString();
+    const todayStr = this.toDateString(today);
+    return this.startDateInput === todayStr && this.endDateInput === todayStr;
   }
 
   /**
@@ -524,6 +595,8 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     this.selectedPageNo = 1;
     this.minDateInput = '';
     this.maxDateInput = '';
+    this.startDateInput = this.toDateString(new Date());
+    this.endDateInput = this.toDateString(new Date());
   }
 
   // 保留totalPages和currentPage用于模板状态显示
