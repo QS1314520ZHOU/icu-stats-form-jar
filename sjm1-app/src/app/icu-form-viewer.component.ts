@@ -36,6 +36,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   private readyTimer: any = null;
   private readyCount = 0;
   private readonly MAX_READY_RETRIES = 10;
+  private isUpdatingUrl = false; // 防止 updateUrl 触发无限循环
 
   constructor(
     private route: ActivatedRoute,
@@ -56,6 +57,11 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     this.route.queryParamMap.pipe(
       takeUntil(this.destroy$),
     ).subscribe(params => {
+      // 如果正在更新 URL，跳过本次触发
+      if (this.isUpdatingUrl) {
+        return;
+      }
+
       const mrn = params.get('mrn');
       const form = params.get('form');
       const start = params.get('startTime');
@@ -373,6 +379,9 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
   /** 更新 URL 查询参数（不刷新页面） */
   private updateUrl(mrn: string, startTimeMs?: string, endTimeMs?: string): void {
+    // 设置标志位，防止触发无限循环
+    this.isUpdatingUrl = true;
+
     const queryParams: any = {
       mrn,
       form: this.selectedFormKey,
@@ -390,6 +399,11 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       queryParams,
       queryParamsHandling: 'merge',
       replaceUrl: true,
+    }).finally(() => {
+      // 在下一个 tick 重置标志位
+      setTimeout(() => {
+        this.isUpdatingUrl = false;
+      }, 0);
     });
   }
 
