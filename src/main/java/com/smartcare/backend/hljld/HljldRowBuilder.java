@@ -301,7 +301,7 @@ public class HljldRowBuilder {
             long timestamp = row.getTime().getTime();
 
             // carryOver行（sortRank=-1）和结算行（sortRank=2）不进行时间调整
-            int sortRank = row.getSortRank() != null ? row.getSortRank() : 0;
+            int sortRank = row.getSortRank();
             if (sortRank == -1 || sortRank == 2) {
                 result.add(row);
                 continue;
