@@ -9,6 +9,8 @@ public class NameAmountRoute {
     private String amount = "";
     private String route = "";
     private double numericAmount = 0;
+    /** 是否来自床旁录入（bedside）：口服量、鼻饲量等。用于区分 drugExecutions 数据 */
+    private boolean fromBedside = false;
 
     public NameAmountRoute() {}
 
@@ -27,6 +29,8 @@ public class NameAmountRoute {
     public void setRoute(String route) { this.route = route; }
     public double getNumericAmount() { return numericAmount; }
     public void setNumericAmount(double numericAmount) { this.numericAmount = numericAmount; }
+    public boolean isFromBedside() { return fromBedside; }
+    public void setFromBedside(boolean fromBedside) { this.fromBedside = fromBedside; }
 
     public boolean hasNameOrAmount() {
         return hasText(name) || hasText(amount);

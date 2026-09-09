@@ -332,14 +332,19 @@ public class HljldRowBuilder {
     }
 
     /**
-     * 检查行是否包含尿量、净超滤量、排出物、引流液、口服量、鼻饲量数据
+     * 检查行是否包含需要时间调整的床旁录入数据（口服量、鼻饲量）。
+     * 只检查来自 bedside 的数据，不检查来自 drugExecutions 的肠内营养药物。
      */
     private boolean hasOutputFieldData(HljldTimeRow row) {
-        return (row.getUrines() != null && !row.getUrines().isEmpty())
-            || (row.getUltrafiltrations() != null && !row.getUltrafiltrations().isEmpty())
-            || (row.getOutputs() != null && !row.getOutputs().isEmpty())
-            || (row.getDrains() != null && !row.getDrains().isEmpty())
-            || (row.getEnteral() != null && !row.getEnteral().isEmpty());
+        if (row.getUrines() != null && !row.getUrines().isEmpty()) return true;
+        if (row.getUltrafiltrations() != null && !row.getUltrafiltrations().isEmpty()) return true;
+        if (row.getOutputs() != null && !row.getOutputs().isEmpty()) return true;
+        if (row.getDrains() != null && !row.getDrains().isEmpty()) return true;
+        // 只检查来自 bedside 的 enteral 数据（口服量、鼻饲量）
+        if (row.getEnteral() != null) {
+            return row.getEnteral().stream().anyMatch(NameAmountRoute::isFromBedside);
+        }
+        return false;
     }
 
     /**
@@ -353,12 +358,15 @@ public class HljldRowBuilder {
 
     /**
      * 创建移除尿量等字段后的行（原时间）
+     * 保留来自 drugExecutions 的 enteral 数据（肠内营养药物）
      */
     private HljldTimeRow createRowWithoutOutputFields(HljldTimeRow original) {
-        // 检查是否还有其他数据
+        // 检查是否还有其他数据（包括 drugExecutions 的 enteral 数据）
         boolean hasOtherData = hasNonOutputFieldData(original);
+        boolean hasDrugEnteral = original.getEnteral() != null
+            && original.getEnteral().stream().anyMatch(e -> !e.isFromBedside());
 
-        if (!hasOtherData) {
+        if (!hasOtherData && !hasDrugEnteral) {
             return null; // 没有其他数据，不创建原时间行
         }
 
@@ -368,7 +376,14 @@ public class HljldRowBuilder {
         row.setTimeText(original.getTimeText());
         row.setSortRank(original.getSortRank());
         row.setMedications(original.getMedications());
-        row.setEnteral(new ArrayList<>()); // 清空口服量、鼻饲量
+        // 保留来自 drugExecutions 的 enteral 数据，移除 bedside 数据
+        if (original.getEnteral() != null) {
+            row.setEnteral(original.getEnteral().stream()
+                .filter(e -> !e.isFromBedside())
+                .collect(Collectors.toList()));
+        } else {
+            row.setEnteral(new ArrayList<>());
+        }
         row.setUrines(new ArrayList<>()); // 清空尿量等字段
         row.setUltrafiltrations(new ArrayList<>());
         row.setOutputs(new ArrayList<>());
@@ -383,30 +398,39 @@ public class HljldRowBuilder {
     }
 
     /**
-     * 检查行是否包含非尿量等字段的数据（不包含口服量、鼻饲量，因为它们也要被移动）
+     * 检查行是否包含非尿量等字段的数据
+     * 包含来自 drugExecutions 的 enteral 数据（肠内营养药物）
      */
     private boolean hasNonOutputFieldData(HljldTimeRow row) {
-        return (row.getMedications() != null && !row.getMedications().isEmpty())
-            || (row.getExamination() != null && !row.getExamination().isEmpty())
-            || (row.getTreatment() != null && !row.getTreatment().isEmpty())
-            || (row.getBasicCare() != null && !row.getBasicCare().isEmpty())
-            || (row.getHealthEducation() != null && !row.getHealthEducation().isEmpty())
-            || (row.getNursingRecords() != null && !row.getNursingRecords().isEmpty());
+        if (row.getMedications() != null && !row.getMedications().isEmpty()) return true;
+        if (row.getExamination() != null && !row.getExamination().isEmpty()) return true;
+        if (row.getTreatment() != null && !row.getTreatment().isEmpty()) return true;
+        if (row.getBasicCare() != null && !row.getBasicCare().isEmpty()) return true;
+        if (row.getHealthEducation() != null && !row.getHealthEducation().isEmpty()) return true;
+        if (row.getNursingRecords() != null && !row.getNursingRecords().isEmpty()) return true;
+        // 包含来自 drugExecutions 的 enteral 数据
+        if (row.getEnteral() != null) {
+            return row.getEnteral().stream().anyMatch(e -> !e.isFromBedside());
+        }
+        return false;
     }
 
     /**
      * 创建尿量等字段的新行（时间+1小时）
+     * 只移动来自 bedside 的 enteral 数据（口服量、鼻饲量）
      */
     private HljldTimeRow createOutputFieldRow(HljldTimeRow original) {
-        // 检查是否有尿量等数据
+        // 检查是否有需要移动的床旁数据
         boolean hasUrines = original.getUrines() != null && !original.getUrines().isEmpty();
         boolean hasUltrafiltrations = original.getUltrafiltrations() != null && !original.getUltrafiltrations().isEmpty();
         boolean hasOutputs = original.getOutputs() != null && !original.getOutputs().isEmpty();
         boolean hasDrains = original.getDrains() != null && !original.getDrains().isEmpty();
-        boolean hasEnteral = original.getEnteral() != null && !original.getEnteral().isEmpty();
+        // 只检查来自 bedside 的 enteral 数据
+        boolean hasBedsideEnteral = original.getEnteral() != null
+            && original.getEnteral().stream().anyMatch(NameAmountRoute::isFromBedside);
 
-        if (!hasUrines && !hasUltrafiltrations && !hasOutputs && !hasDrains && !hasEnteral) {
-            return null; // 没有尿量等数据，不创建新行
+        if (!hasUrines && !hasUltrafiltrations && !hasOutputs && !hasDrains && !hasBedsideEnteral) {
+            return null; // 没有需要移动的床旁数据，不创建新行
         }
 
         // 时间+1小时
@@ -428,7 +452,14 @@ public class HljldRowBuilder {
         row.setSortRank(original.getSortRank());
         row.setTimeAdjusted(true); // 标记为时间调整过的行
         row.setMedications(new ArrayList<>()); // 不包含药物治疗
-        row.setEnteral(original.getEnteral()); // 包含口服量、鼻饲量
+        // 只移动来自 bedside 的 enteral 数据
+        if (original.getEnteral() != null) {
+            row.setEnteral(original.getEnteral().stream()
+                .filter(NameAmountRoute::isFromBedside)
+                .collect(Collectors.toList()));
+        } else {
+            row.setEnteral(new ArrayList<>());
+        }
         row.setUrines(original.getUrines());
         row.setUltrafiltrations(original.getUltrafiltrations());
         row.setOutputs(original.getOutputs());

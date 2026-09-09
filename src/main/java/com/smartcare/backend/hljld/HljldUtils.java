@@ -1449,11 +1449,13 @@ public final class HljldUtils {
         else if (CODE_TUBE_FEEDING.equals(code)) route = "鼻饲";
         String remark = strOrNull(record, "remark");
         String strVal = strOrNull(record, "strVal");
-        return new NameAmountRoute(
+        NameAmountRoute cell = new NameAmountRoute(
             remark != null ? remark.trim() : "",
             displayAmount(record.get("strVal")),
             route,
             parseAmount(record.get("strVal")));
+        cell.setFromBedside(true); // 标记为床旁录入数据
+        return cell;
     }
 
     /**
