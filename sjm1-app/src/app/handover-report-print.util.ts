@@ -294,8 +294,20 @@ function createPrintStyles(): void {
 
     /* 表格行避免跨页 */
     .print-table tr {
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+
+    /* 表格整体允许分页 */
+    .print-table {
+      page-break-inside: auto;
+      break-inside: auto;
+    }
+
+    /* 避免表格标题后立即分页 */
+    .print-report-title {
+      page-break-after: avoid;
+      break-after: avoid;
     }
   `;
   document.head.appendChild(style);
@@ -458,7 +470,7 @@ function measurePatientRowHeights(rows: HandoverPatientRow[]): number[] {
   table.className = 'print-table';
   table.style.cssText = 'width:283mm;border-collapse:collapse;table-layout:fixed;';
 
-  const colWidths = ['3%', '4%', '3%', '7%', '20%', '21%', '21%', '21%'];
+  const colWidths = ['5%', '6%', '5%', '10%', '22%', '17%', '17%', '18%'];
   const colgroup = document.createElement('colgroup');
   colWidths.forEach(w => {
     const col = document.createElement('col');
@@ -486,7 +498,7 @@ function measurePatientRowHeights(rows: HandoverPatientRow[]): number[] {
   // 测量每行高度
   for (const row of rows) {
     const tr = document.createElement('tr');
-    tr.style.cssText = 'break-inside:avoid;page-break-inside:avoid;';
+    tr.style.cssText = 'break-inside:auto;page-break-inside:auto;';
 
     const statusDisplay = ['死亡', '转入', '入院', '手术'].includes(row.status)
       ? `"${row.status}"` : row.status;
@@ -526,7 +538,7 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   table.className = 'print-table';
 
   // 设置列宽
-  const colWidths = ['3%', '4%', '3%', '7%', '20%', '21%', '21%', '21%'];
+  const colWidths = ['5%', '6%', '5%', '10%', '22%', '17%', '17%', '18%'];
   const colgroup = document.createElement('colgroup');
   colWidths.forEach(width => {
     const col = document.createElement('col');
@@ -547,10 +559,8 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   thead.appendChild(headerRow);
   table.appendChild(thead);
 
-  // 表体（Fix 2：测量行高，超高行添加分页提示）
+  // 表体
   const tbody = document.createElement('tbody');
-  const rowHeights = measurePatientRowHeights(rows);
-  const pageAvailHeight = CONTENT_HEIGHT_MM - SAFETY_GAP_MM; // 页面可用高度 mm
 
   if (rows.length === 0) {
     // 空患者处理
@@ -564,14 +574,6 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   } else {
     rows.forEach((row, idx) => {
       const tr = createPatientRow(row);
-      const rowHeight = rowHeights[idx] || 0;
-
-      // 如果行高超过页面可用高度，添加分页提示样式
-      if (rowHeight > pageAvailHeight) {
-        tr.style.pageBreakBefore = 'always';
-        tr.style.breakBefore = 'page';
-      }
-
       tbody.appendChild(tr);
     });
   }

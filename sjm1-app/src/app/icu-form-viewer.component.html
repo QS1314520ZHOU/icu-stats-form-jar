@@ -1,0 +1,104 @@
+<div class="icu-form-viewer">
+  <!-- 工具栏 -->
+  <div class="viewer-toolbar">
+    <div class="toolbar-controls">
+      <label class="toolbar-label" for="form-select">表单</label>
+      <select
+        id="form-select"
+        class="toolbar-select"
+        [(ngModel)]="selectedFormKey"
+        (ngModelChange)="onFormChange()">
+        <option *ngFor="let f of forms" [value]="f.key">{{ f.title }}</option>
+      </select>
+
+      <label class="toolbar-label" for="mrn-input">住院号</label>
+      <input
+        id="mrn-input"
+        class="toolbar-input"
+        type="text"
+        placeholder="请输入住院号"
+        [(ngModel)]="mrnInput"
+        (keyup.enter)="onQuery()"
+        aria-label="住院号" />
+
+      <label class="toolbar-label" for="start-time">开始时间</label>
+      <input
+        id="start-time"
+        class="toolbar-input toolbar-datetime"
+        type="text"
+        placeholder="yyyy-MM-dd HH:mm"
+        [(ngModel)]="startTime"
+        aria-label="开始时间" />
+
+      <label class="toolbar-label" for="end-time">结束时间</label>
+      <input
+        id="end-time"
+        class="toolbar-input toolbar-datetime"
+        type="text"
+        placeholder="yyyy-MM-dd HH:mm"
+        [(ngModel)]="endTime"
+        aria-label="结束时间" />
+
+      <button class="toolbar-query-btn" (click)="onQuery()" [disabled]="state === 'loading-patient' || state === 'checking-data' || state === 'loading-form'">
+        查询
+      </button>
+    </div>
+
+    <div class="toolbar-patient-info" *ngIf="patientInfo">
+      {{ patientInfo }}
+    </div>
+  </div>
+
+  <!-- 内容区 -->
+  <div class="viewer-content">
+    <!-- 加载中 -->
+    <div class="state-panel" *ngIf="state === 'loading-patient'">
+      <div class="state-spinner"></div>
+      <div>正在查询患者信息...</div>
+    </div>
+
+    <div class="state-panel" *ngIf="state === 'checking-data'">
+      <div class="state-spinner"></div>
+      <div>正在检查表单数据...</div>
+    </div>
+
+    <div class="state-panel" *ngIf="state === 'loading-form'">
+      <div class="state-spinner"></div>
+      <div>正在加载表单...</div>
+    </div>
+
+    <!-- 空状态 -->
+    <div class="state-panel" *ngIf="state === 'idle'">
+      <div class="state-icon">📋</div>
+      <div class="state-text">请输入住院号后点击查询</div>
+    </div>
+
+    <!-- 错误状态 -->
+    <div class="state-panel state-error" *ngIf="state === 'error'">
+      <div class="state-icon">⚠️</div>
+      <div class="state-text">{{ errorMessage }}</div>
+    </div>
+
+    <!-- 患者不存在 -->
+    <div class="state-panel state-error" *ngIf="state === 'patient-not-found'">
+      <div class="state-icon">❌</div>
+      <div class="state-text">{{ errorMessage }}</div>
+    </div>
+
+    <!-- 无表单数据 -->
+    <div class="state-panel" *ngIf="state === 'no-form-data'">
+      <div class="state-icon">📭</div>
+      <div class="state-text">{{ errorMessage || '没有相关的表单数据' }}</div>
+    </div>
+
+    <!-- 表单 iframe -->
+    <iframe
+      *ngIf="state === 'ready' && iframeSrc"
+      id="viewer-iframe"
+      class="viewer-iframe"
+      [src]="iframeSrc"
+      frameborder="0"
+      allowfullscreen>
+    </iframe>
+  </div>
+</div>

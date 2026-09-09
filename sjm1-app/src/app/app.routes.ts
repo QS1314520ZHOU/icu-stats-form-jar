@@ -23,8 +23,10 @@ import { HandoverReportComponent } from './handover-report.component';
 import { BloodSugarComponent } from './blood-sugar.component';
 import { UnplannedExtubationComponent } from './unplanned-extubation.component';
 import { PrintCenterComponent } from './print-center.component';
+import { IcuFormViewerComponent } from './icu-form-viewer.component';
 
 export const routes: Routes = [
+  { path: 'getIcuForm', component: IcuFormViewerComponent },
   { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
   { path: 'sjmCrrt', component: SjmCrrtVeinMaintenanceComponent },
   { path: 'ydwzlForm', component: YdwzlTemperatureComponent },

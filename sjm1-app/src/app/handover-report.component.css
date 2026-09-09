@@ -45,12 +45,12 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   font-size: 12px;
   margin-bottom: 16px;
 
-  --bed-width: 3%;
-  --name-width: 4%;
-  --status-width: 3%;
-  --mrn-width: 7%;
-  --diagnosis-width: 20%;
-  --shift-width: 21%;
+  --bed-width: 5%;
+  --name-width: 6%;
+  --status-width: 5%;
+  --mrn-width: 10%;
+  --diagnosis-width: 22%;
+  --shift-width: 17%;
 }
 
 .patient-table td { text-align: left; vertical-align: top; }
@@ -458,6 +458,8 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
     break-before: auto;
     page-break-before: auto;
     margin-top: 0;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 
   .safety-report-section h2 {
