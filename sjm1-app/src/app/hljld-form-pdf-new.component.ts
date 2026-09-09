@@ -63,6 +63,10 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
   // Viewer 模式标志
   isViewerMode = false;
 
+  // Viewer 模式下的时间范围
+  viewerStartDate = '';
+  viewerEndDate = '';
+
   constructor(
     private readonly hostPatient: HostPatientService,
     private readonly hljldService: HljldFormNewService,
@@ -73,11 +77,24 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // 检测 viewer 模式
+    // 检测 viewer 模式并获取时间范围
     this.contextService.getContext$().pipe(
       takeUntil(this.destroy$),
     ).subscribe(ctx => {
       this.isViewerMode = ctx.isViewerMode;
+
+      // 在 viewer 模式下，使用传入的时间范围
+      if (ctx.isViewerMode && ctx.startInstant && ctx.endInstant) {
+        this.viewerStartDate = this.toDateString(ctx.startInstant);
+        this.viewerEndDate = this.toDateString(ctx.endInstant);
+        // 同步更新打印时间范围
+        this.startDateInput = this.viewerStartDate;
+        this.endDateInput = this.viewerEndDate;
+        // 使用开始日期作为默认显示日期
+        this.selectedDate = ctx.startInstant;
+        this.dateInput = this.toDateString(this.selectedDate);
+      }
+
       this.cdr.markForCheck();
     });
 
@@ -137,8 +154,33 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     this.stopPolling();
     this.cdr.markForCheck();
 
-    const dateStr = this.toDateString(this.selectedDate);
     const referenceTime = this.resolveReferenceTime();
+
+    // Viewer 模式下使用时间范围
+    if (this.isViewerMode && this.viewerStartDate && this.viewerEndDate) {
+      // 使用时间范围 API
+      this.basePdfUrl = this.pdfService.getRangePrintPdfUrl(
+        this.patient.pid,
+        this.viewerStartDate,
+        this.viewerEndDate,
+        referenceTime
+      );
+
+      // 时间范围模式下，简化页码处理
+      this.pageIndex = { startPageNo: 1, pageCount: 1, status: 'completed' };
+      this.pageOptions = [1];
+      this.selectedPageNo = 1;
+
+      this.updateViewerUrl();
+
+      this.isLoadingPdf = false;
+      this.pageState = 'ready';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    // 非 viewer 模式，按天加载
+    const dateStr = this.toDateString(this.selectedDate);
 
     // 获取页码信息
     this.pdfService.getPageIndex(this.patient.pid, dateStr, referenceTime).pipe(
@@ -441,8 +483,9 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     const date = new Date(this.selectedDate);
     date.setDate(date.getDate() - 1);
     if (this.minDateInput) {
-      const minDate = this.parseLocalDate(this.minDateInput);
-      if (minDate && date < minDate) {
+      // 只比较日期部分，忽略时间部分
+      const prevDayStr = this.toDateString(date);
+      if (prevDayStr < this.minDateInput) {
         return;
       }
     }
@@ -461,8 +504,9 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     const date = new Date(this.selectedDate);
     date.setDate(date.getDate() + 1);
     if (this.maxDateInput) {
-      const maxDate = this.parseLocalDate(this.maxDateInput);
-      if (maxDate && date > maxDate) {
+      // 只比较日期部分，忽略时间部分
+      const nextDayStr = this.toDateString(date);
+      if (nextDayStr > this.maxDateInput) {
         return;
       }
     }
