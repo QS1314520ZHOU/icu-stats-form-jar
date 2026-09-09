@@ -105,6 +105,7 @@
   min-height: 100%;
   border: none;
   overflow: auto;
+  background: #fff;
 }
 
 /* ── 状态面板 ── */
