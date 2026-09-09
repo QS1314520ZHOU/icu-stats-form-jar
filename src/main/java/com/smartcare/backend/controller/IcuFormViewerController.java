@@ -3,6 +3,7 @@ package com.smartcare.backend.controller;
 import com.smartcare.backend.dto.IcuFormAvailabilityResponse;
 import com.smartcare.backend.service.IcuFormViewerService;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -40,14 +41,14 @@ public class IcuFormViewerController {
         Instant startInstant;
         Instant endInstant;
         try {
-            startInstant = Instant.parse(startTime);
+            startInstant = OffsetDateTime.parse(startTime).toInstant();
         } catch (DateTimeParseException e) {
-            return ResponseEntity.badRequest().body("startTime 格式无效，需要 ISO-8601 格式");
+            return ResponseEntity.badRequest().body("startTime 格式无效，需要带时区的 ISO-8601 格式");
         }
         try {
-            endInstant = Instant.parse(endTime);
+            endInstant = OffsetDateTime.parse(endTime).toInstant();
         } catch (DateTimeParseException e) {
-            return ResponseEntity.badRequest().body("endTime 格式无效，需要 ISO-8601 格式");
+            return ResponseEntity.badRequest().body("endTime 格式无效，需要带时区的 ISO-8601 格式");
         }
 
         if (startInstant.isAfter(endInstant)) {
