@@ -60,6 +60,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       const form = params.get('form');
       const start = params.get('startTime');
       const end = params.get('endTime');
+      const startMs = params.get('startTimeMs');
+      const endMs = params.get('endTimeMs');
 
       if (mrn) {
         this.mrnInput = mrn.trim();
@@ -67,8 +69,25 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       if (form && this.forms.some(f => f.key === form)) {
         this.selectedFormKey = form;
       }
-      if (start) this.startTime = start;
-      if (end) this.endTime = end;
+
+      // 支持时间戳格式和字符串格式
+      if (startMs) {
+        const date = new Date(Number(startMs));
+        if (!isNaN(date.getTime())) {
+          this.startTime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+      } else if (start) {
+        this.startTime = start;
+      }
+
+      if (endMs) {
+        const date = new Date(Number(endMs));
+        if (!isNaN(date.getTime())) {
+          this.endTime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+      } else if (end) {
+        this.endTime = end;
+      }
 
       // URL 中有 mrn 时自动查询
       if (this.mrnInput) {
@@ -171,6 +190,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
     const startTimeIso = IcuFormViewerContextService.toIsoOffset(startInstant);
     const endTimeIso = IcuFormViewerContextService.toIsoOffset(endExclusive);
+    const startTimeMs = IcuFormViewerContextService.toTimestamp(startInstant);
+    const endTimeMs = IcuFormViewerContextService.toTimestamp(endExclusive);
 
     // Step 1: 查询患者
     this.state = 'loading-patient';
@@ -222,8 +243,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
             // CLIENT_SIDE：前端自行判断，直接加载 iframe
             if (resp.status === 'CLIENT_SIDE') {
-              this.loadFormIframe(pid, startTimeIso, endTimeIso);
-              this.updateUrl(mrn);
+              this.loadFormIframe(pid, startTimeMs, endTimeMs);
+              this.updateUrl(mrn, startTimeMs, endTimeMs);
               return;
             }
 
@@ -235,8 +256,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
             }
 
             // Step 3: 加载表单 iframe
-            this.loadFormIframe(pid, startTimeIso, endTimeIso);
-            this.updateUrl(mrn);
+            this.loadFormIframe(pid, startTimeMs, endTimeMs);
+            this.updateUrl(mrn, startTimeMs, endTimeMs);
           },
           error: () => {
             if (seq !== this.querySequence) return;
@@ -261,12 +282,12 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   }
 
   /** 加载表单 iframe */
-  private loadFormIframe(pid: string, startTimeIso: string, endTimeIso: string): void {
+  private loadFormIframe(pid: string, startTimeMs: string, endTimeMs: string): void {
     this.state = 'loading-form';
     this.cdr.markForCheck();
 
     const form = this.selectedForm;
-    const src = `/form/${form.route}?viewer=1&startTime=${encodeURIComponent(startTimeIso)}&endTime=${encodeURIComponent(endTimeIso)}`;
+    const src = `/form/${form.route}?viewer=1&startTimeMs=${startTimeMs}&endTimeMs=${endTimeMs}`;
     this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(src);
 
     // 等待 Angular 更新 iframe src，然后设置 load 和 message 监听
@@ -351,15 +372,22 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   }
 
   /** 更新 URL 查询参数（不刷新页面） */
-  private updateUrl(mrn: string): void {
+  private updateUrl(mrn: string, startTimeMs?: string, endTimeMs?: string): void {
+    const queryParams: any = {
+      mrn,
+      form: this.selectedFormKey,
+    };
+    // 优先使用时间戳格式
+    if (startTimeMs && endTimeMs) {
+      queryParams.startTimeMs = startTimeMs;
+      queryParams.endTimeMs = endTimeMs;
+    } else {
+      queryParams.startTime = this.startTime;
+      queryParams.endTime = this.endTime;
+    }
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: {
-        mrn,
-        form: this.selectedFormKey,
-        startTime: this.startTime,
-        endTime: this.endTime,
-      },
+      queryParams,
       queryParamsHandling: 'merge',
       replaceUrl: true,
     });
