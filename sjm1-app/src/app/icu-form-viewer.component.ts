@@ -6,6 +6,7 @@ import { IcuFormViewerFormDef, IcuFormViewerState, IcuPatient } from './icu-form
 import { ICU_VIEWER_FORMS } from './icu-form-viewer.registry';
 import { IcuFormViewerService } from './icu-form-viewer.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 @Component({
   standalone: false,
@@ -25,7 +26,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   state: IcuFormViewerState = 'idle';
   patient: IcuPatient | null = null;
   errorMessage = '';
-  iframeSrc = '';
+  iframeSrc: SafeResourceUrl | null = null;
   patientInfo = '';
 
   private destroy$ = new Subject<void>();
@@ -43,6 +44,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     private contextService: IcuFormViewerContextService,
     private zone: NgZone,
     private cdr: ChangeDetectorRef,
+    private sanitizer: DomSanitizer,
   ) {}
 
   ngOnInit(): void {
@@ -164,11 +166,11 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
       return;
     }
-    // 结束时间补到秒级末尾 59
-    const endWithSeconds = new Date(endInstant.getTime() + 59 * 1000);
+    // 用户输入的结束分钟按整分钟包含，转换为下一分钟的排他边界
+    const endExclusive = new Date(endInstant.getTime() + 60 * 1000);
 
     const startTimeIso = IcuFormViewerContextService.toIsoOffset(startInstant);
-    const endTimeIso = IcuFormViewerContextService.toIsoOffset(endWithSeconds);
+    const endTimeIso = IcuFormViewerContextService.toIsoOffset(endExclusive);
 
     // Step 1: 查询患者
     this.state = 'loading-patient';
@@ -265,7 +267,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
     const form = this.selectedForm;
     const src = `/form/${form.route}?viewer=1&startTime=${encodeURIComponent(startTimeIso)}&endTime=${encodeURIComponent(endTimeIso)}`;
-    this.iframeSrc = src;
+    this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(src);
 
     // 等待 Angular 更新 iframe src，然后设置 load 和 message 监听
     setTimeout(() => {

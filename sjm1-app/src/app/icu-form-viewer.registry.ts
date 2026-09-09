@@ -18,10 +18,6 @@ export const ICU_VIEWER_FORMS: IcuFormViewerFormDef[] = [
   /* ── 交班报告 ── */
   { key: 'handoverReport', title: 'ICU 交班报告', route: 'handoverReport' },
 
-  /* ── 管道维护 ── */
-  { key: 'sjm1', title: '深静脉维护记录单（一）', route: 'sjm1' },
-  { key: 'sjmCrrt', title: '深静脉维护记录单（三）·透析导管', route: 'sjmCrrt' },
-
   /* ── 专科治疗 ── */
   { key: 'ydwzlForm', title: '亚低温治疗体温记录单', route: 'ydwzlForm' },
   { key: 'ecmoForm', title: 'ECMO 运行护理记录单', route: 'ecmoForm' },

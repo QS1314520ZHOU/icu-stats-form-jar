@@ -54,25 +54,26 @@ function renderTags(sources) {
 }
 
 var nursingForms = [
-  {name:'深静脉维护记录单（一）',path:'/form/sjm1',data:['TubeExe','Sjm1VeinExtra']},
-  {name:'深静脉维护记录单（三）·透析导管',path:'/form/sjmCrrt',data:['TubeExe','Sjm1VeinExtra']},
+  {name:'重症监护护理记录单',path:'/form/hljldFormPDFNew',data:['Bedside','DrugExecution']},
+  {name:'交班报告',path:'/form/handoverReport',data:['Bedside','Score']},
   {name:'亚低温治疗体温记录单',path:'/form/ydwzlForm',data:['Bedside','YdwzlFormExtra']},
+  {name:'ECMO 运行护理记录单',path:'/form/ecmoForm',data:['Bedside','EcmoRecordExtra']},
+  {name:'CRRT 护理记录单',path:'/form/crrtForm',data:['Bedside','CrrtRecord']},
+  {name:'CRRT 治疗医嘱单',path:'/form/crrtOrderForm',data:['CrrtOrderForm']},
+  {name:'PICCO 容量监测参数记录表',path:'/form/piccoForm',data:['Bedside','PiccoRecordExtra']},
+  {name:'IABP 运行护理记录单',path:'/form/iabpForm',data:['Bedside','IabpRecordExtra']},
   {name:'肠内营养耐受性评分表',path:'/form/toleranceForm',data:['Score']},
   {name:'自杀风险评估表（NGASR）',path:'/form/commitSuicideForm',data:['Score']},
   {name:'失禁相关性皮炎（IAD）评估记录单',path:'/form/IADForm',data:['Score']},
   {name:'住院患者日常生活能力评估单（Barthel）',path:'/form/baetheiForm',data:['Score','SelfCareFormExtra']},
   {name:'跌倒/坠床风险评估及预防措施记录单',path:'/form/patientFallDangerForm',data:['Score','FallDangerFormExtra']},
+  {name:'住院患者压力性损伤评估及措施记录单（Braden）',path:'/form/bradenForm',data:['Score']},
+  {name:'非计划拔管风险评估及护理措施记录单',path:'/form/unPlannedCGZYYForm',data:['Score']},
   {name:'健康教育记录单',path:'/form/jkjyForm',data:['HealthEducationRecord']},
   {name:'住院患者物品管理表',path:'/form/wpgmForm',data:[]},
-  {name:'ECMO 运行护理记录单',path:'/form/ecmoForm',data:['Bedside','EcmoRecordExtra']},
   {name:'输血记录单',path:'/form/transfusionForm',data:['TransfusionRecord']},
-  {name:'PICCO 容量监测参数记录表',path:'/form/piccoForm',data:['Bedside','PiccoRecordExtra']},
-  {name:'IABP 运行护理记录单',path:'/form/iabpForm',data:['Bedside','IabpRecordExtra']},
-  {name:'住院患者压力性损伤评估及措施记录单（Braden）',path:'/form/bradenForm',data:['Score']},
-  {name:'CRRT 护理记录单',path:'/form/crrtForm',data:['Bedside','CrrtRecord']},
-  {name:'CRRT 治疗医嘱单',path:'/form/crrtOrderForm',data:['CrrtOrderForm']},
-  {name:'交班报告',path:'/form/handoverReport',data:['Bedside','Score']},
-  {name:'血糖记录',path:'/form/bloodSugar',data:[]}
+  {name:'血糖记录',path:'/form/bloodSugar',data:[]},
+  {name:'体温单',path:'/form/temperatureRecord',data:[]}
 ];
 
 function renderRows(containerId, list) {

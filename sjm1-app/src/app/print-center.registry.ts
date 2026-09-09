@@ -1,7 +1,5 @@
 import { PrintFormDef, PrintGroupKey } from './print-center.models';
 
-import { Sjm1VeinMaintenanceComponent } from './sjm1-vein-maintenance.component';
-import { SjmCrrtVeinMaintenanceComponent } from './sjm-crrt-vein-maintenance.component';
 import { YdwzlTemperatureComponent } from './ydwzl-temperature.component';
 import { ToleranceScoreComponent } from './tolerance-score.component';
 import { CommitSuicideScoreComponent } from './commit-suicide-score.component';
@@ -31,18 +29,6 @@ export const PRINT_GROUP_NAMES: Record<PrintGroupKey, string> = {
  * orientation 已逐个核对各组件源码中的 @page 声明，新增/修改表单时同步维护本文件与 FORM_CATALOG.md。
  */
 export const PRINT_FORMS: PrintFormDef[] = [
-  /* ── 管道维护 ── */
-  {
-    key: 'sjm1', title: '深静脉维护记录单（一）', route: 'sjm1', group: 'tube',
-    orientation: 'landscape', component: Sjm1VeinMaintenanceComponent,
-    probe: { kind: 'tube', tubeType: '中心静脉导管' },
-  },
-  {
-    key: 'sjmCrrt', title: '深静脉维护记录单（三）·透析导管', route: 'sjmCrrt', group: 'tube',
-    orientation: 'landscape', component: SjmCrrtVeinMaintenanceComponent,
-    probe: { kind: 'tube', tubeType: '透析管' },
-  },
-
   /* ── 风险与评分 ── */
   {
     key: 'patientFallDangerForm', title: '跌倒/坠床风险评估及预防措施记录单',

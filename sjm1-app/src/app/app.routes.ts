@@ -1,6 +1,4 @@
 import { Routes } from '@angular/router';
-import { Sjm1VeinMaintenanceComponent } from './sjm1-vein-maintenance.component';
-import { SjmCrrtVeinMaintenanceComponent } from './sjm-crrt-vein-maintenance.component';
 import { YdwzlTemperatureComponent } from './ydwzl-temperature.component';
 import { ToleranceScoreComponent } from './tolerance-score.component';
 import { CommitSuicideScoreComponent } from './commit-suicide-score.component';
@@ -27,8 +25,6 @@ import { IcuFormViewerComponent } from './icu-form-viewer.component';
 
 export const routes: Routes = [
   { path: 'getIcuForm', component: IcuFormViewerComponent },
-  { path: 'sjm1', component: Sjm1VeinMaintenanceComponent },
-  { path: 'sjmCrrt', component: SjmCrrtVeinMaintenanceComponent },
   { path: 'ydwzlForm', component: YdwzlTemperatureComponent },
   { path: 'toleranceForm', component: ToleranceScoreComponent },
   { path: 'commitSuicideForm', component: CommitSuicideScoreComponent },
@@ -51,5 +47,5 @@ export const routes: Routes = [
   { path: 'temperatureRecord', component: TemperatureRecordComponent },
   { path: 'unPlannedCGZYYForm', component: UnplannedExtubationComponent },
   { path: 'printCenter', component: PrintCenterComponent },
-  { path: '', redirectTo: 'sjm1', pathMatch: 'full' },
+  { path: '', redirectTo: 'getIcuForm', pathMatch: 'full' },
 ];
