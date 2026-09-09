@@ -91,14 +91,25 @@
       <div class="state-text">{{ errorMessage || '没有相关的表单数据' }}</div>
     </div>
 
-    <!-- 表单 iframe -->
-    <iframe
-      *ngIf="iframeSrc"
-      id="viewer-iframe"
-      class="viewer-iframe"
-      [src]="iframeSrc"
-      frameborder="0"
-      allowfullscreen>
-    </iframe>
+    <!-- 直接渲染子表单组件 -->
+    <div *ngIf="state === 'ready' && patient" class="form-container">
+      <app-hljld-form-pdf-new *ngIf="selectedFormKey === 'hljldFormPDFNew'"></app-hljld-form-pdf-new>
+      <app-handover-report *ngIf="selectedFormKey === 'handoverReport'"></app-handover-report>
+      <app-ydwzl-temperature *ngIf="selectedFormKey === 'ydwzlForm'"></app-ydwzl-temperature>
+      <app-ecmo-record *ngIf="selectedFormKey === 'ecmoForm'"></app-ecmo-record>
+      <app-crrt-record *ngIf="selectedFormKey === 'crrtForm'"></app-crrt-record>
+      <app-crrt-order-form *ngIf="selectedFormKey === 'crrtOrderForm'"></app-crrt-order-form>
+      <app-picco-record *ngIf="selectedFormKey === 'piccoForm'"></app-picco-record>
+      <app-iabp-record *ngIf="selectedFormKey === 'iabpForm'"></app-iabp-record>
+      <app-tolerance-score *ngIf="selectedFormKey === 'toleranceForm'"></app-tolerance-score>
+      <app-commit-suicide-score *ngIf="selectedFormKey === 'commitSuicideForm'"></app-commit-suicide-score>
+      <app-iad-score *ngIf="selectedFormKey === 'IADForm'"></app-iad-score>
+      <app-baethei-score *ngIf="selectedFormKey === 'baetheiForm'"></app-baethei-score>
+      <app-patient-fall-danger *ngIf="selectedFormKey === 'patientFallDangerForm'"></app-patient-fall-danger>
+      <app-braden-form *ngIf="selectedFormKey === 'bradenForm'"></app-braden-form>
+      <app-unplanned-extubation *ngIf="selectedFormKey === 'unPlannedCGZYYForm'"></app-unplanned-extubation>
+      <app-health-education *ngIf="selectedFormKey === 'jkjyForm'"></app-health-education>
+      <app-wpgm-form *ngIf="selectedFormKey === 'wpgmForm'"></app-wpgm-form>
+    </div>
   </div>
 </div>

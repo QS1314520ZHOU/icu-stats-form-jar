@@ -1,12 +1,12 @@
-import { Component, OnDestroy, OnInit, NgZone, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Subject, Subscription, timer } from 'rxjs';
-import { switchMap, takeUntil, filter, debounceTime } from 'rxjs/operators';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { IcuFormViewerFormDef, IcuFormViewerState, IcuPatient } from './icu-form-viewer.models';
 import { ICU_VIEWER_FORMS } from './icu-form-viewer.registry';
 import { IcuFormViewerService } from './icu-form-viewer.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { HostPatientService } from './services/host-patient.service';
 
 @Component({
   standalone: false,
@@ -26,16 +26,10 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   state: IcuFormViewerState = 'idle';
   patient: IcuPatient | null = null;
   errorMessage = '';
-  iframeSrc: SafeResourceUrl | null = null;
   patientInfo = '';
 
   private destroy$ = new Subject<void>();
   private querySequence = 0;
-  private messageHandler: ((e: MessageEvent) => void) | null = null;
-  private iframeLoadHandler: (() => void) | null = null;
-  private readyTimer: any = null;
-  private readyCount = 0;
-  private readonly MAX_READY_RETRIES = 10;
   private isUpdatingUrl = false; // 防止 updateUrl 触发无限循环
 
   constructor(
@@ -43,9 +37,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     private router: Router,
     private viewerService: IcuFormViewerService,
     private contextService: IcuFormViewerContextService,
-    private zone: NgZone,
+    private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
-    private sanitizer: DomSanitizer,
   ) {}
 
   ngOnInit(): void {
@@ -107,7 +100,6 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    this.cleanupIframe();
   }
 
   /** 获取当前选中的表单定义 */
@@ -177,8 +169,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // 清理旧 iframe
-    this.cleanupIframe();
+    // 清理旧数据
     this.patient = null;
     this.patientInfo = '';
 
@@ -247,9 +238,9 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
               return;
             }
 
-            // CLIENT_SIDE：前端自行判断，直接加载 iframe
+            // CLIENT_SIDE：前端自行判断，直接显示表单
             if (resp.status === 'CLIENT_SIDE') {
-              this.loadFormIframe(pid, startTimeMs, endTimeMs);
+              this.loadFormData(pid, startTimeMs, endTimeMs);
               this.updateUrl(mrn, startTimeMs, endTimeMs);
               return;
             }
@@ -261,8 +252,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
               return;
             }
 
-            // Step 3: 加载表单 iframe
-            this.loadFormIframe(pid, startTimeMs, endTimeMs);
+            // Step 3: 加载表单数据
+            this.loadFormData(pid, startTimeMs, endTimeMs);
             this.updateUrl(mrn, startTimeMs, endTimeMs);
           },
           error: () => {
@@ -287,94 +278,24 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** 加载表单 iframe */
-  private loadFormIframe(pid: string, startTimeMs: string, endTimeMs: string): void {
+  /** 加载表单数据 - 直接传递患者数据给服务 */
+  private loadFormData(pid: string, startTimeMs: string, endTimeMs: string): void {
     this.state = 'loading-form';
     this.cdr.markForCheck();
 
-    const form = this.selectedForm;
-    const src = `/form/${form.route}?viewer=1&startTimeMs=${startTimeMs}&endTimeMs=${endTimeMs}`;
-    this.iframeSrc = this.sanitizer.bypassSecurityTrustResourceUrl(src);
-
-    // 等待 Angular 更新 iframe src，然后设置 load 和 message 监听
-    setTimeout(() => {
-      this.setupIframeListeners(pid);
-    }, 0);
-  }
-
-  /** 设置 iframe 的 load 和 message 监听 */
-  private setupIframeListeners(pid: string): void {
-    const iframe = document.getElementById('viewer-iframe') as HTMLIFrameElement;
-    if (!iframe) {
-      this.state = 'ready';
-      this.cdr.markForCheck();
-      return;
-    }
-
-    // 监听子页面的 SmartCareReady 消息
-    this.messageHandler = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'SmartCareReady') {
-        this.sendPatientToIframe(iframe, pid);
-      }
+    // 封装患者数据为 SmartCare 格式
+    const patientPayload = this.patient || { id: pid };
+    const smartCareMessage = {
+      type: 'SmartCare',
+      patient: patientPayload,
     };
-    window.addEventListener('message', this.messageHandler);
 
-    // iframe load 事件
-    this.iframeLoadHandler = () => {
-      // iframe 加载完成后也尝试发送患者信息
-      this.sendPatientToIframe(iframe, pid);
-    };
-    iframe.addEventListener('load', this.iframeLoadHandler);
+    // 直接传递患者数据给 HostPatientService
+    this.hostPatient.handleHostMessage(smartCareMessage);
 
-    // 超时重试：如果 iframe 一直没有收到 SmartCareReady，定时重试
-    this.readyCount = 0;
-    this.readyTimer = timer(500, 500).pipe(
-      takeUntil(this.destroy$),
-    ).subscribe(() => {
-      this.readyCount++;
-      if (this.readyCount >= this.MAX_READY_RETRIES) {
-        if (this.readyTimer) {
-          this.readyTimer.unsubscribe();
-          this.readyTimer = null;
-        }
-        return;
-      }
-      try {
-        this.sendPatientToIframe(iframe, pid);
-      } catch (_) {
-        // 跨域或 iframe 未就绪
-      }
-    });
-
+    // 表单状态切换为 ready，子表单会自动监听 patient$ 并加载数据
     this.state = 'ready';
     this.cdr.markForCheck();
-  }
-
-  /** 向 iframe 发送患者信息 */
-  private sendPatientToIframe(iframe: HTMLIFrameElement, pid: string): void {
-    if (!iframe.contentWindow) return;
-    const patientPayload = this.patient || { id: pid };
-    iframe.contentWindow.postMessage(
-      { type: 'SmartCare', patient: patientPayload },
-      window.location.origin
-    );
-  }
-
-  /** 清理 iframe 相关监听 */
-  private cleanupIframe(): void {
-    if (this.messageHandler) {
-      window.removeEventListener('message', this.messageHandler);
-      this.messageHandler = null;
-    }
-    if (this.readyTimer) {
-      this.readyTimer.unsubscribe();
-      this.readyTimer = null;
-    }
-    // iframe 的 load 监听会在 iframe 被替换时自动清理
-    this.iframeLoadHandler = null;
-    this.readyCount = 0;
-    // 清理 iframe src，确保旧内容被完全清除
-    this.iframeSrc = null;
   }
 
   /** 更新 URL 查询参数（不刷新页面） */
