@@ -300,6 +300,13 @@ public class HljldRowBuilder {
         for (HljldTimeRow row : sortedRows) {
             long timestamp = row.getTime().getTime();
 
+            // carryOver行（sortRank=-1）和结算行（sortRank=2）不进行时间调整
+            int sortRank = row.getSortRank() != null ? row.getSortRank() : 0;
+            if (sortRank == -1 || sortRank == 2) {
+                result.add(row);
+                continue;
+            }
+
             // 检查是否有尿量等字段需要时间调整
             boolean hasOutputFields = hasOutputFieldData(row);
             boolean isWholeHour = isWholeHour(timestamp);
