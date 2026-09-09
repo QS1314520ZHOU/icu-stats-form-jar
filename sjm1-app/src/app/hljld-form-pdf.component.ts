@@ -7,6 +7,7 @@ import { HljldPdfService, PageIndexInfo } from './hljld-pdf.service';
 import { PdfPrintService } from './services/pdf-viewer.service';
 import { PatientContext } from './hljld-form.models';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 
 @Component({
   standalone: false,
@@ -44,6 +45,7 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   calculatingProgress = 0;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   pageState: 'waiting-patient' | 'loading' | 'ready' | 'error' | 'calculating' = 'waiting-patient';
+  isViewerMode = false;
 
   // 日期范围
   minDateInput = '';
@@ -61,9 +63,16 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     private readonly pdfService: HljldPdfService,
     private readonly pdfPrintService: PdfPrintService,
     private readonly cdr: ChangeDetectorRef,
+    private readonly contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
     // 监听患者变化
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
       if (!p) {

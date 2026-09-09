@@ -20,6 +20,7 @@ import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap 
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 
 /* ============================= 配置区 ============================= */
 
@@ -172,7 +173,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
   standalone: false,
   selector: 'app-unplanned-extubation',
   template: `
-    <div class="toolbar no-print">
+    <div class="toolbar no-print" *ngIf="!isViewerMode">
       <div class="toolbar-right">
         <span class="auditor-field">
           <span class="auditor-label">审核护士签名：</span>
@@ -652,6 +653,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   columns: EvalColumn[] = [];
   pages: RenderPage[] = [];
   selectedPrintPages: number[] = [];
+  isViewerMode = false;
 
   // 审核者签名
   auditorName = ''; auditorId = ''; auditorQuery = ''; auditorOpen = false;
@@ -670,9 +672,16 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
+    private contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
     this.loadHospitalName();
     this.loadAccountList();
     this.hostPatient.patient$.pipe(

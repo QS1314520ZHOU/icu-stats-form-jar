@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
 
@@ -81,14 +82,26 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   consumablesText = '';
   consumablesSaveState: ConsumablesSaveState = 'idle';
 
+  // Viewer 模式标志
+  isViewerMode = false;
+
   constructor(
     private readonly http: HttpClient,
     private readonly hostPatient: HostPatientService,
     private readonly host: ElementRef<HTMLElement>,
     private readonly cdr: ChangeDetectorRef,
+    private readonly contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     this.consumablesSave$.pipe(
       debounceTime(800),
       distinctUntilChanged((prev, cur) => prev.pid === cur.pid && prev.text === cur.text),

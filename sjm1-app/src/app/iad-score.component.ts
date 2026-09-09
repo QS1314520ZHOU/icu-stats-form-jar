@@ -25,6 +25,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
@@ -124,7 +125,7 @@ interface IadPrintLayout {
   standalone: false,
   selector: 'app-iad-score',
   template: `
-    <div class="toolbar no-print">
+    <div class="toolbar no-print" *ngIf="!isViewerMode">
       <div class="toolbar-right">
         <span *ngIf="preparedPrintLayout" class="print-fit-status">
           每页{{ preparedPrintLayout.rowsPerPage }}条，缩放{{ preparedPrintLayout.scale * 100 | number:'1.0-0' }}%
@@ -468,6 +469,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   preparedPrintLayout: IadPrintLayout | null = null;
   preparingPrint = false;
   printError = '';
+  isViewerMode = false;
 
   get maxRowsPerPage(): number {
     return this.activeRowsPerPage;
@@ -483,9 +485,16 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
+    private contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
     this.loadHospitalName();
     this.hostPatient.patient$.pipe(
       filter(p => !!p),

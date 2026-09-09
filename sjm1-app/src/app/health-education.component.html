@@ -1,4 +1,4 @@
-<div class="toolbar no-print"><div class="toolbar-right">
+<div class="toolbar no-print" *ngIf="!isViewerMode"><div class="toolbar-right">
   <button class="btn" type="button" (click)="openCreate()" [disabled]="!patient">新增</button>
   <button class="btn" type="button" (click)="openEditList()" [disabled]="!patient">编辑</button>
   <app-print-page-multi-select

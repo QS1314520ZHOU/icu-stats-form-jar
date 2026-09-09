@@ -1,6 +1,6 @@
 <section class="hljld-shell">
   <!-- 工具栏 -->
-  <header class="toolbar no-print" aria-label="护理记录工具栏">
+  <header class="toolbar no-print" aria-label="护理记录工具栏" *ngIf="!isViewerMode">
     <!-- 日期选择 -->
     <div class="date-tools" role="group" aria-label="护理记录日期选择">
       <button

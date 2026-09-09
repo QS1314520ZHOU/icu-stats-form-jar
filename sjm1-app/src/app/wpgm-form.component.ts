@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@an
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, map, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 
 export type SupplyCategory = '常规' | '特殊' | '专科' | '皮肤护理';
 
@@ -76,9 +77,20 @@ export class WpgmFormComponent implements OnInit, OnDestroy {
   private measuredImagesHeight = 91;
   private repaginateScheduled = false;
 
-  constructor(private host: ElementRef, private cdr: ChangeDetectorRef, private hostPatient: HostPatientService) {}
+  // Viewer 模式标志
+  isViewerMode = false;
+
+  constructor(private host: ElementRef, private cdr: ChangeDetectorRef, private hostPatient: HostPatientService, private contextService: IcuFormViewerContextService) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     this.hostPatient.patient$.pipe(
       filter(Boolean),
       map(p => String(p.id || '').trim()),

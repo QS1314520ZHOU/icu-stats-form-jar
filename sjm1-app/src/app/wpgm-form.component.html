@@ -1,4 +1,4 @@
-<div class="toolbar no-print">
+<div class="toolbar no-print" *ngIf="!isViewerMode">
   <div class="toolbar-right">
     <button class="btn secondary" type="button" (click)="selectorOpen = true">选择物品</button>
     <button class="btn secondary" type="button" (click)="clearAll()" [disabled]="!selectedCount">清空</button>

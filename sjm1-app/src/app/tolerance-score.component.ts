@@ -23,6 +23,7 @@ import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap 
 import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiDateTime, formatShanghaiTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 
 /* ============================= 配置区（新增评估表时改这里） ============================= */
 
@@ -117,7 +118,7 @@ interface RenderPage { index: number; cols: EvalColumn[]; }
   standalone: false,
   selector: 'app-tolerance-score',
   template: `
-    <div class="toolbar no-print">
+    <div class="toolbar no-print" *ngIf="!isViewerMode">
       <div class="toolbar-right">
         <app-print-page-multi-select
           [totalPages]="pages.length"
@@ -268,6 +269,7 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
   columns: EvalColumn[] = [];
   pages: RenderPage[] = [];
   selectedPrintPages: number[] = [];
+  isViewerMode = false;
 
   readonly matrix: MatrixRow[] = SCORE_GROUPS.flatMap(g =>
     SYMPTOMS.map((s, i) => ({
@@ -294,9 +296,16 @@ export class ToleranceScoreComponent implements OnInit, AfterViewInit, OnDestroy
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
+    private contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
     this.loadHospitalName();
     this.hostPatient.patient$.pipe(
       filter(p => !!p),

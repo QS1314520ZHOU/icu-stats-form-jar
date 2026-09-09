@@ -24,6 +24,7 @@ import {
   tap,
 } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDateTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
@@ -104,7 +105,7 @@ interface RenderPage {
   standalone: false,
   selector: 'app-commit-suicide-score',
   template: `
-    <div class="toolbar no-print">
+    <div class="toolbar no-print" *ngIf="!isViewerMode">
       <div class="toolbar-right">
         <app-print-page-multi-select
           [totalPages]="pages.length"
@@ -252,14 +253,26 @@ export class CommitSuicideScoreComponent
   private ro?: ResizeObserver;
   private __lastPid: string | null = null;
 
+  // Viewer 模式标志
+  isViewerMode = false;
+
   constructor(
     private http: HttpClient,
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
+    private contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     this.loadHospitalName();
     this.hostPatient.patient$
       .pipe(

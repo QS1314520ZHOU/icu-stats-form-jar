@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnIni
 import { Subject } from 'rxjs';
 import { takeUntil, catchError } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { HljldFormNewService } from './hljld-form-new.service';
 import { HljldPdfNewService, PageIndexInfo } from './hljld-pdf-new.service';
 import { PdfPrintService } from './services/pdf-viewer.service';
@@ -59,15 +60,27 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
   // 当前PDF基础URL（不含fragment）
   basePdfUrl = '';
 
+  // Viewer 模式标志
+  isViewerMode = false;
+
   constructor(
     private readonly hostPatient: HostPatientService,
     private readonly hljldService: HljldFormNewService,
     private readonly pdfService: HljldPdfNewService,
     private readonly pdfPrintService: PdfPrintService,
     private readonly cdr: ChangeDetectorRef,
+    private readonly contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     // 监听患者变化
     this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
       if (!p) {

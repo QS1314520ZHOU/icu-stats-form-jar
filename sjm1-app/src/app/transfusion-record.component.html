@@ -1,4 +1,4 @@
-<div class="toolbar no-print"><div class="toolbar-right">
+<div class="toolbar no-print" *ngIf="!isViewerMode"><div class="toolbar-right">
   <button class="btn" [disabled]="loading" (click)="addPage()">新增一页</button>
   <button class="btn danger" [disabled]="deleting" (click)="deleteCurrentPage()">{{deleting?'删除中…':'删除本页'}}</button>
   <label class="ps">当前页：<select [ngModel]="selectedPageNo" (ngModelChange)="onSelectedPageChange($event)"><option *ngFor="let p of pages" [ngValue]="p.pageNo">第{{p.pageNo}}页</option></select></label>

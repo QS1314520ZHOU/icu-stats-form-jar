@@ -1,6 +1,6 @@
 <div class="handover-shell">
   <!-- 顶部工具栏 -->
-  <header class="toolbar no-print">
+  <header class="toolbar no-print" *ngIf="!isViewerMode">
     <div class="date-tools">
       <button type="button" class="nav-arrow" (click)="previousDay()">‹</button>
       <input type="date" [value]="dateInput" (change)="onDateChange($any($event.target).value)" />

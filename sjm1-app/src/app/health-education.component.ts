@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@an
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
 
 interface OptionItem { code: string; label: string; detail?: string; }
@@ -98,10 +99,22 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   private pid = ''; private destroy$ = new Subject<void>();
   private refresh$ = new Subject<void>();
 
+  // Viewer 模式标志
+  isViewerMode = false;
+
   constructor(private http: HttpClient, private hostPatient: HostPatientService,
-              private cdr: ChangeDetectorRef, private host: ElementRef) {}
+              private cdr: ChangeDetectorRef, private host: ElementRef,
+              private contextService: IcuFormViewerContextService) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     this.loadHospitalName(); this.loadAccounts();
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(

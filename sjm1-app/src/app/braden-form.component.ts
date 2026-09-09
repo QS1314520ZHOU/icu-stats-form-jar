@@ -9,6 +9,7 @@ import { catchError, filter, finalize, map, retry, switchMap, takeUntil, tap } f
 import { HostPatientService } from './services/host-patient.service';
 import { formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 
 const SCORE_TYPE = 'bradenScore';
 const FORM_CODE = 'bradenForm';
@@ -56,7 +57,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
   standalone: false,
   selector: 'app-braden-form',
   template: `
-    <div class="toolbar no-print">
+    <div class="toolbar no-print" *ngIf="!isViewerMode">
       <div class="toolbar-right">
         <span class="auditor-field">
           <span class="auditor-label">审核护士签名：</span>
@@ -269,6 +270,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   rows: BradenRow[] = [];
   pages: RenderPage[] = [];
   selectedPrintPages: number[] = [];
+  isViewerMode = false;
 
   // 审核者签名
   auditorName = ''; auditorId = ''; auditorQuery = ''; auditorOpen = false;
@@ -298,9 +300,16 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
     private ngZone: NgZone,
+    private contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
     this.loadHospitalName();
     this.loadAccountList();
 

@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
@@ -46,8 +47,19 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  patient:any=null; account:any=null; pid=''; age:number|null=null; diagnosisDisplay='';
  loading=false; loadError=''; pages:RenderPage[]=[{index:1,timePoints:[]}]; selectedPrintPages:number[]=[]; printing=false;
  insertionSide:''|'RIGHT'|'LEFT'=''; arteryName=''; catheterLengthCm:number|null=null; extraSaveState:SaveState='idle';
- constructor(private http:HttpClient,private hostPatient:HostPatientService,private cdr:ChangeDetectorRef){}
+ // Viewer 模式标志
+ isViewerMode = false;
+
+ constructor(private http:HttpClient,private hostPatient:HostPatientService,private cdr:ChangeDetectorRef,private contextService:IcuFormViewerContextService){}
  ngOnInit():void{
+  // 检测 viewer 模式
+  this.contextService.getContext$().pipe(
+    takeUntil(this.destroy$),
+  ).subscribe(ctx => {
+    this.isViewerMode = ctx.isViewerMode;
+    this.cdr.markForCheck();
+  });
+
   this.extraSave$.pipe(debounceTime(500),tap(()=>{this.extraSaveState='saving';this.cdr.detectChanges();}),switchMap(()=>this.http.post(`${this.EXTRA}/save`,{pid:this.pid,insertionSide:this.insertionSide,arteryName:this.arteryName.trim(),catheterLengthCm:this.catheterLengthCm,updatedBy:String(this.account?.id||this.account?._id||'')}).pipe(map(()=>true),catchError(()=>of(false)))),takeUntil(this.destroy$)).subscribe(ok=>{this.extraSaveState=ok?'saved':'error';this.cdr.detectChanges();});
   this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a=>this.account=a);
   this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;} const next=String(p.id).trim();this.patient=p;this.pid=next;this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});

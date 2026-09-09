@@ -3,6 +3,7 @@ import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@an
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
@@ -102,9 +103,20 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   selectedPrintPages: number[] = [];
   printing = false;
 
-  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef) {}
+  // Viewer 模式标志
+  isViewerMode = false;
+
+  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private contextService: IcuFormViewerContextService) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     console.info(`%c[CRRT BUILD] ${CRRT_BUILD_MARKER}`, 'color:#1677c8;font-weight:bold');
     console.table(CRRT_GROUPS.flatMap(g => g.metrics.map(m => ({ group: g.name, label: m.label, code: m.code }))));
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);

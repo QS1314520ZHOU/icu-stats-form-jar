@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { forkJoin, of, firstValueFrom, Subject } from 'rxjs';
 import { catchError, finalize, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
 
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
@@ -108,9 +109,20 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   readonly dialysateCodes = ['b','c','d','e','f','g','h','i'];
   readonly anticoagulationOptions = ['无肝素','肝素钠','低分子肝素','低分子肝素钠','4%枸橼酸钠','10%葡萄糖酸钙','甲磺酸萘莫司他'];
 
-  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private ngZone: NgZone) {}
+  // Viewer 模式标志
+  isViewerMode = false;
+
+  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private ngZone: NgZone, private contextService: IcuFormViewerContextService) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     window.addEventListener('beforeunload', this.beforeUnloadHandler);
     window.addEventListener('afterprint', this.afterPrintHandler);
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => { if (a) this.account = a; });

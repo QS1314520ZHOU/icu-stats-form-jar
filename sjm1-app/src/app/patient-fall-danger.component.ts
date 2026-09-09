@@ -7,6 +7,7 @@ import { AfterViewInit, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnI
 import { of, Subject } from 'rxjs';
 import { catchError, distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { measureRowCapacity } from './form-measure.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
@@ -61,7 +62,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
   standalone: false,
   selector: 'app-patient-fall-danger',
   template: `
-    <div class="toolbar no-print">
+    <div class="toolbar no-print" *ngIf="!isViewerMode">
       <div class="toolbar-right">
         <span class="auditor-field">
           <span class="auditor-label">审核护士签名：</span>
@@ -324,11 +325,21 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
   private destroy$ = new Subject<void>();
   private ro?: ResizeObserver;
   private __lastPid: string | null = null;
+  isViewerMode = false;
 
   constructor(private http: HttpClient, private hostPatient: HostPatientService,
-              private cdr: ChangeDetectorRef, private host: ElementRef) {}
+              private cdr: ChangeDetectorRef, private host: ElementRef,
+              private contextService: IcuFormViewerContextService) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     this.loadHospitalName();
     this.loadAccountList();
     this.hostPatient.patient$.pipe(

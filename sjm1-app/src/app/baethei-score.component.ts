@@ -11,6 +11,7 @@ import {
 import { Subject } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { measureRowCapacity } from './form-measure.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
@@ -69,7 +70,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
   standalone: false,
   selector: 'app-baethei-score',
   template: `
-    <div class="toolbar no-print">
+    <div class="toolbar no-print" *ngIf="!isViewerMode">
       <div class="toolbar-right">
         <span class="auditor-field">
           <span class="auditor-label">审核护士签名：</span>
@@ -267,14 +268,26 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   private ro?: ResizeObserver;
   private __lastPid: string | null = null;
 
+  // Viewer 模式标志
+  isViewerMode = false;
+
   constructor(
     private http: HttpClient,
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
+    private contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     this.loadHospitalName();
     this.loadAccountList();
     this.hostPatient.patient$.pipe(

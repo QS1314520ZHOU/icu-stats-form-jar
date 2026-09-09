@@ -15,6 +15,7 @@ import {
 } from './handover-report.models';
 import { HandoverReportService } from './handover-report.service';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { buildHandoverReport } from './handover-report.utils';
 import { printHandoverReport, cleanupPrintDom } from './handover-report-print.util';
 
@@ -111,13 +112,25 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
   /** 防止上一个患者的请求晚返回覆盖当前弹窗 */
   private nurseRecordRequestSequence = 0;
 
+  // Viewer 模式标志
+  isViewerMode = false;
+
   constructor(
     private readonly service: HandoverReportService,
     private readonly hostPatient: HostPatientService,
     private readonly cdr: ChangeDetectorRef,
+    private readonly contextService: IcuFormViewerContextService,
   ) {}
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     // 科室上下文：combineLatest patient$ + account$
     combineLatest({
       patient: this.hostPatient.patient$.pipe(map((p: any) => p ?? null)),

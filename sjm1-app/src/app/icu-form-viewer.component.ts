@@ -346,6 +346,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     // iframe 的 load 监听会在 iframe 被替换时自动清理
     this.iframeLoadHandler = null;
     this.readyCount = 0;
+    // 清理 iframe src，确保旧内容被完全清除
+    this.iframeSrc = null;
   }
 
   /** 更新 URL 查询参数（不刷新页面） */

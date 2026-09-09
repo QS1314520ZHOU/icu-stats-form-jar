@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Subject, catchError, distinctUntilChanged, filter, finalize, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
+import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
 interface AccountOption { accountId: string; accountName: string; username?: string; code?: string; }
@@ -44,7 +45,10 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
   private localRevision = 0;
   private savedRevision = 0;
 
-  constructor(private readonly http: HttpClient, private readonly hostPatient: HostPatientService, private readonly cdr: ChangeDetectorRef, private readonly host: ElementRef) {}
+  // Viewer 模式标志
+  isViewerMode = false;
+
+  constructor(private readonly http: HttpClient, private readonly hostPatient: HostPatientService, private readonly cdr: ChangeDetectorRef, private readonly host: ElementRef, private readonly contextService: IcuFormViewerContextService) {}
 
   private beforeUnloadHandler = (e: BeforeUnloadEvent) => {
     if (this.autoSaveState === 'dirty' || this.autoSaveState === 'saving' || this.saveInFlight || this.dirtyPageIds.size > 0) {
@@ -54,6 +58,14 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
   };
 
   ngOnInit(): void {
+    // 检测 viewer 模式
+    this.contextService.getContext$().pipe(
+      takeUntil(this.destroy$),
+    ).subscribe(ctx => {
+      this.isViewerMode = ctx.isViewerMode;
+      this.cdr.markForCheck();
+    });
+
     this.loadAccounts();
     window.addEventListener('beforeunload', this.beforeUnloadHandler);
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
