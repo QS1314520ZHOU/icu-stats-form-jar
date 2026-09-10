@@ -62,31 +62,32 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
   standalone: false,
   selector: 'app-patient-fall-danger',
   template: `
-    <div class="toolbar no-print" *ngIf="!isViewerMode">
-      <div class="toolbar-right">
-        <span class="auditor-field">
-          <span class="auditor-label">审核护士签名：</span>
-          <span class="auditor-combo">
-            <input class="auditor-input" type="text" [(ngModel)]="auditorQuery"
-                   [placeholder]="auditorName || '搜索并选择'"
-                   (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
-            <ul class="auditor-menu" *ngIf="auditorOpen">
-              <li class="auditor-opt empty-opt" (mousedown)="onClearAuditorMouseDown($event)">（空）</li>
-              <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="onAuditorOptionMouseDown($event, a)">{{ a.accountName }}</li>
-              <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
-            </ul>
+    <div class="fall-form-wrapper" [class.viewer-mode]="isViewerMode">
+      <div class="toolbar no-print" *ngIf="!isViewerMode">
+        <div class="toolbar-right">
+          <span class="auditor-field">
+            <span class="auditor-label">审核护士签名：</span>
+            <span class="auditor-combo">
+              <input class="auditor-input" type="text" [(ngModel)]="auditorQuery"
+                     [placeholder]="auditorName || '搜索并选择'"
+                     (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
+              <ul class="auditor-menu" *ngIf="auditorOpen">
+                <li class="auditor-opt empty-opt" (mousedown)="onClearAuditorMouseDown($event)">（空）</li>
+                <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="onAuditorOptionMouseDown($event, a)">{{ a.accountName }}</li>
+                <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
+              </ul>
+            </span>
           </span>
-        </span>
-        <app-print-page-multi-select
-          [totalPages]="pages.length"
-          [(selectedPages)]="selectedPrintPages"
-          [disabled]="loading"
-        ></app-print-page-multi-select>
-        <button class="btn" (click)="onPrint()">打印</button>
+          <app-print-page-multi-select
+            [totalPages]="pages.length"
+            [(selectedPages)]="selectedPrintPages"
+            [disabled]="loading"
+          ></app-print-page-multi-select>
+          <button class="btn" (click)="onPrint()">打印</button>
+        </div>
       </div>
-    </div>
 
-    <div class="loading" *ngIf="loading">加载中…</div>
+      <div class="loading" *ngIf="loading">加载中…</div>
 
     <div class="sheet" *ngFor="let page of pages" [class.sheet-hidden]="!isPrintPageSelected(page.index)">
         <div class="sheet-head"><div class="title-line">{{hospitalName}}跌倒/坠床风险评估及预防措施护理记录单</div></div>
@@ -210,6 +211,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
         <div class="review-sign" *ngIf='pages.length==page.index'>审核护士签名：{{ auditorName || '__________' }}</div>
         <div class="sheet-pageno">第 {{page.index}} 页</div>
       </div>
+    </div>
   `,
   styles: [`
     :host { display:block; background:#f0f2f5; height:100vh; overflow:auto; }
@@ -225,6 +227,24 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .btn { padding:5px 16px; border:1px solid #1890ff; background:#1890ff; color:#fff; border-radius:4px; cursor:pointer; }
     .loading { padding:16px; font-family:'SimSun','宋体',serif; }
     .sheet-hidden { display:none; }
+
+    /* 调阅模式：禁用所有输入控件 */
+    .fall-form-wrapper.viewer-mode input:not([type="hidden"]),
+    .fall-form-wrapper.viewer-mode select,
+    .fall-form-wrapper.viewer-mode textarea {
+      pointer-events: none;
+      background: #f5f5f5 !important;
+      color: #666 !important;
+      cursor: not-allowed !important;
+      border-color: #e0e0e0 !important;
+    }
+    .fall-form-wrapper.viewer-mode input[type="radio"],
+    .fall-form-wrapper.viewer-mode input[type="checkbox"] {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+    .fall-form-wrapper.viewer-mode .screen-only { display: none !important; }
+    .fall-form-wrapper.viewer-mode .print-only { display: block !important; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:8mm 10mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }

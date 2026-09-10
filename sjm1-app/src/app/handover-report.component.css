@@ -411,6 +411,17 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   line-height: 1.45;
 }
 
+/* ==================== 调阅模式：显示打印格式 ==================== */
+.handover-shell.viewer-mode .screen-only { display: none !important; }
+.handover-shell.viewer-mode .screen-only-table { display: none !important; }
+.handover-shell.viewer-mode .print-only { display: block !important; }
+.handover-shell.viewer-mode .print-only-table { display: table !important; }
+.handover-shell.viewer-mode textarea { display: none !important; }
+.handover-shell.viewer-mode button:not(.no-print button) { display: none !important; }
+.handover-shell.viewer-mode select { display: none !important; }
+.handover-shell.viewer-mode .signature-select { display: none !important; }
+.handover-shell.viewer-mode .signature-print-value { display: inline !important; white-space: pre-wrap; }
+
 /* ==================== 打印样式 ==================== */
 
 @media (max-width: 760px) {

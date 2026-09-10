@@ -78,24 +78,24 @@
     </div>
 
     <!-- 直接渲染子表单组件 -->
-    <div *ngIf="state === 'ready' && patient" class="form-container" [class.viewer-mode]="isViewerMode">
-      <app-hljld-form-pdf-new *ngIf="selectedFormKey === 'hljldFormPDFNew'"></app-hljld-form-pdf-new>
-      <app-handover-report *ngIf="selectedFormKey === 'handoverReport'"></app-handover-report>
-      <app-ydwzl-temperature *ngIf="selectedFormKey === 'ydwzlForm'"></app-ydwzl-temperature>
-      <app-ecmo-record *ngIf="selectedFormKey === 'ecmoForm'"></app-ecmo-record>
-      <app-crrt-record *ngIf="selectedFormKey === 'crrtForm'"></app-crrt-record>
-      <app-crrt-order-form *ngIf="selectedFormKey === 'crrtOrderForm'"></app-crrt-order-form>
-      <app-picco-record *ngIf="selectedFormKey === 'piccoForm'"></app-picco-record>
-      <app-iabp-record *ngIf="selectedFormKey === 'iabpForm'"></app-iabp-record>
-      <app-tolerance-score *ngIf="selectedFormKey === 'toleranceForm'"></app-tolerance-score>
-      <app-commit-suicide-score *ngIf="selectedFormKey === 'commitSuicideForm'"></app-commit-suicide-score>
-      <app-iad-score *ngIf="selectedFormKey === 'IADForm'"></app-iad-score>
-      <app-baethei-score *ngIf="selectedFormKey === 'baetheiForm'"></app-baethei-score>
-      <app-patient-fall-danger *ngIf="selectedFormKey === 'patientFallDangerForm'"></app-patient-fall-danger>
-      <app-braden-form *ngIf="selectedFormKey === 'bradenForm'"></app-braden-form>
-      <app-unplanned-extubation *ngIf="selectedFormKey === 'unPlannedCGZYYForm'"></app-unplanned-extubation>
-      <app-health-education *ngIf="selectedFormKey === 'jkjyForm'"></app-health-education>
-      <app-wpgm-form *ngIf="selectedFormKey === 'wpgmForm'"></app-wpgm-form>
+    <div *ngIf="state === 'ready' && patient" class="form-container">
+      <app-hljld-form-pdf-new *ngIf="selectedFormKey === 'hljldFormPDFNew'" [class.viewer-mode]="isViewerMode"></app-hljld-form-pdf-new>
+      <app-handover-report *ngIf="selectedFormKey === 'handoverReport'" [class.viewer-mode]="isViewerMode"></app-handover-report>
+      <app-ydwzl-temperature *ngIf="selectedFormKey === 'ydwzlForm'" [class.viewer-mode]="isViewerMode"></app-ydwzl-temperature>
+      <app-ecmo-record *ngIf="selectedFormKey === 'ecmoForm'" [class.viewer-mode]="isViewerMode"></app-ecmo-record>
+      <app-crrt-record *ngIf="selectedFormKey === 'crrtForm'" [class.viewer-mode]="isViewerMode"></app-crrt-record>
+      <app-crrt-order-form *ngIf="selectedFormKey === 'crrtOrderForm'" [class.viewer-mode]="isViewerMode"></app-crrt-order-form>
+      <app-picco-record *ngIf="selectedFormKey === 'piccoForm'" [class.viewer-mode]="isViewerMode"></app-picco-record>
+      <app-iabp-record *ngIf="selectedFormKey === 'iabpForm'" [class.viewer-mode]="isViewerMode"></app-iabp-record>
+      <app-tolerance-score *ngIf="selectedFormKey === 'toleranceForm'" [class.viewer-mode]="isViewerMode"></app-tolerance-score>
+      <app-commit-suicide-score *ngIf="selectedFormKey === 'commitSuicideForm'" [class.viewer-mode]="isViewerMode"></app-commit-suicide-score>
+      <app-iad-score *ngIf="selectedFormKey === 'IADForm'" [class.viewer-mode]="isViewerMode"></app-iad-score>
+      <app-baethei-score *ngIf="selectedFormKey === 'baetheiForm'" [class.viewer-mode]="isViewerMode"></app-baethei-score>
+      <app-patient-fall-danger *ngIf="selectedFormKey === 'patientFallDangerForm'" [class.viewer-mode]="isViewerMode"></app-patient-fall-danger>
+      <app-braden-form *ngIf="selectedFormKey === 'bradenForm'" [class.viewer-mode]="isViewerMode"></app-braden-form>
+      <app-unplanned-extubation *ngIf="selectedFormKey === 'unPlannedCGZYYForm'" [class.viewer-mode]="isViewerMode"></app-unplanned-extubation>
+      <app-health-education *ngIf="selectedFormKey === 'jkjyForm'" [class.viewer-mode]="isViewerMode"></app-health-education>
+      <app-wpgm-form *ngIf="selectedFormKey === 'wpgmForm'" [class.viewer-mode]="isViewerMode"></app-wpgm-form>
     </div>
   </div>
 </div>
