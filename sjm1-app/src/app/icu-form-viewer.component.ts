@@ -237,7 +237,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
         if (!patient) {
           this.state = 'patient-not-found';
-          this.errorMessage = '请输入正确的住院号再进行查询';
+          this.errorMessage = '没有该住院号相关患者的数据，请输入ICU患者的住院号进行查询！';
           this.cdr.markForCheck();
           return;
         }
@@ -261,7 +261,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
         if (seq !== this.querySequence) return;
         if (err.status === 404) {
           this.state = 'patient-not-found';
-          this.errorMessage = '请输入正确的住院号再进行查询';
+          this.errorMessage = '没有该住院号相关患者的数据，请输入ICU患者的住院号进行查询！';
         } else {
           this.state = 'error';
           this.errorMessage = '查询失败，请稍后重试';
