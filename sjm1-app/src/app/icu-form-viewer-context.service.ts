@@ -47,6 +47,43 @@ function toIsoOffset(date: Date): string {
   return `${y}-${mo}-${day}T${h}:${mi}:${s}+08:00`;
 }
 
+/**
+ * 将 UTC 时间戳转换为 Shanghai 日期字符串 yyyy-MM-dd。
+ * 用于提取日期部分，正确处理时区偏移。
+ */
+function toShanghaiDateStr(date: Date): string {
+  const shanghaiMs = date.getTime() + TZ_OFFSET_MS;
+  const d = new Date(shanghaiMs);
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+
+/**
+ * 将 UTC 时间戳转换为 Shanghai 护理日日期字符串 yyyy-MM-dd。
+ * 使用07:00作为护理日边界：00:00-06:59 属于前一天。
+ * 这与后端 nursingDateOf(Instant) 逻辑一致。
+ */
+function toShanghaiNursingDateStr(date: Date): string {
+  const shanghaiMs = date.getTime() + TZ_OFFSET_MS;
+  const d = new Date(shanghaiMs);
+  const hour = d.getUTCHours();
+  let year = d.getUTCFullYear();
+  let month = d.getUTCMonth();
+  let day = d.getUTCDate();
+  // 07:00 边界：小时 < 7 → 归前一天
+  if (hour < 7) {
+    const prevDay = new Date(Date.UTC(year, month, day - 1));
+    year = prevDay.getUTCFullYear();
+    month = prevDay.getUTCMonth();
+    day = prevDay.getUTCDate();
+  }
+  const mo = String(month + 1).padStart(2, '0');
+  const dStr = String(day).padStart(2, '0');
+  return `${year}-${mo}-${dStr}`;
+}
+
 @Injectable({ providedIn: 'root' })
 export class IcuFormViewerContextService {
 
@@ -67,6 +104,9 @@ export class IcuFormViewerContextService {
         const endTimeStr = params.get('endTime');
         const startTimeMs = params.get('startTimeMs');
         const endTimeMs = params.get('endTimeMs');
+        // URL 中的日期参数（yyyy-MM-dd 格式）
+        const startDateParam = params.get('startDate');
+        const endDateParam = params.get('endDate');
 
         const isViewerMode = viewer === '1';
 
@@ -88,17 +128,9 @@ export class IcuFormViewerContextService {
 
           if (endTimeMs) {
             endInstant = parseTimestamp(endTimeMs);
-            // 结束时间补到秒级末尾 59
-            if (endInstant) {
-              endInstant = new Date(endInstant.getTime() + 59 * 1000);
-            }
             endTime = endInstant ? endInstant.toISOString() : null;
           } else if (endTimeStr) {
             endInstant = parseTimestamp(endTimeStr) || parseShanghaiDateTime(endTimeStr);
-            // 结束时间补到秒级末尾 59
-            if (endInstant) {
-              endInstant = new Date(endInstant.getTime() + 59 * 1000);
-            }
             endTime = endTimeStr;
           }
         }
@@ -109,6 +141,9 @@ export class IcuFormViewerContextService {
           endTime,
           startInstant,
           endInstant,
+          // 直接使用 URL 中的日期参数（已由父组件规范化为 yyyy-MM-dd）
+          startDateStr: startDateParam || (startInstant ? toShanghaiDateStr(startInstant) : null),
+          endDateStr: endDateParam || (endInstant ? toShanghaiDateStr(endInstant) : null),
         };
       })
     );

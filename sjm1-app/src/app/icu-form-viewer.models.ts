@@ -37,4 +37,7 @@ export interface IcuFormViewerContext {
   endTime: string | null;
   startInstant: Date | null;
   endInstant: Date | null;
+  /** 规范化后的 Shanghai 日期字符串 yyyy-MM-dd（从时间戳转换） */
+  startDateStr: string | null;
+  endDateStr: string | null;
 }

@@ -485,7 +485,8 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
     if (this.patient.dischargeTime) {
       const dischargeDate = this.parseTimeField(this.patient.dischargeTime);
       if (dischargeDate) {
-        this.maxDateInput = this.toDateString(dischargeDate);
+        // 使用 nursingDate 计算出科护理日，与后端逻辑一致（07:00 边界）
+        this.maxDateInput = this.toDateString(this.nursingDate(dischargeDate));
       }
     } else {
       this.maxDateInput = '';
@@ -568,7 +569,11 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 解析时间字段 — 兼容字符串(yyyy-MM-dd)和数字(毫秒时间戳)
+   * 解析时间字段 — 兼容字符串(yyyy-MM-dd 或 ISO-8601)和数字(毫秒时间戳)
+   * 保留时间组件，确保 nursingDate 能正确根据 07:00 边界判断
+   *
+   * 注意：数据库存储 UTC 时间，需要按 UTC 解析后转为上海时区，
+   * 与后端 nursingDateOf(Instant) 逻辑保持一致。
    */
   private parseTimeField(value: string | number | undefined): Date | null {
     if (!value) {
@@ -578,9 +583,33 @@ export class HljldFormPdfComponent implements OnInit, OnDestroy {
       const d = new Date(value);
       return isNaN(d.getTime()) ? null : d;
     }
-    // 字符串：取前10位 yyyy-MM-dd
-    const str = String(value).substring(0, 10);
-    return this.parseLocalDate(str);
+    const str = String(value).trim();
+    // 尝试解析 yyyy-MM-dd 格式（无时间部分，按上海时区 00:00 处理）
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      return this.parseLocalDate(str);
+    }
+    // ISO-8601 格式（如 2026-09-10T01:49:56.000Z）
+    // 数据库存储 UTC 时间，按 UTC 解析后转为上海时区（+8小时）
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
+      const d = new Date(str); // Date 构造函数自动解析 ISO 格式为 UTC
+      if (isNaN(d.getTime())) {
+        return null;
+      }
+      // 转为上海时区：UTC + 8小时
+      const TZ_OFFSET_MS = 8 * 3600 * 1000;
+      const shanghaiMs = d.getTime() + TZ_OFFSET_MS;
+      const shanghaiDate = new Date(shanghaiMs);
+      return new Date(
+        shanghaiDate.getUTCFullYear(),
+        shanghaiDate.getUTCMonth(),
+        shanghaiDate.getUTCDate(),
+        shanghaiDate.getUTCHours(),
+        shanghaiDate.getUTCMinutes(),
+        shanghaiDate.getUTCSeconds()
+      );
+    }
+    // 回退：尝试 parseLocalDate
+    return this.parseLocalDate(str.substring(0, 10));
   }
 
   /**

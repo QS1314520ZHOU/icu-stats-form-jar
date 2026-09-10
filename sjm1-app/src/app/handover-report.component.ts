@@ -123,11 +123,21 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
   ) {}
 
   ngOnInit(): void {
-    // 检测 viewer 模式
+    // 检测 viewer 模式，并同步 viewer 传入的日期
     this.contextService.getContext$().pipe(
       takeUntil(this.destroy$),
     ).subscribe(ctx => {
       this.isViewerMode = ctx.isViewerMode;
+
+      // viewer 模式下，使用传入的日期（单日）替换默认日期
+      if (ctx.isViewerMode && ctx.startDateStr) {
+        const d = new Date(`${ctx.startDateStr}T00:00:00`);
+        if (!isNaN(d.getTime())) {
+          this.selectedDate = d;
+          this.dateInput = ctx.startDateStr;
+        }
+      }
+
       this.cdr.markForCheck();
     });
 

@@ -84,15 +84,19 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
       this.isViewerMode = ctx.isViewerMode;
 
       // 在 viewer 模式下，使用传入的时间范围
-      if (ctx.isViewerMode && ctx.startInstant && ctx.endInstant) {
-        this.viewerStartDate = this.toDateString(ctx.startInstant);
-        this.viewerEndDate = this.toDateString(ctx.endInstant);
+      // 使用 context 提供的规范化日期字符串
+      if (ctx.isViewerMode && ctx.startDateStr && ctx.endDateStr) {
+        this.viewerStartDate = ctx.startDateStr;
+        this.viewerEndDate = ctx.endDateStr;
         // 同步更新打印时间范围
         this.startDateInput = this.viewerStartDate;
         this.endDateInput = this.viewerEndDate;
         // 使用开始日期作为默认显示日期
-        this.selectedDate = ctx.startInstant;
-        this.dateInput = this.toDateString(this.selectedDate);
+        const startDate = this.parseLocalDate(ctx.startDateStr);
+        if (startDate) {
+          this.selectedDate = startDate;
+          this.dateInput = ctx.startDateStr;
+        }
       }
 
       this.cdr.markForCheck();
@@ -604,7 +608,8 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
     if (this.patient.dischargeTime) {
       const dischargeDate = this.parseTimeField(this.patient.dischargeTime);
       if (dischargeDate) {
-        this.maxDateInput = this.toDateString(dischargeDate);
+        // 使用 nursingDate 计算出科护理日，与后端逻辑一致（07:00 边界）
+        this.maxDateInput = this.toDateString(this.nursingDate(dischargeDate));
       }
     } else {
       this.maxDateInput = '';
@@ -689,7 +694,25 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * 解析时间字段 — 兼容字符串(yyyy-MM-dd)和数字(毫秒时间戳)
+   * UTC 时间戳转 Shanghai 日期字符串（用于 viewer 模式的时间范围）
+   * 正确处理 UTC 时间戳，将时区偏移到 Shanghai 后提取日期
+   */
+  private utcToShanghaiDateString(utcDate: Date): string {
+    const TZ_OFFSET_MS = 8 * 3600 * 1000;
+    const shanghaiMs = utcDate.getTime() + TZ_OFFSET_MS;
+    const shanghaiDate = new Date(shanghaiMs);
+    const year = shanghaiDate.getUTCFullYear();
+    const month = String(shanghaiDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(shanghaiDate.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * 解析时间字段 — 兼容字符串(yyyy-MM-dd 或 ISO-8601)和数字(毫秒时间戳)
+   * 保留时间组件，确保 nursingDate 能正确根据 07:00 边界判断
+   *
+   * 注意：数据库存储 UTC 时间，需要按 UTC 解析后转为上海时区，
+   * 与后端 nursingDateOf(Instant) 逻辑保持一致。
    */
   private parseTimeField(value: string | number | undefined): Date | null {
     if (!value) {
@@ -699,9 +722,33 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
       const d = new Date(value);
       return isNaN(d.getTime()) ? null : d;
     }
-    // 字符串：取前10位 yyyy-MM-dd
-    const str = String(value).substring(0, 10);
-    return this.parseLocalDate(str);
+    const str = String(value).trim();
+    // 尝试解析 yyyy-MM-dd 格式（无时间部分，按上海时区 00:00 处理）
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      return this.parseLocalDate(str);
+    }
+    // ISO-8601 格式（如 2026-09-10T01:49:56.000Z）
+    // 数据库存储 UTC 时间，按 UTC 解析后转为上海时区（+8小时）
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
+      const d = new Date(str); // Date 构造函数自动解析 ISO 格式为 UTC
+      if (isNaN(d.getTime())) {
+        return null;
+      }
+      // 转为上海时区：UTC + 8小时
+      const TZ_OFFSET_MS = 8 * 3600 * 1000;
+      const shanghaiMs = d.getTime() + TZ_OFFSET_MS;
+      const shanghaiDate = new Date(shanghaiMs);
+      return new Date(
+        shanghaiDate.getUTCFullYear(),
+        shanghaiDate.getUTCMonth(),
+        shanghaiDate.getUTCDate(),
+        shanghaiDate.getUTCHours(),
+        shanghaiDate.getUTCMinutes(),
+        shanghaiDate.getUTCSeconds()
+      );
+    }
+    // 回退：尝试 parseLocalDate
+    return this.parseLocalDate(str.substring(0, 10));
   }
 
   /**

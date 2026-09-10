@@ -21,7 +21,20 @@
         (keyup.enter)="onQuery()"
         aria-label="住院号" />
 
-      <ng-container *ngIf="needTimeRange">
+      <!-- 交班报告：单日日期选择 -->
+      <ng-container *ngIf="needTimeRange && isSingleDayForm">
+        <label class="toolbar-label" for="single-date">日期</label>
+        <input
+          id="single-date"
+          class="toolbar-input toolbar-date"
+          type="date"
+          [(ngModel)]="singleDate"
+          (ngModelChange)="onSingleDateChange()"
+          aria-label="日期" />
+      </ng-container>
+
+      <!-- 其他表单：时间范围选择 -->
+      <ng-container *ngIf="needTimeRange && !isSingleDayForm">
         <label class="toolbar-label" for="start-time">开始时间</label>
         <input
           id="start-time"

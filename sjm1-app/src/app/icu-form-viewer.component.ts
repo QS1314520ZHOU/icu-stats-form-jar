@@ -16,6 +16,11 @@ const TIME_RANGE_FORMS = new Set([
   'crrtForm',          // CRRT 护理记录单（血液净化）
 ]);
 
+/** 只需要单日选择的表单 key */
+const SINGLE_DAY_FORMS = new Set([
+  'handoverReport',    // ICU 交班报告（只展示一天）
+]);
+
 @Component({
   standalone: false,
   selector: 'app-icu-form-viewer',
@@ -31,6 +36,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   mrnInput = '';
   startDate = ''; // yyyy-MM-dd 格式
   endDate = '';   // yyyy-MM-dd 格式
+  singleDate = ''; // 单日日期（交班报告用）
   state: IcuFormViewerState = 'idle';
   patient: IcuPatient | null = null;
   errorMessage = '';
@@ -54,6 +60,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     // 初始化默认日期（今天）
     this.startDate = IcuFormViewerContextService.getTodayDate();
     this.endDate = IcuFormViewerContextService.getTodayDate();
+    this.singleDate = this.startDate;
 
     // 从 URL 读取查询参数
     this.route.queryParamMap.pipe(
@@ -101,6 +108,9 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
         this.endDate = end;
       }
 
+      // 同步单日日期（用于交班报告）
+      this.singleDate = this.startDate;
+
       // URL 中有 mrn 时自动查询
       if (this.mrnInput) {
         this.doQuery();
@@ -125,6 +135,11 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     return TIME_RANGE_FORMS.has(this.selectedFormKey);
   }
 
+  /** 当前表单是否只需要单日选择 */
+  get isSingleDayForm(): boolean {
+    return SINGLE_DAY_FORMS.has(this.selectedFormKey);
+  }
+
   /** 表单下拉框变更 */
   onFormChange(): void {
     if (this.patient && this.patient.id) {
@@ -132,6 +147,17 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       this.doQuery();
     }
     // 无患者时只修改选中项
+  }
+
+  /** 单日日期变更（交班报告用） */
+  onSingleDateChange(): void {
+    if (this.singleDate) {
+      this.startDate = this.singleDate;
+      this.endDate = this.singleDate;
+      if (this.patient && this.patient.id) {
+        this.doQuery();
+      }
+    }
   }
 
   /** 点击查询按钮 */
@@ -285,8 +311,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       startDate: this.startDate,
       endDate: this.endDate,
     };
-    // 同时传递时间戳给子表单
-    if (startTimeMs && endTimeMs) {
+    // 交班报告只需日期字符串，HLJLD 等需要时间戳
+    if (!this.isSingleDayForm && startTimeMs && endTimeMs) {
       queryParams.startTimeMs = startTimeMs;
       queryParams.endTimeMs = endTimeMs;
     }
