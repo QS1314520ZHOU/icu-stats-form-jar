@@ -57,31 +57,32 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
   standalone: false,
   selector: 'app-braden-form',
   template: `
-    <div class="toolbar no-print" *ngIf="!isViewerMode">
-      <div class="toolbar-right">
-        <span class="auditor-field">
-          <span class="auditor-label">审核护士签名：</span>
-          <span class="auditor-combo">
-            <input class="auditor-input" type="text" [(ngModel)]="auditorQuery"
-                   [placeholder]="auditorName || '搜索并选择'"
-                   (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
-            <ul class="auditor-menu" *ngIf="auditorOpen">
-              <li class="auditor-opt empty-opt" (mousedown)="onClearAuditorMouseDown($event)">（空）</li>
-              <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="onAuditorOptionMouseDown($event, a)">{{ a.accountName }}</li>
-              <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
-            </ul>
+    <div class="braden-form-wrapper" [class.viewer-mode]="isViewerMode">
+      <div class="toolbar no-print" *ngIf="!isViewerMode">
+        <div class="toolbar-right">
+          <span class="auditor-field">
+            <span class="auditor-label">审核护士签名：</span>
+            <span class="auditor-combo">
+              <input class="auditor-input" type="text" [(ngModel)]="auditorQuery"
+                     [placeholder]="auditorName || '搜索并选择'"
+                     (focus)="onAuditorFocus()" (blur)="onAuditorBlur()" />
+              <ul class="auditor-menu" *ngIf="auditorOpen">
+                <li class="auditor-opt empty-opt" (mousedown)="onClearAuditorMouseDown($event)">（空）</li>
+                <li class="auditor-opt" *ngFor="let a of filteredAccounts" (mousedown)="onAuditorOptionMouseDown($event, a)">{{ a.accountName }}</li>
+                <li class="auditor-opt no-opt" *ngIf="filteredAccounts.length === 0">无匹配账号</li>
+              </ul>
+            </span>
           </span>
-        </span>
-        <app-print-page-multi-select
-          [totalPages]="pages.length"
-          [(selectedPages)]="selectedPrintPages"
-          [disabled]="loading"
-        ></app-print-page-multi-select>
-        <button class="btn" type="button" (click)="print()">打印</button>
+          <app-print-page-multi-select
+            [totalPages]="pages.length"
+            [(selectedPages)]="selectedPrintPages"
+            [disabled]="loading"
+          ></app-print-page-multi-select>
+          <button class="btn" type="button" (click)="print()">打印</button>
+        </div>
       </div>
-    </div>
 
-    <div *ngIf="loading" class="loading no-print">加载中…</div>
+      <div *ngIf="loading" class="loading no-print">加载中…</div>
 
     <ng-container *ngFor="let page of pages">
       <section class="sheet" [class.sheet-hidden]="!isPrintPageSelected(page.index)" [class.last-sheet]="page.index === pages.length">
@@ -162,6 +163,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
         <div class="sheet-pageno">第 {{page.index}} 页</div>
       </section>
     </ng-container>
+    </div>
   `,
   styles: [`
     :host{display:block;background:#f0f2f5;height:100vh;overflow:auto}
@@ -171,6 +173,27 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .btn{padding:5px 16px;border:1px solid #1890ff;background:#1890ff;color:#fff;border-radius:4px;cursor:pointer}
     .loading{padding:16px;font-family:'SimSun','宋体',serif}
     .sheet-hidden{display:none}
+
+    /* 调阅模式：禁用所有输入控件 */
+    :host(.viewer-mode) input:not([type="hidden"]),
+    :host(.viewer-mode) select,
+    :host(.viewer-mode) textarea {
+      pointer-events: none;
+      background: #f5f5f5 !important;
+      color: #666 !important;
+      cursor: not-allowed !important;
+      border-color: #e0e0e0 !important;
+    }
+    :host(.viewer-mode) input[type="radio"],
+    :host(.viewer-mode) input[type="checkbox"] {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+    :host(.viewer-mode) .screen-only { display: none !important; }
+    :host(.viewer-mode) .print-only { display: inline !important; }
+    :host(.viewer-mode) .result-combo,
+    :host(.viewer-mode) .result-datetime,
+    :host(.viewer-mode) .result-line input[type="radio"] { display: none !important; }
 
     .auditor-field{display:flex;align-items:center}
     .auditor-label{font-family:'SimSun','宋体',serif;font-size:14px;white-space:nowrap}

@@ -229,22 +229,22 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .sheet-hidden { display:none; }
 
     /* 调阅模式：禁用所有输入控件 */
-    .fall-form-wrapper.viewer-mode input:not([type="hidden"]),
-    .fall-form-wrapper.viewer-mode select,
-    .fall-form-wrapper.viewer-mode textarea {
+    :host(.viewer-mode) input:not([type="hidden"]),
+    :host(.viewer-mode) select,
+    :host(.viewer-mode) textarea {
       pointer-events: none;
       background: #f5f5f5 !important;
       color: #666 !important;
       cursor: not-allowed !important;
       border-color: #e0e0e0 !important;
     }
-    .fall-form-wrapper.viewer-mode input[type="radio"],
-    .fall-form-wrapper.viewer-mode input[type="checkbox"] {
+    :host(.viewer-mode) input[type="radio"],
+    :host(.viewer-mode) input[type="checkbox"] {
       pointer-events: none;
       opacity: 0.6;
     }
-    .fall-form-wrapper.viewer-mode .screen-only { display: none !important; }
-    .fall-form-wrapper.viewer-mode .print-only { display: block !important; }
+    :host(.viewer-mode) .screen-only { display: none !important; }
+    :host(.viewer-mode) .print-only { display: block !important; }
 
     .sheet { box-sizing:border-box; width:397mm; min-height:210mm; margin:16px auto; padding:8mm 10mm; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.15); position:relative; color:#000; }
     .sheet-head { text-align:center; padding-bottom:6px; }
