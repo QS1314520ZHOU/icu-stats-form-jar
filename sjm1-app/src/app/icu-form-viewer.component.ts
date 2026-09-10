@@ -35,6 +35,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   patient: IcuPatient | null = null;
   errorMessage = '';
   patientInfo = '';
+  isViewerMode = false; // 调阅模式，所有控件只读
 
   private destroy$ = new Subject<void>();
   private querySequence = 0;
@@ -69,6 +70,10 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       const end = params.get('endTime');
       const startMs = params.get('startTimeMs');
       const endMs = params.get('endTimeMs');
+      const viewer = params.get('viewer');
+
+      // 设置调阅模式标志
+      this.isViewerMode = viewer === '1';
 
       if (mrn) {
         this.mrnInput = mrn.trim();

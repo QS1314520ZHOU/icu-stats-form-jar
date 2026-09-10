@@ -145,7 +145,7 @@ export class IcuFormViewerContextService {
     return `${y}-${mo}-${day} 00:00`;
   }
 
-  /** 获取当前 Shanghai 日期的 23:59 字符串 */
+  /** 获取当前 Shanghai 日期的 23:58 字符串（避免+1分钟后跨天） */
   static getTodayEnd(): string {
     const now = new Date();
     const shanghaiMs = now.getTime() + TZ_OFFSET_MS;
@@ -153,6 +153,6 @@ export class IcuFormViewerContextService {
     const y = d.getUTCFullYear();
     const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
     const day = String(d.getUTCDate()).padStart(2, '0');
-    return `${y}-${mo}-${day} 23:59`;
+    return `${y}-${mo}-${day} 23:58`;
   }
 }
