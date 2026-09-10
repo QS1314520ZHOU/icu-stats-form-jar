@@ -29,8 +29,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
   selectedFormKey = 'hljldFormPDFNew';
   mrnInput = '';
-  startTime = '';
-  endTime = '';
+  startDate = ''; // yyyy-MM-dd 格式
+  endDate = '';   // yyyy-MM-dd 格式
   state: IcuFormViewerState = 'idle';
   patient: IcuPatient | null = null;
   errorMessage = '';
@@ -51,9 +51,9 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // 初始化默认时间
-    this.startTime = IcuFormViewerContextService.getTodayStart();
-    this.endTime = IcuFormViewerContextService.getTodayEnd();
+    // 初始化默认日期（今天）
+    this.startDate = IcuFormViewerContextService.getTodayDate();
+    this.endDate = IcuFormViewerContextService.getTodayDate();
 
     // 从 URL 读取查询参数
     this.route.queryParamMap.pipe(
@@ -66,8 +66,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
       const mrn = params.get('mrn');
       const form = params.get('form');
-      const start = params.get('startTime');
-      const end = params.get('endTime');
+      const start = params.get('startDate');
+      const end = params.get('endDate');
       const startMs = params.get('startTimeMs');
       const endMs = params.get('endTimeMs');
       const viewer = params.get('viewer');
@@ -82,23 +82,23 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
         this.selectedFormKey = form;
       }
 
-      // 支持时间戳格式和字符串格式
+      // 支持时间戳格式和日期字符串格式
       if (startMs) {
         const date = new Date(Number(startMs));
         if (!isNaN(date.getTime())) {
-          this.startTime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+          this.startDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         }
       } else if (start) {
-        this.startTime = start;
+        this.startDate = start;
       }
 
       if (endMs) {
         const date = new Date(Number(endMs));
         if (!isNaN(date.getTime())) {
-          this.endTime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+          this.endDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         }
       } else if (end) {
-        this.endTime = end;
+        this.endDate = end;
       }
 
       // URL 中有 mrn 时自动查询
@@ -147,27 +147,19 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // 校验时间格式
-    const timePattern = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/;
-    if (!timePattern.test(this.startTime) || !timePattern.test(this.endTime)) {
+    // 校验日期格式
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!datePattern.test(this.startDate) || !datePattern.test(this.endDate)) {
       this.state = 'error';
-      this.errorMessage = '时间格式不正确，请使用 yyyy-MM-dd HH:mm';
+      this.errorMessage = '日期格式不正确，请选择正确的日期';
       this.cdr.markForCheck();
       return;
     }
 
-    // 校验时间先后
-    const start = IcuFormViewerContextService.parseShanghaiDateTime(this.startTime);
-    const end = IcuFormViewerContextService.parseShanghaiDateTime(this.endTime);
-    if (!start || !end) {
+    // 校验日期先后
+    if (this.startDate > this.endDate) {
       this.state = 'error';
-      this.errorMessage = '时间格式不正确，请使用 yyyy-MM-dd HH:mm';
-      this.cdr.markForCheck();
-      return;
-    }
-    if (start.getTime() > end.getTime()) {
-      this.state = 'error';
-      this.errorMessage = '开始时间不能晚于结束时间';
+      this.errorMessage = '开始日期不能晚于结束日期';
       this.cdr.markForCheck();
       return;
     }
@@ -191,20 +183,20 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     this.patient = null;
     this.patientInfo = '';
 
-    // 计算查询时间范围
-    const startInstant = IcuFormViewerContextService.parseShanghaiDateTime(this.startTime);
-    const endInstant = IcuFormViewerContextService.parseShanghaiDateTime(this.endTime);
+    // 计算查询时间范围（日期转时间戳）
+    // 开始日期：当天 00:00:00
+    const startInstant = IcuFormViewerContextService.parseDateStart(this.startDate);
+    // 结束日期：当天 23:59:59（包含全天数据）
+    const endInstant = IcuFormViewerContextService.parseDateEnd(this.endDate);
     if (!startInstant || !endInstant) {
       this.state = 'error';
-      this.errorMessage = '时间格式不正确，请使用 yyyy-MM-dd HH:mm';
+      this.errorMessage = '日期格式不正确';
       this.cdr.markForCheck();
       return;
     }
-    // 用户输入的结束分钟按整分钟包含，转换为下一分钟的排他边界
-    const endExclusive = new Date(endInstant.getTime() + 60 * 1000);
 
     const startTimeMs = IcuFormViewerContextService.toTimestamp(startInstant);
-    const endTimeMs = IcuFormViewerContextService.toTimestamp(endExclusive);
+    const endTimeMs = IcuFormViewerContextService.toTimestamp(endInstant);
 
     // Step 1: 查询患者
     this.state = 'loading-patient';
@@ -290,14 +282,13 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       mrn,
       form: this.selectedFormKey,
       viewer: '1', // 标记为 viewer 模式，让子表单隐藏工具栏
+      startDate: this.startDate,
+      endDate: this.endDate,
     };
-    // 优先使用时间戳格式
+    // 同时传递时间戳给子表单
     if (startTimeMs && endTimeMs) {
       queryParams.startTimeMs = startTimeMs;
       queryParams.endTimeMs = endTimeMs;
-    } else {
-      queryParams.startTime = this.startTime;
-      queryParams.endTime = this.endTime;
     }
     this.router.navigate([], {
       relativeTo: this.route,

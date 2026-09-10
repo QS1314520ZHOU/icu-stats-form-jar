@@ -25,19 +25,17 @@
         <label class="toolbar-label" for="start-time">开始时间</label>
         <input
           id="start-time"
-          class="toolbar-input toolbar-datetime"
-          type="text"
-          placeholder="yyyy-MM-dd HH:mm"
-          [(ngModel)]="startTime"
+          class="toolbar-input toolbar-date"
+          type="date"
+          [(ngModel)]="startDate"
           aria-label="开始时间" />
 
         <label class="toolbar-label" for="end-time">结束时间</label>
         <input
           id="end-time"
-          class="toolbar-input toolbar-datetime"
-          type="text"
-          placeholder="yyyy-MM-dd HH:mm"
-          [(ngModel)]="endTime"
+          class="toolbar-input toolbar-date"
+          type="date"
+          [(ngModel)]="endDate"
           aria-label="结束时间" />
       </ng-container>
 

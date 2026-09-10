@@ -155,4 +155,33 @@ export class IcuFormViewerContextService {
     const day = String(d.getUTCDate()).padStart(2, '0');
     return `${y}-${mo}-${day} 23:58`;
   }
+
+  /** 获取当前 Shanghai 日期的 yyyy-MM-dd 字符串 */
+  static getTodayDate(): string {
+    const now = new Date();
+    const shanghaiMs = now.getTime() + TZ_OFFSET_MS;
+    const d = new Date(shanghaiMs);
+    const y = d.getUTCFullYear();
+    const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${mo}-${day}`;
+  }
+
+  /** 解析 yyyy-MM-dd 为当天 00:00:00 的 Date（Shanghai 时区） */
+  static parseDateStart(dateStr: string): Date | null {
+    const m = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const [, y, mo, d] = m;
+    const utcMs = Date.UTC(Number(y), Number(mo) - 1, Number(d), 0, 0, 0);
+    return new Date(utcMs - TZ_OFFSET_MS);
+  }
+
+  /** 解析 yyyy-MM-dd 为当天 23:59:59 的 Date（Shanghai 时区） */
+  static parseDateEnd(dateStr: string): Date | null {
+    const m = dateStr.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const [, y, mo, d] = m;
+    const utcMs = Date.UTC(Number(y), Number(mo) - 1, Number(d), 23, 59, 59);
+    return new Date(utcMs - TZ_OFFSET_MS);
+  }
 }
