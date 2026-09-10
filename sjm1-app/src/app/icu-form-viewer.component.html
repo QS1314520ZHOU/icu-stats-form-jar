@@ -21,25 +21,27 @@
         (keyup.enter)="onQuery()"
         aria-label="住院号" />
 
-      <label class="toolbar-label" for="start-time">开始时间</label>
-      <input
-        id="start-time"
-        class="toolbar-input toolbar-datetime"
-        type="text"
-        placeholder="yyyy-MM-dd HH:mm"
-        [(ngModel)]="startTime"
-        aria-label="开始时间" />
+      <ng-container *ngIf="needTimeRange">
+        <label class="toolbar-label" for="start-time">开始时间</label>
+        <input
+          id="start-time"
+          class="toolbar-input toolbar-datetime"
+          type="text"
+          placeholder="yyyy-MM-dd HH:mm"
+          [(ngModel)]="startTime"
+          aria-label="开始时间" />
 
-      <label class="toolbar-label" for="end-time">结束时间</label>
-      <input
-        id="end-time"
-        class="toolbar-input toolbar-datetime"
-        type="text"
-        placeholder="yyyy-MM-dd HH:mm"
-        [(ngModel)]="endTime"
-        aria-label="结束时间" />
+        <label class="toolbar-label" for="end-time">结束时间</label>
+        <input
+          id="end-time"
+          class="toolbar-input toolbar-datetime"
+          type="text"
+          placeholder="yyyy-MM-dd HH:mm"
+          [(ngModel)]="endTime"
+          aria-label="结束时间" />
+      </ng-container>
 
-      <button class="toolbar-query-btn" (click)="onQuery()" [disabled]="state === 'loading-patient' || state === 'checking-data' || state === 'loading-form'">
+      <button class="toolbar-query-btn" (click)="onQuery()" [disabled]="state === 'loading-patient'">
         查询
       </button>
     </div>
@@ -55,16 +57,6 @@
     <div class="state-panel" *ngIf="state === 'loading-patient'">
       <div class="state-spinner"></div>
       <div>正在查询患者信息...</div>
-    </div>
-
-    <div class="state-panel" *ngIf="state === 'checking-data'">
-      <div class="state-spinner"></div>
-      <div>正在检查表单数据...</div>
-    </div>
-
-    <div class="state-panel" *ngIf="state === 'loading-form'">
-      <div class="state-spinner"></div>
-      <div>正在加载表单...</div>
     </div>
 
     <!-- 空状态 -->
@@ -83,12 +75,6 @@
     <div class="state-panel state-error" *ngIf="state === 'patient-not-found'">
       <div class="state-icon">❌</div>
       <div class="state-text">{{ errorMessage }}</div>
-    </div>
-
-    <!-- 无表单数据 -->
-    <div class="state-panel" *ngIf="state === 'no-form-data'">
-      <div class="state-icon">📭</div>
-      <div class="state-text">{{ errorMessage || '没有相关的表单数据' }}</div>
     </div>
 
     <!-- 直接渲染子表单组件 -->

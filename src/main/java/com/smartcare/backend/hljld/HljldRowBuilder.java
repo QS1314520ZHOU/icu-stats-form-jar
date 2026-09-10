@@ -469,7 +469,7 @@ public class HljldRowBuilder {
         row.setBasicCare(new ArrayList<>()); // 不包含基础护理
         row.setHealthEducation(new ArrayList<>()); // 不包含健康教育
         row.setNursingRecords(new ArrayList<>()); // 不包含护理记录
-        row.setSignature(""); // 不包含签名
+        row.setSignature(original.getSignature()); // 保留原始签名
         return row;
     }
 

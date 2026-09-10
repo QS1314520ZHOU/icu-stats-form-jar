@@ -8,6 +8,14 @@ import { IcuFormViewerService } from './icu-form-viewer.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { HostPatientService } from './services/host-patient.service';
 
+/** 需要时间范围选择的表单 key */
+const TIME_RANGE_FORMS = new Set([
+  'hljldFormPDFNew',   // 重症监护护理记录单
+  'handoverReport',    // ICU 交班报告
+  'crrtOrderForm',     // CRRT 治疗医嘱单
+  'crrtForm',          // CRRT 护理记录单（血液净化）
+]);
+
 @Component({
   standalone: false,
   selector: 'app-icu-form-viewer',
@@ -107,6 +115,11 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     return this.forms.find(f => f.key === this.selectedFormKey) || this.forms[0];
   }
 
+  /** 当前表单是否需要时间范围选择 */
+  get needTimeRange(): boolean {
+    return TIME_RANGE_FORMS.has(this.selectedFormKey);
+  }
+
   /** 表单下拉框变更 */
   onFormChange(): void {
     if (this.patient && this.patient.id) {
@@ -185,8 +198,6 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     // 用户输入的结束分钟按整分钟包含，转换为下一分钟的排他边界
     const endExclusive = new Date(endInstant.getTime() + 60 * 1000);
 
-    const startTimeIso = IcuFormViewerContextService.toIsoOffset(startInstant);
-    const endTimeIso = IcuFormViewerContextService.toIsoOffset(endExclusive);
     const startTimeMs = IcuFormViewerContextService.toTimestamp(startInstant);
     const endTimeMs = IcuFormViewerContextService.toTimestamp(endExclusive);
 
@@ -219,50 +230,9 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
         this.patient = patient;
         this.patientInfo = this.buildPatientInfo(patient);
 
-        // Step 2: 检查表单数据可用性
-        this.state = 'checking-data';
-        this.cdr.markForCheck();
-
-        this.viewerService.checkFormAvailability(
-          pid, this.selectedFormKey, startTimeIso, endTimeIso
-        ).pipe(
-          takeUntil(this.destroy$),
-        ).subscribe({
-          next: (resp) => {
-            if (seq !== this.querySequence) return;
-
-            if (resp.status === 'ERROR') {
-              this.state = 'error';
-              this.errorMessage = resp.message || '查询失败，请稍后重试';
-              this.cdr.markForCheck();
-              return;
-            }
-
-            // CLIENT_SIDE：前端自行判断，直接显示表单
-            if (resp.status === 'CLIENT_SIDE') {
-              this.loadFormData(pid, startTimeMs, endTimeMs);
-              this.updateUrl(mrn, startTimeMs, endTimeMs);
-              return;
-            }
-
-            if (!resp.hasData) {
-              this.state = 'no-form-data';
-              this.errorMessage = resp.message || '没有相关的表单数据';
-              this.cdr.markForCheck();
-              return;
-            }
-
-            // Step 3: 加载表单数据
-            this.loadFormData(pid, startTimeMs, endTimeMs);
-            this.updateUrl(mrn, startTimeMs, endTimeMs);
-          },
-          error: () => {
-            if (seq !== this.querySequence) return;
-            this.state = 'error';
-            this.errorMessage = '查询失败，请稍后重试';
-            this.cdr.markForCheck();
-          }
-        });
+        // Step 2: 直接加载表单数据，子表单会自己查询数据
+        this.loadFormData(pid, startTimeMs, endTimeMs);
+        this.updateUrl(mrn, startTimeMs, endTimeMs);
       },
       error: (err) => {
         if (seq !== this.querySequence) return;
@@ -280,6 +250,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
   /** 加载表单数据 - 直接传递患者数据给服务 */
   private loadFormData(pid: string, startTimeMs: string, endTimeMs: string): void {
+    // 先设置为非 ready 状态，销毁子组件
     this.state = 'loading-form';
     this.cdr.markForCheck();
 
@@ -293,9 +264,16 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     // 直接传递患者数据给 HostPatientService
     this.hostPatient.handleHostMessage(smartCareMessage);
 
-    // 表单状态切换为 ready，子表单会自动监听 patient$ 并加载数据
-    this.state = 'ready';
-    this.cdr.markForCheck();
+    // 传递时间范围给子表单
+    if (this.needTimeRange) {
+      this.hostPatient.setTimeRange(startTimeMs, endTimeMs);
+    }
+
+    // 在下一个 tick 设置为 ready，确保子组件被销毁后重新创建
+    setTimeout(() => {
+      this.state = 'ready';
+      this.cdr.markForCheck();
+    }, 0);
   }
 
   /** 更新 URL 查询参数（不刷新页面） */
@@ -306,6 +284,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     const queryParams: any = {
       mrn,
       form: this.selectedFormKey,
+      viewer: '1', // 标记为 viewer 模式，让子表单隐藏工具栏
     };
     // 优先使用时间戳格式
     if (startTimeMs && endTimeMs) {

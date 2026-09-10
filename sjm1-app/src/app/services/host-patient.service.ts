@@ -2,6 +2,11 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { isSmartCareHostMessage } from '../models/smartcare-host-message.model';
 
+export interface TimeRange {
+  startTimeMs: string;
+  endTimeMs: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class HostPatientService {
   private readonly patientSubject = new BehaviorSubject<any | null>(null);
@@ -10,6 +15,9 @@ export class HostPatientService {
   private readonly accountSubject = new BehaviorSubject<any | null>(null);
   readonly account$ = this.accountSubject.asObservable();
 
+  private readonly timeRangeSubject = new BehaviorSubject<TimeRange | null>(null);
+  readonly timeRange$ = this.timeRangeSubject.asObservable();
+
   handleHostMessage(raw: any): void {
     if (!isSmartCareHostMessage(raw)) {
       (window as any).__scLog?.('REJECTED msg type=' + (raw && raw.type));
@@ -17,6 +25,11 @@ export class HostPatientService {
     }
     this.patientSubject.next(raw.patient);
     if (raw.account) this.accountSubject.next(raw.account);
+  }
+
+  /** 设置时间范围（由 viewer 页面调用） */
+  setTimeRange(startTimeMs: string, endTimeMs: string): void {
+    this.timeRangeSubject.next({ startTimeMs, endTimeMs });
   }
 
   private getPatientPid(p: any): string {

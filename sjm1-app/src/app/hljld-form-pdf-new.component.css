@@ -3,17 +3,18 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  height: auto;
-  min-height: 100vh;
+  height: 100vh;
 }
 
 .hljld-shell {
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
   background: #f5f5f5;
 }
 
