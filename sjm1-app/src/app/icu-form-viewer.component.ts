@@ -160,18 +160,8 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       return '';
     }
     const mrn = this.patient.mrn || '';
-    // pdfTime: 出科患者用出科时间，未出科用当前时间
-    let pdfTime = '';
-    const patient = this.patient as any;
-    const dischargeTime = patient.icuDischargeTime || patient.dischargeTime || patient.outTime;
-    if (dischargeTime) {
-      // 出科患者：使用出科时间
-      pdfTime = dischargeTime;
-    } else {
-      // 未出科：使用当前时间
-      const now = new Date();
-      pdfTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    }
+    // pdfTime: 使用用户选择的日期（singleDate），格式为 yyyy-MM-dd 00:00
+    let pdfTime = this.singleDate ? `${this.singleDate} 00:00` : '';
     const url = this.selectedForm.iframeUrl
       .replace('{mrn}', encodeURIComponent(mrn))
       .replace('{pdfTime}', encodeURIComponent(pdfTime));
