@@ -86,6 +86,9 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
       // 在 viewer 模式下，使用传入的时间范围
       // 使用 context 提供的规范化日期字符串
       if (ctx.isViewerMode && ctx.startDateStr && ctx.endDateStr) {
+        const prevStartDate = this.viewerStartDate;
+        const prevEndDate = this.viewerEndDate;
+
         this.viewerStartDate = ctx.startDateStr;
         this.viewerEndDate = ctx.endDateStr;
         // 同步更新打印时间范围
@@ -96,6 +99,15 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
         if (startDate) {
           this.selectedDate = startDate;
           this.dateInput = ctx.startDateStr;
+        }
+
+        // 时间范围变化时重新加载 PDF
+        if (prevStartDate !== this.viewerStartDate || prevEndDate !== this.viewerEndDate) {
+          if (this.patient.pid) {
+            this.pageState = 'loading';
+            this.cdr.markForCheck();
+            this.loadPdf();
+          }
         }
       }
 
