@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { IcuFormViewerFormDef, IcuFormViewerState, IcuPatient } from './icu-form-viewer.models';
@@ -14,6 +15,7 @@ const TIME_RANGE_FORMS = new Set([
   'handoverReport',    // ICU 交班报告
   'crrtOrderForm',     // CRRT 治疗医嘱单
   'crrtForm',          // CRRT 护理记录单（血液净化）
+  'zzjkhljl',          // 重症医学科重症监护护理记录（外部 iframe）
 ]);
 
 /** 只需要单日选择的表单 key */
@@ -54,6 +56,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     private contextService: IcuFormViewerContextService,
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
+    private sanitizer: DomSanitizer,
   ) {}
 
   ngOnInit(): void {
@@ -138,6 +141,35 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   /** 当前表单是否只需要单日选择 */
   get isSingleDayForm(): boolean {
     return SINGLE_DAY_FORMS.has(this.selectedFormKey);
+  }
+
+  /** 当前表单是否是 iframe 类型 */
+  get isIframeForm(): boolean {
+    return this.selectedForm?.iframeUrl != null;
+  }
+
+  /** 获取 iframe URL（替换占位符） */
+  get iframeUrl(): SafeResourceUrl {
+    if (!this.selectedForm?.iframeUrl || !this.patient) {
+      return '';
+    }
+    const mrn = this.patient.mrn || '';
+    // pdfTime: 出科患者用出科时间，未出科用当前时间
+    let pdfTime = '';
+    const patient = this.patient as any;
+    const dischargeTime = patient.icuDischargeTime || patient.dischargeTime || patient.outTime;
+    if (dischargeTime) {
+      // 出科患者：使用出科时间
+      pdfTime = dischargeTime;
+    } else {
+      // 未出科：使用当前时间
+      const now = new Date();
+      pdfTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    }
+    const url = this.selectedForm.iframeUrl
+      .replace('{mrn}', encodeURIComponent(mrn))
+      .replace('{pdfTime}', encodeURIComponent(pdfTime));
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   }
 
   /** 表单下拉框变更 */

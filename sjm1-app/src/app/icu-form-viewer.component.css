@@ -114,6 +114,14 @@
   background: #fff;
 }
 
+/* ── iframe 表单 ── */
+.iframe-form {
+  width: 100%;
+  height: calc(100vh - 50px);
+  border: none;
+  display: block;
+}
+
 /* ── 状态面板 ── */
 .state-panel {
   display: flex;

@@ -5,6 +5,8 @@ export interface IcuFormViewerFormDef {
   key: string;
   title: string;
   route: string;
+  /** 外部 iframe URL 模板，包含 {mrn} 和 {pdfTime} 占位符 */
+  iframeUrl?: string;
 }
 
 /** 页面状态机 */

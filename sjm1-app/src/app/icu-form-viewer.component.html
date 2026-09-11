@@ -107,6 +107,15 @@
       <app-unplanned-extubation *ngIf="selectedFormKey === 'unPlannedCGZYYForm'" [class.viewer-mode]="isViewerMode"></app-unplanned-extubation>
       <app-health-education *ngIf="selectedFormKey === 'jkjyForm'" [class.viewer-mode]="isViewerMode"></app-health-education>
       <app-wpgm-form *ngIf="selectedFormKey === 'wpgmForm'" [class.viewer-mode]="isViewerMode"></app-wpgm-form>
+
+      <!-- 外部 iframe 表单 -->
+      <iframe
+        *ngIf="isIframeForm && iframeUrl"
+        [src]="iframeUrl"
+        class="iframe-form"
+        frameborder="0"
+        allowfullscreen>
+      </iframe>
     </div>
   </div>
 </div>
