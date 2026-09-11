@@ -21,16 +21,32 @@
         (keyup.enter)="onQuery()"
         aria-label="住院号" />
 
-      <!-- 交班报告：单日日期选择 -->
+      <!-- 单日日期选择（交班报告、护理记录单等） -->
       <ng-container *ngIf="needTimeRange && isSingleDayForm">
         <label class="toolbar-label" for="single-date">日期</label>
+        <button
+          class="toolbar-arrow-btn"
+          (click)="previousDay()"
+          [disabled]="!canGoPrevious"
+          aria-label="前一天">
+          ‹
+        </button>
         <input
           id="single-date"
           class="toolbar-input toolbar-date"
           type="date"
           [(ngModel)]="singleDate"
           (ngModelChange)="onSingleDateChange()"
+          [min]="minDateInput || undefined"
+          [max]="maxDateInput || undefined"
           aria-label="日期" />
+        <button
+          class="toolbar-arrow-btn"
+          (click)="nextDay()"
+          [disabled]="!canGoNext"
+          aria-label="后一天">
+          ›
+        </button>
       </ng-container>
 
       <!-- 其他表单：时间范围选择 -->

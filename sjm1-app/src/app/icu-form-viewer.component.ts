@@ -20,7 +20,9 @@ const TIME_RANGE_FORMS = new Set([
 
 /** 只需要单日选择的表单 key */
 const SINGLE_DAY_FORMS = new Set([
+  'hljldFormPDFNew',   // 重症监护护理记录单（单日展示）
   'handoverReport',    // ICU 交班报告（只展示一天）
+  'zzjkhljl',          // 重症医学科重症监护护理记录（单日展示）
 ]);
 
 @Component({
@@ -44,6 +46,10 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   errorMessage = '';
   patientInfo = '';
   isViewerMode = false; // 调阅模式，所有控件只读
+
+  // 日期范围限制
+  minDateInput = '';
+  maxDateInput = '';
 
   private destroy$ = new Subject<void>();
   private querySequence = 0;
@@ -192,6 +198,130 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** 前一天 */
+  previousDay(): void {
+    const date = this.parseLocalDate(this.singleDate);
+    if (!date) return;
+    date.setDate(date.getDate() - 1);
+    const newDate = this.toDateString(date);
+    // 检查是否小于最小日期
+    if (this.minDateInput && newDate < this.minDateInput) return;
+    this.singleDate = newDate;
+    this.onSingleDateChange();
+  }
+
+  /** 后一天 */
+  nextDay(): void {
+    const date = this.parseLocalDate(this.singleDate);
+    if (!date) return;
+    date.setDate(date.getDate() + 1);
+    const newDate = this.toDateString(date);
+    // 检查是否大于最大日期
+    if (this.maxDateInput && newDate > this.maxDateInput) return;
+    this.singleDate = newDate;
+    this.onSingleDateChange();
+  }
+
+  /** 是否可以向前翻页 */
+  get canGoPrevious(): boolean {
+    if (!this.singleDate) return false;
+    if (!this.minDateInput) return true;
+    return this.singleDate > this.minDateInput;
+  }
+
+  /** 是否可以向后翻页 */
+  get canGoNext(): boolean {
+    if (!this.singleDate) return false;
+    if (!this.maxDateInput) return true;
+    return this.singleDate < this.maxDateInput;
+  }
+
+  /** 解析本地日期字符串 */
+  private parseLocalDate(dateStr: string): Date | null {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return null;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  /** 日期转字符串 */
+  private toDateString(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /** 根据时间戳计算所属护理日日期 */
+  private nursingDate(date: Date): Date {
+    const cal = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    if (date.getHours() < 7) {
+      cal.setDate(cal.getDate() - 1);
+    }
+    return cal;
+  }
+
+  /** 解析时间字段 */
+  private parseTimeField(value: string | number | undefined): Date | null {
+    if (!value) return null;
+    if (typeof value === 'number') {
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const str = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      return this.parseLocalDate(str);
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  /** 更新日期范围限制 */
+  private updateDateRange(): void {
+    if (!this.patient) {
+      this.minDateInput = '';
+      this.maxDateInput = '';
+      return;
+    }
+
+    const patient = this.patient as any;
+    const isDischarged = patient.isDischarged === true ||
+      String(patient.status || '').toLowerCase() === 'discharged' ||
+      !!patient.outTime || !!patient.dischargeTime;
+
+    if (!isDischarged) {
+      // 在科患者：最小日期为空，最大日期为今天
+      this.minDateInput = '';
+      this.maxDateInput = this.toDateString(new Date());
+      return;
+    }
+
+    // 出科患者：限制入科~出科范围
+    const admissionTime = patient.icuAdmissionTime || patient.admissionTime || patient.inTime;
+    if (admissionTime) {
+      const admissionDate = this.parseTimeField(admissionTime);
+      if (admissionDate) {
+        this.minDateInput = this.toDateString(this.nursingDate(admissionDate));
+      }
+    } else {
+      this.minDateInput = '';
+    }
+
+    const dischargeTime = patient.icuDischargeTime || patient.dischargeTime || patient.outTime;
+    if (dischargeTime) {
+      const dischargeDate = this.parseTimeField(dischargeTime);
+      if (dischargeDate) {
+        this.maxDateInput = this.toDateString(this.nursingDate(dischargeDate));
+      }
+    } else {
+      this.maxDateInput = '';
+    }
+  }
+
   /** 点击查询按钮 */
   onQuery(): void {
     const mrn = this.mrnInput.trim();
@@ -284,6 +414,9 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
 
         this.patient = patient;
         this.patientInfo = this.buildPatientInfo(patient);
+
+        // 更新日期范围限制
+        this.updateDateRange();
 
         // Step 2: 直接加载表单数据，子表单会自己查询数据
         this.loadFormData(pid, startTimeMs, endTimeMs);
