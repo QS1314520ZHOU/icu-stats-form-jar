@@ -45,6 +45,11 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
     private static final float TABLE_W = HljldPdfLayoutConstantsNew.TABLE_WIDTH;
     private static final String[] REMARKS = HljldPdfLayoutConstantsNew.REMARK_LINES;
 
+    /** 备注区最小可用空间（pt），低于此值跳过备注强制分页效果 */
+    private static final float MIN_SPACE_FOR_REMARKS = 35f;
+    /** 备注行最小高度（压缩下限） */
+    private static final float REMARK_MIN_ROW_HEIGHT = 7f;
+
     // ── 构造参数 ──
     private final HljldPdfFontBundle fonts;
     private final PdfFont font;
@@ -107,25 +112,44 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
         log.debug("[hljld-new] END_PAGE: localPage={}, totalPages={}, isFinalPage={}, drawRemark={}, drawSignature={}, policy={}",
             localPageNumber, totalPages, isFinalPage, drawRemark, drawSignature, policy);
 
-        // 计算备注区底部Y坐标（仅绘制时需要）
-        // 使用动态位置：根据实际内容结束位置计算，而不是固定位置
+        // ── 动态备注定位 + 空间判断（最终页） ──
         float remarksBottom = HljldPdfLayoutConstantsNew.REMARK_BOTTOM;
+        float remarkRowHeight = HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
+        float remarkFontSize = HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE;
+
         if (drawRemark) {
             Float dynamicContentEndY = dynamicRemarkTopByLocalPage.get(localPageNumber);
             if (dynamicContentEndY != null) {
-                // 使用动态位置：内容结束位置 - 备注区高度
-                float dynamicBottom = dynamicContentEndY - HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT;
-                // 确保不低于最小安全边界（页码区域上方）
-                float minSafeBottom = HljldPdfLayoutConstantsNew.PAGE_BOTTOM_PADDING
+                // 可用空间 = 内容结束位置 - 安全边界（页码区顶部）
+                float safeBottom = HljldPdfLayoutConstantsNew.PAGE_BOTTOM_PADDING
                     + HljldPdfLayoutConstantsNew.PAGE_NUMBER_HEIGHT
                     + HljldPdfLayoutConstantsNew.PAGE_NUMBER_REMARK_GAP;
-                if (dynamicBottom >= minSafeBottom) {
-                    remarksBottom = dynamicBottom;
-                    log.debug("[hljld-new] 备注动态位置: localPage={}, contentEndY={}, remarksBottom={}",
-                        localPageNumber, dynamicContentEndY, remarksBottom);
+                float availableSpace = dynamicContentEndY - safeBottom;
+
+                if (availableSpace >= HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT) {
+                    // 空间充足（>= 52pt）：正常显示
+                    float dynamicBottom = dynamicContentEndY - HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT;
+                    if (dynamicBottom >= safeBottom) {
+                        remarksBottom = dynamicBottom;
+                        log.debug("[hljld-new] 备注动态位置: localPage={}, contentEndY={}, remarksBottom={}",
+                            localPageNumber, dynamicContentEndY, remarksBottom);
+                    }
+                } else if (availableSpace >= MIN_SPACE_FOR_REMARKS) {
+                    // 空间 35~52pt：压缩行高和字号适应
+                    remarkRowHeight = Math.max(REMARK_MIN_ROW_HEIGHT,
+                        availableSpace / HljldPdfLayoutConstantsNew.REMARK_ROWS);
+                    remarkFontSize = Math.max(3.5f, remarkRowHeight * 0.55f);
+                    // 备注紧贴内容底部，签名在备注下方
+                    remarksBottom = safeBottom;
+                    log.debug("[hljld-new] 备注压缩: localPage={}, rowH={}, fontSize={}, availableSpace={}",
+                        localPageNumber, String.format("%.1f", remarkRowHeight),
+                        String.format("%.1f", remarkFontSize),
+                        String.format("%.1f", availableSpace));
                 } else {
-                    log.warn("[hljld-new] 备注动态位置低于安全边界，回退固定位置: localPage={}, " +
-                        "dynamicBottom={}, safeBottom={}", localPageNumber, dynamicBottom, minSafeBottom);
+                    // 空间 < 35pt：回退固定位置（可能与内容有轻微重叠，但保证备注可见）
+                    remarksBottom = HljldPdfLayoutConstantsNew.REMARK_BOTTOM;
+                    log.info("[hljld-new] 备注空间不足回退固定位置: localPage={}, availableSpace={}",
+                        localPageNumber, String.format("%.1f", availableSpace));
                 }
             }
         }
@@ -140,7 +164,7 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
 
             // 仅最终页且策略要求时绘制备注
             if (drawRemark) {
-                drawRemarksText(canvas, pdfCanvas, pw, remarksBottom);
+                drawRemarksText(canvas, pdfCanvas, pw, remarksBottom, remarkRowHeight, remarkFontSize);
             }
 
             // 仅最终页且策略要求时绘制审核护士签名
@@ -151,7 +175,7 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
 
         // 仅最终页且策略要求时绘制备注区边框
         if (drawRemark) {
-            drawRemarksBorders(pdfCanvas, pw, remarksBottom);
+            drawRemarksBorders(pdfCanvas, pw, remarksBottom, remarkRowHeight);
         }
     }
 
@@ -187,14 +211,15 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
     //  备注区文字（使用 Canvas 绘制）
     // ══════════════════════════════════════════════════════════
 
-    private void drawRemarksText(Canvas canvas, PdfCanvas pdfCanvas, float pw, float remarksBottom) {
+    private void drawRemarksText(Canvas canvas, PdfCanvas pdfCanvas, float pw, float remarksBottom,
+                                  float rowHeight, float fontSize) {
         float leftX = ML;
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
 
-        // "备注"文字：水平居中、垂直居中于4行
-        float remarksTop = remarksBottom + HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT;
-        float labelCenterY = remarksBottom + HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT / 2f;
+        // "备注"文字：水平居中、垂直居中于所有行
+        float remarkTotalHeight = rowHeight * REMARKS.length;
+        float labelCenterY = remarksBottom + remarkTotalHeight / 2f;
         canvas.showTextAligned(
             new Paragraph("备注")
                 .setFont(font)
@@ -203,22 +228,18 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
             leftX + col0Width / 2f, labelCenterY,
             TextAlignment.CENTER, VerticalAlignment.MIDDLE);
 
-        // 4行备注内容文字（从上到下：检查、治疗、基础护理、健康教育）
-        // 使用 PdfCanvas.beginText() 直接绘制文字，确保精确定位
+        // 备注内容文字（从上到下：检查、治疗、基础护理、健康教育）
         float textX = contentX + 4f;
 
         for (int i = 0; i < REMARKS.length; i++) {
             // 从上到下绘制：第一行在最上面，第四行在最下面
-            // 计算当前行的底部Y坐标
-            float rowBottom = remarksBottom + (REMARKS.length - 1 - i) * HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
-            // 计算文字Y坐标（使用行中心偏下一点，确保文字在行内垂直居中）
-            float textY = rowBottom + HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT / 2f - 1f;
+            float rowBottom = remarksBottom + (REMARKS.length - 1 - i) * rowHeight;
+            float textY = rowBottom + rowHeight / 2f - 1f;
 
-            // 每行文字单独绘制，确保精确定位
             pdfCanvas.saveState();
             pdfCanvas.setFillColor(ColorConstants.BLACK);
             pdfCanvas.beginText();
-            pdfCanvas.setFontAndSize(font, HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE);
+            pdfCanvas.setFontAndSize(font, fontSize);
             pdfCanvas.moveText(textX, textY);
             pdfCanvas.showText(REMARKS[i]);
             pdfCanvas.endText();
@@ -261,8 +282,9 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
     //  备注区边框和线条（使用 PdfCanvas 绘制）
     // ══════════════════════════════════════════════════════════
 
-    private void drawRemarksBorders(PdfCanvas pdfCanvas, float pw, float remarksBottom) {
-        float remarksTop = remarksBottom + HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT;
+    private void drawRemarksBorders(PdfCanvas pdfCanvas, float pw, float remarksBottom, float rowHeight) {
+        float remarkTotalHeight = rowHeight * REMARKS.length;
+        float remarksTop = remarksBottom + remarkTotalHeight;
         float leftX = ML;
         float col0Width = COL_W[0];
         float contentX = leftX + col0Width;
@@ -271,18 +293,18 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
 
         // ── 外边框 ──
         pdfCanvas.setLineWidth(HljldPdfLayoutConstantsNew.BORDER_OUTER);
-        pdfCanvas.rectangle(leftX, remarksBottom, TABLE_W, HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT);
+        pdfCanvas.rectangle(leftX, remarksBottom, TABLE_W, remarkTotalHeight);
         pdfCanvas.stroke();
 
-        // ── "备注"标签单元格右边线（纵向4行合并） ──
+        // ── "备注"标签单元格右边线（纵向合并） ──
         pdfCanvas.setLineWidth(HljldPdfLayoutConstantsNew.BORDER_REMARK);
         pdfCanvas.moveTo(contentX, remarksBottom);
         pdfCanvas.lineTo(contentX, remarksTop);
         pdfCanvas.stroke();
 
-        // ── 右侧4行备注内容的横线（从第一列右边界开始，不穿过左侧"备注"单元格） ──
+        // ── 右侧备注内容的横线（从第一列右边界开始，不穿过左侧"备注"单元格） ──
         for (int i = 1; i < REMARKS.length; i++) {
-            float lineY = remarksBottom + i * HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
+            float lineY = remarksBottom + i * rowHeight;
             pdfCanvas.setLineWidth(HljldPdfLayoutConstantsNew.BORDER_REMARK);
             pdfCanvas.moveTo(contentX, lineY);
             pdfCanvas.lineTo(leftX + TABLE_W, lineY);

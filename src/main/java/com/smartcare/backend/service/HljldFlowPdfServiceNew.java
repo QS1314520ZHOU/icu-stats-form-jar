@@ -230,6 +230,7 @@ public class HljldFlowPdfServiceNew {
 
         int totalRowCount = 0;
         boolean firstDay = true;
+        int dayIndex = 0;
 
         for (List<PrintableItem> dayItems : itemsPerDay) {
             if (!firstDay) {
@@ -247,6 +248,15 @@ public class HljldFlowPdfServiceNew {
             doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
 
             totalRowCount += dayItems.size();
+            dayIndex++;
+        }
+
+        // 最后一天：添加备注区占位元素
+        // 如果当前页剩余空间放不下备注区，iText 会自动分页到新页
+        // 这确保备注区始终有足够空间展示
+        if (!itemsPerDay.isEmpty()) {
+            HljldRemarksSpacer remarksSpacer = new HljldRemarksSpacer(dynamicRemarkTopByLocalPage);
+            doc.add(remarksSpacer);
         }
 
         // 关闭文档（触发 END_PAGE 事件，绘制页眉/备注/页码/审核护士签名）
@@ -315,6 +325,11 @@ public class HljldFlowPdfServiceNew {
             Table dailyTable = buildDailyStreamingTable(dayItems, fonts);
             doc.add(dailyTable);
             doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
+        }
+
+        // 预渲染也添加备注占位，确保页数一致
+        if (!itemsPerDay.isEmpty()) {
+            doc.add(new HljldRemarksSpacer(dynamicRemarkTopByLocalPage));
         }
 
         doc.close();
