@@ -293,6 +293,7 @@ function extractPatientNightVitalSigns(
     patientName: patient.name,
     sixOClockRecords: sixOClockRecords.length,
     records: sixOClockRecords.map(r => ({ code: r.code, strVal: r.strVal, time: r.time })),
+    allCodes: [...new Set(sixOClockRecords.map(r => r.code))],
   });
 
   // 提取各生命体征数据
@@ -303,6 +304,13 @@ function extractPatientNightVitalSigns(
       (vitalSigns as any)[field] = String(record.strVal);
     }
   }
+
+  // 调试：输出提取结果
+  console.info('[HANDOVER][vital-signs-result]', {
+    patientName: patient.name,
+    vitalSigns,
+    hasData: Object.values(vitalSigns).some(v => v !== undefined && v !== ''),
+  });
 
   return vitalSigns;
 }
