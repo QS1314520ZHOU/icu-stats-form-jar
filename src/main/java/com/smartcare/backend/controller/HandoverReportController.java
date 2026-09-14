@@ -462,13 +462,13 @@ public class HandoverReportController {
         draft.put("departmentId", departmentId);
         draft.put("reportDate", reportDate);
         draft.put("version", 0);
-        draft.put("criticalPatients", Collections.emptyList());
-        draft.put("patientTexts", Collections.emptyMap());
-        draft.put("manualMetrics", Collections.emptyMap());
-        draft.put("shiftSignatures", Collections.emptyMap());
-        draft.put("remarks", Collections.emptyMap());
-        draft.put("otherTexts", Collections.emptyMap());
-        draft.put("fieldVersions", Collections.emptyMap());
+        draft.put("criticalPatients", new ArrayList<>());
+        draft.put("patientTexts", new LinkedHashMap<>());
+        draft.put("manualMetrics", new LinkedHashMap<>());
+        draft.put("shiftSignatures", new LinkedHashMap<>());
+        draft.put("remarks", new LinkedHashMap<>());
+        draft.put("otherTexts", new LinkedHashMap<>());
+        draft.put("fieldVersions", new LinkedHashMap<>());
         return draft;
     }
 

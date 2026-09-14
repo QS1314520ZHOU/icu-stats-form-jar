@@ -241,10 +241,10 @@ function extractPatientNightVitalSigns(
   const pid = String(patient.nurseRecordPid ?? patient.id ?? patient._id ?? '').trim();
   if (!pid) return {};
 
-  // 夜班时间范围：8:00 ~ 次日 8:00（24小时）
-  const nightStart = new Date(ranges.day.start); // 当日 8:00
-  const nightEnd = new Date(ranges.day.start);
-  nightEnd.setDate(nightEnd.getDate() + 1); // 次日 8:00
+  // 查找当日06:00的生命体征（00:00 ~ 08:00 时间范围）
+  const morningStart = new Date(ranges.day.start);
+  morningStart.setHours(0, 0, 0, 0); // 当日 00:00
+  const morningEnd = new Date(ranges.day.start); // 当日 08:00
 
   const vitalSigns: NightVitalSigns = {};
 
@@ -261,12 +261,12 @@ function extractPatientNightVitalSigns(
     cvp: 'param_cvp',
   };
 
-  // 过滤该患者在夜班时间范围内的记录
+  // 过滤该患者在早班时间范围内的记录（00:00 ~ 08:00）
   const patientRecords = bedsideRecords.filter(record => {
     if (record.valid === false) return false;
     if (record.pid !== pid) return false;
     const recordTime = new Date(record.time).getTime();
-    return recordTime >= nightStart.getTime() && recordTime < nightEnd.getTime();
+    return recordTime >= morningStart.getTime() && recordTime < morningEnd.getTime();
   });
 
   // 查找6点整（06:00:00 - 06:00:59）的记录
@@ -288,7 +288,7 @@ function extractPatientNightVitalSigns(
 }
 
 /**
- * 为单个患者计算夜班期间的出入量总结（8:00 ~ 次日 8:00，共24小时）
+ * 为单个患者计算夜班期间的出入量总结（00:00 ~ 08:00）
  * 入科当天按实际入科时间计算
  */
 function calculatePatientNightFluidSummary(
@@ -301,27 +301,27 @@ function calculatePatientNightFluidSummary(
     return { totalInput: 0, drugInput: 0, enteralInput: 0, totalOutput: 0, urineOutput: 0, drainageOutput: 0, excretionOutput: 0, balance: 0 };
   }
 
-  // 夜班时间范围：8:00 ~ 次日 8:00（24小时）
-  const nightStart = new Date(ranges.day.start); // 当日 8:00
-  const nightEnd = new Date(ranges.day.start);
-  nightEnd.setDate(nightEnd.getDate() + 1); // 次日 8:00
+  // 出入量统计时间范围：00:00 ~ 08:00
+  const morningStart = new Date(ranges.day.start);
+  morningStart.setHours(0, 0, 0, 0); // 当日 00:00
+  const morningEnd = new Date(ranges.day.start); // 当日 08:00
 
   // 获取入科时间（如果有的话，用于入科当天）
-  let actualStart = nightStart;
+  let actualStart = morningStart;
   if (patient.icuAdmissionTime) {
     const admTime = new Date(patient.icuAdmissionTime);
-    // 入科时间在今天8:00之后，使用入科时间作为起点
-    if (admTime.getTime() > nightStart.getTime()) {
+    // 入科时间在今天00:00之后，使用入科时间作为起点
+    if (admTime.getTime() > morningStart.getTime()) {
       actualStart = admTime;
     }
   }
 
-  // 该患者在夜班时间范围内的床旁记录
+  // 该患者在早班时间范围内的床旁记录（00:00 ~ 08:00）
   const patientBedsideRecords = bedsideRecords.filter(record => {
     if (record.valid === false) return false;
     if (record.pid !== pid) return false;
     const recordTime = new Date(record.time).getTime();
-    return recordTime >= actualStart.getTime() && recordTime < nightEnd.getTime();
+    return recordTime >= actualStart.getTime() && recordTime < morningEnd.getTime();
   });
 
   // 入量统计
