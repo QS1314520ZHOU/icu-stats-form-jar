@@ -163,33 +163,22 @@
                     } @else {
                       <span>{{ row.shiftTexts[$any(shift)] || '' }}</span>
                     }
-                    @if (shift === 'night' && row.nightVitalSigns && (row.nightVitalSigns.temperature || row.nightVitalSigns.heartRate || row.nightVitalSigns.respiration || row.nightVitalSigns.spO2 || row.nightVitalSigns.nibpSystolic || row.nightVitalSigns.ibpSystolic || row.nightVitalSigns.cvp)) {
-                      <div class="night-vital-signs print-only">
+                    @if (shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightVitalSigns && (row.nightVitalSigns.temperature || row.nightVitalSigns.heartRate || row.nightVitalSigns.respiration || row.nightVitalSigns.spO2 || row.nightVitalSigns.nibpSystolic || row.nightVitalSigns.ibpSystolic || row.nightVitalSigns.cvp)) {
+                      <div class="night-vital-signs">
                         <div>【生命体征 06:00】</div>
-                        @if (row.nightVitalSigns.temperature) {
-                          <div>体温：{{ row.nightVitalSigns.temperature }}℃</div>
-                        }
-                        @if (row.nightVitalSigns.heartRate) {
-                          <div>心率：{{ row.nightVitalSigns.heartRate }}次/分</div>
-                        }
-                        @if (row.nightVitalSigns.respiration) {
-                          <div>呼吸：{{ row.nightVitalSigns.respiration }}次/分</div>
-                        }
-                        @if (row.nightVitalSigns.spO2) {
-                          <div>血氧饱和度：{{ row.nightVitalSigns.spO2 }}%</div>
-                        }
-                        @if (row.nightVitalSigns.nibpSystolic && row.nightVitalSigns.nibpDiastolic) {
-                          <div>血压：{{ row.nightVitalSigns.nibpSystolic }}/{{ row.nightVitalSigns.nibpDiastolic }}mmHg</div>
-                        } @else if (row.nightVitalSigns.ibpSystolic && row.nightVitalSigns.ibpDiastolic) {
-                          <div>血压：{{ row.nightVitalSigns.ibpSystolic }}/{{ row.nightVitalSigns.ibpDiastolic }}mmHg</div>
-                        }
-                        @if (row.nightVitalSigns.cvp) {
-                          <div>中心静脉压：{{ row.nightVitalSigns.cvp }}cmH2O</div>
-                        }
+                        <div>
+                          @if (row.nightVitalSigns.temperature) { 体温：{{ row.nightVitalSigns.temperature }}℃ }
+                          @if (row.nightVitalSigns.heartRate) { 心率：{{ row.nightVitalSigns.heartRate }}次/分 }
+                          @if (row.nightVitalSigns.respiration) { 呼吸：{{ row.nightVitalSigns.respiration }}次/分 }
+                          @if (row.nightVitalSigns.spO2) { 血氧饱和度：{{ row.nightVitalSigns.spO2 }}% }
+                          @if (row.nightVitalSigns.nibpSystolic && row.nightVitalSigns.nibpDiastolic) { 血压：{{ row.nightVitalSigns.nibpSystolic }}/{{ row.nightVitalSigns.nibpDiastolic }}mmHg }
+                          @else if (row.nightVitalSigns.ibpSystolic && row.nightVitalSigns.ibpDiastolic) { 血压：{{ row.nightVitalSigns.ibpSystolic }}/{{ row.nightVitalSigns.ibpDiastolic }}mmHg }
+                          @if (row.nightVitalSigns.cvp) { 中心静脉压：{{ row.nightVitalSigns.cvp }}cmH2O }
+                        </div>
                       </div>
                     }
-                    @if (shift === 'night' && row.nightFluidSummary && (row.nightFluidSummary.totalInput > 0 || row.nightFluidSummary.totalOutput > 0)) {
-                      <div class="night-fluid-summary print-only">
+                    @if (shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightFluidSummary && (row.nightFluidSummary.totalInput > 0 || row.nightFluidSummary.totalOutput > 0)) {
+                      <div class="night-fluid-summary">
                         <div>【出入量总结】</div>
                         <div>入量：{{ row.nightFluidSummary.totalInput }}ml（药物{{ row.nightFluidSummary.drugInput }}ml，胃肠{{ row.nightFluidSummary.enteralInput }}ml）</div>
                         <div>出量：{{ row.nightFluidSummary.totalOutput }}ml（尿量{{ row.nightFluidSummary.urineOutput }}ml，引流{{ row.nightFluidSummary.drainageOutput }}ml，排出物{{ row.nightFluidSummary.excretionOutput }}ml）</div>

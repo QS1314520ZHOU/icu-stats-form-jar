@@ -643,8 +643,8 @@ function createPatientRow(row: HandoverPatientRow, vm: HandoverReportViewModel):
     const td = document.createElement('td');
     td.textContent = row.shiftTexts[shift] || '';
 
-    // 夜班列添加生命体征和出入量总结
-    if (shift === 'night') {
+    // 夜班列添加生命体征和出入量总结（仅入院、转入、病危患者）
+    if (shift === 'night' && ['转入', '入院', '病危'].includes(row.status)) {
       // 生命体征
       if (row.nightVitalSigns && hasVitalSignsData(row.nightVitalSigns)) {
         const vitalDiv = document.createElement('div');
