@@ -341,7 +341,7 @@ function renderReport1(
   renderReport1Header(report, snapshot, vm, dateInput);
 
   // 渲染患者交班表
-  renderPatientTable(report, vm.rows, snapshot);
+  renderPatientTable(report, vm.rows, snapshot, vm);
 
   root.appendChild(report);
 }
@@ -533,7 +533,7 @@ function measurePatientRowHeights(rows: HandoverPatientRow[]): number[] {
   return heights;
 }
 
-function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[], snapshot: DepartmentDailySnapshot): void {
+function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[], snapshot: DepartmentDailySnapshot, vm: HandoverReportViewModel): void {
   const table = document.createElement('table');
   table.className = 'print-table';
 
@@ -573,7 +573,7 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
     tbody.appendChild(emptyRow);
   } else {
     rows.forEach((row, idx) => {
-      const tr = createPatientRow(row);
+      const tr = createPatientRow(row, vm);
       tbody.appendChild(tr);
     });
   }
@@ -612,7 +612,7 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   container.appendChild(table);
 }
 
-function createPatientRow(row: HandoverPatientRow): HTMLTableRowElement {
+function createPatientRow(row: HandoverPatientRow, vm: HandoverReportViewModel): HTMLTableRowElement {
   const tr = document.createElement('tr');
 
   // 固定信息列
@@ -642,10 +642,86 @@ function createPatientRow(row: HandoverPatientRow): HTMLTableRowElement {
   shifts.forEach(shift => {
     const td = document.createElement('td');
     td.textContent = row.shiftTexts[shift] || '';
+
+    // 夜班列添加生命体征和出入量总结
+    if (shift === 'night') {
+      // 生命体征
+      if (row.nightVitalSigns && hasVitalSignsData(row.nightVitalSigns)) {
+        const vitalDiv = document.createElement('div');
+        vitalDiv.style.marginTop = '4px';
+        vitalDiv.style.fontSize = '8pt';
+        vitalDiv.style.lineHeight = '1.4';
+        vitalDiv.innerHTML = buildVitalSignsText(row.nightVitalSigns);
+        td.appendChild(vitalDiv);
+      }
+
+      // 出入量总结
+      if (row.nightFluidSummary && (row.nightFluidSummary.totalInput > 0 || row.nightFluidSummary.totalOutput > 0)) {
+        const fluidDiv = document.createElement('div');
+        fluidDiv.style.marginTop = '4px';
+        fluidDiv.style.fontSize = '8pt';
+        fluidDiv.style.lineHeight = '1.4';
+        fluidDiv.innerHTML = buildFluidSummaryText(row.nightFluidSummary);
+        td.appendChild(fluidDiv);
+      }
+    }
+
     tr.appendChild(td);
   });
 
   return tr;
+}
+
+/**
+ * 检查生命体征数据是否有值
+ */
+function hasVitalSignsData(vitalSigns: any): boolean {
+  return vitalSigns.temperature || vitalSigns.heartRate || vitalSigns.respiration
+    || vitalSigns.spO2 || vitalSigns.nibpSystolic || vitalSigns.ibpSystolic || vitalSigns.cvp;
+}
+
+/**
+ * 构建生命体征文本
+ */
+function buildVitalSignsText(vitalSigns: any): string {
+  const lines: string[] = [];
+  lines.push('【生命体征 06:00】');
+
+  if (vitalSigns.temperature) {
+    lines.push(`体温：${vitalSigns.temperature}℃`);
+  }
+  if (vitalSigns.heartRate) {
+    lines.push(`心率：${vitalSigns.heartRate}次/分`);
+  }
+  if (vitalSigns.respiration) {
+    lines.push(`呼吸：${vitalSigns.respiration}次/分`);
+  }
+  if (vitalSigns.spO2) {
+    lines.push(`血氧饱和度：${vitalSigns.spO2}%`);
+  }
+  if (vitalSigns.nibpSystolic && vitalSigns.nibpDiastolic) {
+    lines.push(`血压：${vitalSigns.nibpSystolic}/${vitalSigns.nibpDiastolic}mmHg`);
+  } else if (vitalSigns.ibpSystolic && vitalSigns.ibpDiastolic) {
+    lines.push(`血压：${vitalSigns.ibpSystolic}/${vitalSigns.ibpDiastolic}mmHg`);
+  }
+  if (vitalSigns.cvp) {
+    lines.push(`中心静脉压：${vitalSigns.cvp}cmH2O`);
+  }
+
+  return lines.join('<br>');
+}
+
+/**
+ * 构建出入量总结文本
+ */
+function buildFluidSummaryText(summary: any): string {
+  const lines: string[] = [];
+  lines.push('【出入量总结】');
+  lines.push(`入量：${summary.totalInput}ml（药物${summary.drugInput}ml，胃肠${summary.enteralInput}ml）`);
+  lines.push(`出量：${summary.totalOutput}ml（尿量${summary.urineOutput}ml，引流${summary.drainageOutput}ml，排出物${summary.excretionOutput}ml）`);
+  lines.push(`平衡量：${summary.balance}ml`);
+
+  return lines.join('<br>');
 }
 
 // ==================== 报告2：重症医学科病区交班报告 ====================

@@ -1,9 +1,12 @@
 import {
+  BedsideRecord,
   DepartmentDailySnapshot,
   DepartmentPatient,
   HandoverPatientRow,
   HandoverReportViewModel,
   HandoverStatus,
+  NightFluidSummary,
+  NightVitalSigns,
   ShiftKey,
   ShiftRange,
   ShiftStatistics,
@@ -111,9 +114,21 @@ function editableShiftsFrom(eventShift: ShiftKey): ShiftKey[] {
   return index < 0 ? [] : order.slice(index);
 }
 
-function createRow(patient: DepartmentPatient, status: HandoverStatus, eventShift: ShiftKey, eventTime: number): HandoverPatientRow {
+function createRow(
+  patient: DepartmentPatient,
+  status: HandoverStatus,
+  eventShift: ShiftKey,
+  eventTime: number,
+  bedsideRecords: BedsideRecord[],
+  ranges: Record<ShiftKey, ShiftRange>,
+): HandoverPatientRow {
   const id = patientId(patient);
   const editable = ['转入', '入院', '病危', '手术'].includes(status);
+
+  // 为每个患者计算生命体征和出入量总结
+  const nightVitalSigns = extractPatientNightVitalSigns(patient, bedsideRecords, ranges);
+  const nightFluidSummary = calculatePatientNightFluidSummary(patient, bedsideRecords, ranges);
+
   return {
     key: `${status}:${id}:${eventTime}`,
     patientId: id,
@@ -127,6 +142,8 @@ function createRow(patient: DepartmentPatient, status: HandoverStatus, eventShif
     eventShift,
     editableShifts: editable ? editableShiftsFrom(eventShift) : [],
     shiftTexts: { [eventShift]: defaultEventText(patient, status) },
+    nightVitalSigns,
+    nightFluidSummary,
   };
 }
 
@@ -141,27 +158,27 @@ function buildPatientRows(snapshot: DepartmentDailySnapshot, ranges: Record<Shif
     const outStatus = dischargeStatus(patient.dischargedType);
     const outShift = resolveShift(patient.icuDischargeTime, ranges);
     if (outStatus && outShift) {
-      rows.push(createRow(patient, outStatus, outShift, timeValue(patient.icuDischargeTime)));
+      rows.push(createRow(patient, outStatus, outShift, timeValue(patient.icuDischargeTime), snapshot.bedsideRecords, ranges));
     }
 
     const inStatus = admissionStatus(patient.admissionType);
     const inShift = resolveShift(patient.icuAdmissionTime, ranges);
     if (inStatus && inShift) {
-      rows.push(createRow(patient, inStatus, inShift, timeValue(patient.icuAdmissionTime)));
+      rows.push(createRow(patient, inStatus, inShift, timeValue(patient.icuAdmissionTime), snapshot.bedsideRecords, ranges));
     }
 
     for (const op of patient.patientOperations || []) {
       if (op.valid === false || !op.endTime) continue;
       const opShift = resolveShift(op.endTime, ranges);
       if (!opShift) continue;
-      rows.push(createRow(patient, '手术', opShift, timeValue(op.endTime)));
+      rows.push(createRow(patient, '手术', opShift, timeValue(op.endTime), snapshot.bedsideRecords, ranges));
     }
   }
 
   for (const selection of snapshot.draft.criticalPatients || []) {
     const patient = snapshot.patients.find(p => patientId(p) === selection.patientId);
     if (!patient) continue;
-    const row = createRow(patient, '病危', 'night', ranges.night.settlementTime.getTime());
+    const row = createRow(patient, '病危', 'night', ranges.night.settlementTime.getTime(), snapshot.bedsideRecords, ranges);
     row.editableShifts = ['night', 'day', 'evening'];
     row.shiftTexts = {};
     rows.push(row);
@@ -211,4 +228,170 @@ export function buildHandoverReport(snapshot: DepartmentDailySnapshot, selectedD
   const statistics = buildStatistics(snapshot, ranges, rows);
   const metrics = buildSafetyMetrics(snapshot, ranges);
   return { ranges, rows, statistics, metrics };
+}
+
+/**
+ * 为单个患者提取6点整的生命体征数据
+ */
+function extractPatientNightVitalSigns(
+  patient: DepartmentPatient,
+  bedsideRecords: BedsideRecord[],
+  ranges: Record<ShiftKey, ShiftRange>,
+): NightVitalSigns {
+  const pid = String(patient.nurseRecordPid ?? patient.id ?? patient._id ?? '').trim();
+  if (!pid) return {};
+
+  // 夜班时间范围：8:00 ~ 次日 8:00（24小时）
+  const nightStart = new Date(ranges.day.start); // 当日 8:00
+  const nightEnd = new Date(ranges.day.start);
+  nightEnd.setDate(nightEnd.getDate() + 1); // 次日 8:00
+
+  const vitalSigns: NightVitalSigns = {};
+
+  // 定义需要提取的生命体征代码
+  const vitalSignCodes = {
+    temperature: 'param_T',
+    heartRate: 'param_HR',
+    respiration: 'param_resp',
+    spO2: 'param_spo2',
+    nibpSystolic: 'param_nibp_s',
+    nibpDiastolic: 'param_nibp_d',
+    ibpSystolic: 'param_ibp_s',
+    ibpDiastolic: 'param_ibp_d',
+    cvp: 'param_cvp',
+  };
+
+  // 过滤该患者在夜班时间范围内的记录
+  const patientRecords = bedsideRecords.filter(record => {
+    if (record.valid === false) return false;
+    if (record.pid !== pid) return false;
+    const recordTime = new Date(record.time).getTime();
+    return recordTime >= nightStart.getTime() && recordTime < nightEnd.getTime();
+  });
+
+  // 查找6点整（06:00:00 - 06:00:59）的记录
+  const sixOClockRecords = patientRecords.filter(record => {
+    const recordDate = new Date(record.time);
+    return recordDate.getHours() === 6;
+  });
+
+  // 提取各生命体征数据
+  for (const field in vitalSignCodes) {
+    const code = vitalSignCodes[field as keyof typeof vitalSignCodes];
+    const record = sixOClockRecords.find(r => r.code === code);
+    if (record && record.strVal !== undefined && record.strVal !== '') {
+      (vitalSigns as any)[field] = String(record.strVal);
+    }
+  }
+
+  return vitalSigns;
+}
+
+/**
+ * 为单个患者计算夜班期间的出入量总结（8:00 ~ 次日 8:00，共24小时）
+ * 入科当天按实际入科时间计算
+ */
+function calculatePatientNightFluidSummary(
+  patient: DepartmentPatient,
+  bedsideRecords: BedsideRecord[],
+  ranges: Record<ShiftKey, ShiftRange>,
+): NightFluidSummary {
+  const pid = String(patient.nurseRecordPid ?? patient.id ?? patient._id ?? '').trim();
+  if (!pid) {
+    return { totalInput: 0, drugInput: 0, enteralInput: 0, totalOutput: 0, urineOutput: 0, drainageOutput: 0, excretionOutput: 0, balance: 0 };
+  }
+
+  // 夜班时间范围：8:00 ~ 次日 8:00（24小时）
+  const nightStart = new Date(ranges.day.start); // 当日 8:00
+  const nightEnd = new Date(ranges.day.start);
+  nightEnd.setDate(nightEnd.getDate() + 1); // 次日 8:00
+
+  // 获取入科时间（如果有的话，用于入科当天）
+  let actualStart = nightStart;
+  if (patient.icuAdmissionTime) {
+    const admTime = new Date(patient.icuAdmissionTime);
+    // 入科时间在今天8:00之后，使用入科时间作为起点
+    if (admTime.getTime() > nightStart.getTime()) {
+      actualStart = admTime;
+    }
+  }
+
+  // 该患者在夜班时间范围内的床旁记录
+  const patientBedsideRecords = bedsideRecords.filter(record => {
+    if (record.valid === false) return false;
+    if (record.pid !== pid) return false;
+    const recordTime = new Date(record.time).getTime();
+    return recordTime >= actualStart.getTime() && recordTime < nightEnd.getTime();
+  });
+
+  // 入量统计
+  const inputCodes = [
+    'param_带入药量',   // 带入药量
+    'param_kouFu',      // 口服
+    'param_biSi',       // 鼻饲
+  ];
+
+  let drugInput = 0;
+  let enteralInput = 0;
+
+  for (const record of patientBedsideRecords) {
+    if (record.code === 'param_带入药量' || record.code === 'param_kouFu') {
+      drugInput += parseAmount(record.strVal);
+    } else if (record.code === 'param_biSi') {
+      enteralInput += parseAmount(record.strVal);
+    }
+  }
+
+  const totalInput = drugInput + enteralInput;
+
+  // 出量统计
+  let urineOutput = 0;
+  let drainageOutput = 0;
+  let excretionOutput = 0;
+
+  // 尿量
+  const urineCode = 'param_niaoLiang';
+  const urineRecords = patientBedsideRecords.filter(r => r.code === urineCode);
+  urineOutput = urineRecords.reduce((sum, r) => sum + parseAmount(r.strVal), 0);
+
+  // 引流量（包含所有param_tube_开头的代码）
+  const drainageRecords = patientBedsideRecords.filter(r => r.code.startsWith('param_tube_'));
+  drainageOutput = drainageRecords.reduce((sum, r) => sum + parseAmount(r.strVal), 0);
+
+  // 排出物（大便、呕吐物、痰液等）
+  const excretionCodes = [
+    'param_daBianAmount',  // 大便量
+    'param_outuwuliang',   // 呕吐物量
+    'param_tanLiang',      // 痰液量
+  ];
+  const excretionRecords = patientBedsideRecords.filter(r => excretionCodes.includes(r.code));
+  excretionOutput = excretionRecords.reduce((sum, r) => sum + parseAmount(r.strVal), 0);
+
+  const totalOutput = urineOutput + drainageOutput + excretionOutput;
+  const balance = totalInput - totalOutput;
+
+  return {
+    totalInput,
+    drugInput,
+    enteralInput,
+    totalOutput,
+    urineOutput,
+    drainageOutput,
+    excretionOutput,
+    balance,
+  };
+}
+
+/**
+ * 解析数量值
+ */
+function parseAmount(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value !== 'string') {
+    return 0;
+  }
+  const match = value.replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : 0;
 }

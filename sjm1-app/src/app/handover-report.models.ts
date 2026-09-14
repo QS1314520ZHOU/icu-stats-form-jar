@@ -225,6 +225,12 @@ export interface HandoverPatientRow {
   eventShift: ShiftKey;
   editableShifts: ShiftKey[];
   shiftTexts: Partial<Record<ShiftKey, string>>;
+
+  /** 患者的生命体征数据（夜班6点） */
+  nightVitalSigns?: NightVitalSigns;
+
+  /** 患者的出入量总结（夜班） */
+  nightFluidSummary?: NightFluidSummary;
 }
 
 export interface ShiftStatistics {
@@ -599,6 +605,37 @@ export interface HandoverReportViewModel {
   rows: HandoverPatientRow[];
   statistics: Record<ShiftKey, ShiftStatistics>;
   metrics: MetricRow[];
+  nightVitalSigns?: NightVitalSigns;
+  nightFluidSummary?: NightFluidSummary;
+}
+
+/**
+ * 夜班生命体征数据（6点采集）
+ */
+export interface NightVitalSigns {
+  temperature?: string;      // 体温 param_T
+  heartRate?: string;        // 心率 param_HR
+  respiration?: string;      // 呼吸 param_resp
+  spO2?: string;             // 血氧饱和度 param_spo2
+  nibpSystolic?: string;     // 无创收缩压 param_nibp_s
+  nibpDiastolic?: string;    // 无创舒张压 param_nibp_d
+  ibpSystolic?: string;      // 有创收缩压 param_ibp_s
+  ibpDiastolic?: string;     // 有创舒张压 param_ibp_d
+  cvp?: string;              // 中心静脉压 param_cvp
+}
+
+/**
+ * 夜班出入量总结
+ */
+export interface NightFluidSummary {
+  totalInput: number;        // 总入量
+  drugInput: number;         // 药物入量
+  enteralInput: number;      // 胃肠入量
+  totalOutput: number;       // 总出量
+  urineOutput: number;       // 尿量
+  drainageOutput: number;    // 引流量
+  excretionOutput: number;   // 排出物
+  balance: number;           // 平衡量
 }
 
 // ==================== 打印分页模型 ====================
