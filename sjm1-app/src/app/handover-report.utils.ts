@@ -239,7 +239,10 @@ function extractPatientNightVitalSigns(
   ranges: Record<ShiftKey, ShiftRange>,
 ): NightVitalSigns {
   const pid = String(patient.nurseRecordPid ?? patient.id ?? patient._id ?? '').trim();
-  if (!pid) return {};
+  if (!pid) {
+    console.warn('[HANDOVER] 患者缺少PID:', patient.name, patient);
+    return {};
+  }
 
   // 查找当日06:00的生命体征（00:00 ~ 08:00 时间范围）
   const morningStart = new Date(ranges.day.start);
@@ -269,10 +272,27 @@ function extractPatientNightVitalSigns(
     return recordTime >= morningStart.getTime() && recordTime < morningEnd.getTime();
   });
 
+  // 调试：输出匹配的记录
+  console.info('[HANDOVER][vital-signs]', {
+    patientName: patient.name,
+    pid,
+    morningStart: morningStart.toISOString(),
+    morningEnd: morningEnd.toISOString(),
+    totalBedsideRecords: bedsideRecords.length,
+    matchedRecords: patientRecords.length,
+  });
+
   // 查找6点整（06:00:00 - 06:00:59）的记录
   const sixOClockRecords = patientRecords.filter(record => {
     const recordDate = new Date(record.time);
     return recordDate.getHours() === 6;
+  });
+
+  // 调试：输出6点的记录
+  console.info('[HANDOVER][vital-signs-6am]', {
+    patientName: patient.name,
+    sixOClockRecords: sixOClockRecords.length,
+    records: sixOClockRecords.map(r => ({ code: r.code, strVal: r.strVal, time: r.time })),
   });
 
   // 提取各生命体征数据
@@ -322,6 +342,15 @@ function calculatePatientNightFluidSummary(
     if (record.pid !== pid) return false;
     const recordTime = new Date(record.time).getTime();
     return recordTime >= actualStart.getTime() && recordTime < morningEnd.getTime();
+  });
+
+  // 调试：输出匹配的记录
+  console.info('[HANDOVER][fluid-summary]', {
+    patientName: patient.name,
+    pid,
+    actualStart: actualStart.toISOString(),
+    morningEnd: morningEnd.toISOString(),
+    matchedRecords: patientBedsideRecords.length,
   });
 
   // 入量统计
