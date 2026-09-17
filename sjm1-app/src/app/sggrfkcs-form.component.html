@@ -29,13 +29,18 @@
         <th [attr.colspan]="cautiGroup.items.length">导尿管相关尿路感染防控（CAUTI）</th>
         <th rowspan="2">护士签名</th><th rowspan="2">督查者签名</th></tr>
       <tr class="item-head"><th *ngFor="let item of necessityGroup.items">{{item.label}}</th><th>医生签名</th>
-        <th *ngFor="let item of vapGroup.items">{{item.label}}</th><th *ngFor="let item of crbsiGroup.items">{{item.label}}</th>
+        <ng-container *ngFor="let item of vapGroup.items"><th *ngIf="!isCuffPressure(item.code)">{{item.label}}</th></ng-container>
+        <th colspan="4">{{cuffPressureLabel}}</th>
+        <th *ngFor="let item of crbsiGroup.items">{{item.label}}</th>
         <th *ngFor="let item of cautiGroup.items">{{item.label}}</th></tr>
     </thead>
     <tbody><tr *ngFor="let record of page.records">
-      <td class="date-cell">{{fmtRecordDate(record?.recordDate)}}</td>
+      <td class="date-cell" [innerHTML]="fmtRecordDate(record?.recordDate)"></td>
       <td class="mark-cell" *ngFor="let item of necessityGroup.items">{{mark(record,item.code)}}</td><td class="signature-cell">{{record?.doctorName||''}}</td>
-      <td class="mark-cell" *ngFor="let item of vapGroup.items">{{mark(record,item.code)}}</td>
+      <ng-container *ngFor="let item of vapGroup.items">
+        <td class="mark-cell" *ngIf="!isCuffPressure(item.code)">{{mark(record,item.code)}}</td>
+      </ng-container>
+      <td class="mark-cell" *ngFor="let code of cuffPressureCodes">{{mark(record,code)}}</td>
       <td class="mark-cell" *ngFor="let item of crbsiGroup.items">{{mark(record,item.code)}}</td>
       <td class="mark-cell" *ngFor="let item of cautiGroup.items">{{mark(record,item.code)}}</td>
       <td class="signature-cell">{{record?.nurseName||''}}</td><td class="signature-cell">{{record?.inspectorName||''}}</td>
@@ -56,18 +61,18 @@
 <div class="overlay no-print" *ngIf="formOpen" (click)="formOpen=false"><section class="dialog form-dialog" (click)="$event.stopPropagation()">
   <div class="dialog-head"><div><span class="eyebrow">THREE-TUBE INFECTION CONTROL</span><h2>{{editing?'编辑监测记录':'新增监测记录'}}</h2></div><button class="icon-btn" type="button" (click)="formOpen=false" [disabled]="saving">×</button></div>
   <div class="form-body"><div class="basic-form-grid">
-    <label class="form-field"><span class="field-label">日期 <em>*</em></span><input type="date" [(ngModel)]="form.recordDate"></label>
+    <label class="form-field"><span class="field-label">日期 <em>*</em></span><input type="datetime-local" [(ngModel)]="form.recordDate"></label>
     <div class="form-field nurse-field"><span class="field-label">医生签名</span><div class="nurse-search">
-      <input type="text" autocomplete="off" [ngModel]="doctorQuery" (ngModelChange)="onDoctorSearchInput($event)" (focus)="openDoctorDropdown()" (blur)="closeDoctorDropdownLater()" placeholder="输入姓名、账号或工号检索">
-      <div class="nurse-dropdown" *ngIf="doctorDropdownOpen"><button type="button" class="nurse-option" *ngFor="let accountOption of filteredDoctorAccounts" (mousedown)="$event.preventDefault()" (click)="selectDoctor(accountOption)"><span>{{accountOption.accountName}}</span><small>{{accountOption.code||accountOption.username}}</small></button><div class="nurse-empty" *ngIf="!filteredDoctorAccounts.length">未找到匹配的账号</div></div>
+      <input type="text" autocomplete="off" [ngModel]="doctorQuery" (ngModelChange)="onDoctorSearchInput($event)" (focus)="openDoctorDropdown()" (blur)="closeDoctorDropdownLater()" placeholder="输入姓名检索">
+      <div class="nurse-dropdown" *ngIf="doctorDropdownOpen"><button type="button" class="nurse-option" *ngFor="let a of doctorFiltered" (mousedown)="$event.preventDefault()" (click)="selectDoctor(a)"><span>{{a.accountName}}</span><small>{{a.code||a.username}}</small></button><div class="nurse-empty" *ngIf="!doctorFiltered.length">未找到匹配的账号</div></div>
     </div></div>
     <div class="form-field nurse-field"><span class="field-label">护士签名 <em>*</em></span><div class="nurse-search">
       <input type="text" autocomplete="off" [ngModel]="nurseQuery" (ngModelChange)="onNurseSearchInput($event)" (focus)="openNurseDropdown()" (blur)="closeNurseDropdownLater()" placeholder="输入姓名、账号或工号检索">
       <div class="nurse-dropdown" *ngIf="nurseDropdownOpen"><button type="button" class="nurse-option" *ngFor="let accountOption of filteredAccounts" (mousedown)="$event.preventDefault()" (click)="selectNurse(accountOption)"><span>{{accountOption.accountName}}</span><small>{{accountOption.code||accountOption.username}}</small></button><div class="nurse-empty" *ngIf="!filteredAccounts.length">未找到匹配的账号</div></div>
     </div></div>
     <div class="form-field nurse-field"><span class="field-label">督查者签名</span><div class="nurse-search">
-      <input type="text" autocomplete="off" [ngModel]="inspectorQuery" (ngModelChange)="onInspectorSearchInput($event)" (focus)="openInspectorDropdown()" (blur)="closeInspectorDropdownLater()" placeholder="输入姓名、账号或工号检索">
-      <div class="nurse-dropdown" *ngIf="inspectorDropdownOpen"><button type="button" class="nurse-option" *ngFor="let accountOption of filteredInspectorAccounts" (mousedown)="$event.preventDefault()" (click)="selectInspector(accountOption)"><span>{{accountOption.accountName}}</span><small>{{accountOption.code||accountOption.username}}</small></button><div class="nurse-empty" *ngIf="!filteredInspectorAccounts.length">未找到匹配的账号</div></div>
+      <input type="text" autocomplete="off" [ngModel]="inspectorQuery" (ngModelChange)="onInspectorSearchInput($event)" (focus)="openInspectorDropdown()" (blur)="closeInspectorDropdownLater()" placeholder="输入姓名检索">
+      <div class="nurse-dropdown" *ngIf="inspectorDropdownOpen"><button type="button" class="nurse-option" *ngFor="let a of inspectorFiltered" (mousedown)="$event.preventDefault()" (click)="selectInspector(a)"><span>{{a.accountName}}</span><small>{{a.code||a.username}}</small></button><div class="nurse-empty" *ngIf="!inspectorFiltered.length">未找到匹配的账号</div></div>
     </div></div>
   </div>
   <section class="measure-group" *ngFor="let group of groups"><div class="measure-group-head"><div><span class="group-code">{{group.shortName}}</span><h3>{{group.name}}</h3></div><div class="group-actions">

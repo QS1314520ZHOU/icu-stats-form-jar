@@ -11,7 +11,8 @@ type MeasureCode =
   | 'SEDATION_AWAKENING' | 'EARLY_REHABILITATION' | 'EXTUBATION_ASSESSMENT'
   | 'CENTRAL_LINE_NECESSITY' | 'URINARY_CATHETER_NECESSITY'
   | 'HEAD_ELEVATION' | 'ORAL_CARE' | 'SUCTION_STANDARD' | 'SUBGLOTTIC_SUCTION'
-  | 'CUFF_PRESSURE' | 'CONDENSATE_MANAGEMENT' | 'VENTILATOR_CIRCUIT_REPLACEMENT'
+  | 'CUFF_PRESSURE_1' | 'CUFF_PRESSURE_2' | 'CUFF_PRESSURE_3' | 'CUFF_PRESSURE_4'
+  | 'CONDENSATE_MANAGEMENT' | 'VENTILATOR_CIRCUIT_REPLACEMENT'
   | 'MAXIMAL_STERILE_BARRIER' | 'CHLORHEXIDINE_SKIN_ANTISEPSIS'
   | 'STERILE_DRESSING' | 'CONNECTOR_DISINFECTION'
   | 'STERILE_CATHETERIZATION' | 'URINE_BAG_POSITION' | 'URINE_BAG_TWO_THIRDS'
@@ -29,11 +30,9 @@ interface SggrfkcsRecord {
   pid: string;
   recordDate: string;
   measures: Partial<Record<MeasureCode, ComplianceMark>>;
-  doctorId?: string;
   doctorName: string;
   nurseId?: string;
   nurseName: string;
-  inspectorId?: string;
   inspectorName: string;
   valid?: boolean;
   updatedBy?: string;
@@ -58,11 +57,15 @@ const VAP_GROUP: MeasureGroup = {
     { code: 'ORAL_CARE', label: '口腔护理' },
     { code: 'SUCTION_STANDARD', label: '吸痰操作规范' },
     { code: 'SUBGLOTTIC_SUCTION', label: '声门下吸引' },
-    { code: 'CUFF_PRESSURE', label: '气管导管气囊测压25-30cmH₂O' },
+    { code: 'CUFF_PRESSURE_1', label: '气管导管气囊测压25-30cmH₂O 1' },
+    { code: 'CUFF_PRESSURE_2', label: '气管导管气囊测压25-30cmH₂O 2' },
+    { code: 'CUFF_PRESSURE_3', label: '气管导管气囊测压25-30cmH₂O 3' },
+    { code: 'CUFF_PRESSURE_4', label: '气管导管气囊测压25-30cmH₂O 4' },
     { code: 'CONDENSATE_MANAGEMENT', label: '积水杯最低位，倾倒冷凝水' },
     { code: 'VENTILATOR_CIRCUIT_REPLACEMENT', label: '呼吸机外部管路更换' },
   ],
 };
+const CUFF_PRESSURE_CODES: MeasureCode[] = ['CUFF_PRESSURE_1', 'CUFF_PRESSURE_2', 'CUFF_PRESSURE_3', 'CUFF_PRESSURE_4'];
 const CRBSI_GROUP: MeasureGroup = {
   code: 'CRBSI', name: '导管相关血流感染防控（CRBSI）', shortName: 'CRBSI',
   items: [
@@ -98,6 +101,11 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   readonly vapGroup = VAP_GROUP;
   readonly crbsiGroup = CRBSI_GROUP;
   readonly cautiGroup = CAUTI_GROUP;
+  readonly cuffPressureCodes = CUFF_PRESSURE_CODES;
+  readonly cuffPressureLabel = '气管导管气囊测压25-30cmH₂O';
+  isCuffPressure(code: MeasureCode): boolean {
+    return (CUFF_PRESSURE_CODES as readonly string[]).includes(code);
+  }
 
   patient: any = null;
   account: any = null;
@@ -122,17 +130,15 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   nurseDropdownOpen = false;
   selectedNurse: AccountOption | null = null;
 
+  allAccounts: AccountOption[] = [];
   doctorAccounts: AccountOption[] = [];
-  filteredDoctorAccounts: AccountOption[] = [];
+  doctorFiltered: AccountOption[] = [];
   doctorQuery = '';
   doctorDropdownOpen = false;
-  selectedDoctor: AccountOption | null = null;
 
-  inspectorAccounts: AccountOption[] = [];
-  filteredInspectorAccounts: AccountOption[] = [];
+  inspectorFiltered: AccountOption[] = [];
   inspectorQuery = '';
   inspectorDropdownOpen = false;
-  selectedInspector: AccountOption | null = null;
 
   private pid = '';
   private readonly destroy$ = new Subject<void>();
@@ -196,17 +202,13 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     } : null;
     this.filteredAccounts = this.accounts.slice(0, 20);
     this.nurseDropdownOpen = false;
-    this.form.doctorId = '';
     this.form.doctorName = '';
     this.doctorQuery = '';
-    this.selectedDoctor = null;
-    this.filteredDoctorAccounts = this.doctorAccounts.slice(0, 20);
+    this.doctorFiltered = this.doctorAccounts.slice(0, 20);
     this.doctorDropdownOpen = false;
-    this.form.inspectorId = '';
     this.form.inspectorName = '';
     this.inspectorQuery = '';
-    this.selectedInspector = null;
-    this.filteredInspectorAccounts = this.inspectorAccounts.slice(0, 20);
+    this.inspectorFiltered = this.allAccounts.slice(0, 20);
     this.inspectorDropdownOpen = false;
     this.formOpen = true;
   }
@@ -225,14 +227,10 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     this.filteredAccounts = this.accounts.slice(0, 20);
     this.nurseDropdownOpen = false;
     this.doctorQuery = this.form.doctorName || '';
-    this.selectedDoctor = this.form.doctorId && this.form.doctorName
-      ? { accountId: this.form.doctorId, accountName: this.form.doctorName } : null;
-    this.filteredDoctorAccounts = this.doctorAccounts.slice(0, 20);
+    this.doctorFiltered = this.allAccounts.slice(0, 20);
     this.doctorDropdownOpen = false;
     this.inspectorQuery = this.form.inspectorName || '';
-    this.selectedInspector = this.form.inspectorId && this.form.inspectorName
-      ? { accountId: this.form.inspectorId, accountName: this.form.inspectorName } : null;
-    this.filteredInspectorAccounts = this.inspectorAccounts.slice(0, 20);
+    this.inspectorFiltered = this.allAccounts.slice(0, 20);
     this.inspectorDropdownOpen = false;
     this.formOpen = true;
   }
@@ -252,11 +250,9 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     const operationPid = this.pid;
     const body: SggrfkcsRecord = {
       ...this.form, pid: this.pid, measures: { ...this.form.measures },
-      doctorId: this.selectedDoctor?.accountId || '',
-      doctorName: this.selectedDoctor?.accountName || this.form.doctorName?.trim() || '',
+      doctorName: this.form.doctorName?.trim() || '',
       nurseId: selectedNurse.accountId, nurseName: selectedNurse.accountName,
-      inspectorId: this.selectedInspector?.accountId || '',
-      inspectorName: this.selectedInspector?.accountName || this.form.inspectorName?.trim() || '',
+      inspectorName: this.form.inspectorName?.trim() || '',
       updatedBy: String(this.account?.id ?? this.account?._id ?? ''),
     };
     this.http.post(`${this.API}/save`, body).pipe(
@@ -322,55 +318,35 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   closeNurseDropdownLater(): void { window.setTimeout(() => this.nurseDropdownOpen = false, 150); }
 
   selectDoctor(account: AccountOption): void {
-    this.selectedDoctor = account;
-    this.form.doctorId = account.accountId;
     this.form.doctorName = account.accountName;
     this.doctorQuery = account.accountName;
     this.doctorDropdownOpen = false;
-    this.errorText = '';
   }
   onDoctorSearchInput(value: string): void {
     this.doctorQuery = value;
-    const normalized = value.trim();
-    if (this.selectedDoctor && normalized === this.selectedDoctor.accountName) {
-      this.form.doctorId = this.selectedDoctor.accountId;
-      this.form.doctorName = this.selectedDoctor.accountName;
-    } else {
-      this.selectedDoctor = null; this.form.doctorId = ''; this.form.doctorName = value;
-    }
-    const keyword = normalized.toLowerCase();
-    this.filteredDoctorAccounts = this.doctorAccounts.filter(account => !keyword ||
-      [account.accountName, account.username, account.code]
-        .some(field => String(field || '').toLowerCase().includes(keyword))).slice(0, 20);
+    this.form.doctorName = value;
+    const keyword = value.trim().toLowerCase();
+    this.doctorFiltered = this.doctorAccounts.filter(a => !keyword ||
+      [a.accountName, a.username, a.code].some(f => String(f || '').toLowerCase().includes(keyword))).slice(0, 20);
     this.doctorDropdownOpen = true;
   }
-  openDoctorDropdown(): void { this.filteredDoctorAccounts = this.doctorAccounts.slice(0, 20); this.doctorDropdownOpen = true; }
+  openDoctorDropdown(): void { this.doctorFiltered = this.doctorAccounts.slice(0, 20); this.doctorDropdownOpen = true; }
   closeDoctorDropdownLater(): void { window.setTimeout(() => this.doctorDropdownOpen = false, 150); }
 
   selectInspector(account: AccountOption): void {
-    this.selectedInspector = account;
-    this.form.inspectorId = account.accountId;
     this.form.inspectorName = account.accountName;
     this.inspectorQuery = account.accountName;
     this.inspectorDropdownOpen = false;
-    this.errorText = '';
   }
   onInspectorSearchInput(value: string): void {
     this.inspectorQuery = value;
-    const normalized = value.trim();
-    if (this.selectedInspector && normalized === this.selectedInspector.accountName) {
-      this.form.inspectorId = this.selectedInspector.accountId;
-      this.form.inspectorName = this.selectedInspector.accountName;
-    } else {
-      this.selectedInspector = null; this.form.inspectorId = ''; this.form.inspectorName = value;
-    }
-    const keyword = normalized.toLowerCase();
-    this.filteredInspectorAccounts = this.inspectorAccounts.filter(account => !keyword ||
-      [account.accountName, account.username, account.code]
-        .some(field => String(field || '').toLowerCase().includes(keyword))).slice(0, 20);
+    this.form.inspectorName = value;
+    const keyword = value.trim().toLowerCase();
+    this.inspectorFiltered = this.allAccounts.filter(a => !keyword ||
+      [a.accountName, a.username, a.code].some(f => String(f || '').toLowerCase().includes(keyword))).slice(0, 20);
     this.inspectorDropdownOpen = true;
   }
-  openInspectorDropdown(): void { this.filteredInspectorAccounts = this.inspectorAccounts.slice(0, 20); this.inspectorDropdownOpen = true; }
+  openInspectorDropdown(): void { this.inspectorFiltered = this.allAccounts.slice(0, 20); this.inspectorDropdownOpen = true; }
   closeInspectorDropdownLater(): void { window.setTimeout(() => this.inspectorDropdownOpen = false, 150); }
 
   print(): void {
@@ -393,7 +369,7 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
       h1{margin:0 0 2mm;text-align:center;font-family:SimHei,'Microsoft YaHei',sans-serif;font-size:18pt;line-height:1.15}
       .patient-info{display:grid;grid-template-columns:1.1fr .9fr .8fr 1fr .65fr .65fr 2.5fr;gap:2mm;margin-bottom:2mm;font-family:'SimSun','宋体',serif;font-size:10pt;line-height:1.2;white-space:nowrap}.patient-info span{min-width:0;overflow:hidden;text-overflow:ellipsis}
       .control-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:8.5pt;line-height:1.18}.control-table col.col-date{width:7.3%}.control-table col.col-measure{width:3.8%}.control-table col.col-signature{width:4.3%}
-      .control-table th,.control-table td{border:.25mm solid #000;padding:.7mm .45mm;text-align:center;vertical-align:middle;color:#000;background:#fff}.control-table thead .group-head th{height:8mm;font-size:9.5pt;font-weight:400}.control-table thead .item-head th{height:55mm;padding:1mm .45mm;font-weight:400;word-break:break-all;overflow-wrap:anywhere}.control-table tbody tr{height:8mm}.control-table td.date-cell{white-space:nowrap}.control-table td.mark-cell{font-family:Arial,'SimSun',serif;font-size:11pt;font-weight:700}.control-table td.signature-cell{font-size:8pt;word-break:break-all}.control-table tfoot td{height:7mm;padding:1mm 2mm;text-align:left;font-size:9pt}
+      .control-table th,.control-table td{border:.25mm solid #000;padding:.7mm .45mm;text-align:center;vertical-align:middle;color:#000;background:#fff}.control-table thead .group-head th{height:8mm;font-size:9.5pt;font-weight:400}.control-table thead .item-head th{height:55mm;padding:1mm .45mm;font-weight:400;word-wrap:break-word;overflow-wrap:break-word;word-break:normal;line-height:1.1}.control-table tbody tr{height:8mm}.control-table td.date-cell{white-space:nowrap;line-height:1.3}.control-table td.mark-cell{font-family:Arial,'SimSun',serif;font-size:11pt;font-weight:700}.control-table td.signature-cell{font-size:8pt;word-break:break-all}.control-table tfoot td{height:7mm;padding:1mm 2mm;text-align:left;font-size:9pt}
       .sheet-pageno{position:absolute;right:0;bottom:3mm;left:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:9pt}.no-print{display:none!important}`;
     const win = window.open('', '_blank', 'width=1200,height=800');
     if (!win) { alert('打印窗口被拦截'); return; }
@@ -417,14 +393,20 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   closeDialogs(): void {
     this.editListOpen = false; this.formOpen = false; this.errorText = '';
     this.nurseQuery = ''; this.nurseDropdownOpen = false; this.selectedNurse = null;
-    this.doctorQuery = ''; this.doctorDropdownOpen = false; this.selectedDoctor = null;
-    this.inspectorQuery = ''; this.inspectorDropdownOpen = false; this.selectedInspector = null;
+    this.doctorQuery = ''; this.doctorDropdownOpen = false;
+    this.inspectorQuery = ''; this.inspectorDropdownOpen = false;
   }
   fmtRecordDate(value?: string): string {
-    if (!value) return ''; const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[2]}-${m[3]}` : value;
+    if (!value) return '';
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if (!m) return value;
+    return m[4] ? `${m[1]}-${m[2]}-${m[3]}<br>${m[4]}:${m[5]}` : `${m[1]}-${m[2]}-${m[3]}`;
   }
   fmtFullDate(value?: string): string {
-    if (!value) return ''; const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : value;
+    if (!value) return '';
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if (!m) return value;
+    return m[4] ? `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}` : `${m[1]}-${m[2]}-${m[3]}`;
   }
   genderText(g?: string): string {
     if (g === 'Male' || g === 'M' || g === '男') return '男';
@@ -461,32 +443,33 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     this.selectedPrintPages = normalized.length === this.pages.length && this.pages.length ? [] : normalized;
   }
   private emptyForm(pid: string): SggrfkcsRecord {
-    return { pid, recordDate: '', measures: {}, doctorId: '', doctorName: '', nurseId: '', nurseName: '', inspectorId: '', inspectorName: '' };
+    return { pid, recordDate: '', measures: {}, doctorName: '', nurseId: '', nurseName: '', inspectorName: '' };
   }
   private normalizeRecord(record: SggrfkcsRecord): SggrfkcsRecord {
     return { ...this.emptyForm(String(record?.pid || this.pid || '')), ...record,
-      measures: { ...(record?.measures || {}) }, doctorId: record?.doctorId || '',
-      doctorName: record?.doctorName || '', nurseName: record?.nurseName || '',
-      inspectorId: record?.inspectorId || '', inspectorName: record?.inspectorName || '' };
+      measures: { ...(record?.measures || {}) }, doctorName: record?.doctorName || '',
+      nurseName: record?.nurseName || '', inspectorName: record?.inspectorName || '' };
   }
   private loadAccounts(): void {
+    const NURSE_PROFS = ['nurse', 'nurseleader', 'matron', 'practicenurse'];
     this.http.get<any[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$)).subscribe({
       next: rows => {
-        this.accounts = (Array.isArray(rows) ? rows : []).map(row => ({
+        const all = (Array.isArray(rows) ? rows : []).map(row => ({
           accountId: String(row?.accountId ?? row?._id ?? row?.id ?? '').trim(),
           accountName: String(row?.accountName ?? row?.trueName ?? row?.name ?? '').trim(),
           profession: String(row?.profession ?? '').trim(),
           username: String(row?.username ?? row?.loginName ?? '').trim(),
           code: String(row?.code ?? row?.jobNumber ?? '').trim(),
         })).filter(account => !!account.accountId && !!account.accountName);
+        this.allAccounts = all;
+        this.accounts = all.filter(a => NURSE_PROFS.includes(a.profession.toLowerCase()));
         this.filteredAccounts = this.accounts.slice(0, 20);
         const DOCTOR_PROFS = ['director', 'doctor'];
-        this.doctorAccounts = this.accounts.filter(a => DOCTOR_PROFS.includes(a.profession.toLowerCase()));
-        this.filteredDoctorAccounts = this.doctorAccounts.slice(0, 20);
-        this.inspectorAccounts = this.accounts.slice(0, 20);
-        this.filteredInspectorAccounts = this.inspectorAccounts.slice(0, 20);
+        this.doctorAccounts = all.filter(a => DOCTOR_PROFS.includes(a.profession.toLowerCase()));
+        this.doctorFiltered = this.doctorAccounts.slice(0, 20);
+        this.inspectorFiltered = this.allAccounts.slice(0, 20);
       },
-      error: () => { this.accounts = []; this.filteredAccounts = []; this.doctorAccounts = []; this.inspectorAccounts = []; },
+      error: () => { this.accounts = []; this.filteredAccounts = []; this.allAccounts = []; },
     });
   }
   private patientId(p: any): string {
@@ -494,10 +477,12 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   }
   private toLocalDate(d: Date): string {
     const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   }
   private dateValue(value?: string): number {
-    if (!value) return 0; const t = new Date(`${value.slice(0, 10)}T00:00:00`).getTime(); return Number.isNaN(t) ? 0 : t;
+    if (!value) return 0;
+    const t = new Date(value.includes('T') ? value : `${value}T00:00:00`).getTime();
+    return Number.isNaN(t) ? 0 : t;
   }
   private calcAge(value?: string): number | null {
     if (!value) return null; const b = new Date(value); if (Number.isNaN(b.getTime())) return null;
