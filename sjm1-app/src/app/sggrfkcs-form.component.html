@@ -57,12 +57,18 @@
   <div class="dialog-head"><div><span class="eyebrow">THREE-TUBE INFECTION CONTROL</span><h2>{{editing?'编辑监测记录':'新增监测记录'}}</h2></div><button class="icon-btn" type="button" (click)="formOpen=false" [disabled]="saving">×</button></div>
   <div class="form-body"><div class="basic-form-grid">
     <label class="form-field"><span class="field-label">日期 <em>*</em></span><input type="date" [(ngModel)]="form.recordDate"></label>
-    <label class="form-field"><span class="field-label">医生签名</span><input type="text" [(ngModel)]="form.doctorName" maxlength="30" placeholder="输入医生姓名"></label>
+    <div class="form-field nurse-field"><span class="field-label">医生签名</span><div class="nurse-search">
+      <input type="text" autocomplete="off" [ngModel]="doctorQuery" (ngModelChange)="onDoctorSearchInput($event)" (focus)="openDoctorDropdown()" (blur)="closeDoctorDropdownLater()" placeholder="输入姓名、账号或工号检索">
+      <div class="nurse-dropdown" *ngIf="doctorDropdownOpen"><button type="button" class="nurse-option" *ngFor="let accountOption of filteredDoctorAccounts" (mousedown)="$event.preventDefault()" (click)="selectDoctor(accountOption)"><span>{{accountOption.accountName}}</span><small>{{accountOption.code||accountOption.username}}</small></button><div class="nurse-empty" *ngIf="!filteredDoctorAccounts.length">未找到匹配的账号</div></div>
+    </div></div>
     <div class="form-field nurse-field"><span class="field-label">护士签名 <em>*</em></span><div class="nurse-search">
       <input type="text" autocomplete="off" [ngModel]="nurseQuery" (ngModelChange)="onNurseSearchInput($event)" (focus)="openNurseDropdown()" (blur)="closeNurseDropdownLater()" placeholder="输入姓名、账号或工号检索">
       <div class="nurse-dropdown" *ngIf="nurseDropdownOpen"><button type="button" class="nurse-option" *ngFor="let accountOption of filteredAccounts" (mousedown)="$event.preventDefault()" (click)="selectNurse(accountOption)"><span>{{accountOption.accountName}}</span><small>{{accountOption.code||accountOption.username}}</small></button><div class="nurse-empty" *ngIf="!filteredAccounts.length">未找到匹配的账号</div></div>
     </div></div>
-    <label class="form-field"><span class="field-label">督查者签名</span><input type="text" [(ngModel)]="form.inspectorName" maxlength="30" placeholder="输入督查者姓名"></label>
+    <div class="form-field nurse-field"><span class="field-label">督查者签名</span><div class="nurse-search">
+      <input type="text" autocomplete="off" [ngModel]="inspectorQuery" (ngModelChange)="onInspectorSearchInput($event)" (focus)="openInspectorDropdown()" (blur)="closeInspectorDropdownLater()" placeholder="输入姓名、账号或工号检索">
+      <div class="nurse-dropdown" *ngIf="inspectorDropdownOpen"><button type="button" class="nurse-option" *ngFor="let accountOption of filteredInspectorAccounts" (mousedown)="$event.preventDefault()" (click)="selectInspector(accountOption)"><span>{{accountOption.accountName}}</span><small>{{accountOption.code||accountOption.username}}</small></button><div class="nurse-empty" *ngIf="!filteredInspectorAccounts.length">未找到匹配的账号</div></div>
+    </div></div>
   </div>
   <section class="measure-group" *ngFor="let group of groups"><div class="measure-group-head"><div><span class="group-code">{{group.shortName}}</span><h3>{{group.name}}</h3></div><div class="group-actions">
     <button type="button" [class.active]="isGroupMarked(group,'√')" (click)="setGroupMark(group,'√')">全部√</button><button type="button" [class.active]="isGroupMarked(group,'×')" (click)="setGroupMark(group,'×')">全部×</button><button type="button" (click)="setGroupMark(group,'')">清空</button>

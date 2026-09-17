@@ -33,7 +33,7 @@ public class AccountController {
         }
         List<AccountDto> list = accounts.stream()
                 .filter(a -> a.getValid() == null || !"invalid".equalsIgnoreCase(a.getValid().trim()))
-                .map(a -> new AccountDto(a.getUsername(), a.getTrueName()))
+                .map(a -> new AccountDto(a.getUsername(), a.getTrueName(), a.getProfession()))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(list);
     }
@@ -49,14 +49,18 @@ public class AccountController {
     public static class AccountDto {
         private String accountId;
         private String accountName;
+        private String profession;
 
         public String getAccountId() { return this.accountId; }
         public void setAccountId(String accountId) { this.accountId = accountId; }
         public String getAccountName() { return this.accountName; }
         public void setAccountName(String accountName) { this.accountName = accountName; }
-        public AccountDto(String accountId, String accountName) {
+        public String getProfession() { return this.profession; }
+        public void setProfession(String profession) { this.profession = profession; }
+        public AccountDto(String accountId, String accountName, String profession) {
             this.accountId = accountId;
             this.accountName = accountName;
+            this.profession = profession;
         }
     }
 }

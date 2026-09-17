@@ -29,14 +29,16 @@ interface SggrfkcsRecord {
   pid: string;
   recordDate: string;
   measures: Partial<Record<MeasureCode, ComplianceMark>>;
+  doctorId?: string;
   doctorName: string;
   nurseId?: string;
   nurseName: string;
+  inspectorId?: string;
   inspectorName: string;
   valid?: boolean;
   updatedBy?: string;
 }
-interface AccountOption { accountId: string; accountName: string; username?: string; code?: string; }
+interface AccountOption { accountId: string; accountName: string; profession?: string; username?: string; code?: string; }
 interface RenderPage { index: number; records: Array<SggrfkcsRecord | null>; }
 
 const NECESSITY_GROUP: MeasureGroup = {
@@ -120,6 +122,18 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   nurseDropdownOpen = false;
   selectedNurse: AccountOption | null = null;
 
+  doctorAccounts: AccountOption[] = [];
+  filteredDoctorAccounts: AccountOption[] = [];
+  doctorQuery = '';
+  doctorDropdownOpen = false;
+  selectedDoctor: AccountOption | null = null;
+
+  inspectorAccounts: AccountOption[] = [];
+  filteredInspectorAccounts: AccountOption[] = [];
+  inspectorQuery = '';
+  inspectorDropdownOpen = false;
+  selectedInspector: AccountOption | null = null;
+
   private pid = '';
   private readonly destroy$ = new Subject<void>();
   private readonly refresh$ = new Subject<void>();
@@ -182,6 +196,18 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     } : null;
     this.filteredAccounts = this.accounts.slice(0, 20);
     this.nurseDropdownOpen = false;
+    this.form.doctorId = '';
+    this.form.doctorName = '';
+    this.doctorQuery = '';
+    this.selectedDoctor = null;
+    this.filteredDoctorAccounts = this.doctorAccounts.slice(0, 20);
+    this.doctorDropdownOpen = false;
+    this.form.inspectorId = '';
+    this.form.inspectorName = '';
+    this.inspectorQuery = '';
+    this.selectedInspector = null;
+    this.filteredInspectorAccounts = this.inspectorAccounts.slice(0, 20);
+    this.inspectorDropdownOpen = false;
     this.formOpen = true;
   }
 
@@ -198,6 +224,16 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
       ? { accountId: this.form.nurseId, accountName: this.form.nurseName } : null;
     this.filteredAccounts = this.accounts.slice(0, 20);
     this.nurseDropdownOpen = false;
+    this.doctorQuery = this.form.doctorName || '';
+    this.selectedDoctor = this.form.doctorId && this.form.doctorName
+      ? { accountId: this.form.doctorId, accountName: this.form.doctorName } : null;
+    this.filteredDoctorAccounts = this.doctorAccounts.slice(0, 20);
+    this.doctorDropdownOpen = false;
+    this.inspectorQuery = this.form.inspectorName || '';
+    this.selectedInspector = this.form.inspectorId && this.form.inspectorName
+      ? { accountId: this.form.inspectorId, accountName: this.form.inspectorName } : null;
+    this.filteredInspectorAccounts = this.inspectorAccounts.slice(0, 20);
+    this.inspectorDropdownOpen = false;
     this.formOpen = true;
   }
 
@@ -216,9 +252,11 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     const operationPid = this.pid;
     const body: SggrfkcsRecord = {
       ...this.form, pid: this.pid, measures: { ...this.form.measures },
-      doctorName: this.form.doctorName?.trim() || '',
+      doctorId: this.selectedDoctor?.accountId || '',
+      doctorName: this.selectedDoctor?.accountName || this.form.doctorName?.trim() || '',
       nurseId: selectedNurse.accountId, nurseName: selectedNurse.accountName,
-      inspectorName: this.form.inspectorName?.trim() || '',
+      inspectorId: this.selectedInspector?.accountId || '',
+      inspectorName: this.selectedInspector?.accountName || this.form.inspectorName?.trim() || '',
       updatedBy: String(this.account?.id ?? this.account?._id ?? ''),
     };
     this.http.post(`${this.API}/save`, body).pipe(
@@ -283,6 +321,58 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   openNurseDropdown(): void { this.filteredAccounts = this.accounts.slice(0, 20); this.nurseDropdownOpen = true; }
   closeNurseDropdownLater(): void { window.setTimeout(() => this.nurseDropdownOpen = false, 150); }
 
+  selectDoctor(account: AccountOption): void {
+    this.selectedDoctor = account;
+    this.form.doctorId = account.accountId;
+    this.form.doctorName = account.accountName;
+    this.doctorQuery = account.accountName;
+    this.doctorDropdownOpen = false;
+    this.errorText = '';
+  }
+  onDoctorSearchInput(value: string): void {
+    this.doctorQuery = value;
+    const normalized = value.trim();
+    if (this.selectedDoctor && normalized === this.selectedDoctor.accountName) {
+      this.form.doctorId = this.selectedDoctor.accountId;
+      this.form.doctorName = this.selectedDoctor.accountName;
+    } else {
+      this.selectedDoctor = null; this.form.doctorId = ''; this.form.doctorName = value;
+    }
+    const keyword = normalized.toLowerCase();
+    this.filteredDoctorAccounts = this.doctorAccounts.filter(account => !keyword ||
+      [account.accountName, account.username, account.code]
+        .some(field => String(field || '').toLowerCase().includes(keyword))).slice(0, 20);
+    this.doctorDropdownOpen = true;
+  }
+  openDoctorDropdown(): void { this.filteredDoctorAccounts = this.doctorAccounts.slice(0, 20); this.doctorDropdownOpen = true; }
+  closeDoctorDropdownLater(): void { window.setTimeout(() => this.doctorDropdownOpen = false, 150); }
+
+  selectInspector(account: AccountOption): void {
+    this.selectedInspector = account;
+    this.form.inspectorId = account.accountId;
+    this.form.inspectorName = account.accountName;
+    this.inspectorQuery = account.accountName;
+    this.inspectorDropdownOpen = false;
+    this.errorText = '';
+  }
+  onInspectorSearchInput(value: string): void {
+    this.inspectorQuery = value;
+    const normalized = value.trim();
+    if (this.selectedInspector && normalized === this.selectedInspector.accountName) {
+      this.form.inspectorId = this.selectedInspector.accountId;
+      this.form.inspectorName = this.selectedInspector.accountName;
+    } else {
+      this.selectedInspector = null; this.form.inspectorId = ''; this.form.inspectorName = value;
+    }
+    const keyword = normalized.toLowerCase();
+    this.filteredInspectorAccounts = this.inspectorAccounts.filter(account => !keyword ||
+      [account.accountName, account.username, account.code]
+        .some(field => String(field || '').toLowerCase().includes(keyword))).slice(0, 20);
+    this.inspectorDropdownOpen = true;
+  }
+  openInspectorDropdown(): void { this.filteredInspectorAccounts = this.inspectorAccounts.slice(0, 20); this.inspectorDropdownOpen = true; }
+  closeInspectorDropdownLater(): void { window.setTimeout(() => this.inspectorDropdownOpen = false, 150); }
+
   print(): void {
     const sheets = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.sheet'));
     if (!sheets.length) { alert('没有可打印的表单'); return; }
@@ -327,6 +417,8 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   closeDialogs(): void {
     this.editListOpen = false; this.formOpen = false; this.errorText = '';
     this.nurseQuery = ''; this.nurseDropdownOpen = false; this.selectedNurse = null;
+    this.doctorQuery = ''; this.doctorDropdownOpen = false; this.selectedDoctor = null;
+    this.inspectorQuery = ''; this.inspectorDropdownOpen = false; this.selectedInspector = null;
   }
   fmtRecordDate(value?: string): string {
     if (!value) return ''; const m = value.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[2]}-${m[3]}` : value;
@@ -369,12 +461,13 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     this.selectedPrintPages = normalized.length === this.pages.length && this.pages.length ? [] : normalized;
   }
   private emptyForm(pid: string): SggrfkcsRecord {
-    return { pid, recordDate: '', measures: {}, doctorName: '', nurseId: '', nurseName: '', inspectorName: '' };
+    return { pid, recordDate: '', measures: {}, doctorId: '', doctorName: '', nurseId: '', nurseName: '', inspectorId: '', inspectorName: '' };
   }
   private normalizeRecord(record: SggrfkcsRecord): SggrfkcsRecord {
     return { ...this.emptyForm(String(record?.pid || this.pid || '')), ...record,
-      measures: { ...(record?.measures || {}) }, doctorName: record?.doctorName || '',
-      nurseName: record?.nurseName || '', inspectorName: record?.inspectorName || '' };
+      measures: { ...(record?.measures || {}) }, doctorId: record?.doctorId || '',
+      doctorName: record?.doctorName || '', nurseName: record?.nurseName || '',
+      inspectorId: record?.inspectorId || '', inspectorName: record?.inspectorName || '' };
   }
   private loadAccounts(): void {
     this.http.get<any[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$)).subscribe({
@@ -382,12 +475,18 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
         this.accounts = (Array.isArray(rows) ? rows : []).map(row => ({
           accountId: String(row?.accountId ?? row?._id ?? row?.id ?? '').trim(),
           accountName: String(row?.accountName ?? row?.trueName ?? row?.name ?? '').trim(),
+          profession: String(row?.profession ?? '').trim(),
           username: String(row?.username ?? row?.loginName ?? '').trim(),
           code: String(row?.code ?? row?.jobNumber ?? '').trim(),
         })).filter(account => !!account.accountId && !!account.accountName);
         this.filteredAccounts = this.accounts.slice(0, 20);
+        const DOCTOR_PROFS = ['director', 'doctor'];
+        this.doctorAccounts = this.accounts.filter(a => DOCTOR_PROFS.includes(a.profession.toLowerCase()));
+        this.filteredDoctorAccounts = this.doctorAccounts.slice(0, 20);
+        this.inspectorAccounts = this.accounts.slice(0, 20);
+        this.filteredInspectorAccounts = this.inspectorAccounts.slice(0, 20);
       },
-      error: () => { this.accounts = []; this.filteredAccounts = []; },
+      error: () => { this.accounts = []; this.filteredAccounts = []; this.doctorAccounts = []; this.inspectorAccounts = []; },
     });
   }
   private patientId(p: any): string {
