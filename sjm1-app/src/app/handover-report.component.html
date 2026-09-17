@@ -7,7 +7,9 @@
       <button type="button" class="nav-arrow" (click)="nextDay()">›</button>
     </div>
     <button type="button" class="today-button" (click)="today()">今天</button>
+    @if (reportType === 'report1') {
     <button type="button" class="today-button" (click)="openCriticalDialog()">危重患者选择</button>
+    }
     <span class="toolbar-spacer"></span>
     <div class="save-state" [class.save-state-error]="saveStatus === 'error' || saveStatus === 'conflict'">
       @switch (saveStatus) {
@@ -39,6 +41,9 @@
 
   @if (vm && snapshot) {
     <main class="paper">
+
+      <!-- 报告一：护士交接班病情报告本 -->
+      @if (reportType === 'report1') {
       <section class="report-page">
 
         <!-- 班次统计表 -->
@@ -179,7 +184,7 @@
                     }
                     @if (shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightFluidSummary && (row.nightFluidSummary.totalInput > 0 || row.nightFluidSummary.totalOutput > 0)) {
                       <div class="night-fluid-summary">
-                        <div>【出入量总结】</div>
+                        <div>【出入量总结{{ row.fluidHours && row.fluidHours < 24 ? '（' + row.fluidHours.toFixed(1) + '小时）' : '' }}】</div>
                         <div>入量：{{ row.nightFluidSummary.totalInput }}ml（药物{{ row.nightFluidSummary.drugInput }}ml，胃肠{{ row.nightFluidSummary.enteralInput }}ml）</div>
                         <div>出量：{{ row.nightFluidSummary.totalOutput }}ml（尿量{{ row.nightFluidSummary.urineOutput }}ml，引流{{ row.nightFluidSummary.drainageOutput }}ml，排出物{{ row.nightFluidSummary.excretionOutput }}ml）</div>
                         <div>平衡量：{{ row.nightFluidSummary.balance }}ml</div>
@@ -213,8 +218,10 @@
           </tfoot>
         </table>
       </section>
+      }
 
-      <!-- 重症医学科病区交班报告（屏幕编辑） -->
+      <!-- 报告二：重症医学科病区交班报告 -->
+      @if (reportType === 'report2') {
       <section class="safety-report-section" aria-labelledby="safety-report-title">
         <h2 id="safety-report-title">重症医学科病区交班报告</h2>
 
@@ -295,6 +302,7 @@
           </tbody>
         </table>
       </section>
+      }
     </main>
 
   }

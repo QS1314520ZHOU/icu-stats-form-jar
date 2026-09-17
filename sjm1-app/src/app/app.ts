@@ -1,4 +1,5 @@
 import { Component, NgZone, OnDestroy, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
 import { isSmartCareHostMessage } from './models/smartcare-host-message.model';
@@ -36,6 +37,7 @@ export class App implements OnInit, OnDestroy {
   constructor(
     public readonly hostPatient: HostPatientService,
     private readonly ngZone: NgZone,
+    private readonly router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -61,6 +63,9 @@ export class App implements OnInit, OnDestroy {
 
   private startReadyHandshake(): void {
     if (this.liveReceived) return;                        // 已收到宿主回应，不再握手
+    // 调阅页（getIcuForm）自带 mrn 参数，不需要握手
+    const url = this.router.url;
+    if (url.startsWith('/getIcuForm') || url.startsWith('/getIcuForm?')) return;
     if (this.readyTimer) { clearInterval(this.readyTimer); this.readyTimer = null; }
     let attempts = 0;
     const maxAttempts = 10;                               // 最多约 5 秒兜底

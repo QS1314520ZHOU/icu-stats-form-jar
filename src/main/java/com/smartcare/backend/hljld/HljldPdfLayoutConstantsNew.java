@@ -77,6 +77,12 @@ public final class HljldPdfLayoutConstantsNew {
     public static final int REMARK_ROWS = 4;
     /** 备注区总高度 = 行数 * 行高 */
     public static final float REMARK_TOTAL_HEIGHT = REMARK_ROW_HEIGHT * REMARK_ROWS; // 52
+    /** 备注最小可用空间（pt）：低于此值必须独立续页 */
+    public static final float MIN_SPACE_FOR_REMARKS = 35f;
+    /** 压缩模式下备注行高下限 */
+    public static final float REMARK_MIN_ROW_HEIGHT = 7f;
+    /** 压缩模式下备注正文字号下限 */
+    public static final float REMARK_MIN_FONT_SIZE = 4.5f;
 
     /** 备注区顶部Y坐标 = REMARK_BOTTOM + REMARK_TOTAL_HEIGHT */
     public static final float REMARK_TOP =
@@ -220,8 +226,8 @@ public final class HljldPdfLayoutConstantsNew {
     // ══════════════════════════════════════════════════════════
     public static final String[] REMARK_LINES = {
         "检查：A：CT B：核磁共振 C：胃镜 D：肠镜 E：超声检查 F：床旁胸片 G：心电图",
-        "治疗：A：机械辅助排痰 B：气压治疗 C：雾化吸入 D：支气管镜灌洗 E：TDP照射 F：针灸治疗 G：运动治疗 H：肺复张",
-        "基础护理：A：口腔护理 B：动/静脉置管护理 C：擦浴 D：会阴擦洗 E：肛周护理 F：更换引流袋 G：膀胱冲洗 H：压疮护理 I：床上洗头",
+        "治疗：A：机械辅助排痰B：气压治疗C：支气管镜灌洗D：TDP照射E：针灸治疗F：运动治疗G：肺复张",
+        "基础护理：A：口腔护理B：动/静脉置管护理C：擦浴D：肛周护理E：压疮护理F：床上洗头",
         "健康教育：A：入院指导 B：入科指导 C：疾病知识 D：药物指导 E：饮食指导 F：肢体活动指导 G：检查指导 H：安全指导 I：心理指导 J：术前指导 K：术后指导 L：转科/出院指导 M：用氧注意事项 N：通气配合指导 O：康复指导 P：VTE预防指导"
     };
 

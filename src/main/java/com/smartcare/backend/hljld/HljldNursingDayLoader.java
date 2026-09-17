@@ -206,9 +206,9 @@ public class HljldNursingDayLoader {
     private Map<String, String> buildAccountMap(List<Document> bedside, List<Document> nurseRecords) {
         Set<String> userIds = new HashSet<>();
 
-        // 从 param_Yishi bedside 记录收集 editUser
+        // 从 param_Yishi bedside 记录收集 editUser（只保留 valid=true 的记录）
         for (Document doc : bedside) {
-            if (doc.getBoolean("valid") != null && !doc.getBoolean("valid")) continue;
+            if (!Boolean.TRUE.equals(doc.getBoolean("valid"))) continue;
             if ("param_Yishi".equals(str(doc, "code"))) {
                 String editUser = str(doc, "editUser");
                 if (!editUser.isEmpty()) userIds.add(editUser);
@@ -217,7 +217,7 @@ public class HljldNursingDayLoader {
 
         // 从护理记录收集 userId/editUser（仅在未自带 username/trueName 时）
         for (Document doc : nurseRecords) {
-            if (doc.getBoolean("valid") != null && !doc.getBoolean("valid")) continue;
+            if (!Boolean.TRUE.equals(doc.getBoolean("valid"))) continue;
             String username = str(doc, "username");
             String trueName = str(doc, "trueName");
             if (!username.isEmpty() || !trueName.isEmpty()) continue;

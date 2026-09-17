@@ -54,6 +54,12 @@
   cursor: pointer;
 }
 
+/* 有数据的表单选项标红 */
+.has-data-option {
+  color: #e53935 !important;
+  font-weight: 600;
+}
+
 .toolbar-input {
   width: 160px;
 }

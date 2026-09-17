@@ -69,14 +69,29 @@ public class HandoverReportController {
         patientQuery.with(Sort.by(Sort.Direction.ASC, "hisBed"));
         List<Document> patientDocs = mongoTemplate.find(patientQuery, Document.class, "patient");
 
-        // bedside records (48h window for historical indicators)
-        Calendar bedsideCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
-        bedsideCal.setTime(dayStart);
-        bedsideCal.add(Calendar.HOUR_OF_DAY, -48);
-        Date bedsideStart = bedsideCal.getTime();
+        // bedside records: 查询前天08:00到次日08:00（覆盖夜班生命体征提取）
+        // dayStart 是北京时间当天00:00（UTC = 前一天16:00）
+        // 需要查询到次日北京时间08:00（即当天UTC 00:00）
+        Calendar bedsideStartCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        bedsideStartCal.setTime(dayStart);
+        bedsideStartCal.add(Calendar.DAY_OF_MONTH, -2); // 前天00:00 北京时间
+        bedsideStartCal.set(Calendar.HOUR_OF_DAY, 8);
+        bedsideStartCal.set(Calendar.MINUTE, 0);
+        bedsideStartCal.set(Calendar.SECOND, 0);
+        bedsideStartCal.set(Calendar.MILLISECOND, 0);
+        Date bedsideStart = bedsideStartCal.getTime();
+
+        Calendar bedsideEndCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        bedsideEndCal.setTime(dayStart);
+        bedsideEndCal.add(Calendar.DAY_OF_MONTH, 1); // 次日00:00 北京时间
+        bedsideEndCal.set(Calendar.HOUR_OF_DAY, 8);  // 次日08:00 北京时间
+        bedsideEndCal.set(Calendar.MINUTE, 0);
+        bedsideEndCal.set(Calendar.SECOND, 0);
+        bedsideEndCal.set(Calendar.MILLISECOND, 0);
+        Date bedsideEnd = bedsideEndCal.getTime();
 
         Query bedsideQuery = new Query();
-        bedsideQuery.addCriteria(Criteria.where("time").gte(bedsideStart).lt(dayEnd));
+        bedsideQuery.addCriteria(Criteria.where("time").gte(bedsideStart).lt(bedsideEnd));
         bedsideQuery.with(Sort.by(Sort.Direction.ASC, "time"));
         List<Document> bedsideDocs = mongoTemplate.find(bedsideQuery, Document.class, "bedside");
 

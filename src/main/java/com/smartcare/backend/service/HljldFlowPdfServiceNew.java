@@ -189,7 +189,8 @@ public class HljldFlowPdfServiceNew {
         String patientInfo = getPatientInfoString(pid, referenceDate);
 
         // ── 第一次渲染：预渲染获取总页数（独立字体包，避免跨文档绑定） ──
-        int totalPages = preRenderForPageCount(itemsPerDay, patientInfo, startPageNo);
+        // 必须与正式渲染使用相同 policy/续页分支，否则页数不一致
+        int totalPages = preRenderForPageCount(itemsPerDay, patientInfo, startPageNo, policy);
         log.debug("[hljld-new] 预渲染完成: totalPages={}, policy={}", totalPages, policy);
 
         // ── 第二次渲染：正式渲染，带上 totalPages 和 policy ──
@@ -206,12 +207,10 @@ public class HljldFlowPdfServiceNew {
         com.itextpdf.layout.Document doc = new com.itextpdf.layout.Document(pdfDoc, PageSize.A4.rotate());
 
         // 底部边距：只预留页码空间，备注区使用动态位置
-        // 这样非最终页不会预留备注空间，最终页根据实际内容动态调整
         float marginBottom = HljldPdfLayoutConstantsNew.PAGE_BOTTOM_PADDING
             + HljldPdfLayoutConstantsNew.PAGE_NUMBER_HEIGHT
             + HljldPdfLayoutConstantsNew.PAGE_NUMBER_REMARK_GAP;
 
-        // 设置边距：精确匹配事件处理器绘制区域
         doc.setMargins(
             HljldPdfLayoutConstantsNew.MARGIN_TOP,
             HljldPdfLayoutConstantsNew.MARGIN_RIGHT,
@@ -251,12 +250,9 @@ public class HljldFlowPdfServiceNew {
             dayIndex++;
         }
 
-        // 最后一天：添加备注区占位元素
-        // 如果当前页剩余空间放不下备注区，iText 会自动分页到新页
-        // 这确保备注区始终有足够空间展示
-        if (!itemsPerDay.isEmpty()) {
-            HljldRemarksSpacer remarksSpacer = new HljldRemarksSpacer(dynamicRemarkTopByLocalPage);
-            doc.add(remarksSpacer);
+        // 仅策略要求显示备注时才追加续页决策元素，避免 remark=false 时挤出空白末页
+        if (!itemsPerDay.isEmpty() && policy != null && policy.isShowRemarkOnFinalPage()) {
+            doc.add(new HljldRemarkContinuationElement(buildRemarkContinuationTable(font)));
         }
 
         // 关闭文档（触发 END_PAGE 事件，绘制页眉/备注/页码/审核护士签名）
@@ -278,12 +274,14 @@ public class HljldFlowPdfServiceNew {
     }
 
     /**
-     * 预渲染：获取总页数（不绘制备注和签名）
+     * 预渲染：获取总页数（不绘制备注和签名叠层）。
+     * 须与正式渲染使用相同的流式内容与备注续页分支，保证页数一致。
      */
     private int preRenderForPageCount(
             List<List<PrintableItem>> itemsPerDay,
             String patientInfo,
-            int startPageNo) {
+            int startPageNo,
+            HljldPdfFooterPolicyNew policy) {
         HljldPdfFontBundle fonts = HljldPdfFontBundle.createForDocument();
         PdfFont font = fonts.getPrimaryFont();
         if (font == null) {
@@ -309,7 +307,7 @@ public class HljldFlowPdfServiceNew {
 
         Map<Integer, Float> dynamicRemarkTopByLocalPage = new ConcurrentHashMap<>();
 
-        // 预渲染：不绘制备注和签名
+        // 预渲染：不绘制备注叠层（policy=null），但保留续页流式元素
         HljldFlowPageEventHandlerNew eventHandler = new HljldFlowPageEventHandlerNew(
             fonts, patientInfo, startPageNo, dynamicRemarkTopByLocalPage,
             0, null);
@@ -327,9 +325,9 @@ public class HljldFlowPdfServiceNew {
             doc.add(new HljldDayEndMarker(dynamicRemarkTopByLocalPage));
         }
 
-        // 预渲染也添加备注占位，确保页数一致
-        if (!itemsPerDay.isEmpty()) {
-            doc.add(new HljldRemarksSpacer(dynamicRemarkTopByLocalPage));
+        // 与正式渲染相同的备注续页条件，保证页数一致
+        if (!itemsPerDay.isEmpty() && policy != null && policy.isShowRemarkOnFinalPage()) {
+            doc.add(new HljldRemarkContinuationElement(buildRemarkContinuationTable(font)));
         }
 
         doc.close();
@@ -731,6 +729,93 @@ public class HljldFlowPdfServiceNew {
     }
 
     // ══════════════════════════════════════════════════════════
+    //  备注三层策略：独立续页（available < 35pt）
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * 构建备注续页：19 列双层表头 + 备注图例行。
+     * 表头用普通 Cell（非 headerCell）避免 iText 跨页重复语义。
+     * 由 {@link HljldRemarkContinuationElement} 在空间不足时布局到独立页。
+     */
+    private Table buildRemarkContinuationTable(PdfFont font) {
+        Table table = createMainTable();
+        table.setKeepTogether(true);
+
+        float headerSize = HljldPdfLayoutConstantsNew.HEADER_FONT_SIZE;
+        float subSize = HljldPdfLayoutConstantsNew.SUB_HEADER_FONT_SIZE;
+
+        // ── 表头第一行 ──
+        addPlainHeaderCell(table, "日期时间", 1, 2, font, headerSize);
+        addPlainHeaderCell(table, "药物治疗", 3, 1, font, headerSize);
+        addPlainHeaderCell(table, "胃肠摄入", 3, 1, font, headerSize);
+        addPlainHeaderCell(table, "尿量(ml)", 1, 2, font, headerSize);
+        addPlainHeaderCell(table, "净超滤量(ml)", 1, 2, font, headerSize);
+        addPlainHeaderCell(table, "排出物", 2, 1, font, headerSize);
+        addPlainHeaderCell(table, "引流液", 2, 1, font, headerSize);
+        addPlainHeaderCell(table, "检查", 1, 2, font, headerSize);
+        addPlainHeaderCell(table, "治疗", 1, 2, font, headerSize);
+        addPlainHeaderCell(table, "基础护理", 1, 2, font, headerSize);
+        addPlainHeaderCell(table, "健康教育", 1, 2, font, headerSize);
+        addPlainHeaderCell(table, "护理记录", 1, 2, font, headerSize);
+        addPlainHeaderCell(table, "签名", 1, 2, font, headerSize);
+
+        // ── 表头第二行 ──
+        for (String sub : new String[]{
+            "名称", "量/ml", "途径",
+            "名称", "量/ml", "途径",
+            "名称", "量/ml",
+            "名称", "量/ml"}) {
+            addPlainHeaderCell(table, sub, 1, 1, font, subSize);
+        }
+
+        // ── 备注 4 行（左标签 rowspan=4，右图例）──
+        float remarkRowHeight = HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
+        Cell label = new Cell(HljldPdfLayoutConstantsNew.REMARK_ROWS, 1)
+            .add(new Paragraph("备注")
+                .setFont(font)
+                .setFontSize(HljldPdfLayoutConstantsNew.REMARK_LABEL_FONT_SIZE)
+                .setMargin(0))
+            .setTextAlignment(TextAlignment.CENTER)
+            .setVerticalAlignment(VerticalAlignment.MIDDLE)
+            .setHeight(remarkRowHeight * HljldPdfLayoutConstantsNew.REMARK_ROWS)
+            .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstantsNew.BORDER_REMARK));
+        table.addCell(label);
+
+        for (String line : HljldPdfLayoutConstantsNew.REMARK_LINES) {
+            Cell content = new Cell(1, HljldPdfLayoutConstantsNew.COL_WIDTHS_PT.length - 1)
+                .add(new Paragraph(line)
+                    .setFont(font)
+                    .setFontSize(HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE)
+                    .setMargin(0)
+                    .setMultipliedLeading(1.0f))
+                .setTextAlignment(TextAlignment.LEFT)
+                .setVerticalAlignment(VerticalAlignment.MIDDLE)
+                .setHeight(remarkRowHeight)
+                .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstantsNew.BORDER_REMARK));
+            table.addCell(content);
+        }
+
+        return table;
+    }
+
+    /** 续页表头单元格（普通 cell，不进 header 重复队列） */
+    private void addPlainHeaderCell(Table table, String text, int colspan, int rowspan,
+                                    PdfFont font, float fontSize) {
+        Cell cell = new Cell(rowspan, colspan)
+            .add(new Paragraph(text)
+                .setFont(font)
+                .setFontSize(fontSize)
+                .setMargin(0)
+                .setMultipliedLeading(1.0f))
+            .setTextAlignment(TextAlignment.CENTER)
+            .setVerticalAlignment(VerticalAlignment.MIDDLE)
+            .setHeight(HljldPdfLayoutConstantsNew.HEADER_ROW_HEIGHT)
+            .setBorder(new SolidBorder(ColorConstants.BLACK, HljldPdfLayoutConstantsNew.BORDER_HEADER_INNER))
+            .setBackgroundColor(ColorConstants.WHITE);
+        table.addCell(cell);
+    }
+
+    // ══════════════════════════════════════════════════════════
     //  小结/总结容器行（嵌入父级 Table）
     // ══════════════════════════════════════════════════════════
 
@@ -1018,24 +1103,32 @@ public class HljldFlowPdfServiceNew {
                     || tItem.getKind() == HljldTimelineItem.Kind.CONTINUATION)
                     && tItem.getGroup() != null) {
                     for (HljldDisplayRow row : tItem.getGroup().getRows()) {
+                        Map<String, Object> rowMap = displayRowToMap(row);
+                        if (isBlankNormalRow(rowMap)) {
+                            continue;
+                        }
                         PrintableItem pi = new PrintableItem();
                         pi.sortTime = tItem.getTimestamp();
                         pi.sortPriority = 20;
                         pi.stableId = tsPrefix + "-row-" + items.size();
                         pi.stableSequence = seqCounter++;
                         pi.type = PrintableItemType.NORMAL_ROW;
-                        pi.normalRow = displayRowToMap(row);
+                        pi.normalRow = rowMap;
                         items.add(pi);
                     }
                 } else if (tItem.getKind() == HljldTimelineItem.Kind.DAY_SETTLEMENT && tItem.getGroup() != null) {
                     for (HljldDisplayRow row : tItem.getGroup().getRows()) {
+                        Map<String, Object> rowMap = displayRowToMap(row);
+                        if (isBlankNormalRow(rowMap)) {
+                            continue;
+                        }
                         PrintableItem pi = new PrintableItem();
                         pi.sortTime = tItem.getTimestamp();
                         pi.sortPriority = 25;
                         pi.stableId = tsPrefix + "-settlement-" + items.size();
                         pi.stableSequence = seqCounter++;
                         pi.type = PrintableItemType.NORMAL_ROW;
-                        pi.normalRow = displayRowToMap(row);
+                        pi.normalRow = rowMap;
                         items.add(pi);
                     }
                 } else if (tItem.getSummary() != null) {
@@ -1066,13 +1159,17 @@ public class HljldFlowPdfServiceNew {
             // 回退：使用 displayGroups
             for (HljldTimeGroup group : viewModel.getDisplayGroups()) {
                 for (HljldDisplayRow row : group.getRows()) {
+                    Map<String, Object> rowMap = displayRowToMap(row);
+                    if (isBlankNormalRow(rowMap)) {
+                        continue;
+                    }
                     PrintableItem pi = new PrintableItem();
                     pi.sortTime = group.getTimestamp();
                     pi.sortPriority = 20;
                     pi.stableId = "row-" + items.size();
                     pi.stableSequence = seqCounter++;
                     pi.type = PrintableItemType.NORMAL_ROW;
-                    pi.normalRow = displayRowToMap(row);
+                    pi.normalRow = rowMap;
                     items.add(pi);
                 }
             }
@@ -1117,6 +1214,23 @@ public class HljldFlowPdfServiceNew {
         map.put("nursingRecord", row.getNursingRecord() != null ? row.getNursingRecord() : "");
         map.put("signature", row.getSignature() != null ? row.getSignature() : "");
         return map;
+    }
+
+    /** 显示行 19 列业务字段全为空白时视为全空行，不输出到 PDF */
+    private boolean isBlankNormalRow(Map<String, Object> row) {
+        if (row == null || row.isEmpty()) {
+            return true;
+        }
+        for (Object value : row.values()) {
+            if (value == null) {
+                continue;
+            }
+            String text = String.valueOf(value).trim();
+            if (!text.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // ══════════════════════════════════════════════════════════

@@ -278,11 +278,14 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   readonly MEASURE_COLUMNS = MEASURE_COLUMNS;
   readonly FOOT_NOTES = FOOT_NOTES;
 
+  /** 单页模式最大行数；也是末页补白下限与行高基准（方案B：取消压缩） */
   readonly maxRowsPerPage = 8;
+  /** 多页模式每页容量（中间页与末页数据上限一致，末页可少于 11 但不截断） */
   readonly maxRowsPerPageMultiPage = 11;
+  /** 末页空白补白目标行数（数据 <8 时补齐） */
   readonly maxRowsLastPage = 8;
-  readonly baseRowHeight = 35; // 基础行高（8行时的行高）
-  currentRowHeight = 35; // 当前页面的实际行高
+  readonly baseRowHeight = 35;
+  currentRowHeight = 35;
 
   loading = true;
   patient: any = null;
@@ -663,21 +666,20 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
   pagePaddedRows(page: RenderPage): (BradenRow | null)[] {
     if (this.pages.length <= 1) {
-      // 单页模式：不足8行时补足8行空白行（保持基础行高），≥8行时按原逻辑压缩行高适配一页
+      // 仅一页：数据可 0~11 条（9~11 条也会走多页算法但只产出 1 页）；不足 8 行补空白
       const r: (BradenRow | null)[] = page.rows.slice(0, this.maxRowsPerPageMultiPage);
       while (r.length < this.maxRowsPerPage) r.push(null);
       return r;
     }
-    // 多页模式：保持固定行数
-    let maxRows: number;
     if (page.index === this.pages.length) {
-      maxRows = this.maxRowsLastPage; // 最后一页9行
-    } else {
-      maxRows = this.maxRowsPerPageMultiPage; // 中间页13行
+      // 末页：有几条画几条（可 9~11），不足 8 行再补空白
+      const r: (BradenRow | null)[] = page.rows.slice();
+      while (r.length < this.maxRowsLastPage) r.push(null);
+      return r;
     }
-    const actualRows = Math.min(page.rows.length, maxRows);
-    const r: (BradenRow | null)[] = page.rows.slice(0, actualRows);
-    while (r.length < maxRows) r.push(null);
+    // 中间页：固定 11 槽位，不足补空白
+    const r: (BradenRow | null)[] = page.rows.slice(0, this.maxRowsPerPageMultiPage);
+    while (r.length < this.maxRowsPerPageMultiPage) r.push(null);
     return r;
   }
 
@@ -690,40 +692,38 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private paginate(): void {
+    // 行高固定为基础高度，不再按行数压缩（方案B）
+    this.currentRowHeight = this.baseRowHeight;
+
     if (!this.rows.length) {
       this.pages = [{ index: 1, rows: [] }];
-      this.currentRowHeight = this.baseRowHeight;
       this.normalizeSelectedPrintPages(this.pages.length);
       this.loadFinalExtra();
       return;
     }
 
-    // 判断分页模式和行高
-    if (this.rows.length <= this.maxRowsPerPageMultiPage) {
-      // 单页模式：数据≤13行时，都在一页显示
-      this.pages = [{ index: 1, rows: this.rows.slice(0, this.maxRowsPerPageMultiPage) }];
-      // 不足8行：保持基础行高，由 pagePaddedRows 补足空白行凑满8行；≥8行：压缩行高使总高等于8行
-      this.currentRowHeight = this.rows.length < this.maxRowsPerPage
-        ? this.baseRowHeight
-        : Math.floor((this.baseRowHeight * this.maxRowsPerPage) / this.rows.length);
-    } else {
-      // 多页模式：数据>13行时，分页显示
-      const pages: RenderPage[] = [];
-      let offset = 0;
-      // 第一页和中间页（maxRowsPerPageMultiPage行/页）
-      while (offset + this.maxRowsPerPageMultiPage < this.rows.length) {
-        pages.push({ index: pages.length + 1, rows: this.rows.slice(offset, offset + this.maxRowsPerPageMultiPage) });
-        offset += this.maxRowsPerPageMultiPage;
-      }
-      // 最后一页（maxRowsLastPage行，但不能超过实际剩余行数）
-      if (offset < this.rows.length) {
-        const lastPageRows = Math.min(this.maxRowsLastPage, this.rows.length - offset);
-        pages.push({ index: pages.length + 1, rows: this.rows.slice(offset, offset + lastPageRows) });
-      }
-      this.pages = pages;
-      // 多页时使用基础行高
-      this.currentRowHeight = this.baseRowHeight;
+    // 单页模式：≤8 行，空白由 pagePaddedRows 补齐
+    if (this.rows.length <= this.maxRowsPerPage) {
+      this.pages = [{ index: 1, rows: this.rows.slice() }];
+      this.normalizeSelectedPrintPages(this.pages.length);
+      this.loadFinalExtra();
+      return;
     }
+
+    // 多页模式：中间页每页 11 条；剩余 1~11 条全部放在末页，避免「上页留白 + 下页只 1 条」
+    const pages: RenderPage[] = [];
+    let offset = 0;
+    while (this.rows.length - offset > this.maxRowsPerPageMultiPage) {
+      pages.push({
+        index: pages.length + 1,
+        rows: this.rows.slice(offset, offset + this.maxRowsPerPageMultiPage),
+      });
+      offset += this.maxRowsPerPageMultiPage;
+    }
+    if (offset < this.rows.length) {
+      pages.push({ index: pages.length + 1, rows: this.rows.slice(offset) });
+    }
+    this.pages = pages;
 
     this.normalizeSelectedPrintPages(this.pages.length);
     this.loadFinalExtra();

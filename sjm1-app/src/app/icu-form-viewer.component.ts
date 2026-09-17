@@ -1,6 +1,7 @@
 import { Component, OnDestroy, OnInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { IcuFormViewerFormDef, IcuFormViewerState, IcuPatient } from './icu-form-viewer.models';
@@ -16,6 +17,8 @@ const TIME_RANGE_FORMS = new Set([
   'crrtOrderForm',     // CRRT 治疗医嘱单
   'crrtForm',          // CRRT 护理记录单（血液净化）
   'zzjkhljl',          // 重症医学科重症监护护理记录（外部 iframe）
+  'ruyuanhulipinggudan',   // 入院护理评估单（外部 iframe）
+  'zhuanruhulipinggudan',  // 转入护理评估单（外部 iframe）
 ]);
 
 /** 只需要单日选择的表单 key */
@@ -23,6 +26,8 @@ const SINGLE_DAY_FORMS = new Set([
   'hljldFormPDFNew',   // 重症监护护理记录单（单日展示）
   'handoverReport',    // ICU 交班报告（只展示一天）
   'zzjkhljl',          // 重症医学科重症监护护理记录（单日展示）
+  'ruyuanhulipinggudan',   // 入院护理评估单（单日展示）
+  'zhuanruhulipinggudan',  // 转入护理评估单（单日展示）
 ]);
 
 @Component({
@@ -47,6 +52,9 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
   patientInfo = '';
   isViewerMode = false; // 调阅模式，所有控件只读
 
+  /** 有数据的表单 key 集合，用于下拉框标红 */
+  formWithDataKeys = new Set<string>(['zzjkhljl']); // 监护护理记录单默认标红
+
   // 日期范围限制
   minDateInput = '';
   maxDateInput = '';
@@ -63,6 +71,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private sanitizer: DomSanitizer,
+    private http: HttpClient,
   ) {}
 
   ngOnInit(): void {
@@ -360,6 +369,7 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     // 清理旧数据
     this.patient = null;
     this.patientInfo = '';
+    this.formWithDataKeys = new Set<string>(['zzjkhljl']); // 监护护理记录单始终标红
 
     // 计算查询时间范围（日期转时间戳）
     // 开始日期：当天 00:00:00
@@ -451,6 +461,9 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
     setTimeout(() => {
       this.state = 'ready';
       this.cdr.markForCheck();
+
+      // 异步探测各表单是否有数据，用于下拉框标红
+      this.probeFormDataAvailability(pid);
     }, 0);
   }
 
@@ -493,5 +506,48 @@ export class IcuFormViewerComponent implements OnInit, OnDestroy {
       parts.push(patient.gender === 'Male' ? '男' : patient.gender === 'Female' ? '女' : patient.gender);
     }
     return parts.join(' · ');
+  }
+
+  /* ==================== 表单数据探测 ==================== */
+
+  /** 探测各表单是否有数据，调用后端聚合接口 */
+  private probeFormDataAvailability(pid: string): void {
+    this.formWithDataKeys = new Set<string>(['zzjkhljl']); // 监护护理记录单始终标红
+
+    this.http.get<Record<string, { hasData?: boolean; count?: number }>>(
+      '/api/v1/icu/form-availability',
+      { params: { pid } },
+    ).pipe(
+      takeUntil(this.destroy$),
+    ).subscribe({
+      next: (res) => {
+        if (res) {
+          Object.entries(res).forEach(([key, item]) => {
+            if (item?.hasData) {
+              this.formWithDataKeys.add(key);
+            }
+          });
+        }
+        // 本地存储类表单单独检测
+        this.probeLocal(pid);
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        // 接口失败不影响使用，仅本地表单仍需检测
+        this.probeLocal(pid);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  /** 检测 localStorage 本地存储类表单（物品管理表） */
+  private probeLocal(pid: string): void {
+    try {
+      const raw = localStorage.getItem(`wpgmForm.selectedIds:${pid}`);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        this.formWithDataKeys.add('wpgmForm');
+      }
+    } catch { /* ignore */ }
   }
 }

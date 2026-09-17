@@ -22,6 +22,20 @@ export const ICU_VIEWER_FORMS: IcuFormViewerFormDef[] = [
     route: 'zzjkhljl',
     iframeUrl: 'http://10.35.4.10:10248/pdf/doConsult?formCode=custom_nurse_form_%E9%87%8D%E7%97%87%E7%9B%91%E6%8A%A4%E6%8A%A4%E7%90%86%E8%AE%B0%E5%BD%95%E5%8D%951.0.0&mrn={mrn}&pdfTime={pdfTime}&deptCode=125011&inHospitalNum=',
   },
+  /* ── 入院护理评估单（外部 iframe） ── */
+  {
+    key: 'ruyuanhulipinggudan',
+    title: '入院护理评估单',
+    route: 'ruyuanhulipinggudan',
+    iframeUrl: 'http://10.35.4.10:10248/pdf/doConsult?formCode=ruyuanhulipinggudan&mrn={mrn}&pdfTime={pdfTime}&deptCode=125011&inHospitalNum=',
+  },
+  /* ── 转入护理评估单（外部 iframe） ── */
+  {
+    key: 'zhuanruhulipinggudan',
+    title: '转入护理评估单',
+    route: 'zhuanruhulipinggudan',
+    iframeUrl: 'http://10.35.4.10:10248/pdf/doConsult?formCode=zhuanruhulipinggudan&mrn={mrn}&pdfTime={pdfTime}&deptCode=125011&inHospitalNum=',
+  },
   /* ── 风险与评分 ── */
    { key: 'bradenForm', title: '患者压力性损伤评估及措施记录单', route: 'bradenForm' },
   { key: 'patientFallDangerForm', title: '跌倒/坠床风险评估及预防措施护理记录单', route: 'patientFallDangerForm' },
@@ -39,8 +53,8 @@ export const ICU_VIEWER_FORMS: IcuFormViewerFormDef[] = [
   { key: 'iabpForm', title: 'IABP运行护理记录单', route: 'iabpForm' },
   { key: 'ecmoForm', title: 'ECMO运行护理记录单', route: 'ecmoForm' },
 
-/* ── 交班报告 ── */
-  { key: 'handoverReport', title: 'ICU 交班报告', route: 'handoverReport' },
+/* ── 交班报告（已屏蔽） ── */
+  // { key: 'handoverReport', title: 'ICU 交班报告', route: 'handoverReport' },
   /* ── 护理记录 ── */
   { key: 'jkjyForm', title: '健康教育记录单', route: 'jkjyForm' },
   { key: 'wpgmForm', title: '住院患者物品管理表', route: 'wpgmForm' },

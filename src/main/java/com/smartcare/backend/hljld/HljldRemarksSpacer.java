@@ -48,6 +48,8 @@ public class HljldRemarksSpacer extends Div {
      */
     static class HljldRemarksSpacerRenderer extends DivRenderer {
 
+        private static final float MIN_SPACE_FOR_REMARKS = 35f;
+
         private final HljldRemarksSpacer spacer;
 
         HljldRemarksSpacerRenderer(HljldRemarksSpacer spacer) {
@@ -62,7 +64,26 @@ public class HljldRemarksSpacer extends Div {
             if (getOccupiedArea() != null) {
                 int localPageNumber = getOccupiedArea().getPageNumber();
                 float contentEndY = getOccupiedArea().getBBox().getY();
-                spacer.dynamicRemarkTopByLocalPage.put(localPageNumber, contentEndY);
+
+                // 检查当前页是否有足够空间容纳备注区
+                float safeBottom = HljldPdfLayoutConstantsNew.PAGE_BOTTOM_PADDING
+                    + HljldPdfLayoutConstantsNew.PAGE_NUMBER_HEIGHT
+                    + HljldPdfLayoutConstantsNew.PAGE_NUMBER_REMARK_GAP;
+                float availableSpace = contentEndY - safeBottom;
+
+                if (availableSpace >= MIN_SPACE_FOR_REMARKS) {
+                    // 空间足够，更新位置
+                    spacer.dynamicRemarkTopByLocalPage.put(localPageNumber, contentEndY);
+                    org.slf4j.LoggerFactory.getLogger(HljldRemarksSpacer.class)
+                        .info("[hljld] 备注空间足够，更新位置: localPage={}, availableSpace={}",
+                            localPageNumber, String.format("%.1f", availableSpace));
+                } else {
+                    // 空间不足，不更新位置，让事件处理器不绘制备注
+                    // HljldRemarksSpacer 会触发分页到新页，新页空间足够
+                    org.slf4j.LoggerFactory.getLogger(HljldRemarksSpacer.class)
+                        .info("[hljld] 备注空间不足，不更新位置，等待分页: localPage={}, availableSpace={}",
+                            localPageNumber, String.format("%.1f", availableSpace));
+                }
             }
         }
     }

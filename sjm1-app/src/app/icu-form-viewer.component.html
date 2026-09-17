@@ -8,7 +8,7 @@
         class="toolbar-select"
         [(ngModel)]="selectedFormKey"
         (ngModelChange)="onFormChange()">
-        <option *ngFor="let f of forms" [value]="f.key">{{ f.title }}</option>
+        <option *ngFor="let f of forms" [value]="f.key" [ngClass]="{'has-data-option': formWithDataKeys.has(f.key)}">{{ f.title }}</option>
       </select>
 
       <label class="toolbar-label" for="mrn-input">住院号</label>

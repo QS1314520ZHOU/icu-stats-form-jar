@@ -60,7 +60,7 @@ const GROUPS: OptionGroup[] = [
     {code:'FOLLOWUP',label:'出院后复诊及随访事项，发放《出院通知单》'}]},
   { name: '其它', items: [{code:'OTHER',label:'其它宣教'}]}
 ];
-const VALUABLES = ['手机','现金','医保卡','身份证','银行卡','钥匙','假牙'];
+const VALUABLES = ['无','手机','现金','医保卡','身份证','银行卡','钥匙','假牙'];
 
 @Component({
   standalone: false,

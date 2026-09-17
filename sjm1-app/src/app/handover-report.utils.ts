@@ -124,10 +124,11 @@ function createRow(
 ): HandoverPatientRow {
   const id = patientId(patient);
   const editable = ['转入', '入院', '病危', '手术'].includes(status);
+  const isCritical = status === '病危';
 
   // 为每个患者计算生命体征和出入量总结
   const nightVitalSigns = extractPatientNightVitalSigns(patient, bedsideRecords, ranges);
-  const nightFluidSummary = calculatePatientNightFluidSummary(patient, bedsideRecords, ranges);
+  const { summary: nightFluidSummary, hours: fluidHours } = calculatePatientNightFluidSummary(patient, bedsideRecords, ranges, isCritical);
 
   return {
     key: `${status}:${id}:${eventTime}`,
@@ -144,6 +145,7 @@ function createRow(
     shiftTexts: { [eventShift]: defaultEventText(patient, status) },
     nightVitalSigns,
     nightFluidSummary,
+    fluidHours,
   };
 }
 
@@ -244,10 +246,9 @@ function extractPatientNightVitalSigns(
     return {};
   }
 
-  // 查找当日06:00的生命体征（00:00 ~ 08:00 时间范围）
-  const morningStart = new Date(ranges.day.start);
-  morningStart.setHours(0, 0, 0, 0); // 当日 00:00
-  const morningEnd = new Date(ranges.day.start); // 当日 08:00
+  // 夜班时间范围：使用night shift的时间范围（次日00:00 ~ 08:00）
+  const nightStart = new Date(ranges.night.start);
+  const nightEnd = new Date(ranges.night.end);
 
   const vitalSigns: NightVitalSigns = {};
 
@@ -264,20 +265,20 @@ function extractPatientNightVitalSigns(
     cvp: 'param_cvp',
   };
 
-  // 过滤该患者在早班时间范围内的记录（00:00 ~ 08:00）
+  // 过滤该患者在夜班时间范围内的记录（次日00:00 ~ 08:00）
   const patientRecords = bedsideRecords.filter(record => {
     if (record.valid === false) return false;
     if (record.pid !== pid) return false;
     const recordTime = new Date(record.time).getTime();
-    return recordTime >= morningStart.getTime() && recordTime < morningEnd.getTime();
+    return recordTime >= nightStart.getTime() && recordTime < nightEnd.getTime();
   });
 
   // 调试：输出匹配的记录
   console.info('[HANDOVER][vital-signs]', {
     patientName: patient.name,
     pid,
-    morningStart: morningStart.toISOString(),
-    morningEnd: morningEnd.toISOString(),
+    nightStart: nightStart.toISOString(),
+    nightEnd: nightEnd.toISOString(),
     totalBedsideRecords: bedsideRecords.length,
     matchedRecords: patientRecords.length,
   });
@@ -316,40 +317,46 @@ function extractPatientNightVitalSigns(
 }
 
 /**
- * 为单个患者计算夜班期间的出入量总结（00:00 ~ 08:00）
- * 入科当天按实际入科时间计算
+ * 为单个患者计算出入量总结
+ * 普通患者：当天08:00 ~ 次日08:00（24小时，8-8左闭右开）
+ * 入院患者：入科时间 ~ 次日08:00（不足24小时）
+ * 病危患者：当天08:00 ~ 次日08:00（24小时）
  */
 function calculatePatientNightFluidSummary(
   patient: DepartmentPatient,
   bedsideRecords: BedsideRecord[],
   ranges: Record<ShiftKey, ShiftRange>,
-): NightFluidSummary {
+  isCritical: boolean = false,
+): { summary: NightFluidSummary; hours: number } {
   const pid = String(patient.nurseRecordPid ?? patient.id ?? patient._id ?? '').trim();
   if (!pid) {
-    return { totalInput: 0, drugInput: 0, enteralInput: 0, totalOutput: 0, urineOutput: 0, drainageOutput: 0, excretionOutput: 0, balance: 0 };
+    return { summary: { totalInput: 0, drugInput: 0, enteralInput: 0, totalOutput: 0, urineOutput: 0, drainageOutput: 0, excretionOutput: 0, balance: 0 }, hours: 0 };
   }
 
-  // 出入量统计时间范围：00:00 ~ 08:00
-  const morningStart = new Date(ranges.day.start);
-  morningStart.setHours(0, 0, 0, 0); // 当日 00:00
-  const morningEnd = new Date(ranges.day.start); // 当日 08:00
+  // 出入量统计时间范围：当天08:00 ~ 次日08:00（北京时间）
+  const day8am = new Date(ranges.day.start); // 当天08:00
+  const nextDay8am = new Date(ranges.night.end); // 次日08:00
 
-  // 获取入科时间（如果有的话，用于入科当天）
-  let actualStart = morningStart;
-  if (patient.icuAdmissionTime) {
+  // 确定实际起点
+  let actualStart = day8am;
+  if (!isCritical && patient.icuAdmissionTime) {
     const admTime = new Date(patient.icuAdmissionTime);
-    // 入科时间在今天00:00之后，使用入科时间作为起点
-    if (admTime.getTime() > morningStart.getTime()) {
+    // 入科时间在当天08:00之后，使用入科时间作为起点
+    if (admTime.getTime() > day8am.getTime()) {
       actualStart = admTime;
     }
   }
 
-  // 该患者在早班时间范围内的床旁记录（00:00 ~ 08:00）
+  // 计算小时数（满30分钟进1，不满舍去）
+  const rawHours = (nextDay8am.getTime() - actualStart.getTime()) / (1000 * 60 * 60);
+  const hours = Math.round(rawHours);
+
+  // 该患者在时间范围内的床旁记录
   const patientBedsideRecords = bedsideRecords.filter(record => {
     if (record.valid === false) return false;
     if (record.pid !== pid) return false;
     const recordTime = new Date(record.time).getTime();
-    return recordTime >= actualStart.getTime() && recordTime < morningEnd.getTime();
+    return recordTime >= actualStart.getTime() && recordTime < nextDay8am.getTime();
   });
 
   // 调试：输出匹配的记录
@@ -357,7 +364,9 @@ function calculatePatientNightFluidSummary(
     patientName: patient.name,
     pid,
     actualStart: actualStart.toISOString(),
-    morningEnd: morningEnd.toISOString(),
+    nextDay8am: nextDay8am.toISOString(),
+    hours,
+    isCritical,
     matchedRecords: patientBedsideRecords.length,
   });
 
@@ -408,14 +417,17 @@ function calculatePatientNightFluidSummary(
   const balance = totalInput - totalOutput;
 
   return {
-    totalInput,
-    drugInput,
-    enteralInput,
-    totalOutput,
-    urineOutput,
-    drainageOutput,
-    excretionOutput,
-    balance,
+    summary: {
+      totalInput,
+      drugInput,
+      enteralInput,
+      totalOutput,
+      urineOutput,
+      drainageOutput,
+      excretionOutput,
+      balance,
+    },
+    hours,
   };
 }
 

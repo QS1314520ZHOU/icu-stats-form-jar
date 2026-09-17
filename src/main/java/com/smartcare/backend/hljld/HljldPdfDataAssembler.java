@@ -89,8 +89,35 @@ public class HljldPdfDataAssembler {
         }
 
         // 3.2 获取出科类型（转出/转科/死亡/治愈/好转/自动出院等）
+        // 优先从 bedside 表中查询 param_病人状态 = "转出" 的记录来判断出科类型
         String dischargedType = null;
-        if (source.getPatientInfo() != null) {
+
+        // 从 bedside 表查询 param_病人状态 = "转出"
+        if (source.getBedside() != null && !source.getBedside().isEmpty()) {
+            for (Document bedsideRecord : source.getBedside()) {
+                String code = str(bedsideRecord, "code");
+                String strVal = str(bedsideRecord, "strVal");
+                if ("param_病人状态".equals(code) && "转出".equals(strVal)) {
+                    dischargedType = "转出";
+                    // 如果 patientInfo 中没有出科时间，使用 bedside 记录的时间作为出科时间
+                    if (dischargeTimeStr == null) {
+                        Object timeObj = bedsideRecord.get("time");
+                        if (timeObj instanceof Date) {
+                            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+                            sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
+                            dischargeTimeStr = sdf.format((Date) timeObj);
+                            log.info("[hljld] 从 bedside 表获取出科时间和类型: param_病人状态=转出, 出科时间={}", dischargeTimeStr);
+                        }
+                    } else {
+                        log.info("[hljld] 从 bedside 表获取出科类型: param_病人状态=转出");
+                    }
+                    break;
+                }
+            }
+        }
+
+        // 如果 bedside 表中没有找到，从 patientInfo 获取（兼容旧逻辑）
+        if (dischargedType == null && source.getPatientInfo() != null) {
             Object dischargedTypeObj = source.getPatientInfo().get("dischargedType");
             if (dischargedTypeObj == null) {
                 dischargedTypeObj = source.getPatientInfo().get("dischargeType");

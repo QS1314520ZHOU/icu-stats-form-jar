@@ -229,8 +229,11 @@ export interface HandoverPatientRow {
   /** 患者的生命体征数据（夜班6点） */
   nightVitalSigns?: NightVitalSigns;
 
-  /** 患者的出入量总结（夜班） */
+  /** 患者的出入量总结 */
   nightFluidSummary?: NightFluidSummary;
+
+  /** 出入量统计小时数（非24小时时显示） */
+  fluidHours?: number;
 }
 
 export interface ShiftStatistics {

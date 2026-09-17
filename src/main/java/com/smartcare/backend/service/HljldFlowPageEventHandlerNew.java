@@ -45,11 +45,6 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
     private static final float TABLE_W = HljldPdfLayoutConstantsNew.TABLE_WIDTH;
     private static final String[] REMARKS = HljldPdfLayoutConstantsNew.REMARK_LINES;
 
-    /** 备注区最小可用空间（pt），低于此值跳过备注强制分页效果 */
-    private static final float MIN_SPACE_FOR_REMARKS = 35f;
-    /** 备注行最小高度（压缩下限） */
-    private static final float REMARK_MIN_ROW_HEIGHT = 7f;
-
     // ── 构造参数 ──
     private final HljldPdfFontBundle fonts;
     private final PdfFont font;
@@ -105,50 +100,53 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
             isFinalPage = dynamicRemarkTopByLocalPage.containsKey(localPageNumber);
         }
 
-        // 是否在最终页绘制备注和签名
-        boolean drawRemark = isFinalPage && policy != null && policy.isShowRemarkOnFinalPage();
+        // 仅最终页且策略要求时绘制签名；备注见下方三层策略
         boolean drawSignature = isFinalPage && policy != null && policy.isShowAuditSignatureOnFinalPage();
+        boolean drawRemark = isFinalPage && policy != null && policy.isShowRemarkOnFinalPage();
 
         log.debug("[hljld-new] END_PAGE: localPage={}, totalPages={}, isFinalPage={}, drawRemark={}, drawSignature={}, policy={}",
             localPageNumber, totalPages, isFinalPage, drawRemark, drawSignature, policy);
 
-        // ── 动态备注定位 + 空间判断（最终页） ──
+        // ── 备注三层策略（仅最终页、且本页有正文结束 Y 时贴靠绘制）──
+        // 1) available >= 52：正常行高/字号，贴正文
+        // 2) 35 <= available < 52：压缩行高/字号，仍贴正文
+        // 3) available < 35：本页不画，由 Service 加独立备注续页
+        // 独立续页无 DayEndMarker，本页无 map 条目 → 不会在此重复绘制备注
         float remarksBottom = HljldPdfLayoutConstantsNew.REMARK_BOTTOM;
         float remarkRowHeight = HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
         float remarkFontSize = HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE;
 
         if (drawRemark) {
             Float dynamicContentEndY = dynamicRemarkTopByLocalPage.get(localPageNumber);
-            if (dynamicContentEndY != null) {
-                // 可用空间 = 内容结束位置 - 安全边界（页码区顶部）
+            if (dynamicContentEndY == null) {
+                // 无正文结束位置（例如备注已由流式续页元素绘制）→ 不在本页叠画备注
+                drawRemark = false;
+            } else {
                 float safeBottom = HljldPdfLayoutConstantsNew.PAGE_BOTTOM_PADDING
                     + HljldPdfLayoutConstantsNew.PAGE_NUMBER_HEIGHT
                     + HljldPdfLayoutConstantsNew.PAGE_NUMBER_REMARK_GAP;
                 float availableSpace = dynamicContentEndY - safeBottom;
 
                 if (availableSpace >= HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT) {
-                    // 空间充足（>= 52pt）：正常显示
-                    float dynamicBottom = dynamicContentEndY - HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT;
-                    if (dynamicBottom >= safeBottom) {
-                        remarksBottom = dynamicBottom;
-                        log.debug("[hljld-new] 备注动态位置: localPage={}, contentEndY={}, remarksBottom={}",
-                            localPageNumber, dynamicContentEndY, remarksBottom);
-                    }
-                } else if (availableSpace >= MIN_SPACE_FOR_REMARKS) {
-                    // 空间 35~52pt：压缩行高和字号适应
-                    remarkRowHeight = Math.max(REMARK_MIN_ROW_HEIGHT,
+                    remarkRowHeight = HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
+                    remarkFontSize = HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE;
+                    remarksBottom = dynamicContentEndY - HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT;
+                    log.debug("[hljld-new] 备注正常贴靠: localPage={}, contentEndY={}, remarksBottom={}",
+                        localPageNumber, dynamicContentEndY, remarksBottom);
+                } else if (availableSpace >= HljldPdfLayoutConstantsNew.MIN_SPACE_FOR_REMARKS) {
+                    remarkRowHeight = Math.max(
+                        HljldPdfLayoutConstantsNew.REMARK_MIN_ROW_HEIGHT,
                         availableSpace / HljldPdfLayoutConstantsNew.REMARK_ROWS);
-                    remarkFontSize = Math.max(3.5f, remarkRowHeight * 0.55f);
-                    // 备注紧贴内容底部，签名在备注下方
-                    remarksBottom = safeBottom;
-                    log.debug("[hljld-new] 备注压缩: localPage={}, rowH={}, fontSize={}, availableSpace={}",
-                        localPageNumber, String.format("%.1f", remarkRowHeight),
-                        String.format("%.1f", remarkFontSize),
-                        String.format("%.1f", availableSpace));
+                    remarkFontSize = Math.max(
+                        HljldPdfLayoutConstantsNew.REMARK_MIN_FONT_SIZE,
+                        HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE
+                            * remarkRowHeight / HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT);
+                    remarksBottom = dynamicContentEndY - remarkRowHeight * HljldPdfLayoutConstantsNew.REMARK_ROWS;
+                    log.info("[hljld-new] 备注压缩贴靠: localPage={}, available={}, rowH={}, fontSize={}",
+                        localPageNumber, String.format("%.1f", availableSpace), remarkRowHeight, remarkFontSize);
                 } else {
-                    // 空间 < 35pt：回退固定位置（可能与内容有轻微重叠，但保证备注可见）
-                    remarksBottom = HljldPdfLayoutConstantsNew.REMARK_BOTTOM;
-                    log.info("[hljld-new] 备注空间不足回退固定位置: localPage={}, availableSpace={}",
+                    drawRemark = false;
+                    log.info("[hljld-new] 备注空间不足改走续页: localPage={}, available={}",
                         localPageNumber, String.format("%.1f", availableSpace));
                 }
             }

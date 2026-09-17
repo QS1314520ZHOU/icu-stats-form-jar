@@ -143,8 +143,8 @@ public final class HljldUtils {
     /** 默认备注行（选项之间保留空格，提升可读性） */
     public static final List<String> DEFAULT_REMARK_LINES = Arrays.asList(
         "检查：A：CT B：核磁共振 C：胃镜 D：肠镜 E：超声检查 F：床旁胸片 G：心电图",
-        "治疗：A：机械辅助排痰 B：气压治疗 C：雾化吸入 D：支气管镜灌洗 E：TDP照射 F：针灸治疗 G：运动治疗 H：肺复张",
-        "基础护理：A：口腔护理 B：动/静脉置管护理 C：擦浴 D：会阴擦洗 E：肛周护理 F：更换引流袋 G：膀胱冲洗 H：压疮护理 I：床上洗头",
+        "治疗：A：机械辅助排痰B：气压治疗C：支气管镜灌洗D：TDP照射E：针灸治疗F：运动治疗G：肺复张",
+        "基础护理：A：口腔护理B：动/静脉置管护理C：擦浴D：肛周护理E：压疮护理F：床上洗头",
         "健康教育：A：入院指导 B：入科指导 C：疾病知识 D：药物指导 E：饮食指导 F：肢体活动指导 G：检查指导 H：安全指导 I：心理指导 J：术前指导 K：术后指导 L：转科/出院指导 M：用氧注意事项 N：通气配合指导 O：康复指导 P：VTE预防指导"
     );
 
@@ -698,11 +698,13 @@ public final class HljldUtils {
 
     /**
      * 统一 valid/status 过滤。
+     * 只保留 valid=true 且 status != invalid 的记录
      */
     public static boolean isValidBusinessRecord(Document record) {
         if (record == null) return false;
         Object valid = record.get("valid");
-        if (Boolean.FALSE.equals(valid)) return false;
+        // 只保留 valid=true 的记录（valid 为 null 或 false 都排除）
+        if (!Boolean.TRUE.equals(valid)) return false;
         String status = strOrNull(record, "status");
         if ("invalid".equalsIgnoreCase(status)) return false;
         return true;
@@ -710,11 +712,13 @@ public final class HljldUtils {
 
     /**
      * 统一 valid/status 过滤（Map 版本）。
+     * 只保留 valid=true 且 status != invalid 的记录
      */
     public static boolean isValidBusinessRecord(Map<?, ?> record) {
         if (record == null) return false;
         Object valid = record.get("valid");
-        if (Boolean.FALSE.equals(valid)) return false;
+        // 只保留 valid=true 的记录（valid 为 null 或 false 都排除）
+        if (!Boolean.TRUE.equals(valid)) return false;
         Object statusObj = record.get("status");
         if (statusObj != null && "invalid".equalsIgnoreCase(String.valueOf(statusObj).trim())) return false;
         return true;
@@ -1464,7 +1468,9 @@ public final class HljldUtils {
      */
     public static NameAmountRoute drugToCell(Document execution, Document method, boolean isEnteral, long timeMs) {
         String name = drugDisplayName(execution);
-        String route = routeLabel(strOrNull(method, "name"));
+        String route = hasPerinealCareNotes(execution)
+            ? strOrNull(execution, "notes")
+            : routeLabel(strOrNull(method, "name"));
         // 单次给药：优先用 liquidAmount，回退到 dose
         double amount = parseAmount(execution.get("liquidAmount"));
         if (amount <= 0) {
@@ -1485,7 +1491,9 @@ public final class HljldUtils {
     public static NameAmountRoute drugToCell(Document execution, Document method, boolean isEnteral,
                                               long timeMs, long segStartMs, long segEndMs) {
         String name = drugDisplayName(execution);
-        String route = routeLabel(strOrNull(method, "name"));
+        String route = hasPerinealCareNotes(execution)
+            ? strOrNull(execution, "notes")
+            : routeLabel(strOrNull(method, "name"));
         double amount = calcSegmentUsage(execution, new Date(segStartMs), new Date(segEndMs));
         String amountText = amount > 0 ? formatSummaryAmount(amount) : "";
         return new NameAmountRoute(
@@ -1553,6 +1561,16 @@ public final class HljldUtils {
             || parseAmount(drug.get("liquidAmount")) != 0
             || hasText(drug.get("dose"))
             || hasText(drug.get("unit")));
+    }
+
+    /**
+     * 判断药物执行记录的 notes 是否包含会阴冲洗/擦洗关键词。
+     * 满足条件时，该记录需在药物治疗列展示，途径显示 notes 内容。
+     */
+    public static boolean hasPerinealCareNotes(Document execution) {
+        String notes = strOrNull(execution, "notes");
+        if (notes == null || notes.isEmpty()) return false;
+        return notes.contains("会阴冲洗") || notes.contains("会阴擦洗");
     }
 
     /**

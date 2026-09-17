@@ -56,9 +56,16 @@ public class HljldDayEndMarker extends Div {
             // 在draw阶段记录位置（layout已完成）
             if (getOccupiedArea() != null) {
                 int localPageNumber = getOccupiedArea().getPageNumber();
+                // 使用表格底部的Y坐标，而不是最后一行的Y坐标
+                // 这样可以避免备注区与数据重叠
                 float contentEndY = getOccupiedArea().getBBox().getY();
 
-                marker.dynamicRemarkTopByLocalPage.put(localPageNumber, contentEndY);
+                // 检查当前页是否已有内容结束位置
+                Float existingEndY = marker.dynamicRemarkTopByLocalPage.get(localPageNumber);
+                if (existingEndY == null || contentEndY < existingEndY) {
+                    // 更新为更靠下的位置（Y坐标越小，位置越靠下）
+                    marker.dynamicRemarkTopByLocalPage.put(localPageNumber, contentEndY);
+                }
 
                 org.slf4j.LoggerFactory.getLogger(HljldDayEndMarker.class)
                     .info("[hljld] DayEndMarker: localPage={}, contentEndY={}",

@@ -1,4 +1,5 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChildren } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { ReplaySubject, Subject, combineLatest, EMPTY } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import {
@@ -112,6 +113,9 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
   /** 防止上一个患者的请求晚返回覆盖当前弹窗 */
   private nurseRecordRequestSequence = 0;
 
+  // 报告类型：report1=护士交接班病情报告本，report2=重症医学科病区交班报告
+  reportType: 'report1' | 'report2' = 'report1';
+
   // Viewer 模式标志
   isViewerMode = false;
 
@@ -120,9 +124,16 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
     private readonly hostPatient: HostPatientService,
     private readonly cdr: ChangeDetectorRef,
     private readonly contextService: IcuFormViewerContextService,
+    private readonly route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    // 根据路由路径判断报告类型
+    const routePath = this.route.snapshot.routeConfig?.path || '';
+    if (routePath === 'handoverReport2') {
+      this.reportType = 'report2';
+    }
+
     // 检测 viewer 模式，并同步 viewer 传入的日期
     this.contextService.getContext$().pipe(
       takeUntil(this.destroy$),
@@ -950,6 +961,7 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
           this.isPrinting = false;
           this.cdr.markForCheck();
         },
+        this.reportType,
       );
     } catch (err) {
       console.error('[HANDOVER] 打印准备失败', err);
