@@ -37,6 +37,7 @@ import { BloodSugarComponent } from './blood-sugar.component';
 import { UnplannedExtubationComponent } from './unplanned-extubation.component';
 import { PrintPageMultiSelectComponent } from './print-page-multi-select.component';
 import { IcuFormViewerComponent } from './icu-form-viewer.component';
+import { SggrfkcsFormComponent } from './sggrfkcs-form.component';
 import { routes } from './app.routes';
 
 @NgModule({
@@ -65,6 +66,7 @@ import { routes } from './app.routes';
     PrintCenterComponent,
     BloodSugarComponent,
     UnplannedExtubationComponent,
+    SggrfkcsFormComponent,
     PrintPageMultiSelectComponent,
     IcuFormViewerComponent,
     DomSafePipe,

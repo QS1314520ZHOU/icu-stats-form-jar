@@ -22,6 +22,7 @@ import { BloodSugarComponent } from './blood-sugar.component';
 import { UnplannedExtubationComponent } from './unplanned-extubation.component';
 import { PrintCenterComponent } from './print-center.component';
 import { IcuFormViewerComponent } from './icu-form-viewer.component';
+import { SggrfkcsFormComponent } from './sggrfkcs-form.component';
 
 export const routes: Routes = [
   { path: 'getIcuForm', component: IcuFormViewerComponent },
@@ -43,9 +44,11 @@ export const routes: Routes = [
   { path: 'hljldFormPDF', component: HljldFormPdfComponent },
   { path: 'hljldFormPDFNew', component: HljldFormPdfNewComponent },
   { path: 'handoverReport', component: HandoverReportComponent },
+  { path: 'handoverReport2', component: HandoverReportComponent },
   { path: 'bloodSugar', component: BloodSugarComponent },
   { path: 'temperatureRecord', component: TemperatureRecordComponent },
   { path: 'unPlannedCGZYYForm', component: UnplannedExtubationComponent },
+  { path: 'sggrfkcsForm', component: SggrfkcsFormComponent },
   { path: 'printCenter', component: PrintCenterComponent },
   { path: '', redirectTo: 'getIcuForm', pathMatch: 'full' },
 ];

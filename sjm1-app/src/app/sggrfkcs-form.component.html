@@ -1,0 +1,74 @@
+<div class="toolbar no-print" *ngIf="!isViewerMode"><div class="toolbar-right">
+  <button class="btn" type="button" (click)="openCreate()" [disabled]="!patient">新增</button>
+  <button class="btn secondary" type="button" (click)="openEditList()" [disabled]="!patient">编辑</button>
+  <app-print-page-multi-select [totalPages]="pages.length" [(selectedPages)]="selectedPrintPages" [disabled]="loading"></app-print-page-multi-select>
+  <button class="btn" type="button" (click)="print()" [disabled]="!pages.length">打印</button>
+</div></div>
+<div class="status" *ngIf="loading">加载中…</div>
+<div class="status error" *ngIf="loadError">{{loadError}} <button class="text-btn" type="button" (click)="retry()">重试</button></div>
+
+<section class="sheet" *ngFor="let page of pages">
+  <header class="paper-head"><h1>“三管”感染防控措施依从性监测</h1>
+    <div class="patient-info">
+      <span><b>科室：</b>{{patient?.dept||''}}</span><span><b>姓名：</b>{{patient?.name||''}}</span>
+      <span><b>床号：</b>{{bedText(patient?.hisBed)}}</span><span><b>住院号：</b>{{patient?.mrn||''}}</span>
+      <span><b>性别：</b>{{genderText(patient?.gender)}}</span><span><b>年龄：</b>{{age??''}}</span>
+      <span><b>诊断：</b>{{diagnosisDisplay}}</span>
+    </div>
+  </header>
+  <table class="control-table" aria-label="三管感染防控措施依从性监测表">
+    <colgroup>
+      <col class="col-date"><col class="col-measure" *ngFor="let item of necessityGroup.items"><col class="col-signature">
+      <col class="col-measure" *ngFor="let item of vapGroup.items"><col class="col-measure" *ngFor="let item of crbsiGroup.items">
+      <col class="col-measure" *ngFor="let item of cautiGroup.items"><col class="col-signature"><col class="col-signature">
+    </colgroup>
+    <thead>
+      <tr class="group-head"><th rowspan="2">日期</th><th [attr.colspan]="necessityGroup.items.length+1">患者及导管留置必要性评估</th>
+        <th [attr.colspan]="vapGroup.items.length">呼吸机相关肺炎防控（VAP）</th>
+        <th [attr.colspan]="crbsiGroup.items.length">导管相关血流感染防控（CRBSI）</th>
+        <th [attr.colspan]="cautiGroup.items.length">导尿管相关尿路感染防控（CAUTI）</th>
+        <th rowspan="2">护士签名</th><th rowspan="2">督查者签名</th></tr>
+      <tr class="item-head"><th *ngFor="let item of necessityGroup.items">{{item.label}}</th><th>医生签名</th>
+        <th *ngFor="let item of vapGroup.items">{{item.label}}</th><th *ngFor="let item of crbsiGroup.items">{{item.label}}</th>
+        <th *ngFor="let item of cautiGroup.items">{{item.label}}</th></tr>
+    </thead>
+    <tbody><tr *ngFor="let record of page.records">
+      <td class="date-cell">{{fmtRecordDate(record?.recordDate)}}</td>
+      <td class="mark-cell" *ngFor="let item of necessityGroup.items">{{mark(record,item.code)}}</td><td class="signature-cell">{{record?.doctorName||''}}</td>
+      <td class="mark-cell" *ngFor="let item of vapGroup.items">{{mark(record,item.code)}}</td>
+      <td class="mark-cell" *ngFor="let item of crbsiGroup.items">{{mark(record,item.code)}}</td>
+      <td class="mark-cell" *ngFor="let item of cautiGroup.items">{{mark(record,item.code)}}</td>
+      <td class="signature-cell">{{record?.nurseName||''}}</td><td class="signature-cell">{{record?.inspectorName||''}}</td>
+    </tr></tbody>
+    <tfoot><tr><td colspan="25">备注：导管留置必要性评估√表示可拔管，×表示需继续留置。</td></tr></tfoot>
+  </table><div class="sheet-pageno">第 {{page.index}} 页</div>
+</section>
+
+<div class="overlay no-print" *ngIf="editListOpen" (click)="editListOpen=false"><section class="dialog list-dialog" (click)="$event.stopPropagation()">
+  <div class="dialog-head"><div><span class="eyebrow">MONITORING RECORDS</span><h2>编辑监测记录</h2></div><button class="icon-btn" type="button" (click)="editListOpen=false">×</button></div>
+  <div class="record-list"><table><thead><tr><th>No</th><th>日期</th><th>护士签名</th><th>督查者签名</th><th>操作</th></tr></thead><tbody>
+    <tr *ngFor="let record of records;let i=index"><td>{{i+1}}</td><td>{{fmtFullDate(record.recordDate)}}</td><td>{{record.nurseName}}</td><td>{{record.inspectorName||'—'}}</td>
+      <td><button class="text-btn" type="button" (click)="editRecord(record)">编辑</button><button class="text-btn danger" type="button" (click)="invalidate(record)" [disabled]="deletingId===record.id">{{deletingId===record.id?'删除中…':'删除'}}</button></td></tr>
+    <tr *ngIf="!records.length"><td colspan="5" class="empty">暂无监测记录</td></tr>
+  </tbody></table></div>
+</section></div>
+
+<div class="overlay no-print" *ngIf="formOpen" (click)="formOpen=false"><section class="dialog form-dialog" (click)="$event.stopPropagation()">
+  <div class="dialog-head"><div><span class="eyebrow">THREE-TUBE INFECTION CONTROL</span><h2>{{editing?'编辑监测记录':'新增监测记录'}}</h2></div><button class="icon-btn" type="button" (click)="formOpen=false" [disabled]="saving">×</button></div>
+  <div class="form-body"><div class="basic-form-grid">
+    <label class="form-field"><span class="field-label">日期 <em>*</em></span><input type="date" [(ngModel)]="form.recordDate"></label>
+    <label class="form-field"><span class="field-label">医生签名</span><input type="text" [(ngModel)]="form.doctorName" maxlength="30" placeholder="输入医生姓名"></label>
+    <div class="form-field nurse-field"><span class="field-label">护士签名 <em>*</em></span><div class="nurse-search">
+      <input type="text" autocomplete="off" [ngModel]="nurseQuery" (ngModelChange)="onNurseSearchInput($event)" (focus)="openNurseDropdown()" (blur)="closeNurseDropdownLater()" placeholder="输入姓名、账号或工号检索">
+      <div class="nurse-dropdown" *ngIf="nurseDropdownOpen"><button type="button" class="nurse-option" *ngFor="let accountOption of filteredAccounts" (mousedown)="$event.preventDefault()" (click)="selectNurse(accountOption)"><span>{{accountOption.accountName}}</span><small>{{accountOption.code||accountOption.username}}</small></button><div class="nurse-empty" *ngIf="!filteredAccounts.length">未找到匹配的账号</div></div>
+    </div></div>
+    <label class="form-field"><span class="field-label">督查者签名</span><input type="text" [(ngModel)]="form.inspectorName" maxlength="30" placeholder="输入督查者姓名"></label>
+  </div>
+  <section class="measure-group" *ngFor="let group of groups"><div class="measure-group-head"><div><span class="group-code">{{group.shortName}}</span><h3>{{group.name}}</h3></div><div class="group-actions">
+    <button type="button" [class.active]="isGroupMarked(group,'√')" (click)="setGroupMark(group,'√')">全部√</button><button type="button" [class.active]="isGroupMarked(group,'×')" (click)="setGroupMark(group,'×')">全部×</button><button type="button" (click)="setGroupMark(group,'')">清空</button>
+  </div></div><div class="measure-grid"><div class="measure-item" *ngFor="let item of group.items"><span class="measure-label">{{item.label}}</span><div class="mark-switch">
+    <button type="button" class="positive" [class.active]="form.measures[item.code]==='√'" (click)="setMark(item.code,'√')">√</button><button type="button" class="negative" [class.active]="form.measures[item.code]==='×'" (click)="setMark(item.code,'×')">×</button><button type="button" class="clear" [class.active]="!form.measures[item.code]" (click)="setMark(item.code,'')">空</button>
+  </div></div></div></section>
+  <div class="form-note"><b>填写规则：</b>导管留置必要性评估中，√表示可拔管，×表示需继续留置；其余防控措施按实际执行结果填写。</div><div class="error-panel" *ngIf="errorText">{{errorText}}</div></div>
+  <div class="dialog-foot"><button class="dialog-btn cancel-btn" type="button" (click)="formOpen=false" [disabled]="saving">取消</button><button class="dialog-btn save-btn" type="button" (click)="save()" [disabled]="saving">{{saving?'保存中…':'保存'}}</button></div>
+</section></div>
