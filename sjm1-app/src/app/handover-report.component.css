@@ -256,6 +256,9 @@ h1 { margin: 0 0 10px; text-align: center; font-family: SimHei, "黑体", sans-s
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 12px;
+  /* 确保表格底部边框在分页时可见 */
+  border-bottom: 1px solid #2b2b2b;
+  box-shadow: 0 1px 0 #2b2b2b;
 }
 
 .safety-report-table th,

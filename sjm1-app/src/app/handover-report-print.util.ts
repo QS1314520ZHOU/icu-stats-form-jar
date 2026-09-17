@@ -62,6 +62,7 @@ function mmToPx(mm: number): number {
  * @param snapshot 当前数据快照
  * @param vm 视图模型
  * @param dateInput 日期输入值
+ * @param reportType 报告类型：report1=护士交接班病情报告本，report2=重症医学科病区交班报告，all=全部（默认）
  */
 export async function printHandoverReport(
   snapshot: DepartmentDailySnapshot,
@@ -69,6 +70,7 @@ export async function printHandoverReport(
   dateInput: string,
   onBeforePrint?: () => void,
   onAfterPrint?: () => void,
+  reportType: 'report1' | 'report2' | 'all' = 'all',
 ): Promise<void> {
   // 1. 清理旧的打印 DOM
   cleanupPrintDom();
@@ -79,9 +81,13 @@ export async function printHandoverReport(
   // 3. 创建打印根节点
   const root = createPrintRoot();
 
-  // 4. 渲染两份报告
-  renderReport1(root, snapshot, vm, dateInput);
-  renderReport2(root, vm, snapshot);
+  // 4. 按类型渲染报告
+  if (reportType === 'report1' || reportType === 'all') {
+    renderReport1(root, snapshot, vm, dateInput);
+  }
+  if (reportType === 'report2' || reportType === 'all') {
+    renderReport2(root, vm, snapshot);
+  }
 
   // 5. 挂载到 body
   document.body.appendChild(root);
@@ -261,6 +267,11 @@ function createPrintStyles(): void {
       background: #fff;
     }
 
+    /* 班次内容列（白班/中班/夜班）左对齐 */
+    .print-table td.print-shift-cell {
+      text-align: left;
+    }
+
     /* 分类单元格 */
     .print-category-cell {
       text-align: center;
@@ -309,6 +320,12 @@ function createPrintStyles(): void {
       page-break-after: avoid;
       break-after: avoid;
     }
+
+    /* 修复表格跨页时最后一行底部边框缺失 */
+    .print-table {
+      border-bottom: 1px solid #2b2b2b;
+      box-shadow: 0 1px 0 #2b2b2b;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -352,17 +369,14 @@ function renderReport1Header(
   vm: HandoverReportViewModel,
   dateInput: string,
 ): void {
+  // 标题（独立于表格）
+  const title = document.createElement('h2');
+  title.className = 'print-report-title';
+  title.textContent = '护士交接班病情报告本';
+  container.appendChild(title);
+
   const table = document.createElement('table');
   table.className = 'print-table';
-
-  // 标题行
-  const titleRow = document.createElement('tr');
-  const titleCell = document.createElement('th');
-  titleCell.colSpan = 11;
-  titleCell.className = 'print-report-title';
-  titleCell.textContent = '护士交接班病情报告本';
-  titleRow.appendChild(titleCell);
-  table.appendChild(titleRow);
 
   // 元数据行
   const metaRow = document.createElement('tr');
@@ -641,6 +655,7 @@ function createPatientRow(row: HandoverPatientRow, vm: HandoverReportViewModel):
   const shifts: ShiftKey[] = ['day', 'evening', 'night'];
   shifts.forEach(shift => {
     const td = document.createElement('td');
+    td.className = 'print-shift-cell';
     td.textContent = row.shiftTexts[shift] || '';
 
     // 夜班列添加生命体征和出入量总结（仅入院、转入、病危患者）
@@ -661,7 +676,7 @@ function createPatientRow(row: HandoverPatientRow, vm: HandoverReportViewModel):
         fluidDiv.style.marginTop = '4px';
         fluidDiv.style.fontSize = '8pt';
         fluidDiv.style.lineHeight = '1.4';
-        fluidDiv.innerHTML = buildFluidSummaryText(row.nightFluidSummary);
+        fluidDiv.innerHTML = buildFluidSummaryText(row.nightFluidSummary, row.fluidHours);
         td.appendChild(fluidDiv);
       }
     }
@@ -684,44 +699,44 @@ function hasVitalSignsData(vitalSigns: any): boolean {
  * 构建生命体征文本
  */
 function buildVitalSignsText(vitalSigns: any): string {
-  const lines: string[] = [];
-  lines.push('【生命体征 06:00】');
+  const parts: string[] = [];
 
   if (vitalSigns.temperature) {
-    lines.push(`体温：${vitalSigns.temperature}℃`);
+    parts.push(`体温：${vitalSigns.temperature}℃`);
   }
   if (vitalSigns.heartRate) {
-    lines.push(`心率：${vitalSigns.heartRate}次/分`);
+    parts.push(`心率：${vitalSigns.heartRate}次/分`);
   }
   if (vitalSigns.respiration) {
-    lines.push(`呼吸：${vitalSigns.respiration}次/分`);
+    parts.push(`呼吸：${vitalSigns.respiration}次/分`);
   }
   if (vitalSigns.spO2) {
-    lines.push(`血氧饱和度：${vitalSigns.spO2}%`);
+    parts.push(`血氧饱和度：${vitalSigns.spO2}%`);
   }
   if (vitalSigns.nibpSystolic && vitalSigns.nibpDiastolic) {
-    lines.push(`血压：${vitalSigns.nibpSystolic}/${vitalSigns.nibpDiastolic}mmHg`);
+    parts.push(`血压：${vitalSigns.nibpSystolic}/${vitalSigns.nibpDiastolic}mmHg`);
   } else if (vitalSigns.ibpSystolic && vitalSigns.ibpDiastolic) {
-    lines.push(`血压：${vitalSigns.ibpSystolic}/${vitalSigns.ibpDiastolic}mmHg`);
+    parts.push(`血压：${vitalSigns.ibpSystolic}/${vitalSigns.ibpDiastolic}mmHg`);
   }
   if (vitalSigns.cvp) {
-    lines.push(`中心静脉压：${vitalSigns.cvp}cmH2O`);
+    parts.push(`中心静脉压：${vitalSigns.cvp}cmH2O`);
   }
 
-  return lines.join('<br>');
+  return `生命体征：${parts.join('；')}`;
 }
 
 /**
  * 构建出入量总结文本
  */
-function buildFluidSummaryText(summary: any): string {
-  const lines: string[] = [];
-  lines.push('【出入量总结】');
-  lines.push(`入量：${summary.totalInput}ml（药物${summary.drugInput}ml，胃肠${summary.enteralInput}ml）`);
-  lines.push(`出量：${summary.totalOutput}ml（尿量${summary.urineOutput}ml，引流${summary.drainageOutput}ml，排出物${summary.excretionOutput}ml）`);
-  lines.push(`平衡量：${summary.balance}ml`);
+function buildFluidSummaryText(summary: any, fluidHours?: number): string {
+  const hoursText = fluidHours && fluidHours < 24 ? `${fluidHours.toFixed(1)}小时` : '';
+  const parts = [
+    `入量：${summary.totalInput}ml（药物${summary.drugInput}ml，胃肠${summary.enteralInput}ml）`,
+    `出量：${summary.totalOutput}ml（尿量${summary.urineOutput}ml，引流${summary.drainageOutput}ml，排出物${summary.excretionOutput}ml）`,
+    `平衡量：${summary.balance}ml`,
+  ];
 
-  return lines.join('<br>');
+  return `${hoursText}出入量总结：${parts.join('；')}`;
 }
 
 // ==================== 报告2：重症医学科病区交班报告 ====================

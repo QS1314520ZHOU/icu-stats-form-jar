@@ -142,11 +142,11 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
         // 初始化时间范围选择
         this.startDateInput = this.toDateString(this.selectedDate);
         this.endDateInput = this.toDateString(this.selectedDate);
-      }
 
-      this.pageState = 'loading';
-      this.cdr.markForCheck();
-      this.loadPdf();
+        this.pageState = 'loading';
+        this.cdr.markForCheck();
+        this.loadPdf();
+      }
     });
   }
 
@@ -302,6 +302,26 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // 校验日期范围（手动输入时 HTML min/max 不生效）
+    if (this.minDateInput && dateStr < this.minDateInput) {
+      this.dateInput = this.minDateInput;
+      this.selectedDate = this.parseLocalDate(this.minDateInput) || date;
+      this.startDateInput = this.minDateInput;
+      this.endDateInput = this.minDateInput;
+      this.loadPdf();
+      return;
+    }
+    if (this.maxDateInput && dateStr > this.maxDateInput) {
+      this.dateInput = this.maxDateInput;
+      this.selectedDate = this.parseLocalDate(this.maxDateInput) || date;
+      this.startDateInput = this.maxDateInput;
+      this.endDateInput = this.maxDateInput;
+      this.loadPdf();
+      return;
+    }
+
+    // 同步更新 dateInput，防止 Angular [value] 绑定重置输入框
+    this.dateInput = dateStr;
     this.selectedDate = date;
     // 同步更新打印时间范围为当天
     this.startDateInput = dateStr;
@@ -601,8 +621,17 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
    */
   private updateDateRange(): void {
     if (!this.patient.isDischarged) {
-      // 在科患者：最小日期为空，最大日期为今天（不能选择未来时间）
-      this.minDateInput = '';
+      // 在科患者：最小日期为入科护理日，最大日期为今天
+      if (this.patient.admissionTime) {
+        const admissionDate = this.parseTimeField(this.patient.admissionTime);
+        if (admissionDate) {
+          this.minDateInput = this.toDateString(this.nursingDate(admissionDate));
+        } else {
+          this.minDateInput = '';
+        }
+      } else {
+        this.minDateInput = '';
+      }
       this.maxDateInput = this.toDateString(new Date());
       return;
     }
@@ -845,9 +874,17 @@ export class HljldFormPdfNewComponent implements OnInit, OnDestroy {
 
   /**
    * 打开日期选择器
+   * 使用 setTimeout 确保在 Angular 变更检测完成后再打开，
+   * 避免 [value] 绑定重置导致选择器立即关闭
    */
   openDatePicker(event: MouseEvent): void {
     const input = event.target as HTMLInputElement;
-    input.showPicker();
+    setTimeout(() => {
+      try {
+        input.showPicker();
+      } catch {
+        // showPicker 不支持时静默忽略
+      }
+    }, 0);
   }
 }
