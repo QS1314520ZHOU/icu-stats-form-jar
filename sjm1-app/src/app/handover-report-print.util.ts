@@ -207,6 +207,7 @@ function createPrintStyles(): void {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
+      border-bottom: 2px solid #2b2b2b;
     }
 
     .print-table th,
@@ -220,6 +221,17 @@ function createPrintStyles(): void {
       word-break: break-word;
       overflow-wrap: anywhere;
       white-space: pre-wrap;
+    }
+
+    /* 修复跨页时最后一行底部边框缺失 */
+    .print-table tr:last-child td,
+    .print-table tr:last-child th {
+      border-bottom: 2px solid #2b2b2b;
+    }
+
+    .print-table tfoot td,
+    .print-table tfoot th {
+      border-bottom: 2px solid #2b2b2b;
     }
 
     .print-table th {
@@ -272,18 +284,19 @@ function createPrintStyles(): void {
       text-align: left;
     }
 
-    /* 分类单元格 */
+    /* 分类单元格 - 黑色文字 */
     .print-category-cell {
       text-align: center;
       vertical-align: middle;
       font-weight: 600;
-      color: #475569;
+      color: #111;
     }
 
-    /* 分类标签 */
+    /* 分类标签 - 黑色文字 */
     .print-metric-label {
       text-align: left;
       font-weight: 500;
+      color: #111;
     }
 
     /* 强调单元格 */
@@ -321,11 +334,7 @@ function createPrintStyles(): void {
       break-after: avoid;
     }
 
-    /* 修复表格跨页时最后一行底部边框缺失 */
-    .print-table {
-      border-bottom: 1px solid #2b2b2b;
-      box-shadow: 0 1px 0 #2b2b2b;
-    }
+    /* 修复表格跨页时最后一行底部边框缺失 - 已在 .print-table 基础样式中处理 */
   `;
   document.head.appendChild(style);
 }
