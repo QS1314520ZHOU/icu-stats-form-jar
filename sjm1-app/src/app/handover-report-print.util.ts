@@ -202,13 +202,11 @@ function createPrintStyles(): void {
       break-before: page;
     }
 
-    /* 表格基础样式 - separate模式确保跨页时边框不丢失 */
+    /* 表格基础样式 */
     .print-table {
       width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
+      border-collapse: collapse;
       table-layout: fixed;
-      border: 1px solid #2b2b2b;
       border-bottom: 2px solid #2b2b2b;
     }
 
