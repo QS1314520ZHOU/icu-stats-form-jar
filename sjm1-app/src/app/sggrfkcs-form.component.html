@@ -45,7 +45,7 @@
       <td class="mark-cell" *ngFor="let item of cautiGroup.items">{{mark(record,item.code)}}</td>
       <td class="signature-cell">{{record?.nurseName||''}}</td><td class="signature-cell">{{record?.inspectorName||''}}</td>
     </tr></tbody>
-    <tfoot><tr><td colspan="25">备注：导管留置必要性评估√表示可拔管，×表示需继续留置。</td></tr></tfoot>
+    <tfoot><tr><td colspan="25">备注：导管留置必要性评估√表示可拔管，×表示需继续留置；其他防控措施○表示已执行，●表示未执行。</td></tr></tfoot>
   </table><div class="sheet-pageno">第 {{page.index}} 页</div>
 </section>
 
