@@ -62,6 +62,22 @@ public class FormPageIndexService {
         FormPageIndex index = indexOpt.get();
         String status = index.getStatus();
 
+        // 检查入科时间是否被修改过（对比 patient 实时入科时间 vs 索引存储的入科时间）
+        if ("completed".equals(status)) {
+            Document patient = patientResolver.findPatient(pid);
+            if (patient != null) {
+                Date currentAdmission = patient.getDate("icuAdmissionTime");
+                if (currentAdmission == null) currentAdmission = patient.getDate("admissionTime");
+                if (currentAdmission != null && index.getAdmissionTime() != null
+                        && !normalizeToSecond(index.getAdmissionTime()).equals(normalizeToSecond(currentAdmission))) {
+                    log.warn("入科时间已变更（索引:{}, 当前:{}），触发重新计算: pid={}",
+                        index.getAdmissionTime(), currentAdmission, pid);
+                    triggerCalculation(pid, formType);
+                    return new PageIndexResult(1, 1, "calculating");
+                }
+            }
+        }
+
         // 检查索引是否基于错误的起始日期（入科时间<07:00时应该从前一天开始）
         if ("completed".equals(status) && index.getAdmissionTime() != null
                 && !index.getDailyPages().isEmpty()) {
@@ -287,6 +303,13 @@ public class FormPageIndexService {
 
     private int daysBetween(Date start, Date end) {
         return (int) ((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    /**
+     * 将日期截断到秒级精度，避免毫秒差异导致误判。
+     */
+    private static Date normalizeToSecond(Date date) {
+        return new Date(date.getTime() / 1000 * 1000);
     }
 
     /**

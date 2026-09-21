@@ -109,7 +109,8 @@ public class HandoverReportController {
 
         // nurse accounts
         Query acctQuery = new Query();
-        acctQuery.addCriteria(Criteria.where("profession").in(Arrays.asList("Nurse", "Matron", "PracticeNurse")));
+        acctQuery.addCriteria(Criteria.where("profession").in(Arrays.asList("Nurse", "NurseLeader", "Matron", "PracticeNurse"))
+            .and("valid").ne("invalid"));
         List<Document> acctDocs = mongoTemplate.find(acctQuery, Document.class, "account");
 
         // tube executions (48h window for reintubation indicators)

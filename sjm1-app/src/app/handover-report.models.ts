@@ -631,14 +631,15 @@ export interface NightVitalSigns {
  * 夜班出入量总结
  */
 export interface NightFluidSummary {
-  totalInput: number;        // 总入量
-  drugInput: number;         // 药物入量
-  enteralInput: number;      // 胃肠入量
-  totalOutput: number;       // 总出量
-  urineOutput: number;       // 尿量
-  drainageOutput: number;    // 引流量
-  excretionOutput: number;   // 排出物
-  balance: number;           // 平衡量
+  totalInput: number;            // 总入量
+  medicationInput: number;       // 药物治疗(param_YaoYeti_in_hour)
+  gastrointestinalInput: number; // 胃肠摄入(param_YaoStomach_in_hour + 口服 + 鼻饲)
+  totalOutput: number;           // 总出量
+  urineOutput: number;           // 尿量
+  ultrafiltrationOutput: number; // 净超滤量
+  drainageOutput: number;        // 引流量
+  excretionOutput: number;       // 排出物
+  balance: number;               // 平衡量
 }
 
 // ==================== 打印分页模型 ====================

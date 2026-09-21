@@ -210,6 +210,7 @@ function buildStatistics(snapshot: DepartmentDailySnapshot, ranges: Record<Shift
     const s = result[shift];
     s.total = snapshot.patients.filter(p => isInDepartmentAt(p, ranges[shift].settlementTime)).length;
     s.critical = s.total;
+    s.specialCare = s.total;
     for (const row of rows.filter(r => r.eventShift === shift)) {
       switch (row.status) {
         case '出院': s.discharged++; break;
@@ -330,25 +331,26 @@ function calculatePatientNightFluidSummary(
 ): { summary: NightFluidSummary; hours: number } {
   const pid = String(patient.nurseRecordPid ?? patient.id ?? patient._id ?? '').trim();
   if (!pid) {
-    return { summary: { totalInput: 0, drugInput: 0, enteralInput: 0, totalOutput: 0, urineOutput: 0, drainageOutput: 0, excretionOutput: 0, balance: 0 }, hours: 0 };
+    return { summary: { totalInput: 0, medicationInput: 0, gastrointestinalInput: 0, totalOutput: 0, urineOutput: 0, ultrafiltrationOutput: 0, drainageOutput: 0, excretionOutput: 0, balance: 0 }, hours: 0 };
   }
 
-  // 出入量统计时间范围：当天08:00 ~ 次日08:00（北京时间）
-  const day8am = new Date(ranges.day.start); // 当天08:00
-  const nextDay8am = new Date(ranges.night.end); // 次日08:00
+  // 出入量统计时间范围：当天07:00 ~ 次日07:00（北京时间）
+  const baseDate = ranges.day.start;
+  const day7am = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 7, 0, 0, 0); // 当天07:00
+  const nextDay7am = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + 1, 7, 0, 0, 0); // 次日07:00
 
   // 确定实际起点
-  let actualStart = day8am;
+  let actualStart = day7am;
   if (!isCritical && patient.icuAdmissionTime) {
     const admTime = new Date(patient.icuAdmissionTime);
-    // 入科时间在当天08:00之后，使用入科时间作为起点
-    if (admTime.getTime() > day8am.getTime()) {
+    // 入科时间在当天07:00之后，使用入科时间作为起点
+    if (admTime.getTime() > day7am.getTime()) {
       actualStart = admTime;
     }
   }
 
   // 计算小时数（满30分钟进1，不满舍去）
-  const rawHours = (nextDay8am.getTime() - actualStart.getTime()) / (1000 * 60 * 60);
+  const rawHours = (nextDay7am.getTime() - actualStart.getTime()) / (1000 * 60 * 60);
   const hours = Math.round(rawHours);
 
   // 该患者在时间范围内的床旁记录
@@ -356,7 +358,7 @@ function calculatePatientNightFluidSummary(
     if (record.valid === false) return false;
     if (record.pid !== pid) return false;
     const recordTime = new Date(record.time).getTime();
-    return recordTime >= actualStart.getTime() && recordTime < nextDay8am.getTime();
+    return recordTime >= actualStart.getTime() && recordTime < nextDay7am.getTime();
   });
 
   // 调试：输出匹配的记录
@@ -364,65 +366,91 @@ function calculatePatientNightFluidSummary(
     patientName: patient.name,
     pid,
     actualStart: actualStart.toISOString(),
-    nextDay8am: nextDay8am.toISOString(),
+    nextDay7am: nextDay7am.toISOString(),
     hours,
     isCritical,
     matchedRecords: patientBedsideRecords.length,
   });
 
-  // 入量统计
-  const inputCodes = [
-    'param_带入药量',   // 带入药量
-    'param_kouFu',      // 口服
-    'param_biSi',       // 鼻饲
-  ];
-
-  let drugInput = 0;
-  let enteralInput = 0;
-
+  // 入量统计（与hljldFormPDFNew一致）
+  // 药物治疗：param_YaoYeti_in_hour
+  let medicationInput = 0;
   for (const record of patientBedsideRecords) {
-    if (record.code === 'param_带入药量' || record.code === 'param_kouFu') {
-      drugInput += parseAmount(record.strVal);
-    } else if (record.code === 'param_biSi') {
-      enteralInput += parseAmount(record.strVal);
+    if (record.code === 'param_YaoYeti_in_hour') {
+      medicationInput += parseAmount(record.strVal);
     }
   }
 
-  const totalInput = drugInput + enteralInput;
+  // 胃肠摄入：param_YaoStomach_in_hour + param_kouFu(口服) + param_biSi(鼻饲)
+  let stomachPump = 0;
+  let oralTotal = 0;
+  let tubeFeedingManual = 0;
+  for (const record of patientBedsideRecords) {
+    if (record.code === 'param_YaoStomach_in_hour') {
+      stomachPump += parseAmount(record.strVal);
+    } else if (record.code === 'param_kouFu') {
+      oralTotal += parseAmount(record.strVal);
+    } else if (record.code === 'param_biSi') {
+      tubeFeedingManual += parseAmount(record.strVal);
+    }
+  }
+  const gastrointestinalInput = stomachPump + oralTotal + tubeFeedingManual;
 
-  // 出量统计
-  let urineOutput = 0;
-  let drainageOutput = 0;
-  let excretionOutput = 0;
+  // 总入量 = 药物治疗 + 胃肠摄入（param_带入药量不计入总入量）
+  const totalInput = medicationInput + gastrointestinalInput;
 
+  // 出量统计（与hljldFormPDFNew一致）
   // 尿量
-  const urineCode = 'param_niaoLiang';
-  const urineRecords = patientBedsideRecords.filter(r => r.code === urineCode);
-  urineOutput = urineRecords.reduce((sum, r) => sum + parseAmount(r.strVal), 0);
+  let urineOutput = 0;
+  for (const record of patientBedsideRecords) {
+    if (record.code === 'param_niaoLiang') {
+      urineOutput += parseAmount(record.strVal);
+    }
+  }
 
-  // 引流量（包含所有param_tube_开头的代码）
-  const drainageRecords = patientBedsideRecords.filter(r => r.code.startsWith('param_tube_'));
-  drainageOutput = drainageRecords.reduce((sum, r) => sum + parseAmount(r.strVal), 0);
+  // 净超滤量
+  let ultrafiltrationOutput = 0;
+  for (const record of patientBedsideRecords) {
+    if (record.code === 'param_chaoLvLiang') {
+      ultrafiltrationOutput += parseAmount(record.strVal);
+    }
+  }
 
-  // 排出物（大便、呕吐物、痰液等）
+  // 引流液（code含"引流" 或 param_tube_胃肠减压）
+  let drainageOutput = 0;
+  for (const record of patientBedsideRecords) {
+    const code = record.code || '';
+    if (code.includes('引流') || code === 'param_tube_胃肠减压') {
+      drainageOutput += parseAmount(record.strVal);
+    }
+  }
+
+  // 排出物
   const excretionCodes = [
     'param_daBianAmount',  // 大便量
     'param_outuwuliang',   // 呕吐物量
     'param_tanLiang',      // 痰液量
+    'param_造瘘口量',       // 造瘘口量
+    'param_咯血',           // 咯血
   ];
-  const excretionRecords = patientBedsideRecords.filter(r => excretionCodes.includes(r.code));
-  excretionOutput = excretionRecords.reduce((sum, r) => sum + parseAmount(r.strVal), 0);
+  let excretionOutput = 0;
+  for (const record of patientBedsideRecords) {
+    if (excretionCodes.includes(record.code)) {
+      excretionOutput += parseAmount(record.strVal);
+    }
+  }
 
-  const totalOutput = urineOutput + drainageOutput + excretionOutput;
+  const totalOutput = urineOutput + ultrafiltrationOutput + drainageOutput + excretionOutput;
   const balance = totalInput - totalOutput;
 
   return {
     summary: {
       totalInput,
-      drugInput,
-      enteralInput,
+      medicationInput,
+      gastrointestinalInput,
       totalOutput,
       urineOutput,
+      ultrafiltrationOutput,
       drainageOutput,
       excretionOutput,
       balance,

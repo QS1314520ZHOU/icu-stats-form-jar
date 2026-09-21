@@ -738,10 +738,10 @@ function buildVitalSignsText(vitalSigns: any): string {
  * 构建出入量总结文本
  */
 function buildFluidSummaryText(summary: any, fluidHours?: number): string {
-  const hoursText = fluidHours && fluidHours < 24 ? `${fluidHours.toFixed(1)}小时` : '';
+  const hoursText = fluidHours ? `${fluidHours.toFixed(1)}小时` : '';
   const parts = [
-    `入量：${summary.totalInput}ml（药物${summary.drugInput}ml，胃肠${summary.enteralInput}ml）`,
-    `出量：${summary.totalOutput}ml（尿量${summary.urineOutput}ml，引流${summary.drainageOutput}ml，排出物${summary.excretionOutput}ml）`,
+    `总入量：${summary.totalInput}ml；药物治疗：${summary.medicationInput}ml；胃肠入量：${summary.gastrointestinalInput}ml`,
+    `总出量：${summary.totalOutput}ml；尿量：${summary.urineOutput}ml；净超滤量：${summary.ultrafiltrationOutput}ml；排出物：${summary.excretionOutput}ml；引流液：${summary.drainageOutput}ml`,
     `平衡量：${summary.balance}ml`,
   ];
 

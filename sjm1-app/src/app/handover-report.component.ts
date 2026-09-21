@@ -62,6 +62,39 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
    */
   hasUnsavedChanges = false;
 
+  /**
+   * 过滤掉"他科带入"、"外院带入"、"其它"的护士账号列表。
+   */
+  get filteredNurseAccounts() {
+    const excluded = ['他科带入', '外院带入', '其他'];
+    return (this.snapshot?.nurseAccounts || []).filter(a => !excluded.includes(a.trueName));
+  }
+
+  // ==================== 时间控制 ====================
+
+  /**
+   * 报告对应夜班日期的当前北京时间小时数（0-23）。
+   * 夜班是跨天的（selectedDate 00:00 ~ selectedDate+1 08:00），
+   * 所以需要判断 selectedDate+1 那天的时间。
+   * - 夜班日期 < 今天：已过，始终展示（返回24）
+   * - 夜班日期 = 今天：按当前小时判断（≥6展示生命体征，≥7展示出入量）
+   * - 夜班日期 > 今天：还没到，不展示（返回0）
+   */
+  get currentHour(): number {
+    const now = new Date();
+    // selectedDate+1 的日期字符串（北京时间）
+    const nightDate = new Date(this.selectedDate);
+    nightDate.setDate(nightDate.getDate() + 1);
+    const nightDateStr = nightDate.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const todayStr = now.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' });
+    // 夜班日期 > 今天：还没到，不展示
+    if (nightDateStr > todayStr) return 0;
+    // 夜班日期 < 今天：已过，始终展示
+    if (nightDateStr < todayStr) return 24;
+    // 夜班日期 = 今天：按当前小时判断
+    return now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai', hour: 'numeric', hour12: false }) as unknown as number;
+  }
+
   // ==================== 打印 ====================
 
   /**

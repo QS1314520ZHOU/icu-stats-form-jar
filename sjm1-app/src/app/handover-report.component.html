@@ -168,7 +168,7 @@
                     } @else {
                       <span>{{ row.shiftTexts[$any(shift)] || '' }}</span>
                     }
-                    @if (shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightVitalSigns && (row.nightVitalSigns.temperature || row.nightVitalSigns.heartRate || row.nightVitalSigns.respiration || row.nightVitalSigns.spO2 || row.nightVitalSigns.nibpSystolic || row.nightVitalSigns.ibpSystolic || row.nightVitalSigns.cvp)) {
+                    @if (currentHour >= 6 && shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightVitalSigns && (row.nightVitalSigns.temperature || row.nightVitalSigns.heartRate || row.nightVitalSigns.respiration || row.nightVitalSigns.spO2 || row.nightVitalSigns.nibpSystolic || row.nightVitalSigns.ibpSystolic || row.nightVitalSigns.cvp)) {
                       <div class="night-vital-signs">
                         <div>【生命体征 06:00】</div>
                         <div>
@@ -182,11 +182,11 @@
                         </div>
                       </div>
                     }
-                    @if (shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightFluidSummary && (row.nightFluidSummary.totalInput > 0 || row.nightFluidSummary.totalOutput > 0)) {
+                    @if (currentHour >= 7 && shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightFluidSummary && (row.nightFluidSummary.totalInput > 0 || row.nightFluidSummary.totalOutput > 0)) {
                       <div class="night-fluid-summary">
-                        <div>【出入量总结{{ row.fluidHours && row.fluidHours < 24 ? '（' + row.fluidHours.toFixed(1) + '小时）' : '' }}】</div>
-                        <div>入量：{{ row.nightFluidSummary.totalInput }}ml（药物{{ row.nightFluidSummary.drugInput }}ml，胃肠{{ row.nightFluidSummary.enteralInput }}ml）</div>
-                        <div>出量：{{ row.nightFluidSummary.totalOutput }}ml（尿量{{ row.nightFluidSummary.urineOutput }}ml，引流{{ row.nightFluidSummary.drainageOutput }}ml，排出物{{ row.nightFluidSummary.excretionOutput }}ml）</div>
+                        <div>【{{ row.fluidHours ? row.fluidHours.toFixed(1) + '小时' : '' }}出入量总结】</div>
+                        <div>总入量：{{ row.nightFluidSummary.totalInput }}ml；药物治疗：{{ row.nightFluidSummary.medicationInput }}ml；胃肠入量：{{ row.nightFluidSummary.gastrointestinalInput }}ml</div>
+                        <div>总出量：{{ row.nightFluidSummary.totalOutput }}ml；尿量：{{ row.nightFluidSummary.urineOutput }}ml；净超滤量：{{ row.nightFluidSummary.ultrafiltrationOutput }}ml；排出物：{{ row.nightFluidSummary.excretionOutput }}ml；引流液：{{ row.nightFluidSummary.drainageOutput }}ml</div>
                         <div>平衡量：{{ row.nightFluidSummary.balance }}ml</div>
                       </div>
                     }
@@ -206,7 +206,7 @@
                     (change)="setShiftSignature($any(shift), $any($event.target).value)"
                   >
                     <option value=""></option>
-                    @for (account of snapshot.nurseAccounts; track account.id) {
+                    @for (account of filteredNurseAccounts; track account.id) {
                       <option [value]="account.id">{{ account.trueName }}</option>
                     }
                   </select>
@@ -291,7 +291,7 @@
                     (change)="setShiftSignature($any(shift), $any($event.target).value)"
                   >
                     <option value="">请选择</option>
-                    @for (account of snapshot.nurseAccounts; track account.id) {
+                    @for (account of filteredNurseAccounts; track account.id) {
                       <option [value]="account.id">{{ account.trueName }}</option>
                     }
                   </select>
