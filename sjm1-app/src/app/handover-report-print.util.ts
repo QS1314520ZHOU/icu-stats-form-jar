@@ -739,9 +739,12 @@ function buildVitalSignsText(vitalSigns: any): string {
  */
 function buildFluidSummaryText(summary: any, fluidHours?: number): string {
   const hoursText = fluidHours ? `${fluidHours.toFixed(1)}小时` : '';
+  const enteralDetail = summary.gastrointestinalInput > 0 ? `（胃肠入量：${summary.gastrointestinalInput}ml）` : '';
+  const excretionDetail = summary.excretionItems?.length > 0 ? `（${summary.excretionItems.map((i: any) => `${i.name}：${i.amount}ml`).join('、')}）` : '';
+  const drainageDetail = summary.drainageItems?.length > 0 ? `（${summary.drainageItems.map((i: any) => `${i.name}：${i.amount}ml`).join('、')}）` : '';
   const parts = [
-    `总入量：${summary.totalInput}ml；药物治疗：${summary.medicationInput}ml；胃肠入量：${summary.gastrointestinalInput}ml`,
-    `总出量：${summary.totalOutput}ml；尿量：${summary.urineOutput}ml；净超滤量：${summary.ultrafiltrationOutput}ml；排出物：${summary.excretionOutput}ml；引流液：${summary.drainageOutput}ml`,
+    `总入量：${summary.totalInput}ml；药物治疗：${summary.medicationInput}ml；胃肠入量：${summary.gastrointestinalInput}ml${enteralDetail}`,
+    `总出量：${summary.totalOutput}ml；尿量：${summary.urineOutput}ml；净超滤量：${summary.ultrafiltrationOutput}ml；排出物：${summary.excretionOutput}ml${excretionDetail}；引流液：${summary.drainageOutput}ml${drainageDetail}`,
     `平衡量：${summary.balance}ml`,
   ];
 

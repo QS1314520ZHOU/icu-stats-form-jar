@@ -331,7 +331,7 @@ function calculatePatientNightFluidSummary(
 ): { summary: NightFluidSummary; hours: number } {
   const pid = String(patient.nurseRecordPid ?? patient.id ?? patient._id ?? '').trim();
   if (!pid) {
-    return { summary: { totalInput: 0, medicationInput: 0, gastrointestinalInput: 0, totalOutput: 0, urineOutput: 0, ultrafiltrationOutput: 0, drainageOutput: 0, excretionOutput: 0, balance: 0 }, hours: 0 };
+    return { summary: { totalInput: 0, medicationInput: 0, gastrointestinalInput: 0, totalOutput: 0, urineOutput: 0, ultrafiltrationOutput: 0, drainageOutput: 0, drainageItems: [], excretionOutput: 0, excretionItems: [], balance: 0 }, hours: 0 };
   }
 
   // 出入量统计时间范围：当天07:00 ~ 次日07:00（北京时间）
@@ -416,29 +416,42 @@ function calculatePatientNightFluidSummary(
     }
   }
 
-  // 引流液（code含"引流" 或 param_tube_胃肠减压）
+  // 引流液（code含"引流" 或 param_tube_胃肠减压）- 按名称汇总明细
   let drainageOutput = 0;
+  const drainageItemMap = new Map<string, number>();
+  const drainageNameMap: Record<string, string> = {
+    'param_tube_胃肠减压': '胃管负压引流量',
+  };
   for (const record of patientBedsideRecords) {
     const code = record.code || '';
     if (code.includes('引流') || code === 'param_tube_胃肠减压') {
-      drainageOutput += parseAmount(record.strVal);
+      const amt = parseAmount(record.strVal);
+      drainageOutput += amt;
+      const name = drainageNameMap[code] || code.replace('param_', '').replace('引流', '引流液');
+      drainageItemMap.set(name, (drainageItemMap.get(name) || 0) + amt);
     }
   }
+  const drainageItems = Array.from(drainageItemMap.entries()).map(([name, amount]) => ({ name, amount }));
 
-  // 排出物
-  const excretionCodes = [
-    'param_daBianAmount',  // 大便量
-    'param_outuwuliang',   // 呕吐物量
-    'param_tanLiang',      // 痰液量
-    'param_造瘘口量',       // 造瘘口量
-    'param_咯血',           // 咯血
-  ];
+  // 排出物 - 按名称汇总明细
+  const excretionDefs: Record<string, string> = {
+    'param_daBianAmount': '大便量',
+    'param_outuwuliang': '呕吐物量',
+    'param_tanLiang': '痰液量',
+    'param_造瘘口量': '造瘘口量',
+    'param_咯血': '咯血',
+  };
   let excretionOutput = 0;
+  const excretionItemMap = new Map<string, number>();
   for (const record of patientBedsideRecords) {
-    if (excretionCodes.includes(record.code)) {
-      excretionOutput += parseAmount(record.strVal);
+    const label = excretionDefs[record.code];
+    if (label) {
+      const amt = parseAmount(record.strVal);
+      excretionOutput += amt;
+      excretionItemMap.set(label, (excretionItemMap.get(label) || 0) + amt);
     }
   }
+  const excretionItems = Array.from(excretionItemMap.entries()).map(([name, amount]) => ({ name, amount }));
 
   const totalOutput = urineOutput + ultrafiltrationOutput + drainageOutput + excretionOutput;
   const balance = totalInput - totalOutput;
@@ -452,7 +465,9 @@ function calculatePatientNightFluidSummary(
       urineOutput,
       ultrafiltrationOutput,
       drainageOutput,
+      drainageItems,
       excretionOutput,
+      excretionItems,
       balance,
     },
     hours,

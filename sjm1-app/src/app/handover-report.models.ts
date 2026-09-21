@@ -637,8 +637,10 @@ export interface NightFluidSummary {
   totalOutput: number;           // 总出量
   urineOutput: number;           // 尿量
   ultrafiltrationOutput: number; // 净超滤量
-  drainageOutput: number;        // 引流量
-  excretionOutput: number;       // 排出物
+  drainageOutput: number;        // 引流液总量
+  drainageItems: { name: string; amount: number }[]; // 引流液明细
+  excretionOutput: number;       // 排出物总量
+  excretionItems: { name: string; amount: number }[]; // 排出物明细
   balance: number;               // 平衡量
 }
 
