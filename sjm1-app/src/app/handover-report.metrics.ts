@@ -224,6 +224,33 @@ function orderBeds(
   return formatBeds(beds);
 }
 
+/**
+ * 多重耐药菌床旁隔离医嘱：医嘱名称包含"接触隔离"。
+ * 开始时间（orderTime）→ 新增多重耐药菌感染；结束时间（stopTime）→ 解除多重耐药菌床旁隔离。
+ */
+function isolationOrderBeds(
+  snapshot: DepartmentDailySnapshot,
+  patients: Map<string, DepartmentPatient>,
+  range: ShiftRange,
+  timeField: 'orderTime' | 'stopTime',
+): string {
+  const patientByMrn = new Map<string, DepartmentPatient>();
+  for (const patient of snapshot.patients) {
+    const mrn = text(patient.mrn);
+    if (mrn) { patientByMrn.set(mrn, patient); }
+  }
+
+  const beds: string[] = [];
+  for (const order of snapshot.orders) {
+    if (!text(order.orderName).includes('接触隔离')) { continue; }
+    const eventTime = timeField === 'orderTime' ? order.orderTime : order.stopTime;
+    if (!inRange(eventTime, range)) { continue; }
+    const patient = patientByMrn.get(text(order.mrn));
+    if (patient) { beds.push(patientBed(patient)); }
+  }
+  return formatBeds(beds);
+}
+
 function nonPlannedAdmissionBeds(
   snapshot: DepartmentDailySnapshot,
   range: ShiftRange,
@@ -313,16 +340,18 @@ function calculateAutoMetricValues(
       return { day: '', evening: '', night: '' };
     case 'ecmoTreatment':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ECMOMoShi', value => value.length > 0));
+    case 'newMultidrugResistantInfection':
+      return buildValues(range => isolationOrderBeds(snapshot, patients, range, 'orderTime'));
     case 'removeIsolation':
-      return buildValues(range => orderBeds(snapshot, range, '解除隔离'));
+      return buildValues(range => isolationOrderBeds(snapshot, patients, range, 'stopTime'));
     case 'pressureInjuryHighRisk':
-      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_yaChuang_score', value => value.includes('高度危险')));
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_yaChuang_score', value => value.includes('高')));
     case 'fallHighRisk':
-      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_patientFallDangerFactorV2', value => value.includes('高度危险')));
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_patientFallDangerFactorV2', value => value.includes('高')));
     case 'unplannedExtubationHighRisk':
-      return { day: '', evening: '', night: '' };
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_unPlannedCGZYY', value => value.includes('高')));
     case 'suicideHighRisk':
-      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_commitSuicideScore', value => value.includes('高度危险')));
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_commitSuicideScore', value => value.includes('高')));
     case 'incontinenceDermatitis':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_incontinenceScore', value => value.includes('高度危险')));
     case 'unplannedPostoperativeAdmission':

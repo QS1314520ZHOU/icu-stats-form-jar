@@ -82,6 +82,7 @@ const CAUTI_GROUP: MeasureGroup = {
   ],
 };
 const GROUPS: readonly MeasureGroup[] = [NECESSITY_GROUP, VAP_GROUP, CRBSI_GROUP, CAUTI_GROUP];
+const INSPECTOR_NAMES: readonly string[] = ['陈琳', '陈芬', '伍席洲', '谢娜'];
 
 @Component({
   standalone: false,
@@ -127,6 +128,7 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   doctorQuery = '';
   doctorDropdownOpen = false;
 
+  inspectorAccounts: AccountOption[] = [];
   inspectorFiltered: AccountOption[] = [];
   inspectorQuery = '';
   inspectorDropdownOpen = false;
@@ -199,7 +201,7 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     this.doctorDropdownOpen = false;
     this.form.inspectorName = '';
     this.inspectorQuery = '';
-    this.inspectorFiltered = this.allAccounts.slice(0, 20);
+    this.inspectorFiltered = this.inspectorAccounts.slice(0, 20);
     this.inspectorDropdownOpen = false;
     this.formOpen = true;
   }
@@ -221,7 +223,7 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     this.doctorFiltered = this.allAccounts.slice(0, 20);
     this.doctorDropdownOpen = false;
     this.inspectorQuery = this.form.inspectorName || '';
-    this.inspectorFiltered = this.allAccounts.slice(0, 20);
+    this.inspectorFiltered = this.inspectorAccounts.slice(0, 20);
     this.inspectorDropdownOpen = false;
     this.formOpen = true;
   }
@@ -333,11 +335,11 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     this.inspectorQuery = value;
     this.form.inspectorName = value;
     const keyword = value.trim().toLowerCase();
-    this.inspectorFiltered = this.allAccounts.filter(a => !keyword ||
+    this.inspectorFiltered = this.inspectorAccounts.filter(a => !keyword ||
       [a.accountName, a.username, a.code].some(f => String(f || '').toLowerCase().includes(keyword))).slice(0, 20);
     this.inspectorDropdownOpen = true;
   }
-  openInspectorDropdown(): void { this.inspectorFiltered = this.allAccounts.slice(0, 20); this.inspectorDropdownOpen = true; }
+  openInspectorDropdown(): void { this.inspectorFiltered = this.inspectorAccounts.slice(0, 20); this.inspectorDropdownOpen = true; }
   closeInspectorDropdownLater(): void { window.setTimeout(() => this.inspectorDropdownOpen = false, 150); }
 
   print(): void {
@@ -458,10 +460,19 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
         const DOCTOR_PROFS = ['director', 'doctor'];
         this.doctorAccounts = all.filter(a => DOCTOR_PROFS.includes(a.profession.toLowerCase()));
         this.doctorFiltered = this.doctorAccounts.slice(0, 20);
-        this.inspectorFiltered = this.allAccounts.slice(0, 20);
+        this.inspectorAccounts = this.resolveInspectorAccounts(all);
+        this.inspectorFiltered = this.inspectorAccounts.slice(0, 20);
       },
-      error: () => { this.accounts = []; this.filteredAccounts = []; this.allAccounts = []; },
+      error: () => {
+        this.accounts = []; this.filteredAccounts = []; this.allAccounts = [];
+        this.inspectorAccounts = this.resolveInspectorAccounts([]);
+        this.inspectorFiltered = this.inspectorAccounts.slice(0, 20);
+      },
     });
+  }
+  private resolveInspectorAccounts(all: AccountOption[]): AccountOption[] {
+    return INSPECTOR_NAMES.map(name => all.find(a => a.accountName === name)
+      || { accountId: name, accountName: name });
   }
   private patientId(p: any): string {
     return String(p?.id ?? p?._id ?? p?.pid ?? p?.patientId ?? p?.patientID ?? '').trim();

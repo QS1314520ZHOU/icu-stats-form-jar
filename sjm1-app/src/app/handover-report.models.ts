@@ -68,6 +68,7 @@ export interface BloodSugarRecord {
 
 export interface OrderRecord {
   orderID?: string;
+  pid?: string;
   mrn?: string;
   orderName?: string;
   orderType?: string;
@@ -428,8 +429,8 @@ export const SAFETY_REPORT_SCHEMA: SafetyMetricDefinition[] = [
     key: 'newMultidrugResistantInfection',
     category: '患者安全',
     label: '新增多重耐药菌感染',
-    mode: 'manual',
-    valueType: 'text',
+    mode: 'auto',
+    valueType: 'beds',
   },
   {
     key: 'removeIsolation',

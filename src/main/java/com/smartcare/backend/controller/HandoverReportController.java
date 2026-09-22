@@ -136,6 +136,10 @@ public class HandoverReportController {
         tubeQuery.with(Sort.by(Sort.Direction.ASC, "startTime"));
         List<Document> tubeDocs = mongoTemplate.find(tubeQuery, Document.class, "tubeExe");
 
+        // orders: 医嘱（DataCenter 库 VI_ICU_ZYYZ 同步到 MongoDB order 集合）
+        // 需覆盖开始时间（新增）或结束时间（解除）落在班次范围内的医嘱
+        List<Document> orderDocs = loadOrders(dayStart, nightEnd);
+
         // draft - 使用当天范围查询，避免Date精确匹配时区问题
         Query draftQuery = new Query();
         draftQuery.addCriteria(new Criteria().andOperator(
@@ -148,7 +152,8 @@ public class HandoverReportController {
             + ", dayStart=" + dayStart + ", dayEnd=" + dayEnd
             + ", patients=" + patientDocs.size() + ", bedside=" + bedsideDocs.size()
             + ", bloodSugar=" + bsDocs.size() + ", nurseRecords=" + nurseDocs.size()
-            + ", nurseAccounts=" + acctDocs.size() + ", tubeExecutions=" + tubeDocs.size());
+            + ", nurseAccounts=" + acctDocs.size() + ", tubeExecutions=" + tubeDocs.size()
+            + ", orders=" + orderDocs.size());
 
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("departmentId", department != null ? department : departmentCode);
@@ -157,7 +162,7 @@ public class HandoverReportController {
         snapshot.put("patients", normalizePatientDocuments(patientDocs));
         snapshot.put("bedsideRecords", normalizeDocuments(bedsideDocs));
         snapshot.put("bloodSugarRecords", normalizeDocuments(bsDocs));
-        snapshot.put("orders", Collections.emptyList());
+        snapshot.put("orders", normalizeDocuments(orderDocs));
         snapshot.put("tubeExecutions", normalizeDocuments(tubeDocs));
         snapshot.put("nurseRecords", normalizeDocuments(nurseDocs));
         snapshot.put("nurseAccounts", normalizeDocuments(acctDocs));
@@ -166,6 +171,31 @@ public class HandoverReportController {
             : normalizeUtcValue(new Document(defaultDraft(department != null ? department : departmentCode, reportDate))));
 
         return ResponseEntity.ok(snapshot);
+    }
+
+    /**
+     * 加载医嘱数据。
+     * 来源：DataCenter 库 VI_ICU_ZYYZ 表（同步到 MongoDB order 集合）。
+     * 查询开始时间或结束时间落在 [windowStart, windowEnd) 内的医嘱，
+     * 以覆盖"新增多重耐药菌感染"（orderTime）和"解除多重耐药菌床旁隔离"（stopTime）。
+     */
+    private List<Document> loadOrders(Date windowStart, Date windowEnd) {
+        try {
+            Criteria timeCriteria = new Criteria().orOperator(
+                Criteria.where("orderTime").gte(windowStart).lt(windowEnd),
+                new Criteria().andOperator(
+                    Criteria.where("stopTime").exists(true),
+                    Criteria.where("stopTime").ne(null),
+                    Criteria.where("stopTime").gte(windowStart).lt(windowEnd)
+                )
+            );
+            Query orderQuery = new Query(timeCriteria);
+            orderQuery.with(Sort.by(Sort.Direction.ASC, "orderTime"));
+            return mongoTemplate.find(orderQuery, Document.class, "order");
+        } catch (Exception e) {
+            System.out.println("[HANDOVER] load orders failed: " + e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     /**
