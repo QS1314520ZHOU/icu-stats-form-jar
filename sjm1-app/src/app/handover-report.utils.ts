@@ -334,24 +334,25 @@ function calculatePatientNightFluidSummary(
     return { summary: { totalInput: 0, medicationInput: 0, gastrointestinalInput: 0, totalOutput: 0, urineOutput: 0, ultrafiltrationOutput: 0, drainageOutput: 0, drainageItems: [], excretionOutput: 0, excretionItems: [], balance: 0 }, hours: 0 };
   }
 
-  // 出入量统计时间范围：以入科时间为起点，入科次日07:00为终点
-  // 普通患者：当天07:00 ~ 次日07:00（24小时）
-  // 入科患者：入科时间 ~ 入科次日07:00（不足24小时）
+  // 出入量统计时间范围：当天07:00 ~ 次日07:00（北京时间）
+  // 入科患者：入科时间 ~ 次日07:00（不足24小时，起点取入科时间和当天07:00的较晚者）
   const baseDate = ranges.day.start;
   const day7am = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 7, 0, 0, 0); // 当天07:00
+  const nextDay7am = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + 1, 7, 0, 0, 0); // 次日07:00
 
-  // 确定实际起点：入科患者使用入科时间（无论是否在07:00之前）
+  // 确定实际起点
   let actualStart = day7am;
   if (!isCritical && patient.icuAdmissionTime) {
     const admTime = new Date(patient.icuAdmissionTime);
-    if (!isNaN(admTime.getTime())) {
+    if (!isNaN(admTime.getTime()) && admTime.getTime() > day7am.getTime()) {
+      // 入科时间在当天07:00之后，使用入科时间作为起点
       actualStart = admTime;
     }
+    // 入科时间在当天07:00之前，使用当天00:00作为起点
+    else if (!isNaN(admTime.getTime()) && admTime.getTime() < day7am.getTime()) {
+      actualStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0, 0, 0);
+    }
   }
-
-  // 终点：实际起点的次日07:00
-  const startForEnd = new Date(actualStart);
-  const nextDay7am = new Date(startForEnd.getFullYear(), startForEnd.getMonth(), startForEnd.getDate() + 1, 7, 0, 0, 0);
 
   // 计算小时数（满30分钟进1，不满舍去）
   const rawHours = (nextDay7am.getTime() - actualStart.getTime()) / (1000 * 60 * 60);
