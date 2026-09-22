@@ -182,7 +182,7 @@
                         </div>
                       </div>
                     }
-                    @if (currentHour >= 7 && shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightFluidSummary && (row.nightFluidSummary.totalInput > 0 || row.nightFluidSummary.totalOutput > 0)) {
+                    @if (currentHour >= 7 && shift === 'night' && ['转入', '入院', '病危'].includes(row.status) && row.nightFluidSummary) {
                       <div class="night-fluid-summary">
                         <div>【{{ row.fluidHours ? row.fluidHours.toFixed(1) + '小时' : '' }}出入量总结】</div>
                         <div>总入量：{{ row.nightFluidSummary.totalInput }}ml；药物治疗：{{ row.nightFluidSummary.medicationInput }}ml；胃肠入量：{{ row.nightFluidSummary.gastrointestinalInput }}ml{{ row.nightFluidSummary.gastrointestinalInput > 0 ? '（胃肠入量：' + row.nightFluidSummary.gastrointestinalInput + 'ml）' : '' }}</div>
