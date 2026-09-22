@@ -29,23 +29,19 @@
         <th [attr.colspan]="cautiGroup.items.length">导尿管相关尿路感染防控（CAUTI）</th>
         <th rowspan="2">护士签名</th><th rowspan="2">督查者签名</th></tr>
       <tr class="item-head"><th *ngFor="let item of necessityGroup.items">{{item.label}}</th><th>医生签名</th>
-        <ng-container *ngFor="let item of vapGroup.items"><th *ngIf="!isCuffPressure(item.code)">{{item.label}}</th></ng-container>
-        <th colspan="4">{{cuffPressureLabel}}</th>
+        <th *ngFor="let item of vapGroup.items">{{item.label}}</th>
         <th *ngFor="let item of crbsiGroup.items">{{item.label}}</th>
         <th *ngFor="let item of cautiGroup.items">{{item.label}}</th></tr>
     </thead>
     <tbody><tr *ngFor="let record of page.records">
       <td class="date-cell" [innerHTML]="fmtRecordDate(record?.recordDate)"></td>
       <td class="mark-cell" *ngFor="let item of necessityGroup.items">{{mark(record,item.code)}}</td><td class="signature-cell">{{record?.doctorName||''}}</td>
-      <ng-container *ngFor="let item of vapGroup.items">
-        <td class="mark-cell" *ngIf="!isCuffPressure(item.code)">{{mark(record,item.code)}}</td>
-      </ng-container>
-      <td class="mark-cell" *ngFor="let code of cuffPressureCodes">{{mark(record,code)}}</td>
+      <td class="mark-cell" *ngFor="let item of vapGroup.items">{{mark(record,item.code)}}</td>
       <td class="mark-cell" *ngFor="let item of crbsiGroup.items">{{mark(record,item.code)}}</td>
       <td class="mark-cell" *ngFor="let item of cautiGroup.items">{{mark(record,item.code)}}</td>
       <td class="signature-cell">{{record?.nurseName||''}}</td><td class="signature-cell">{{record?.inspectorName||''}}</td>
     </tr></tbody>
-    <tfoot><tr><td colspan="28">备注：导管留置必要性评估√表示可拔管，×表示需继续留置。</td></tr></tfoot>
+    <tfoot><tr><td colspan="25">备注：导管留置必要性评估√表示可拔管，×表示需继续留置。</td></tr></tfoot>
   </table><div class="sheet-pageno">第 {{page.index}} 页</div>
 </section>
 

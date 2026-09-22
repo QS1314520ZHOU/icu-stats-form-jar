@@ -54,9 +54,19 @@ public class HandoverReportController {
             ? new Criteria()
             : new Criteria().orOperator(departmentOr.toArray(new Criteria[0]));
 
+        // 夜班延续到次日08:00，需要将查询范围扩展到次日08:00
+        // 否则00:00~08:00之间入科的患者会被漏掉
+        Calendar nightEndCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        nightEndCal.setTime(dayEnd);
+        nightEndCal.set(Calendar.HOUR_OF_DAY, 8);
+        nightEndCal.set(Calendar.MINUTE, 0);
+        nightEndCal.set(Calendar.SECOND, 0);
+        nightEndCal.set(Calendar.MILLISECOND, 0);
+        Date nightEnd = nightEndCal.getTime();
+
         Criteria admissionCriteria = new Criteria().orOperator(
-            Criteria.where("icuAdmissionTime").lt(dayEnd),
-            new Criteria().andOperator(Criteria.where("icuAdmissionTime").exists(false), Criteria.where("admissionTime").lt(dayEnd))
+            Criteria.where("icuAdmissionTime").lt(nightEnd),
+            new Criteria().andOperator(Criteria.where("icuAdmissionTime").exists(false), Criteria.where("admissionTime").lt(nightEnd))
         );
 
         Criteria dischargeCriteria = new Criteria().orOperator(

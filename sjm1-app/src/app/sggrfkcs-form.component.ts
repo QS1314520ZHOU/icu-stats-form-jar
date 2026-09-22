@@ -8,10 +8,10 @@ import { HostPatientService } from './services/host-patient.service';
 
 type ComplianceMark = '' | '√' | '×';
 type MeasureCode =
-  | 'SEDATION_AWAKENING' | 'EARLY_REHABILITATION' | 'EXTUBATION_ASSESSMENT'
-  | 'CENTRAL_LINE_NECESSITY' | 'URINARY_CATHETER_NECESSITY'
+  | 'EXTUBATION_ASSESSMENT' | 'CENTRAL_LINE_NECESSITY' | 'URINARY_CATHETER_NECESSITY'
+  | 'SEDATION_AWAKENING' | 'EARLY_REHABILITATION'
   | 'HEAD_ELEVATION' | 'ORAL_CARE' | 'SUCTION_STANDARD' | 'SUBGLOTTIC_SUCTION'
-  | 'CUFF_PRESSURE_1' | 'CUFF_PRESSURE_2' | 'CUFF_PRESSURE_3' | 'CUFF_PRESSURE_4'
+  | 'DAILY_CUFF_PRESSURE'
   | 'CONDENSATE_MANAGEMENT' | 'VENTILATOR_CIRCUIT_REPLACEMENT'
   | 'MAXIMAL_STERILE_BARRIER' | 'CHLORHEXIDINE_SKIN_ANTISEPSIS'
   | 'STERILE_DRESSING' | 'CONNECTOR_DISINFECTION'
@@ -43,11 +43,11 @@ interface RenderPage { index: number; records: Array<SggrfkcsRecord | null>; }
 const NECESSITY_GROUP: MeasureGroup = {
   code: 'NECESSITY', name: '患者及导管留置必要性评估', shortName: '必要性评估',
   items: [
-    { code: 'SEDATION_AWAKENING', label: '镇静唤醒' },
-    { code: 'EARLY_REHABILITATION', label: '早期康复' },
     { code: 'EXTUBATION_ASSESSMENT', label: '撤机或人工气道拔管评估' },
     { code: 'CENTRAL_LINE_NECESSITY', label: '深静脉导管留置的必要性评估' },
     { code: 'URINARY_CATHETER_NECESSITY', label: '导尿管留置必要性评估' },
+    { code: 'SEDATION_AWAKENING', label: '镇静唤醒' },
+    { code: 'EARLY_REHABILITATION', label: '早期康复' },
   ],
 };
 const VAP_GROUP: MeasureGroup = {
@@ -57,15 +57,11 @@ const VAP_GROUP: MeasureGroup = {
     { code: 'ORAL_CARE', label: '口腔护理' },
     { code: 'SUCTION_STANDARD', label: '吸痰操作规范' },
     { code: 'SUBGLOTTIC_SUCTION', label: '声门下吸引' },
-    { code: 'CUFF_PRESSURE_1', label: '气管导管气囊测压25-30cmH₂O 早' },
-    { code: 'CUFF_PRESSURE_2', label: '气管导管气囊测压25-30cmH₂O 早' },
-    { code: 'CUFF_PRESSURE_3', label: '气管导管气囊测压25-30cmH₂O 中' },
-    { code: 'CUFF_PRESSURE_4', label: '气管导管气囊测压25-30cmH₂O 夜' },
+    { code: 'DAILY_CUFF_PRESSURE', label: '每日进行气管导管气囊测压（25-30cmH₂O）' },
     { code: 'CONDENSATE_MANAGEMENT', label: '积水杯最低位，倾倒冷凝水' },
     { code: 'VENTILATOR_CIRCUIT_REPLACEMENT', label: '呼吸机外部管路更换' },
   ],
 };
-const CUFF_PRESSURE_CODES: MeasureCode[] = ['CUFF_PRESSURE_1', 'CUFF_PRESSURE_2', 'CUFF_PRESSURE_3', 'CUFF_PRESSURE_4'];
 const CRBSI_GROUP: MeasureGroup = {
   code: 'CRBSI', name: '导管相关血流感染防控（CRBSI）', shortName: 'CRBSI',
   items: [
@@ -101,11 +97,6 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   readonly vapGroup = VAP_GROUP;
   readonly crbsiGroup = CRBSI_GROUP;
   readonly cautiGroup = CAUTI_GROUP;
-  readonly cuffPressureCodes = CUFF_PRESSURE_CODES;
-  readonly cuffPressureLabel = '气管导管气囊测压25-30cmH₂O';
-  isCuffPressure(code: MeasureCode): boolean {
-    return (CUFF_PRESSURE_CODES as readonly string[]).includes(code);
-  }
 
   patient: any = null;
   account: any = null;
