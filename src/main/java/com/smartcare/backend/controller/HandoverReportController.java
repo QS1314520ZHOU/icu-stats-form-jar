@@ -3,7 +3,6 @@ package com.smartcare.backend.controller;
 import java.util.*;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -12,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.smartcare.backend.config.DatacenterMongo;
 
 @RestController
 @RequestMapping("/api/v1/icu/handover-report")
@@ -19,16 +19,14 @@ import org.springframework.web.bind.annotation.*;
 public class HandoverReportController {
 
     private final MongoTemplate mongoTemplate;
-    private final MongoTemplate datacenterMongoTemplate;
+    private final DatacenterMongo datacenterMongo;
 
     /** DataCenter 库中医嘱集合候选名称（VI_ICU_ZYYZ 同步） */
     private static final String[] ORDER_COLLECTIONS = {"order", "orders", "VI_ICU_ZYYZ", "vi_icu_zyyz"};
 
-    public HandoverReportController(
-            MongoTemplate mongoTemplate,
-            @Qualifier("datacenterMongoTemplate") MongoTemplate datacenterMongoTemplate) {
+    public HandoverReportController(MongoTemplate mongoTemplate, DatacenterMongo datacenterMongo) {
         this.mongoTemplate = mongoTemplate;
-        this.datacenterMongoTemplate = datacenterMongoTemplate;
+        this.datacenterMongo = datacenterMongo;
     }
 
     @GetMapping("/daily")
@@ -201,7 +199,7 @@ public class HandoverReportController {
             orderQuery.with(Sort.by(Sort.Direction.ASC, "orderTime"));
             // DataCenter 库中医嘱集合名称在不同环境可能不同，依次尝试
             for (String collection : ORDER_COLLECTIONS) {
-                List<Document> docs = datacenterMongoTemplate.find(orderQuery, Document.class, collection);
+                List<Document> docs = datacenterMongo.find(orderQuery, Document.class, collection);
                 if (!docs.isEmpty()) {
                     System.out.println("[HANDOVER] orders loaded from DataCenter." + collection + ": " + docs.size());
                     return docs;
