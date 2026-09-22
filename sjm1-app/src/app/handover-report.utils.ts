@@ -358,12 +358,15 @@ function calculatePatientNightFluidSummary(
   const rawHours = (nextDay7am.getTime() - actualStart.getTime()) / (1000 * 60 * 60);
   const hours = Math.round(rawHours);
 
+  // 过滤起点：向下取整到整点，确保包含入科小时的床旁记录（床旁数据按整点采集）
+  const filterStart = new Date(actualStart.getFullYear(), actualStart.getMonth(), actualStart.getDate(), actualStart.getHours(), 0, 0, 0);
+
   // 该患者在时间范围内的床旁记录
   const patientBedsideRecords = bedsideRecords.filter(record => {
     if (record.valid === false) return false;
     if (record.pid !== pid) return false;
     const recordTime = new Date(record.time).getTime();
-    return recordTime >= actualStart.getTime() && recordTime < nextDay7am.getTime();
+    return recordTime >= filterStart.getTime() && recordTime < nextDay7am.getTime();
   });
 
   // 调试：输出匹配的记录
