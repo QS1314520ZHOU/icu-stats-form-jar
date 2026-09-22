@@ -3,6 +3,7 @@ package com.smartcare.backend.controller;
 import java.util.*;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -18,9 +19,16 @@ import org.springframework.web.bind.annotation.*;
 public class HandoverReportController {
 
     private final MongoTemplate mongoTemplate;
+    private final MongoTemplate datacenterMongoTemplate;
 
-    public HandoverReportController(MongoTemplate mongoTemplate) {
+    /** DataCenter 库中医嘱集合候选名称（VI_ICU_ZYYZ 同步） */
+    private static final String[] ORDER_COLLECTIONS = {"order", "orders", "VI_ICU_ZYYZ", "vi_icu_zyyz"};
+
+    public HandoverReportController(
+            MongoTemplate mongoTemplate,
+            @Qualifier("datacenterMongoTemplate") MongoTemplate datacenterMongoTemplate) {
         this.mongoTemplate = mongoTemplate;
+        this.datacenterMongoTemplate = datacenterMongoTemplate;
     }
 
     @GetMapping("/daily")
@@ -175,7 +183,7 @@ public class HandoverReportController {
 
     /**
      * 加载医嘱数据。
-     * 来源：DataCenter 库 VI_ICU_ZYYZ 表（同步到 MongoDB order 集合）。
+     * 来源：DataCenter 库 VI_ICU_ZYYZ 表（MongoDB 医嘱集合）。
      * 查询开始时间或结束时间落在 [windowStart, windowEnd) 内的医嘱，
      * 以覆盖"新增多重耐药菌感染"（orderTime）和"解除多重耐药菌床旁隔离"（stopTime）。
      */
@@ -191,7 +199,15 @@ public class HandoverReportController {
             );
             Query orderQuery = new Query(timeCriteria);
             orderQuery.with(Sort.by(Sort.Direction.ASC, "orderTime"));
-            return mongoTemplate.find(orderQuery, Document.class, "order");
+            // DataCenter 库中医嘱集合名称在不同环境可能不同，依次尝试
+            for (String collection : ORDER_COLLECTIONS) {
+                List<Document> docs = datacenterMongoTemplate.find(orderQuery, Document.class, collection);
+                if (!docs.isEmpty()) {
+                    System.out.println("[HANDOVER] orders loaded from DataCenter." + collection + ": " + docs.size());
+                    return docs;
+                }
+            }
+            return Collections.emptyList();
         } catch (Exception e) {
             System.out.println("[HANDOVER] load orders failed: " + e.getMessage());
             return Collections.emptyList();

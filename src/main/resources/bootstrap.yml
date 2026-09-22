@@ -1,12 +1,19 @@
 spring:
+  application:
+    name: ${APP_NAME:CGZDICUWebservice}
   data:
     mongodb:
-      host: ${MONGO_HOST:localhost}
-      port: ${MONGO_PORT:27017}
-      database: ${MONGO_DATABASE:SmartCare}
-      username: ${MONGO_USERNAME:admin}
-      password: ${MONGO_PASSWORD:admin}
-      authentication-database: ${MONGO_AUTH_DB:SmartCare}
+      # 双库命名连接：SmartCare（主库）+ DataCenter（医嘱等）
+      # 凭据一律通过环境变量注入，禁止把真实账号密码写进仓库
+      smartcare:
+        uri: ${MONGO_SMARTCARE_URI:mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@${MONGO_HOST:localhost}:${MONGO_PORT:27017}/SmartCare?maxPoolSize=100&waitQueueTimeoutMS=2000&connectTimeoutMS=3000&socketTimeoutMS=5000}
+      datacenter:
+        uri: ${MONGO_DATACENTER_URI:mongodb://${MONGO_DATACENTER_USERNAME}:${MONGO_DATACENTER_PASSWORD}@${MONGO_DATACENTER_HOST:localhost}:${MONGO_DATACENTER_PORT:27017}/DataCenter?maxPoolSize=100&waitQueueTimeoutMS=2000&connectTimeoutMS=3000&socketTimeoutMS=5000}
+      auto-index-creation: true
+  servlet:
+    multipart:
+      max-request-size: 1MB
+      max-file-size: 1MB
   jackson:
     date-format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
     time-zone: UTC
