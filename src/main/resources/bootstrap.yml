@@ -7,9 +7,6 @@ spring:
       username: ${MONGO_USERNAME:admin}
       password: ${MONGO_PASSWORD:admin}
       authentication-database: ${MONGO_AUTH_DB:SmartCare}
-  jackson:
-    date-format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
-    time-zone: UTC
 
 # DataCenter 医嘱库（独立连接，不影响上面 spring.data.mongodb 主库自动配置）
 datacenter:
