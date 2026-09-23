@@ -18,19 +18,19 @@ const PICCO_METRICS: PiccoMetric[] = [
  {label:'MAP（平均动脉压）',normal:'70–90 mmHg',code:'param_MAP(平均动脉压)'},
  {label:'CVP（中心静脉压）',normal:'5–12 mmHg',code:'param_CVP(中心静脉压)'},
  {label:'HR（心率）',normal:'60–100 次/min',code:'param_HR(心率)'},
- {label:'CI（心输出量指数）',normal:'3.0–5.0 L/min/㎡',code:'param_CI(心输出量指数)'},
- {label:'dPmax（左心室收缩力指数）',normal:'1000–2000 mmHg/s',code:'param_dPmax(左心室收缩力指数)'},
- {label:'GEDI（全心舒张末期容积指数）',normal:'680–800 ml/㎡',code:'param_GEDI(全心舒张末期容积指数)'},
- {label:'SVI（每搏量指数）',normal:'40–60 ml/㎡',code:'param_SVI(每搏量指数)'},
- {label:'ELWI（血管外肺水指数）',normal:'3.0–7.0 ml/kg',code:'param_ELWI(血管外肺水指数)'},
- {label:'PVPI（肺血管通透性指数）',normal:'1.0–3.0',code:'param_PVPI(肺血管通透性指数)'},
- {label:'GEF（全心射血分数）',normal:'25–35%',code:'param_GEF(全心射血分数)'},
- {label:'SVRI（全身血管阻力指数）',normal:'1700–2400 dyn·s·cm⁻⁵·㎡',code:'param_SVRI(全身血管阻力指数)'},
- {label:'SVV（每搏量变异）',normal:'≤10%',code:'param_SVV(每搏量变异)'},
- {label:'TB（血液温度）',normal:'℃',code:'param_TB(血液温度)'},
- {label:'ITBI（胸腔内血容积指数）',normal:'850–1000 ml/㎡',code:'param_ITBI(胸腔内血容积指数)'},
+ {label:'CI（心输出量指数）',normal:'3.0–5.0 L/min/㎡',code:'param_CCI'},
+ {label:'dPmax（左心室收缩力指数）',normal:'1000–2000 mmHg/s',code:'param_dPmx'},
+ {label:'GEDI（全心舒张末期容积指数）',normal:'680–800 ml/㎡',code:'param_GEDI'},
+ {label:'SVI（每搏量指数）',normal:'40–60 ml/㎡',code:'param_SVI'},
+ {label:'ELWI（血管外肺水指数）',normal:'3.0–7.0 ml/kg',code:'param_ELWI'},
+ {label:'PVPI（肺血管通透性指数）',normal:'1.0–3.0',code:'param_PVPI'},
+ {label:'GEF（全心射血分数）',normal:'25–35%',code:'param_GEF'},
+ {label:'SVRI（全身血管阻力指数）',normal:'1700–2400 dyn·s·cm⁻⁵·㎡',code:'param_SVRI'},
+ {label:'SVV（每搏量变异）',normal:'≤10%',code:'param_SVV'},
+ {label:'TB（血液温度）',normal:'℃',code:'param_TB'},
+ {label:'ITBI（胸腔内血容积指数）',normal:'850–1000 ml/㎡',code:'param_ITBI'},
  {label:'LCSWI（左心每搏作功指数）',normal:'50–62',code:'param_LCSWI(左心每搏作做功指数)'},
- {label:'CFI（心功能指数）',normal:'4.5–6.5 L/min',code:'param_CFI(心功能指数)'},
+ {label:'CFI（心功能指数）',normal:'4.5–6.5 L/min',code:'param_CFI'},
  {label:'被动抬腿试验',normal:'',code:'param_被动抬腿试验'},
 ];
 
@@ -87,8 +87,10 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
    const instant=databaseTimeValue(time);
    if(!Number.isFinite(instant))return;
    if(metricSet.has(code)){
+    const val=String(r.strVal??'').trim();
+    if(!val)return;
     if(!timeMap.has(instant))timeMap.set(instant,{instant,rawTime:time});
-    this.values.set(`${code}@@${instant}`,String(r.strVal??''));
+    this.values.set(`${code}@@${instant}`,val);
    }
   });
   const timePoints=[...timeMap.values()].sort((a,b)=>a.instant-b.instant);
