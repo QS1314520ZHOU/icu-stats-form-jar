@@ -10,7 +10,7 @@ interface BedsideRecord { pid: string|number; code: string; time: string; strVal
 interface PiccoMetric { label: string; normal: string; code: string; }
 interface TimePoint { instant: number; rawTime: string; }
 interface RenderPage { index: number; timePoints: TimePoint[]; }
-interface AccountOption { accountId: string; accountName: string; }
+interface AccountOption { accountId: string; accountName: string; profession?: string; username?: string; code?: string; }
 interface SignatureValue { accountId: string; accountName: string; }
 type SaveState = 'idle'|'saving'|'saved'|'error';
 
@@ -48,7 +48,7 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  patient:any=null; account:any=null; pid=''; age:number|null=null; diagnosisDisplay='';
  loading=false; loadError=''; pages:RenderPage[]=[{index:1,timePoints:[]}]; selectedPrintPages:number[]=[]; printing=false;
  insertionSide:''|'RIGHT'|'LEFT'=''; arteryName=''; catheterLengthCm=''; heightCm=''; weightKg=''; extraSaveState:SaveState='idle';
- accounts:AccountOption[]=[];
+ accounts:AccountOption[]=[]; signFiltered:AccountOption[]=[]; signQuery=''; signDropdownOpen=false; private signEditKey:string|null=null; private signCloseToken=0;
  // Viewer 模式标志
  isViewerMode = false;
 
@@ -68,7 +68,7 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   this.loadAccounts();
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
- private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatures.clear();this.pages=[{index:1,timePoints:[]}];this.selectedPrintPages=[];}
+ private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatures.clear();this.signDropdownOpen=false;this.signEditKey=null;this.signQuery='';this.pages=[{index:1,timePoints:[]}];this.selectedPrintPages=[];}
  load():void{
   if(!this.pid)return;this.loading=true;this.loadError='';
   const params=new HttpParams().set('pid',this.pid).set('codes',this.queryCodes.join(','));
@@ -104,15 +104,15 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   for(const m of this.metrics){const v=this.values.get(`${m.code}@@${tp.instant}`);if(v!=null&&v!=='')return true;}
   return false;
  }
- signatureIdAt(tp:TimePoint|undefined):string{return tp?(this.signatures.get(String(tp.instant))?.accountId||''):'';}
+ signKey(tp:TimePoint|undefined):string{return tp?String(tp.instant):'';}
+ isSignEditing(tp:TimePoint|undefined):boolean{return !!tp&&this.signEditKey===String(tp.instant);}
+ signInputAt(tp:TimePoint|undefined):string{return this.isSignEditing(tp)?this.signQuery:this.signatureNameAt(tp);}
  signatureNameAt(tp:TimePoint|undefined):string{return tp?(this.signatures.get(String(tp.instant))?.accountName||''):'';}
- onSignatureChange(tp:TimePoint|undefined,accountId:string):void{
-  if(!tp)return;
-  const key=String(tp.instant);
-  if(!accountId){this.signatures.delete(key);}
-  else{const acc=this.accounts.find(a=>a.accountId===accountId);this.signatures.set(key,{accountId,accountName:acc?.accountName||''});}
-  this.onExtraChanged();
- }
+ openSignDropdown(tp:TimePoint|undefined):void{if(!tp)return;this.signCloseToken++;this.signEditKey=String(tp.instant);this.signQuery=this.signatureNameAt(tp);this.signFiltered=this.accounts.slice(0,20);this.signDropdownOpen=true;}
+ onSignSearch(tp:TimePoint|undefined,value:string):void{if(!tp)return;this.signEditKey=String(tp.instant);this.signQuery=value;const keyword=value.trim().toLowerCase();this.signFiltered=this.accounts.filter(a=>!keyword||[a.accountName,a.username,a.code].some(f=>String(f||'').toLowerCase().includes(keyword))).slice(0,20);this.signDropdownOpen=true;}
+ selectSignDoctor(tp:TimePoint|undefined,account:AccountOption):void{if(!tp)return;this.signatures.set(String(tp.instant),{accountId:account.accountId,accountName:account.accountName});this.signQuery=account.accountName;this.signDropdownOpen=false;this.signEditKey=null;this.onExtraChanged();}
+ clearSign(tp:TimePoint|undefined):void{if(!tp)return;this.signatures.delete(String(tp.instant));this.signQuery='';this.signDropdownOpen=false;this.signEditKey=null;this.onExtraChanged();}
+ closeSignDropdownLater():void{const token=++this.signCloseToken;window.setTimeout(()=>{if(token!==this.signCloseToken)return;this.signDropdownOpen=false;this.signEditKey=null;},150);}
  displayDate(tp:TimePoint|undefined):string{return tp?formatShanghaiMonthDay(tp.instant):'';}
  displayClock(tp:TimePoint|undefined):string{return tp?formatShanghaiHourMinute(tp.instant):'';}
  genderText(v:any):string{return['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
@@ -120,8 +120,11 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  saveExtraNow():void{this.onExtraChanged();}
  private loadExtra():void{this.insertionSide='';this.arteryName='';this.catheterLengthCm='';this.heightCm='';this.weightKg='';this.signatures.clear();this.http.get<any>(`${this.EXTRA}/latest`,{params:{pid:this.pid}}).pipe(takeUntil(this.destroy$),catchError(()=>of(null))).subscribe(d=>{if(d?.valid===true){this.insertionSide=d.insertionSide||'';this.arteryName=d.arteryName||'';this.catheterLengthCm=d.catheterLengthCm!=null?String(d.catheterLengthCm):'';this.heightCm=d.heightCm||'';this.weightKg=d.weightKg||'';(Array.isArray(d.signatures)?d.signatures:[]).forEach((s:any)=>{const key=String(s?.timeKey??'').trim();const accountId=String(s?.accountId??'').trim();if(key&&accountId)this.signatures.set(key,{accountId,accountName:String(s?.accountName??'')});});}this.cdr.detectChanges();});}
  private loadAccounts():void{
+  const DOCTOR_PROFS=['director','doctor'];
   this.http.get<any[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$),catchError(()=>of([]))).subscribe(rows=>{
-   this.accounts=(Array.isArray(rows)?rows:[]).map(r=>({accountId:String(r?.accountId??r?._id??r?.id??'').trim(),accountName:String(r?.accountName??r?.trueName??r?.name??'').trim()})).filter(a=>!!a.accountId&&!!a.accountName);
+   const all=(Array.isArray(rows)?rows:[]).map(r=>({accountId:String(r?.accountId??r?._id??r?.id??'').trim(),accountName:String(r?.accountName??r?.trueName??r?.name??'').trim(),profession:String(r?.profession??'').trim(),username:String(r?.username??r?.loginName??'').trim(),code:String(r?.code??r?.jobNumber??'').trim()})).filter(a=>!!a.accountId&&!!a.accountName);
+   this.accounts=all.filter(a=>DOCTOR_PROFS.includes((a.profession||'').toLowerCase()));
+   this.signFiltered=this.accounts.slice(0,20);
    this.cdr.detectChanges();
   });
  }

@@ -17,7 +17,17 @@
   <table class="picco-table"><colgroup><col class="item-col"><col class="normal-col"><col *ngFor="let i of [0,1,2,3,4,5,6,7]" class="value-col"></colgroup>
    <thead><tr><th>项目</th><th>正常值（单位）</th><th *ngFor="let i of [0,1,2,3,4,5,6,7]"><span>{{displayDate(timeAt(page,i))}}</span><span>{{displayClock(timeAt(page,i))}}</span></th></tr></thead>
    <tbody><tr *ngFor="let metric of metrics"><td [attr.colspan]="metric.normal ? null : 2">{{metric.label}}</td><td *ngIf="metric.normal">{{metric.normal}}</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">{{metricValue(metric,timeAt(page,i))}}</td></tr>
-   <tr><td colspan="2">签名</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]"><select *ngIf="hasColumnData(timeAt(page,i))" class="sign-select no-print" [ngModel]="signatureIdAt(timeAt(page,i))" (ngModelChange)="onSignatureChange(timeAt(page,i),$event)"><option value="">请选择</option><option *ngFor="let a of accounts" [value]="a.accountId">{{a.accountName}}</option></select><span class="sign-text">{{signatureNameAt(timeAt(page,i))}}</span></td></tr></tbody>
+   <tr><td colspan="2">签名</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">
+    <div class="sign-picker no-print" *ngIf="hasColumnData(timeAt(page,i))">
+     <input class="sign-search-input" type="text" autocomplete="off" [ngModel]="signInputAt(timeAt(page,i))" (ngModelChange)="onSignSearch(timeAt(page,i),$event)" (focus)="openSignDropdown(timeAt(page,i))" (blur)="closeSignDropdownLater()" placeholder="检索医生">
+     <div class="sign-dropdown" *ngIf="signDropdownOpen && isSignEditing(timeAt(page,i))">
+      <button type="button" class="sign-option" *ngFor="let a of signFiltered" (mousedown)="$event.preventDefault()" (click)="selectSignDoctor(timeAt(page,i),a)"><span>{{a.accountName}}</span><small>{{a.username||a.code}}</small></button>
+      <div class="sign-empty" *ngIf="!signFiltered.length">未找到匹配的医生</div>
+      <button type="button" class="sign-clear" (mousedown)="$event.preventDefault()" (click)="clearSign(timeAt(page,i))">清空签名</button>
+     </div>
+    </div>
+    <span class="sign-text">{{signatureNameAt(timeAt(page,i))}}</span>
+   </td></tr></tbody>
   </table><div class="page-no">第 {{page.index}} 页</div>
  </div>
 </section>
