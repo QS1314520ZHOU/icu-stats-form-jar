@@ -1,15 +1,17 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
-import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap, takeUntil, tap } from 'rxjs';
+import { Subject, catchError, debounceTime, map, of, switchMap, takeUntil, tap } from 'rxjs';
 import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 
-interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; editUser?: string; }
+interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; }
 interface PiccoMetric { label: string; normal: string; code: string; }
 interface TimePoint { instant: number; rawTime: string; }
 interface RenderPage { index: number; timePoints: TimePoint[]; }
+interface AccountOption { accountId: string; accountName: string; }
+interface SignatureValue { accountId: string; accountName: string; }
 type SaveState = 'idle'|'saving'|'saved'|'error';
 
 const PICCO_METRICS: PiccoMetric[] = [
@@ -39,14 +41,14 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  private readonly destroy$=new Subject<void>();
  private readonly extraSave$=new Subject<void>();
  private readonly values=new Map<string,string>();
- private yishiRecords:Array<{instant:number;editUser:string}>=[]=[];
- private accountNameMap=new Map<string,string>();
+ private readonly signatures=new Map<string,SignatureValue>();
  readonly metrics=PICCO_METRICS;
  readonly metricCodes=PICCO_METRICS.map(x=>x.code);
- readonly queryCodes=Array.from(new Set([...this.metricCodes,'param_Yishi']));
+ readonly queryCodes=[...this.metricCodes];
  patient:any=null; account:any=null; pid=''; age:number|null=null; diagnosisDisplay='';
  loading=false; loadError=''; pages:RenderPage[]=[{index:1,timePoints:[]}]; selectedPrintPages:number[]=[]; printing=false;
- insertionSide:''|'RIGHT'|'LEFT'=''; arteryName=''; catheterLengthCm:number|null=null; extraSaveState:SaveState='idle';
+ insertionSide:''|'RIGHT'|'LEFT'=''; arteryName=''; catheterLengthCm=''; heightCm=''; weightKg=''; extraSaveState:SaveState='idle';
+ accounts:AccountOption[]=[];
  // Viewer 模式标志
  isViewerMode = false;
 
@@ -60,12 +62,13 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   });
 
-  this.extraSave$.pipe(debounceTime(500),tap(()=>{this.extraSaveState='saving';this.cdr.detectChanges();}),switchMap(()=>this.http.post(`${this.EXTRA}/save`,{pid:this.pid,insertionSide:this.insertionSide,arteryName:this.arteryName.trim(),catheterLengthCm:this.catheterLengthCm,updatedBy:String(this.account?.id||this.account?._id||'')}).pipe(map(()=>true),catchError(()=>of(false)))),takeUntil(this.destroy$)).subscribe(ok=>{this.extraSaveState=ok?'saved':'error';this.cdr.detectChanges();});
+  this.extraSave$.pipe(debounceTime(500),tap(()=>{this.extraSaveState='saving';this.cdr.detectChanges();}),switchMap(()=>this.http.post(`${this.EXTRA}/save`,{pid:this.pid,insertionSide:this.insertionSide,arteryName:this.arteryName.trim(),catheterLengthCm:this.catheterLengthCm.trim(),heightCm:this.heightCm.trim(),weightKg:this.weightKg.trim(),signatures:[...this.signatures.entries()].map(([timeKey,s])=>({timeKey,accountId:s.accountId,accountName:s.accountName})),updatedBy:String(this.account?.id||this.account?._id||'')}).pipe(map(()=>true),catchError(()=>of(false)))),takeUntil(this.destroy$)).subscribe(ok=>{this.extraSaveState=ok?'saved':'error';this.cdr.detectChanges();});
   this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a=>this.account=a);
   this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;} const next=String(p.id).trim();this.patient=p;this.pid=next;this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});
+  this.loadAccounts();
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
- private reset():void{this.pid='';this.patient=null;this.values.clear();this.yishiRecords=[];this.accountNameMap.clear();this.pages=[{index:1,timePoints:[]}];this.selectedPrintPages=[];}
+ private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatures.clear();this.pages=[{index:1,timePoints:[]}];this.selectedPrintPages=[];}
  load():void{
   if(!this.pid)return;this.loading=true;this.loadError='';
   const params=new HttpParams().set('pid',this.pid).set('codes',this.queryCodes.join(','));
@@ -74,54 +77,53 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
    error:e=>{this.loadError=e?.error?.message||'PICCO记录加载失败';this.loading=false;this.build([]);this.cdr.detectChanges();}});
  }
  private build(records:BedsideRecord[]):void{
-  this.values.clear();this.yishiRecords=[];this.accountNameMap.clear();
+  this.values.clear();
   const metricSet=new Set(this.metricCodes);
   const timeMap=new Map<number,TimePoint>();
-  const editUserIds=new Set<string>();
   records.forEach(r=>{
    const pid=String(r.pid??'').trim(),code=String(r.code??'').trim(),time=String(r.time??'').trim();
    const ok=r.valid===true||r.valid===1||r.valid==='1'||String(r.valid).toLowerCase()==='true';
    if(!ok||pid!==this.pid||!code||!time)return;
    const instant=databaseTimeValue(time);
    if(!Number.isFinite(instant))return;
-   if(code==='param_Yishi'){
-    const user=String(r.editUser??'').trim();
-    if(user){this.yishiRecords.push({instant,editUser:user});editUserIds.add(user);}
-   } else if(metricSet.has(code)){
+   if(metricSet.has(code)){
     if(!timeMap.has(instant))timeMap.set(instant,{instant,rawTime:time});
     this.values.set(`${code}@@${instant}`,String(r.strVal??''));
    }
   });
-  this.yishiRecords.sort((a,b)=>a.instant-b.instant);
   const timePoints=[...timeMap.values()].sort((a,b)=>a.instant-b.instant);
   this.pages=[];
   for(let i=0;i<timePoints.length;i+=8)this.pages.push({index:this.pages.length+1,timePoints:timePoints.slice(i,i+8)});
   if(!this.pages.length)this.pages=[{index:1,timePoints:[]}];
   this.normalizeSelectedPrintPages(this.pages.length);
-  if(editUserIds.size)this.loadAccountNames([...editUserIds]);
  }
  metricValue(m:PiccoMetric,tp:TimePoint|undefined):string{return tp?this.values.get(`${m.code}@@${tp.instant}`)??'':'';}
  timeAt(p:RenderPage,i:number):TimePoint|undefined{return p.timePoints[i];}
- signatureAt(tp:TimePoint|undefined):string{
-  if(!tp)return'';
-  for(let i=this.yishiRecords.length-1;i>=0;i--){
-   const s=this.yishiRecords[i];
-   if(s.instant<=tp.instant&&s.editUser)return this.accountNameMap.get(s.editUser)||'';
-  }
-  return'';
+ hasColumnData(tp:TimePoint|undefined):boolean{
+  if(!tp)return false;
+  for(const m of this.metrics){const v=this.values.get(`${m.code}@@${tp.instant}`);if(v!=null&&v!=='')return true;}
+  return false;
+ }
+ signatureIdAt(tp:TimePoint|undefined):string{return tp?(this.signatures.get(String(tp.instant))?.accountId||''):'';}
+ signatureNameAt(tp:TimePoint|undefined):string{return tp?(this.signatures.get(String(tp.instant))?.accountName||''):'';}
+ onSignatureChange(tp:TimePoint|undefined,accountId:string):void{
+  if(!tp)return;
+  const key=String(tp.instant);
+  if(!accountId){this.signatures.delete(key);}
+  else{const acc=this.accounts.find(a=>a.accountId===accountId);this.signatures.set(key,{accountId,accountName:acc?.accountName||''});}
+  this.onExtraChanged();
  }
  displayDate(tp:TimePoint|undefined):string{return tp?formatShanghaiMonthDay(tp.instant):'';}
  displayClock(tp:TimePoint|undefined):string{return tp?formatShanghaiHourMinute(tp.instant):'';}
  genderText(v:any):string{return['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
  onExtraChanged():void{if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
  saveExtraNow():void{this.onExtraChanged();}
- private loadExtra():void{this.insertionSide='';this.arteryName='';this.catheterLengthCm=null;this.http.get<any>(`${this.EXTRA}/latest`,{params:{pid:this.pid}}).pipe(takeUntil(this.destroy$),catchError(()=>of(null))).subscribe(d=>{if(d?.valid===true){this.insertionSide=d.insertionSide||'';this.arteryName=d.arteryName||'';this.catheterLengthCm=d.catheterLengthCm??null;}this.cdr.detectChanges();});}
- private loadAccountNames(ids:string[]):void{
-  if(!ids.length)return;
-  const params=new HttpParams().set('ids',ids.join(','));
-  this.http.get<any[]>('/api/v1/icu/accounts/listByIds',{params}).pipe(takeUntil(this.destroy$)).subscribe({
-   next:rows=>{(Array.isArray(rows)?rows:[]).forEach(r=>{const id=String(r?.accountId??r?._id??r?.id??'').trim();const name=String(r?.accountName??r?.trueName??r?.name??'').trim();if(id&&name)this.accountNameMap.set(id,name);});this.cdr.detectChanges();},
-   error:()=>{}});
+ private loadExtra():void{this.insertionSide='';this.arteryName='';this.catheterLengthCm='';this.heightCm='';this.weightKg='';this.signatures.clear();this.http.get<any>(`${this.EXTRA}/latest`,{params:{pid:this.pid}}).pipe(takeUntil(this.destroy$),catchError(()=>of(null))).subscribe(d=>{if(d?.valid===true){this.insertionSide=d.insertionSide||'';this.arteryName=d.arteryName||'';this.catheterLengthCm=d.catheterLengthCm!=null?String(d.catheterLengthCm):'';this.heightCm=d.heightCm||'';this.weightKg=d.weightKg||'';(Array.isArray(d.signatures)?d.signatures:[]).forEach((s:any)=>{const key=String(s?.timeKey??'').trim();const accountId=String(s?.accountId??'').trim();if(key&&accountId)this.signatures.set(key,{accountId,accountName:String(s?.accountName??'')});});}this.cdr.detectChanges();});}
+ private loadAccounts():void{
+  this.http.get<any[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$),catchError(()=>of([]))).subscribe(rows=>{
+   this.accounts=(Array.isArray(rows)?rows:[]).map(r=>({accountId:String(r?.accountId??r?._id??r?.id??'').trim(),accountName:String(r?.accountName??r?.trueName??r?.name??'').trim()})).filter(a=>!!a.accountId&&!!a.accountName);
+   this.cdr.detectChanges();
+  });
  }
  isPrintPageSelected(pageNumber:number,totalPages=this.pages.length):boolean{return shouldPrintPage(pageNumber,this.selectedPrintPages,totalPages);}
  private normalizeSelectedPrintPages(totalPages:number):void{const normalized=normalizePrintPages(this.selectedPrintPages,totalPages);this.selectedPrintPages=(normalized.length===totalPages&&totalPages>0)?[]:normalized;}
