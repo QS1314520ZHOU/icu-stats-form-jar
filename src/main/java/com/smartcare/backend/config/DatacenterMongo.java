@@ -27,16 +27,32 @@ public class DatacenterMongo implements DisposableBean {
         this.template = new MongoTemplate(factory);
     }
 
+    private DatacenterMongo() {
+        this.factory = null;
+        this.template = null;
+    }
+
+    /** 未配置连接串时使用：不建立连接，查询直接返回空。 */
+    public static DatacenterMongo disabled() {
+        return new DatacenterMongo();
+    }
+
     public MongoTemplate template() {
         return template;
     }
 
     public <T> List<T> find(Query query, Class<T> entityClass, String collectionName) {
+        if (template == null) {
+            return java.util.Collections.emptyList();
+        }
         return template.find(query, entityClass, collectionName);
     }
 
     @Override
     public void destroy() {
+        if (factory == null) {
+            return;
+        }
         try {
             factory.destroy();
         } catch (Exception e) {
