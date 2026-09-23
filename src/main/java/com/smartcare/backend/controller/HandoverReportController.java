@@ -75,10 +75,17 @@ public class HandoverReportController {
             new Criteria().andOperator(Criteria.where("icuAdmissionTime").exists(false), Criteria.where("admissionTime").lt(nightEnd))
         );
 
+        // 出科时间回溯 48h：重返ICU 需要比对上一次出科时间
+        // （同一患者多次入科会产生多条 patient 记录）
+        Calendar returnLookbackCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
+        returnLookbackCal.setTime(dayStart);
+        returnLookbackCal.add(Calendar.HOUR_OF_DAY, -48);
+        Date returnLookbackStart = returnLookbackCal.getTime();
+
         Criteria dischargeCriteria = new Criteria().orOperator(
             Criteria.where("icuDischargeTime").exists(false),
             Criteria.where("icuDischargeTime").is(null),
-            Criteria.where("icuDischargeTime").gte(dayStart)
+            Criteria.where("icuDischargeTime").gte(returnLookbackStart)
         );
 
         Query patientQuery = new Query(new Criteria().andOperator(departmentCriteria, admissionCriteria, dischargeCriteria));

@@ -263,6 +263,58 @@ function nonPlannedAdmissionBeds(
   );
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * 转出后重返ICU：同一患者（mrn）多次入科，patient 里会有多条记录。
+ * 当次入科时间 − 上一次出科时间 的间隔：
+ *   24小时重返 → 间隔 0～24h（含）
+ *   48小时重返 → 间隔 24h～48h（含 48h，不含 24h，避免与 24h 档重复）
+ * 当次入科时间落在班次内则计入当班。status 为 invalid 的记录排除。
+ */
+function returnIcuBeds(
+  snapshot: DepartmentDailySnapshot,
+  range: ShiftRange,
+  bandMinHours: number,
+  bandMaxHours: number,
+): string {
+  const grouped = new Map<string, DepartmentPatient[]>();
+  for (const patient of snapshot.patients) {
+    if (text(patient.status).toLowerCase() === 'invalid') { continue; }
+    const mrn = text(patient.mrn);
+    if (!mrn) { continue; }
+    const list = grouped.get(mrn) ?? [];
+    list.push(patient);
+    grouped.set(mrn, list);
+  }
+
+  const minGap = bandMinHours * HOUR_MS;
+  const maxGap = bandMaxHours * HOUR_MS;
+
+  const beds: string[] = [];
+  for (const list of grouped.values()) {
+    if (list.length < 2) { continue; }
+    list.sort((left, right) => timestamp(left.icuAdmissionTime) - timestamp(right.icuAdmissionTime));
+    for (let index = 1; index < list.length; index++) {
+      const previous = list[index - 1];
+      const current = list[index];
+      const previousOut = timestamp(previous.icuDischargeTime);
+      const currentIn = timestamp(current.icuAdmissionTime);
+      if (!Number.isFinite(previousOut) || !Number.isFinite(currentIn)) { continue; }
+      const gap = currentIn - previousOut;
+      // 0～24h 档含下界；24～48h 档不含 24h、含 48h
+      const inBand = bandMinHours === 0
+        ? gap >= 0 && gap <= maxGap
+        : gap > minGap && gap <= maxGap;
+      if (!inBand) { continue; }
+      if (!inRange(current.icuAdmissionTime, range)) { continue; }
+      const bed = patientBed(current);
+      if (bed) { beds.push(bed); }
+    }
+  }
+  return formatBeds(beds);
+}
+
 /**
  * 计算手工指标的值（使用嵌套结构）。
  */
@@ -337,7 +389,7 @@ function calculateAutoMetricValues(
     case 'iabpTreatment':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_iabp心率', value => value.length > 0));
     case 'piccoMonitoring':
-      return { day: '', evening: '', night: '' };
+      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_CCI', value => value.length > 0));
     case 'ecmoTreatment':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ECMOMoShi', value => value.length > 0));
     case 'newMultidrugResistantInfection':
@@ -357,9 +409,9 @@ function calculateAutoMetricValues(
     case 'unplannedPostoperativeAdmission':
       return buildValues(range => nonPlannedAdmissionBeds(snapshot, range));
     case 'returnIcuWithin24Hours':
-      return { day: '', evening: '', night: '' };
+      return buildValues(range => returnIcuBeds(snapshot, range, 0, 24));
     case 'returnIcuWithin48Hours':
-      return { day: '', evening: '', night: '' };
+      return buildValues(range => returnIcuBeds(snapshot, range, 24, 48));
     default:
       return null;
   }

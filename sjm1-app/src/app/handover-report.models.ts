@@ -22,6 +22,11 @@ export interface DepartmentPatient {
   _id?: string;
 
   /**
+   * 患者记录状态，invalid 表示作废记录。
+   */
+  status?: string;
+
+  /**
    * 后端根据真实数据库关联关系生成。
    * 护理记录、床旁数据、血糖和管道查询统一使用该字段。
    */
