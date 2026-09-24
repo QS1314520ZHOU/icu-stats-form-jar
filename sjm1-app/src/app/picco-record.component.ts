@@ -5,7 +5,7 @@ import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
-import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { firstDiagnosisSegment, resolveBlankDiagnosis, resolvePageDiagnosis } from './diagnosis-history.util';
 import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; }
@@ -112,7 +112,7 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
    const slice=timePoints.slice(i,i+8);
    this.pages.push({index:this.pages.length+1,timePoints:slice,diagnosis:resolvePageDiagnosis(this.patient,slice[0],['instant'],this.diagnosisDisplay)});
   }
-  if(!this.pages.length)this.pages=[{index:1,timePoints:[],diagnosis:this.diagnosisDisplay}];
+  if(!this.pages.length)this.pages=[{index:1,timePoints:[],diagnosis:resolveBlankDiagnosis(this.patient,this.diagnosisDisplay)}];
   this.normalizeSelectedPrintPages(this.pages.length);
  }
  metricValue(m:PiccoMetric,tp:TimePoint|undefined):string{return tp?this.values.get(`${m.code}@@${tp.instant}`)??'':'';}

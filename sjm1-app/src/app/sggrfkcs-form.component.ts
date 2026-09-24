@@ -5,7 +5,7 @@ import { catchError, distinctUntilChanged, filter, finalize, map, switchMap, tak
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { HostPatientService } from './services/host-patient.service';
-import { endOfShanghaiDayMs, firstDiagnosisSegment, resolveDiagnosisDisplay } from './diagnosis-history.util';
+import { endOfShanghaiDayMs, firstDiagnosisSegment, resolveBlankDiagnosis, resolveDiagnosisDisplay } from './diagnosis-history.util';
 import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 type ComplianceMark = '' | '√' | '×';
@@ -437,7 +437,9 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
       output.push({
         index: output.length + 1,
         records: rows,
-        diagnosis: resolveDiagnosisDisplay(this.patient, first ? endOfShanghaiDayMs(first.recordDate) : NaN, this.diagnosisDisplay),
+        diagnosis: first
+          ? resolveDiagnosisDisplay(this.patient, endOfShanghaiDayMs(first.recordDate), this.diagnosisDisplay)
+          : resolveBlankDiagnosis(this.patient, this.diagnosisDisplay),
       });
     }
     this.pages = output;

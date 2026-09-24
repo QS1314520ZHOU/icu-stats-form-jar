@@ -87,6 +87,16 @@ export function resolveDiagnosisDisplay(
     const entry = matchDiagnosisHistory(hist, q);
     return firstDiagnosisSegment(entry?.diagnosis, 'new');
   }
+  return resolveBlankDiagnosis(patient, legacyText);
+}
+
+/**
+ * 空白页/无数据时的诊断。
+ * 没有数据时间点，不按 history 区间匹配（避免误取历史最新条目），
+ * 直接取当前临床诊断第一段；旧逻辑仍逐字透传 legacyText。
+ */
+export function resolveBlankDiagnosis(patient: any, legacyText: string): string {
+  if (!patient || !useNewDiagnosisLogic(patient)) return legacyText ?? '';
   const raw = patient.clinicalDiagnosis ?? patient.diagnosis ?? patient.admissionDiagnosis ?? '';
   return firstDiagnosisSegment(String(raw), 'new');
 }
@@ -114,13 +124,16 @@ export function extractRecordTimeMs(record: any, timeFields: string[]): number {
   return NaN;
 }
 
-/** 按页解析：queryTime = 该页第一条记录的时间戳 */
+/** 按页解析：queryTime = 该页第一条记录的时间戳；无记录时走空白页回退 */
 export function resolvePageDiagnosis(
   patient: any,
   firstRecord: any,
   timeFields: string[],
   legacyText: string,
 ): string {
+  if (firstRecord === null || firstRecord === undefined) {
+    return resolveBlankDiagnosis(patient, legacyText);
+  }
   return resolveDiagnosisDisplay(patient, extractRecordTimeMs(firstRecord, timeFields), legacyText);
 }
 

@@ -5,7 +5,7 @@ import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
-import { firstDiagnosisSegment, resolveDiagnosisDisplay } from './diagnosis-history.util';
+import { firstDiagnosisSegment, resolveBlankDiagnosis, resolveDiagnosisDisplay } from './diagnosis-history.util';
 import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 interface BedsideRecord {
@@ -309,7 +309,9 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
   private buildPages(): void { this.pages = [{ index: 1, timeInstants: [], showConsumables: true, diagnosis: this.diagnosisForInstants([]) }]; this.normalizeSelectedPrintPages(this.pages.length); }
   /** 页诊断 = 该页第一条数据时间点所在区间的诊断；空页回落 diagnosisDisplay */
   private diagnosisForInstants(instants: number[]): string {
-    return resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay);
+    return instants.length
+      ? resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay)
+      : resolveBlankDiagnosis(this.patient, this.diagnosisDisplay);
   }
   private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (Number.isNaN(b.getTime())) return null; const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a >= 0 ? a : null; }
 }

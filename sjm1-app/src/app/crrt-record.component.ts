@@ -6,7 +6,7 @@ import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
-import { firstDiagnosisSegment, resolveDiagnosisDisplay } from './diagnosis-history.util';
+import { firstDiagnosisSegment, resolveBlankDiagnosis, resolveDiagnosisDisplay } from './diagnosis-history.util';
 import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; editUser?: string; }
@@ -368,9 +368,11 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
     return this.selectedSession.pageTimeInstants.map((instants, i) => ({ index: i + 1, timeInstants: instants, diagnosis: this.diagnosisForInstants(instants) }));
   }
 
-  /** 页诊断 = 该页第一条数据时间点所在区间的诊断；空页按 Date.now() 解析（旧逻辑透传 diagnosisDisplay） */
+  /** 页诊断 = 该页第一条数据时间点所在区间的诊断；空页回退当前临床诊断 */
   private diagnosisForInstants(instants: number[]): string {
-    return resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay);
+    return instants.length
+      ? resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay)
+      : resolveBlankDiagnosis(this.patient, this.diagnosisDisplay);
   }
 
   formatSessionDateTime(instant: number | undefined): string {
