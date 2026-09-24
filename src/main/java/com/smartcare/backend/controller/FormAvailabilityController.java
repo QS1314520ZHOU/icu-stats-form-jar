@@ -66,7 +66,7 @@ public class FormAvailabilityController {
         Map<String, List<String>> bedsideForms = Map.of(
             "ecmoForm", List.of("param_ECMOMoShi", "param_ECMO_xueLiuLiang"),
             "crrtForm", List.of("param_CBP_Mode", "param_血流速度"),
-            "piccoForm", List.of("param_CCI", "param_GEDI"),
+            "piccoForm", List.of("param_CI(心输出量指数)", "param_GEDI(全心舒张末期容积指数)"),
             "iabpForm", List.of("param_反博压", "param_iabp心率"),
             "ydwzlForm", List.of("param_亚低温体温设置", "param_亚低温水温设置")
         );

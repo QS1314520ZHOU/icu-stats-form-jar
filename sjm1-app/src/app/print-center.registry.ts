@@ -89,7 +89,7 @@ export const PRINT_FORMS: PrintFormDef[] = [
   {
     key: 'piccoForm', title: 'PiCCO 监测记录单', route: 'piccoForm', group: 'therapy',
     orientation: 'portrait', component: PiccoRecordComponent,
-    probe: { kind: 'bedside', codes: ['param_CCI', 'param_GEDI'] },
+    probe: { kind: 'bedside', codes: ['param_CI(心输出量指数)', 'param_GEDI(全心舒张末期容积指数)'] },
   },
   {
     key: 'iabpForm', title: 'IABP 护理记录单', route: 'iabpForm', group: 'therapy',
