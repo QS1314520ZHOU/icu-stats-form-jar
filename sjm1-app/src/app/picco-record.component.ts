@@ -110,7 +110,7 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   this.pages=[];
   for(let i=0;i<timePoints.length;i+=8){
    const slice=timePoints.slice(i,i+8);
-   this.pages.push({index:this.pages.length+1,timePoints:slice,diagnosis:slice.length?resolvePageDiagnosis(this.patient,slice[0],['instant'],this.diagnosisDisplay):this.diagnosisDisplay});
+   this.pages.push({index:this.pages.length+1,timePoints:slice,diagnosis:resolvePageDiagnosis(this.patient,slice[0],['instant'],this.diagnosisDisplay)});
   }
   if(!this.pages.length)this.pages=[{index:1,timePoints:[],diagnosis:this.diagnosisDisplay}];
   this.normalizeSelectedPrintPages(this.pages.length);

@@ -861,8 +861,9 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
     const per = this.colsPerPage;
     const pages: RenderPage[] = [];
     if (!this.columns.length) {
-      pages.push({ index: 1, cols: [], isSecondPage: false, diagnosis: this.diagnosisDisplay });
-      pages.push({ index: 2, cols: [], isSecondPage: true, diagnosis: this.diagnosisDisplay });
+      const blank = this.diagnosisForPage(null);
+      pages.push({ index: 1, cols: [], isSecondPage: false, diagnosis: blank });
+      pages.push({ index: 2, cols: [], isSecondPage: true, diagnosis: blank });
     } else {
       for (let i = 0; i < this.columns.length; i += per) {
         const cols = this.columns.slice(i, i + per);

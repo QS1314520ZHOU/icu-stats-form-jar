@@ -446,7 +446,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       usedH += rh;
     }
     if (curRows.length) pages.push({ index: pages.length + 1, rows: curRows, diagnosis: this.diagnosisForRows(curRows) });
-    if (!pages.length) pages.push({ index: 1, rows: [], diagnosis: this.diagnosisDisplay });
+    if (!pages.length) pages.push({ index: 1, rows: [], diagnosis: this.diagnosisForRows([]) });
     this.pages = pages.map((p, i) => ({ ...p, index: i + 1 }));
     this.normalizeSelectedPrintPages(this.pages.length);
   }

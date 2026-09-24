@@ -418,7 +418,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private ensureBlankPage(): void {
-    if (!this.pages.length) { this.pages = [{ index: 1, rows: [], diagnosis: this.diagnosisDisplay }]; }
+    if (!this.pages.length) { this.pages = [{ index: 1, rows: [], diagnosis: this.diagnosisForRows([]) }]; }
   }
 
   private normalizeTime(v: any): string {
@@ -700,7 +700,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     this.currentRowHeight = this.baseRowHeight;
 
     if (!this.rows.length) {
-      this.pages = [{ index: 1, rows: [], diagnosis: this.diagnosisDisplay }];
+      this.pages = [{ index: 1, rows: [], diagnosis: this.diagnosisForRows([]) }];
       this.normalizeSelectedPrintPages(this.pages.length);
       this.loadFinalExtra();
       return;

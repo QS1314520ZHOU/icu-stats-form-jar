@@ -93,14 +93,20 @@ export function resolveDiagnosisDisplay(
 
 /**
  * 提取记录时间戳（毫秒），失败返回 NaN。
- * 支持：number 毫秒（timeInstants）、TimePoint{instant}、Date、各字段名候选。
+ * 支持：number 毫秒（timeInstants）、TimePoint{instant}、Date、时间串本身、
+ * 以及普通记录对象的各字段名候选。
+ * 注意：不能把整个记录对象丢给时间解析（会触发 parseDatabaseUtcTime 对非字符串 .trim）。
  */
 export function extractRecordTimeMs(record: any, timeFields: string[]): number {
   if (record === null || record === undefined) return NaN;
+  // 记录本身就是时间原值
   if (typeof record === 'number') return Number.isFinite(record) ? record : NaN;
+  if (record instanceof Date) return Number.isNaN(record.getTime()) ? NaN : record.getTime();
+  if (typeof record === 'string') return toTimeMs(record);
+  if (typeof record !== 'object') return NaN;
+  // TimePoint{instant}
   if (typeof record.instant === 'number' && Number.isFinite(record.instant)) return record.instant;
-  const direct = toTimeMs(record);
-  if (Number.isFinite(direct)) return direct;
+  // 普通记录对象：只从候选字段取时间
   for (const field of timeFields) {
     const ts = toTimeMs(record[field]);
     if (Number.isFinite(ts)) return ts;
@@ -182,12 +188,12 @@ function toTimeMs(value: any): number {
   if (value === null || value === undefined) return NaN;
   if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? NaN : value.getTime();
-  if (typeof value === 'string') {
-    // datetime-local（YYYY-MM-DDTHH:mm，无秒/无时区）= 上海墙上时间，不能按 UTC 解析
-    const local = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
-    if (local) {
-      return Date.UTC(+local[1], +local[2] - 1, +local[3], +local[4], +local[5], 0, 0) - SHANGHAI_OFFSET_MS;
-    }
+  // 对象/布尔等非时间原值：直接放弃，避免 parseDatabaseUtcTime 对非字符串 .trim 崩溃
+  if (typeof value !== 'string') return NaN;
+  // datetime-local（YYYY-MM-DDTHH:mm，无秒/无时区）= 上海墙上时间，不能按 UTC 解析
+  const local = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (local) {
+    return Date.UTC(+local[1], +local[2] - 1, +local[3], +local[4], +local[5], 0, 0) - SHANGHAI_OFFSET_MS;
   }
   const d = parseDatabaseUtcTime(value);
   return d ? d.getTime() : NaN;

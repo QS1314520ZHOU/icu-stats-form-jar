@@ -624,7 +624,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** 通用分页 */
   private buildPages(rows: IadRow[], perPage: number): RenderPage[] {
-    if (!rows.length) return [{ index: 1, rows: [], diagnosis: this.diagnosisDisplay }];
+    if (!rows.length) return [{ index: 1, rows: [], diagnosis: this.diagnosisForRows([]) }];
     const result: RenderPage[] = [];
     for (let i = 0; i < rows.length; i += perPage) {
       const pageRows = rows.slice(i, i + perPage);

@@ -508,7 +508,7 @@ private paginate(): void {
     const per = this.rowsPerPage;
     const pages: RenderPage[] = [];
     if (!this.columns.length) {
-      pages.push({ index: 1, rows: [], diagnosis: this.diagnosisDisplay });
+      pages.push({ index: 1, rows: [], diagnosis: this.diagnosisForPage(null) });
     } else {
       for (let i = 0; i < this.columns.length; i += per) {
         const rows = this.columns.slice(i, i + per);

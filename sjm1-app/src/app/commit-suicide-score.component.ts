@@ -429,7 +429,7 @@ private paginate(): void {
     const per = this.rowsPerPage;
     const pages: RenderPage[] = [];
     if (!this.rows.length) {
-      pages.push({ index: 1, rows: [], diagnosis: this.diagnosisDisplay });
+      pages.push({ index: 1, rows: [], diagnosis: this.diagnosisForRows([]) });
     } else {
       for (let i = 0; i < this.rows.length; i += per) {
         const pageRows = this.rows.slice(i, i + per);

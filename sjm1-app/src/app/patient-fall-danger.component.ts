@@ -497,7 +497,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
 
   private paginate(): void {
     const per = this.maxRowsPerPage; const pages: RenderPage[] = [];
-    if (!this.rows.length) pages.push({ index: 1, rows: [], diagnosis: this.diagnosisDisplay });
+    if (!this.rows.length) pages.push({ index: 1, rows: [], diagnosis: this.diagnosisForRows([]) });
     else for (let i = 0; i < this.rows.length; i += per) {
       const pageRows = this.rows.slice(i, i + per);
       pages.push({ index: pages.length + 1, rows: pageRows, diagnosis: this.diagnosisForRows(pageRows) });

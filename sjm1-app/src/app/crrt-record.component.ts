@@ -364,15 +364,13 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   }
 
   get pages(): RenderPage[] {
-    if (!this.selectedSession) return [{ index: 1, timeInstants: [], diagnosis: this.diagnosisDisplay }];
+    if (!this.selectedSession) return [{ index: 1, timeInstants: [], diagnosis: this.diagnosisForInstants([]) }];
     return this.selectedSession.pageTimeInstants.map((instants, i) => ({ index: i + 1, timeInstants: instants, diagnosis: this.diagnosisForInstants(instants) }));
   }
 
-  /** 页诊断 = 该页第一条数据时间点所在区间的诊断；空页回落 diagnosisDisplay */
+  /** 页诊断 = 该页第一条数据时间点所在区间的诊断；空页按 Date.now() 解析（旧逻辑透传 diagnosisDisplay） */
   private diagnosisForInstants(instants: number[]): string {
-    return instants.length
-      ? resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay)
-      : this.diagnosisDisplay;
+    return resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay);
   }
 
   formatSessionDateTime(instant: number | undefined): string {

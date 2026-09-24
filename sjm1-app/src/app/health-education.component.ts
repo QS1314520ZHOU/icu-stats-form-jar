@@ -418,7 +418,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       const rows=(source.slice(i,i+5) as (HealthEducationRecord|null)[]);
       while(rows.length<5)rows.push(null);
       const first=rows.find(r=>!!r);
-      out.push({index:out.length+1,records:rows,diagnosis:first?resolvePageDiagnosis(this.patient,first,['assessmentTime'],this.diagnosisDisplay):this.diagnosisDisplay});
+      out.push({index:out.length+1,records:rows,diagnosis:resolvePageDiagnosis(this.patient,first,['assessmentTime'],this.diagnosisDisplay)});
     }
     this.pages=out;
     this.normalizeSelectedPrintPages(this.pages.length);

@@ -437,9 +437,7 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
       output.push({
         index: output.length + 1,
         records: rows,
-        diagnosis: first
-          ? resolveDiagnosisDisplay(this.patient, endOfShanghaiDayMs(first.recordDate), this.diagnosisDisplay)
-          : this.diagnosisDisplay,
+        diagnosis: resolveDiagnosisDisplay(this.patient, first ? endOfShanghaiDayMs(first.recordDate) : NaN, this.diagnosisDisplay),
       });
     }
     this.pages = output;

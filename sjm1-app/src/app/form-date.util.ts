@@ -16,6 +16,8 @@ export function parseDatabaseUtcTime(value?: string | number | Date | null): Dat
     const d = new Date(value);
     return Number.isNaN(d.getTime()) ? null : d;
   }
+  // 非字符串（对象/布尔等）不可解析，避免 value.trim 崩溃
+  if (typeof value !== 'string') return null;
   const raw = value.trim();
   if (!raw) return null;
 

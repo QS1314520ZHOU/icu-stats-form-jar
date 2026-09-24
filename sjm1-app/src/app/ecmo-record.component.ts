@@ -134,7 +134,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
         return this.diagHistory.ensurePatient(patient).pipe(map(ep => ({ patient: ep, pid: nextPid })));
       }),
     ).subscribe(v => {
-      if (!v) { this.pid = ''; this.records = []; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.pages = [{ index: 1, timeInstants: [], showConsumables: true, diagnosis: this.diagnosisDisplay }]; this.cdr.detectChanges(); return; }
+      if (!v) { this.pid = ''; this.records = []; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.pages = [{ index: 1, timeInstants: [], showConsumables: true, diagnosis: this.diagnosisForInstants([]) }]; this.cdr.detectChanges(); return; }
       const { patient, pid: nextPid } = v;
       const prevPid = this.pid;
       this.pid = nextPid;
@@ -177,7 +177,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
       },
       error: e => {
         this.records = []; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear();
-        this.pages = [{ index: 1, timeInstants: [], showConsumables: true, diagnosis: this.diagnosisDisplay }];
+        this.pages = [{ index: 1, timeInstants: [], showConsumables: true, diagnosis: this.diagnosisForInstants([]) }];
         this.loading = false; this.loadError = e?.error?.message || 'ECMO运行记录加载失败';
         this.cdr.detectChanges();
       },
@@ -212,7 +212,7 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
       const slice = timeInstants.slice(i, i + 8);
       this.pages.push({ index: 0, timeInstants: slice, showConsumables: false, diagnosis: this.diagnosisForInstants(slice) });
     }
-    if (!this.pages.length) this.pages.push({ index: 0, timeInstants: [], showConsumables: false, diagnosis: this.diagnosisDisplay });
+    if (!this.pages.length) this.pages.push({ index: 0, timeInstants: [], showConsumables: false, diagnosis: this.diagnosisForInstants([]) });
     if (this.pages.length) this.pages[this.pages.length - 1].showConsumables = true;
     this.pages = this.pages.map((p, i) => { p.index = i + 1; return p; });
     this.normalizeSelectedPrintPages(this.pages.length);
@@ -306,12 +306,10 @@ export class EcmoRecordComponent implements OnInit, OnDestroy {
     const normalized = normalizePrintPages(this.selectedPrintPages, totalPages);
     this.selectedPrintPages = (normalized.length === totalPages && totalPages > 0) ? [] : normalized;
   }
-  private buildPages(): void { this.pages = [{ index: 1, timeInstants: [], showConsumables: true, diagnosis: this.diagnosisDisplay }]; this.normalizeSelectedPrintPages(this.pages.length); }
+  private buildPages(): void { this.pages = [{ index: 1, timeInstants: [], showConsumables: true, diagnosis: this.diagnosisForInstants([]) }]; this.normalizeSelectedPrintPages(this.pages.length); }
   /** 页诊断 = 该页第一条数据时间点所在区间的诊断；空页回落 diagnosisDisplay */
   private diagnosisForInstants(instants: number[]): string {
-    return instants.length
-      ? resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay)
-      : this.diagnosisDisplay;
+    return resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay);
   }
   private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (Number.isNaN(b.getTime())) return null; const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a >= 0 ? a : null; }
 }
