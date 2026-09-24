@@ -4,6 +4,8 @@ import { Subject, catchError, distinctUntilChanged, filter, finalize, map, of, s
 import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 interface AccountOption { accountId: string; accountName: string; username?: string; code?: string; }
 interface AccountSignature { accountId: string; accountName: string; }
@@ -48,7 +50,7 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
   // Viewer 模式标志
   isViewerMode = false;
 
-  constructor(private readonly http: HttpClient, private readonly hostPatient: HostPatientService, private readonly cdr: ChangeDetectorRef, private readonly host: ElementRef, private readonly contextService: IcuFormViewerContextService) {}
+  constructor(private readonly http: HttpClient, private readonly hostPatient: HostPatientService, private readonly cdr: ChangeDetectorRef, private readonly host: ElementRef, private readonly contextService: IcuFormViewerContextService, private readonly diagHistory: DiagnosisHistoryService) {}
 
   private beforeUnloadHandler = (e: BeforeUnloadEvent) => {
     if (this.autoSaveState === 'dirty' || this.autoSaveState === 'saving' || this.saveInFlight || this.dirtyPageIds.size > 0) {
@@ -71,6 +73,7 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(filter(Boolean), map(p => ({ p, pid: String(p.id || '').trim() })), filter(x => !!x.pid),
       distinctUntilChanged((a, b) => a.pid === b.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       tap(({ p, pid }) => { if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; } this.closeProductDialog(); this.patient = p; this.pid = pid; this.age = this.calcAge(p.birthday); this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis); this.record = null; this.pages = []; this.dirtyPageIds.clear(); this.localRevision = 0; this.savedRevision = 0; this.autoSaveState = 'idle'; this.saveInFlight = false; this.saveAgainAfterCurrent = false; this.selectedPageNo = 1; this.selectedPrintPages = []; this.loadError = ''; }),
       switchMap(({ pid }) => this.fetchRecord(pid)), takeUntil(this.destroy$)).subscribe();
   }
@@ -203,5 +206,11 @@ export class TransfusionRecordComponent implements OnInit, OnDestroy {
   fmtDateTime(v?: string): string { if (!v) return ''; const d = new Date(v); if (Number.isNaN(d.getTime())) return v; const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
   toLocalInput(v?: string): string { if (!v) return ''; const d = new Date(v); if (Number.isNaN(d.getTime())) return ''; const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
   private calcAge(v?: string): number | null { if (!v) return null; const b = new Date(v); if (Number.isNaN(b.getTime())) return null; const n = new Date(); let a = n.getFullYear() - b.getFullYear(); if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--; return a >= 0 ? a : null; }
-  private formatDiagnosis(v?: string): string { if (!v) return ''; let idx = -1; for (const s of [';', '；', ',', '，']) { const c = v.indexOf(s); if (c >= 0 && (idx < 0 || c < idx)) idx = c; } return idx >= 0 ? v.substring(0, idx).trim() : v.trim(); }
+  private formatDiagnosis(v?: string): string { return firstDiagnosisSegment(v, 'legacy'); }
+
+  /** 页诊断 = 该页第一条有时间的输血项所在时间区间的诊断 */
+  pageDiagnosis(page: TransfusionPage): string {
+    const first = (page.items || []).find(i => i && (i.receiveAt || i.startAt)) || page.items?.[0];
+    return resolvePageDiagnosis(this.patient, first, ['receiveAt', 'startAt'], this.diagnosisDisplay);
+  }
 }

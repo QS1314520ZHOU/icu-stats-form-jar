@@ -26,7 +26,7 @@
         <span class="info-item"><b>性别：</b>{{ genderText(patient?.gender) }}</span>
       </div>
       <div class="patient-info-row diagnosis-row">
-        <span class="info-item diagnosis-item"><b>诊断：</b>{{ diagnosisDisplay }}</span>
+        <span class="info-item diagnosis-item"><b>诊断：</b>{{ page.diagnosis || diagnosisDisplay }}</span>
       </div>
     </div>
 

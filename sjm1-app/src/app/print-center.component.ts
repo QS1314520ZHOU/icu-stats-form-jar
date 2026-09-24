@@ -2,12 +2,14 @@ import {
   ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, ViewChild, ViewContainerRef,
 } from '@angular/core';
 import { Subject } from 'rxjs';
-import { distinctUntilChanged, filter, map, takeUntil } from 'rxjs/operators';
+import { distinctUntilChanged, filter, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { formatShanghaiDateMinute } from './form-date.util';
 import { PrintCenterService } from './print-center.service';
 import { PRINT_FORMS, PRINT_GROUP_NAMES, VIEW_ONLY_FORMS } from './print-center.registry';
 import { PrintGroupKey, PrintGroupView, PrintRow } from './print-center.models';
+import { firstDiagnosisSegment, resolveDiagnosisDisplay } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 @Component({
   standalone: false,
@@ -46,6 +48,7 @@ export class PrintCenterComponent implements OnInit, OnDestroy {
     private readonly hostPatient: HostPatientService,
     private readonly service: PrintCenterService,
     private readonly cdr: ChangeDetectorRef,
+    private readonly diagHistory: DiagnosisHistoryService,
   ) {
     this.rows = PRINT_FORMS.map(def => ({
       def, selected: false, hasData: false, count: 0,
@@ -60,12 +63,15 @@ export class PrintCenterComponent implements OnInit, OnDestroy {
       map(p => ({ p, pid: String((p as any).id ?? '').trim() })),
       filter(x => !!x.pid),
       distinctUntilChanged((a, b) => a.pid === b.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       takeUntil(this.destroy$),
     ).subscribe(({ p, pid }) => {
       this.patient = p;
       this.pid = pid;
       this.age = this.calcAge((p as any).birthday);
-      this.diagnosisDisplay = this.formatDiagnosis((p as any).clinicalDiagnosis);
+      // 打印中心无数据行：queryTime = 当前时刻
+      this.diagnosisDisplay = resolveDiagnosisDisplay(
+        p, Date.now(), this.formatDiagnosis((p as any).clinicalDiagnosis));
       this.resetRows();
       this.refresh();
     });
@@ -298,7 +304,6 @@ export class PrintCenterComponent implements OnInit, OnDestroy {
   }
 
   private formatDiagnosis(diagnosis?: string): string {
-    if (!diagnosis) { return ''; }
-    return diagnosis.split(/[;；,，]/)[0].trim();
+    return firstDiagnosisSegment(diagnosis, 'legacy');
   }
 }

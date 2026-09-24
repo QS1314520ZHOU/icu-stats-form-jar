@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -895,7 +896,10 @@ public class HljldFlowPdfService {
         }
 
         String age = HljldPatientAgeResolver.resolveAge(patient, referenceDate);
-        return patientResolver.buildPatientInfo(patient, age);
+        // 诊断区间匹配时刻 = 所选护理日次日 07:00+08 − 1ms（与前端 resolveNursingDayDiagnosis 一致）
+        Instant queryTime = referenceDate.plusDays(1).atTime(7, 0)
+            .atZone(HljldPdfRequestContext.ZONE).toInstant().minusMillis(1);
+        return patientResolver.buildPatientInfo(patient, age, queryTime);
     }
 
     int getStartPageNo(String pid, String date, String formType) {

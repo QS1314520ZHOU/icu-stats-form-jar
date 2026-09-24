@@ -1,10 +1,12 @@
 import { Component, ChangeDetectorRef, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { forkJoin, of, firstValueFrom, Subject } from 'rxjs';
-import { catchError, finalize, takeUntil } from 'rxjs/operators';
+import { catchError, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
+import { extractRecordTimeMs, firstDiagnosisSegment, resolveDiagnosisDisplay } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -112,7 +114,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   // Viewer 模式标志
   isViewerMode = false;
 
-  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private ngZone: NgZone, private contextService: IcuFormViewerContextService) {}
+  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private ngZone: NgZone, private contextService: IcuFormViewerContextService, private diagHistory: DiagnosisHistoryService) {}
 
   ngOnInit(): void {
     // 检测 viewer 模式
@@ -126,14 +128,17 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
     window.addEventListener('beforeunload', this.beforeUnloadHandler);
     window.addEventListener('afterprint', this.afterPrintHandler);
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => { if (a) this.account = a; });
-    this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
+    this.hostPatient.patient$.pipe(
+      switchMap(p => p ? this.diagHistory.ensurePatient(p) : of(p)),
+      takeUntil(this.destroy$),
+    ).subscribe(p => {
       if (!p) return;
       const oldPid = this.pid;
       this.patient = p;
       const newPid = this.resolvePid(p);
       this.pid = newPid;
       this.age = this.calcAge(p.birthday);
-      this.diagnosisDisplay = this.formatDiagnosis(p.clinicalDiagnosis || p.diagnosis);
+      this.diagnosisDisplay = resolveDiagnosisDisplay(p, Date.now(), this.formatDiagnosis(p.clinicalDiagnosis || p.diagnosis));
       if (newPid && newPid !== oldPid) { this.flushAutoSave(); this.record = this.createEmptyRecord(); this.customConsumableSelected = false; this.customConsumableText = ''; this.selectedPrintPages = []; this.applyPatientToRecord(this.record); this.loadTimeOptions(); }
     });
     this.loadSignatureAccounts();
@@ -619,6 +624,7 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
   }
 
   getPatientHeader(order: CrrtOrderFormRecord) {
+    const legacyDiag = this.firstNonEmpty(order.diagnosis, this.diagnosisDisplay, this.patient?.clinicalDiagnosis, this.patient?.diagnosis, this.patient?.diagnose);
     return {
       department: this.firstNonEmpty(order.department, this.patient?.dept, this.patient?.deptName, this.patient?.departmentName, this.patient?.wardName),
       patientName: this.firstNonEmpty(order.patientName, this.patient?.name, this.patient?.patientName),
@@ -626,7 +632,8 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
       hospitalNo: this.firstNonEmpty(order.hospitalNo, this.patient?.mrn, this.patient?.hospitalNo, this.patient?.admissionNo, this.patient?.visitId),
       age: this.firstNonEmpty(order.age, String(this.age ?? '')),
       gender: this.firstNonEmpty(order.gender, this.genderText(this.patient?.gender)),
-      diagnosis: this.firstNonEmpty(order.diagnosis, this.diagnosisDisplay, this.patient?.clinicalDiagnosis, this.patient?.diagnosis, this.patient?.diagnose),
+      // 新逻辑按该医嘱 orderTime 所在区间取诊断；旧逻辑保持原回退链逐字不变
+      diagnosis: resolveDiagnosisDisplay(this.patient, extractRecordTimeMs(order, ['orderTime']), legacyDiag),
     };
   }
 
@@ -777,6 +784,6 @@ export class CrrtOrderFormComponent implements OnInit, OnDestroy {
 
   private resolvePid(p: any): string { return String(p?.id ?? p?._id ?? p?.pid ?? p?.patientId ?? p?.patientID ?? '').trim(); }
   private calcAge(b?: string): number | null { if (!b) return null; const d = new Date(b); if (Number.isNaN(d.getTime())) return null; const n = new Date(); let a = n.getFullYear() - d.getFullYear(); const m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--; return a >= 0 && a < 150 ? a : null; }
-  private formatDiagnosis(v?: string): string { if (!v) return ''; let idx = -1; for (const s of [';', '；', ',', '，']) { const cur = v.indexOf(s); if (cur >= 0 && (idx < 0 || cur < idx)) idx = cur; } return idx >= 0 ? v.substring(0, idx).trim() : v.trim(); }
+  private formatDiagnosis(v?: string): string { return firstDiagnosisSegment(v, 'legacy'); }
   private toLocalDateTimeValue(d: Date): string { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
 }

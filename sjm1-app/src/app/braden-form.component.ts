@@ -10,6 +10,8 @@ import { HostPatientService } from './services/host-patient.service';
 import { formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
+import { legacyBradenDiagnosis, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 const SCORE_TYPE = 'bradenScore';
 const FORM_CODE = 'bradenForm';
@@ -50,7 +52,7 @@ const FOOT_NOTES = [
 
 interface ScoreRecord { time?: any; scoreType?: string; total?: number; conclusion?: string; valid?: boolean; inputUserId?: string; inputUser?: string; ohter?: string; nurseMeasureList?: any[]; bradenScore?: Record<string, any>; }
 interface BradenRow { time: string; bradenScore: Record<BradenItem['field'], number | null>; total: number | null; risk: string; other: string; nurseMeasureList: any[]; signUserId?: string; signName?: string; }
-interface RenderPage { index: number; rows: BradenRow[]; }
+interface RenderPage { index: number; rows: BradenRow[]; diagnosis?: string; }
 interface FinalExtraData { id: string | null; result: string; resultDate: string; happened: '' | '是' | '否'; loaded: boolean; loading: boolean; }
 
 @Component({
@@ -95,7 +97,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
             <span class="info-item"><b>住院号：</b>{{patient?.mrn || patient?.hospitalNo || ''}}</span>
             <span class="info-item"><b>年龄：</b>{{age ?? patient?.age ?? ''}}</span>
             <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-            <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+            <span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
           </div>
         </div>
 
@@ -327,6 +329,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     private host: ElementRef,
     private ngZone: NgZone,
     private contextService: IcuFormViewerContextService,
+    private diagHistory: DiagnosisHistoryService,
   ) {}
 
   ngOnInit(): void {
@@ -346,6 +349,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
       filter(p => !!p),
       map(p => ({ p, pid: this.getPatientPid(p) })),
       filter(x => !!x.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       switchMap(({ p, pid }) => this.activatePatient(p, pid)),
       takeUntil(this.destroy$),
     ).subscribe({
@@ -414,7 +418,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private ensureBlankPage(): void {
-    if (!this.pages.length) { this.pages = [{ index: 1, rows: [] }]; }
+    if (!this.pages.length) { this.pages = [{ index: 1, rows: [], diagnosis: this.diagnosisDisplay }]; }
   }
 
   private normalizeTime(v: any): string {
@@ -696,7 +700,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     this.currentRowHeight = this.baseRowHeight;
 
     if (!this.rows.length) {
-      this.pages = [{ index: 1, rows: [] }];
+      this.pages = [{ index: 1, rows: [], diagnosis: this.diagnosisDisplay }];
       this.normalizeSelectedPrintPages(this.pages.length);
       this.loadFinalExtra();
       return;
@@ -704,7 +708,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
 
     // 单页模式：≤8 行，空白由 pagePaddedRows 补齐
     if (this.rows.length <= this.maxRowsPerPage) {
-      this.pages = [{ index: 1, rows: this.rows.slice() }];
+      this.pages = [{ index: 1, rows: this.rows.slice(), diagnosis: this.diagnosisForRows(this.rows) }];
       this.normalizeSelectedPrintPages(this.pages.length);
       this.loadFinalExtra();
       return;
@@ -714,19 +718,27 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     const pages: RenderPage[] = [];
     let offset = 0;
     while (this.rows.length - offset > this.maxRowsPerPageMultiPage) {
+      const chunk = this.rows.slice(offset, offset + this.maxRowsPerPageMultiPage);
       pages.push({
         index: pages.length + 1,
-        rows: this.rows.slice(offset, offset + this.maxRowsPerPageMultiPage),
+        rows: chunk,
+        diagnosis: this.diagnosisForRows(chunk),
       });
       offset += this.maxRowsPerPageMultiPage;
     }
     if (offset < this.rows.length) {
-      pages.push({ index: pages.length + 1, rows: this.rows.slice(offset) });
+      const chunk = this.rows.slice(offset);
+      pages.push({ index: pages.length + 1, rows: chunk, diagnosis: this.diagnosisForRows(chunk) });
     }
     this.pages = pages;
 
     this.normalizeSelectedPrintPages(this.pages.length);
     this.loadFinalExtra();
+  }
+
+  /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
+  private diagnosisForRows(rows: BradenRow[]): string {
+    return resolvePageDiagnosis(this.patient, rows[0], ['time'], this.diagnosisDisplay);
   }
 
   fmtDate(time: string): string { return formatShanghaiDate(time); }
@@ -821,7 +833,8 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private calcAge(b: any): number | null { if (!b) return null; const d = new Date(b); if (Number.isNaN(d.getTime())) return null; const n = new Date(); let a = n.getFullYear() - d.getFullYear(); const m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--; return a >= 0 && a < 150 ? a : null; }
-  private formatDiagnosis(v: any): string { if (!v) return ''; if (Array.isArray(v)) return v.map(x => typeof x === 'string' ? x : x?.name || x?.diagnosisName || x?.text || '').filter(Boolean).join('、'); if (typeof v === 'object') return v.name || v.diagnosisName || v.text || ''; return String(v); }
+  /** 旧逻辑患者保持完整串/数组join输出；新逻辑由 resolvePageDiagnosis 再取第一诊断 */
+  private formatDiagnosis(v: any): string { return legacyBradenDiagnosis(v); }
   private num(value: any): number | null {
     if (value === null || value === undefined || value === '') return null;
     if (typeof value === 'number') return Number.isFinite(value) ? value : null;

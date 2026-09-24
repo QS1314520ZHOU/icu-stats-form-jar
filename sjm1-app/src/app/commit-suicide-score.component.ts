@@ -27,6 +27,8 @@ import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDateTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 /* ============================= 配置区 ============================= */
 
@@ -97,6 +99,7 @@ interface EvalRow {
 interface RenderPage {
   index: number;
   rows: (EvalRow | null)[];
+  diagnosis?: string;
 }
 
 /* ============================= 组件 ============================= */
@@ -131,7 +134,7 @@ interface RenderPage {
           <span class="info-item"><b>住院号：</b>{{ patient?.mrn || '' }}</span>
           <span class="info-item"><b>年龄：</b>{{ age ?? '' }}</span>
           <span class="info-item"><b>性别：</b>{{ genderText(patient?.gender) }}</span>
-          <span class="info-item diagnosis-item"><b>诊断：</b>{{ diagnosisDisplay }}</span>
+          <span class="info-item diagnosis-item"><b>诊断：</b>{{ page.diagnosis || diagnosisDisplay }}</span>
         </div>
 
         <table class="record-table">
@@ -262,6 +265,7 @@ export class CommitSuicideScoreComponent
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
     private contextService: IcuFormViewerContextService,
+    private diagHistory: DiagnosisHistoryService,
   ) {}
 
   ngOnInit(): void {
@@ -283,6 +287,7 @@ export class CommitSuicideScoreComponent
           if (pid !== this.__lastPid) this.__lastPid = pid;
         }),
         distinctUntilChanged((a, b) => a.pid === b.pid),
+        switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
         tap(({ p, pid }) => {
           this.resetForm();
           this.patient = p;
@@ -424,10 +429,11 @@ private paginate(): void {
     const per = this.rowsPerPage;
     const pages: RenderPage[] = [];
     if (!this.rows.length) {
-      pages.push({ index: 1, rows: [] });
+      pages.push({ index: 1, rows: [], diagnosis: this.diagnosisDisplay });
     } else {
       for (let i = 0; i < this.rows.length; i += per) {
-        pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) });
+        const pageRows = this.rows.slice(i, i + per);
+        pages.push({ index: pages.length + 1, rows: pageRows, diagnosis: this.diagnosisForRows(pageRows) });
       }
     }
     this.pages = pages;
@@ -464,14 +470,12 @@ private paginate(): void {
   private calcAge(birthday?: string): number | null { if (!birthday) return null; const b = new Date(birthday); if (isNaN(b.getTime())) return null; const now = new Date(); let age = now.getFullYear() - b.getFullYear(); if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--; return age >= 0 ? age : null; }
 
   private formatDiagnosis(diagnosis?: string): string {
-    if (!diagnosis) return '';
-    let index = -1;
-    const seps = [';', '；', ',', '，'];
-    for (const s of seps) {
-      const i = diagnosis.indexOf(s);
-      if (i >= 0 && (index < 0 || i < index)) index = i;
-    }
-    return index >= 0 ? diagnosis.substring(0, index).trim() : diagnosis.trim();
+    return firstDiagnosisSegment(diagnosis, 'legacy');
+  }
+
+  /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
+  private diagnosisForRows(rows: EvalRow[]): string {
+    return resolvePageDiagnosis(this.patient, rows[0], ['time'], this.diagnosisDisplay);
   }
 
   isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {

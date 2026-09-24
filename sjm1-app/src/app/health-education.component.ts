@@ -5,6 +5,8 @@ import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil, tap 
 import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { normalizePrintPages, shouldPrintPage, selectedPrintPageCount } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 interface OptionItem { code: string; label: string; detail?: string; }
 interface OptionGroup { name: string; items: OptionItem[]; }
@@ -23,7 +25,7 @@ interface AccountOption {
   accountId: string; accountName: string;
   username?: string; code?: string;
 }
-interface RenderPage { index: number; records: (HealthEducationRecord|null)[]; }
+interface RenderPage { index: number; records: (HealthEducationRecord|null)[]; diagnosis?: string; }
 interface HealthEducationSharedInfo { valuableCodes: string[]; valuableOther: string; receiverConfirmed: boolean; receiverName: string; receivedAt: string; }
 
 const GROUPS: OptionGroup[] = [
@@ -104,7 +106,8 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
 
   constructor(private http: HttpClient, private hostPatient: HostPatientService,
               private cdr: ChangeDetectorRef, private host: ElementRef,
-              private contextService: IcuFormViewerContextService) {}
+              private contextService: IcuFormViewerContextService,
+              private diagHistory: DiagnosisHistoryService) {}
 
   ngOnInit(): void {
     // 检测 viewer 模式
@@ -120,6 +123,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
     this.hostPatient.patient$.pipe(
       filter(Boolean), map(p => ({p, pid:String(p.id || '').trim()})), filter(x => !!x.pid),
       distinctUntilChanged((a,b) => a.pid === b.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       tap(({p,pid}) => { this.closeDialogs(); this.patient=p; this.pid=pid; this.age=this.calcAge(p.birthday); this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis); this.records=[]; this.sharedInfo=this.emptySharedInfo(); this.sharedDraft=this.emptySharedInfo(); this.sharedCarrierRecord=null; this.sharedEditing=false; this.paginate(); this.loadError=''; }),
       switchMap(({pid}) => this.fetchRecords(pid)), takeUntil(this.destroy$)
     ).subscribe();
@@ -410,7 +414,12 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   saveSharedInfo():void{const c=this.sharedCarrierRecord;if(!c?.id||this.sharedSaving)return;const op=this.pid;this.sharedSaving=true;const b:HealthEducationRecord={...c,valuableCodes:[...(this.sharedDraft.valuableCodes||[])],valuableOther:this.sharedDraft.valuableOther?.trim()||'',receiverConfirmed:this.sharedDraft.receiverConfirmed===true,receiverName:this.sharedDraft.receiverName?.trim()||'',receivedAt:this.sharedDraft.receivedAt?new Date(this.sharedDraft.receivedAt).toISOString():undefined,updatedBy:String(this.account?.id||'')};this.http.post<HealthEducationRecord>(`${this.API}/save`,b).pipe(finalize(()=>{this.sharedSaving=false}),takeUntil(this.destroy$)).subscribe({next:()=>{if(op!==this.pid)return;this.sharedEditing=false;this.reload();},error:e=>alert(e?.error?.message||'贵重物品交接信息保存失败')});}
   private paginate(): void {
     const out: RenderPage[]=[]; const source=this.records.length?this.records:[null as any];
-    for(let i=0;i<source.length;i+=5){const rows=(source.slice(i,i+5) as (HealthEducationRecord|null)[]); while(rows.length<5)rows.push(null); out.push({index:out.length+1,records:rows});}
+    for(let i=0;i<source.length;i+=5){
+      const rows=(source.slice(i,i+5) as (HealthEducationRecord|null)[]);
+      while(rows.length<5)rows.push(null);
+      const first=rows.find(r=>!!r);
+      out.push({index:out.length+1,records:rows,diagnosis:first?resolvePageDiagnosis(this.patient,first,['assessmentTime'],this.diagnosisDisplay):this.diagnosisDisplay});
+    }
     this.pages=out;
     this.normalizeSelectedPrintPages(this.pages.length);
   }
@@ -446,5 +455,5 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
   private calcAge(v?:string):number|null { if(!v)return null; const b=new Date(v); if(Number.isNaN(b.getTime()))return null; const n=new Date(); let a=n.getFullYear()-b.getFullYear(); if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--; return a>=0?a:null; }
   genderText(g?: string): string { if (g === 'Male' || g === 'M' || g === '男') return '男'; if (g === 'Female' || g === 'F' || g === '女') return '女'; return g || ''; }
   diagnosisDisplay = '';
-  private formatDiagnosis(d?: string): string { if (!d) return ''; let idx = -1; for (const s of [';', '；', ',', '，']) { const c = d.indexOf(s); if (c >= 0 && (idx < 0 || c < idx)) idx = c; } return idx >= 0 ? d.substring(0, idx).trim() : d.trim(); }
+  private formatDiagnosis(d?: string): string { return firstDiagnosisSegment(d, 'legacy'); }
 }

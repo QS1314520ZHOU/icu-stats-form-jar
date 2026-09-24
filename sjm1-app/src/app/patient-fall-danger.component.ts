@@ -11,6 +11,8 @@ import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { measureRowCapacity } from './form-measure.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 const SCORE_TYPE = 'patientFallDangerLJRMYY';
 const FORM_CODE = 'patientFallDangerForm';
@@ -55,7 +57,7 @@ interface ScoreRecord {
   time?: string; scoreType?: string; total?: number; conclusion?: string; valid?: boolean;
   inputUserId?: string; inputUser?: string; nurseMeasureList?: any[]; patientFallDangerFactorV2?: Record<string, any>;
 }
-interface RenderPage { index: number; rows: FallRow[]; }
+interface RenderPage { index: number; rows: FallRow[]; diagnosis?: string; }
 interface FinalExtraData { id: string | null; result: string; resultDate: string; happened: '' | '是' | '否'; loaded: boolean; loading: boolean; }
 
 @Component({
@@ -99,7 +101,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
           <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
           <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-          <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+          <span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
         </div>
 
         <table class="record-table">
@@ -349,7 +351,8 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
 
   constructor(private http: HttpClient, private hostPatient: HostPatientService,
               private cdr: ChangeDetectorRef, private host: ElementRef,
-              private contextService: IcuFormViewerContextService) {}
+              private contextService: IcuFormViewerContextService,
+              private diagHistory: DiagnosisHistoryService) {}
 
   ngOnInit(): void {
     // 检测 viewer 模式
@@ -368,6 +371,7 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
       filter(({ pid }) => !!pid),
       tap(({ pid }) => { if (pid !== this.__lastPid) this.__lastPid = pid; }),
       distinctUntilChanged((a, b) => a.pid === b.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       tap(({ p, pid }) => {
         this.resetForm();
         this.patient = p; this.pid = pid;
@@ -493,8 +497,11 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
 
   private paginate(): void {
     const per = this.maxRowsPerPage; const pages: RenderPage[] = [];
-    if (!this.rows.length) pages.push({ index: 1, rows: [] });
-    else for (let i = 0; i < this.rows.length; i += per) pages.push({ index: pages.length + 1, rows: this.rows.slice(i, i + per) });
+    if (!this.rows.length) pages.push({ index: 1, rows: [], diagnosis: this.diagnosisDisplay });
+    else for (let i = 0; i < this.rows.length; i += per) {
+      const pageRows = this.rows.slice(i, i + per);
+      pages.push({ index: pages.length + 1, rows: pageRows, diagnosis: this.diagnosisForRows(pageRows) });
+    }
     this.pages = pages;
     this.normalizeSelectedPrintPages(pages.length);
     this.loadFinalExtra();
@@ -715,8 +722,12 @@ export class PatientFallDangerComponent implements OnInit, AfterViewInit, OnDest
     const m = now.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--; return a;
   }
   private formatDiagnosis(x?: string): string {
-    if (!x) return ''; let i = -1; for (const s of [';', '；', ',', '，']) { const j = x.indexOf(s); if (j >= 0 && (i < 0 || j < i)) i = j; }
-    return i >= 0 ? x.substring(0, i).trim() : x.trim();
+    return firstDiagnosisSegment(x, 'legacy');
+  }
+
+  /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
+  private diagnosisForRows(rows: FallRow[]): string {
+    return resolvePageDiagnosis(this.patient, rows[0], ['time'], this.diagnosisDisplay);
   }
   fmtDate(v?: string): string { return formatShanghaiDate(v) || ''; }
   fmtTime(v?: string): string { return formatShanghaiTime(v) || ''; }

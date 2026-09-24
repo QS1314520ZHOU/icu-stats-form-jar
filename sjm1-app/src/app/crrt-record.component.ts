@@ -1,17 +1,19 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { of, Subject } from 'rxjs';
+import { map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolveDiagnosisDisplay } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; editUser?: string; }
 interface CrrtMetric { label: string; code: string; unit?: string; }
 interface CrrtGroup { name: string; metrics: CrrtMetric[]; }
 interface TimePoint { instant: number; rawTime: string; }
-interface RenderPage { index: number; timeInstants: number[]; }
+interface RenderPage { index: number; timeInstants: number[]; diagnosis?: string; }
 interface CrrtStatusPoint { instant: number; treatmentStatus: string; }
 type CrrtSessionStatus = 'ongoing' | 'ended';
 interface CrrtSession { index: number; points: CrrtStatusPoint[]; startInstant: number; endInstant: number; allTimeInstants: number[]; pageTimeInstants: number[][]; status: CrrtSessionStatus; }
@@ -106,7 +108,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   // Viewer 模式标志
   isViewerMode = false;
 
-  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private contextService: IcuFormViewerContextService) {}
+  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private contextService: IcuFormViewerContextService, private diagHistory: DiagnosisHistoryService) {}
 
   ngOnInit(): void {
     // 检测 viewer 模式
@@ -120,9 +122,17 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
     console.info(`%c[CRRT BUILD] ${CRRT_BUILD_MARKER}`, 'color:#1677c8;font-weight:bold');
     console.table(CRRT_GROUPS.flatMap(g => g.metrics.map(m => ({ group: g.name, label: m.label, code: m.code }))));
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
-    this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
-      if (!p?.id) { this.reset(); return; }
-      const next = String(p.id).trim(); if (!next) return;
+    this.hostPatient.patient$.pipe(
+      takeUntil(this.destroy$),
+      switchMap(p => {
+        if (!p?.id) return of(null);
+        const next = String(p.id).trim();
+        if (!next) return of(null);
+        return this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid: next })));
+      }),
+    ).subscribe(v => {
+      if (!v) { this.reset(); return; }
+      const { p, pid: next } = v;
       const prev = this.pid;
       this.patient = p; this.pid = next;
       this.age = this.calcAge(p.birthday);
@@ -354,8 +364,15 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   }
 
   get pages(): RenderPage[] {
-    if (!this.selectedSession) return [{ index: 1, timeInstants: [] }];
-    return this.selectedSession.pageTimeInstants.map((instants, i) => ({ index: i + 1, timeInstants: instants }));
+    if (!this.selectedSession) return [{ index: 1, timeInstants: [], diagnosis: this.diagnosisDisplay }];
+    return this.selectedSession.pageTimeInstants.map((instants, i) => ({ index: i + 1, timeInstants: instants, diagnosis: this.diagnosisForInstants(instants) }));
+  }
+
+  /** 页诊断 = 该页第一条数据时间点所在区间的诊断；空页回落 diagnosisDisplay */
+  private diagnosisForInstants(instants: number[]): string {
+    return instants.length
+      ? resolveDiagnosisDisplay(this.patient, instants[0], this.diagnosisDisplay)
+      : this.diagnosisDisplay;
   }
 
   formatSessionDateTime(instant: number | undefined): string {
@@ -392,7 +409,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   genderText(g?: string | number): string { const v = String(g ?? '').trim(); if (['Male', 'M', '男', '1'].includes(v)) return '男'; if (['Female', 'F', '女', '2'].includes(v)) return '女'; return v; }
   private norm(v: unknown): string { return String(v ?? '').trim(); }
   private calcAge(b?: string): number | null { if (!b) return null; const d = new Date(b); if (Number.isNaN(d.getTime())) return null; const n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n.getMonth() < d.getMonth() || (n.getMonth() === d.getMonth() && n.getDate() < d.getDate())) a--; return a >= 0 ? a : null; }
-  private formatDiagnosis(d?: string): string { if (!d) return ''; let idx = -1; for (const sep of [';', '；', ',', '，']) { const cur = d.indexOf(sep); if (cur >= 0 && (idx < 0 || cur < idx)) idx = cur; } return idx >= 0 ? d.substring(0, idx).trim() : d.trim(); }
+  private formatDiagnosis(d?: string): string { return firstDiagnosisSegment(d, 'legacy'); }
   isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {
     return shouldPrintPage(pageNumber, this.selectedPrintPages, totalPages);
   }

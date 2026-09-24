@@ -21,6 +21,8 @@ import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 /* ----------------------------- 数据模型 ----------------------------- */
 
@@ -49,6 +51,7 @@ interface TimeColumn {
 interface RenderPage {
   index: number;
   rows: TimeColumn[];
+  diagnosis?: string;
 }
 
 const CODE_T = 'param_T';
@@ -99,7 +102,7 @@ const MARK_OTHER = '⑥';
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
           <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
           <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-          <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+          <span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
         </div>
 
         <!-- 明细记录表格 -->
@@ -262,6 +265,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
     private contextService: IcuFormViewerContextService,
+    private diagHistory: DiagnosisHistoryService,
   ) {}
 
   ngOnInit(): void {
@@ -280,6 +284,7 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
       filter(({ pid }) => !!pid),
       tap(({ pid }) => { if (pid !== this.__lastPid) this.__lastPid = pid; }),
       distinctUntilChanged((a, b) => a.pid === b.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       tap(({ p, pid }) => {
         this.resetForm();
         this.patient = p;
@@ -491,26 +496,23 @@ export class YdwzlTemperatureComponent implements OnInit, AfterViewInit, OnDestr
   }
 
   private formatDiagnosis(diagnosis?: string): string {
-    if (!diagnosis) return '';
-		if (!diagnosis) return '';
-		let index = -1;
-		const seps = [';', '；', ',', '，'];
-		for (const s of seps) {
-			const i = diagnosis.indexOf(s);
-			if (i >= 0 && (index < 0 || i < index)) index = i;
-		}
-		if (index >= 0) return diagnosis.substring(0, index).trim();
-		return diagnosis.trim();
+    return firstDiagnosisSegment(diagnosis, 'legacy');
+  }
+
+  /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
+  private diagnosisForPage(firstRecord: any): string {
+    return resolvePageDiagnosis(this.patient, firstRecord, ['time'], this.diagnosisDisplay);
   }
 
 private paginate(): void {
     const per = this.rowsPerPage;
     const pages: RenderPage[] = [];
     if (!this.columns.length) {
-      pages.push({ index: 1, rows: [] });
+      pages.push({ index: 1, rows: [], diagnosis: this.diagnosisDisplay });
     } else {
       for (let i = 0; i < this.columns.length; i += per) {
-        pages.push({ index: pages.length + 1, rows: this.columns.slice(i, i + per) });
+        const rows = this.columns.slice(i, i + per);
+        pages.push({ index: pages.length + 1, rows, diagnosis: this.diagnosisForPage(rows[0]) });
       }
     }
     this.pages = pages;

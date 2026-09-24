@@ -5,11 +5,13 @@ import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 interface BedsideRecord { pid:string|number; code:string; time:string; strVal?:string; valid:boolean|string|number; editUser?:string; }
 interface IabpMetric { label:string; code:string; }
 interface IabpGroup { name:string; metrics:IabpMetric[]; }
-interface RenderPage { index:number; times:string[]; }
+interface RenderPage { index:number; times:string[]; diagnosis?:string; }
 type SaveState='idle'|'saving'|'saved'|'error';
 
 const IABP_GROUPS:IabpGroup[]=[
@@ -66,7 +68,7 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
  // Viewer 模式标志
  isViewerMode = false;
 
- constructor(private http:HttpClient,private hostPatient:HostPatientService,private cdr:ChangeDetectorRef,private contextService:IcuFormViewerContextService){}
+ constructor(private http:HttpClient,private hostPatient:HostPatientService,private cdr:ChangeDetectorRef,private contextService:IcuFormViewerContextService,private diagHistory:DiagnosisHistoryService){}
  ngOnInit():void{
   // 检测 viewer 模式
   this.contextService.getContext$().pipe(
@@ -78,7 +80,7 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
 
   this.extraSave$.pipe(debounceTime(500),tap(()=>{this.extraSaveState='saving';this.cdr.detectChanges();}),switchMap(()=>this.http.post(`${this.EXTRA}/save`,{pid:this.pid,insertionSite:this.insertionSite,otherArtery:this.otherArtery.trim(),catheterLengthCm:this.catheterLengthCm,updatedBy:String(this.account?.id||this.account?._id||'')}).pipe(map(()=>true),catchError(()=>of(false)))),takeUntil(this.destroy$)).subscribe(ok=>{this.extraSaveState=ok?'saved':'error';this.cdr.detectChanges();});
   this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a=>this.account=a);
-  this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;}this.patient=p;this.pid=String(p.id).trim();this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});
+  this.hostPatient.patient$.pipe(switchMap(p=>p?.id?this.diagHistory.ensurePatient(p):of(p)),takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;}this.patient=p;this.pid=String(p.id).trim();this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
  private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatureRecords=[];this.pages=[{index:1,times:[]}];this.selectedPrintPages=[];}
@@ -104,8 +106,8 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
   this.signatureRecords.sort((a,b)=>a.instant-b.instant);
   const times=[...timeSet].sort((a,b)=>databaseTimeValue(a)-databaseTimeValue(b));
   this.pages=[];
-  for(let i=0;i<times.length;i+=11)this.pages.push({index:this.pages.length+1,times:times.slice(i,i+11)});
-  if(!this.pages.length)this.pages=[{index:1,times:[]}];
+  for(let i=0;i<times.length;i+=11){const ts=times.slice(i,i+11);this.pages.push({index:this.pages.length+1,times:ts,diagnosis:this.diagnosisForPage({time:ts[0]})});}
+  if(!this.pages.length)this.pages=[{index:1,times:[],diagnosis:this.diagnosisDisplay}];
   this.normalizeSelectedPrintPages(this.pages.length);
   if(editUserIds.size)this.loadAccountNames([...editUserIds]);
  }
@@ -139,5 +141,7 @@ export class IabpRecordComponent implements OnInit,OnDestroy{
  print():void{this.printing=true;this.cdr.detectChanges();const afterPrint=()=>{this.printing=false;this.cdr.detectChanges();window.removeEventListener('afterprint',afterPrint);};window.addEventListener('afterprint',afterPrint);window.print();}
  private nm(v:unknown):string{return String(v??'').trim();}
  private calcAge(v:any):number|null{if(!v)return null;const d=new Date(v);if(isNaN(d.getTime()))return null;const n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
- private formatDiagnosis(v?:string):string{return v?v.split(/[;；,，]/)[0].trim():'';}
+ private formatDiagnosis(v?:string):string{return firstDiagnosisSegment(v,'legacy');}
+ /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
+ private diagnosisForPage(firstRecord:any):string{return resolvePageDiagnosis(this.patient,firstRecord,['time'],this.diagnosisDisplay);}
 }

@@ -13,7 +13,7 @@
       <span><b>科室：</b>{{patient?.dept||''}}</span><span><b>姓名：</b>{{patient?.name||''}}</span>
       <span><b>床号：</b>{{bedText(patient?.hisBed)}}</span><span><b>住院号：</b>{{patient?.mrn||''}}</span>
       <span><b>性别：</b>{{genderText(patient?.gender)}}</span><span><b>年龄：</b>{{age??''}}</span>
-      <span><b>诊断：</b>{{diagnosisDisplay}}</span>
+      <span><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
     </div>
   </header>
   <table class="control-table" aria-label="三管感染防控措施依从性监测表">

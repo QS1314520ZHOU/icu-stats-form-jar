@@ -28,6 +28,8 @@ import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 /* ============================= 打印布局常量 ============================= */
 
@@ -109,7 +111,7 @@ interface IadRow {
   signName?: string;
 }
 
-interface RenderPage { index: number; rows: IadRow[]; }
+interface RenderPage { index: number; rows: IadRow[]; diagnosis?: string; }
 
 interface IadPrintLayout {
   rowsPerPage: number;
@@ -158,7 +160,7 @@ interface IadPrintLayout {
             <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
             <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
             <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-            <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+            <span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
           </div>
 
           <table class="record-table">
@@ -256,7 +258,7 @@ interface IadPrintLayout {
               <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
               <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
               <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-              <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+              <span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
             </div>
             <table class="record-table">
               <thead>
@@ -486,6 +488,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
     private contextService: IcuFormViewerContextService,
+    private diagHistory: DiagnosisHistoryService,
   ) {}
 
   ngOnInit(): void {
@@ -502,6 +505,7 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       filter(({ pid }) => !!pid),
       tap(({ pid }) => { if (pid !== this.__lastPid) this.__lastPid = pid; }),
       distinctUntilChanged((a, b) => a.pid === b.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       tap(({ p, pid }) => {
         this.resetForm();
         this.patient = p;
@@ -620,10 +624,11 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** 通用分页 */
   private buildPages(rows: IadRow[], perPage: number): RenderPage[] {
-    if (!rows.length) return [{ index: 1, rows: [] }];
+    if (!rows.length) return [{ index: 1, rows: [], diagnosis: this.diagnosisDisplay }];
     const result: RenderPage[] = [];
     for (let i = 0; i < rows.length; i += perPage) {
-      result.push({ index: result.length + 1, rows: rows.slice(i, i + perPage) });
+      const pageRows = rows.slice(i, i + perPage);
+      result.push({ index: result.length + 1, rows: pageRows, diagnosis: this.diagnosisForRows(pageRows) });
     }
     return result;
   }
@@ -701,14 +706,12 @@ export class IadScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private formatDiagnosis(diagnosis?: string): string {
-    if (!diagnosis) return '';
-    let index = -1;
-    const seps = [';', '；', ',', '，'];
-    for (const s of seps) {
-      const i = diagnosis.indexOf(s);
-      if (i >= 0 && (index < 0 || i < index)) index = i;
-    }
-    return index >= 0 ? diagnosis.substring(0, index).trim() : diagnosis.trim();
+    return firstDiagnosisSegment(diagnosis, 'legacy');
+  }
+
+  /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
+  private diagnosisForRows(rows: IadRow[]): string {
+    return resolvePageDiagnosis(this.patient, rows[0], ['time'], this.diagnosisDisplay);
   }
 
   /* ============================= 打印辅助方法 ============================= */

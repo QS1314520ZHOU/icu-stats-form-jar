@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -90,6 +91,17 @@ public class HljldPatientResolver {
      * @return 标准化后的患者信息Map
      */
     public Map<String, String> standardizePatient(Document patient) {
+        return standardizePatient(patient, Instant.now());
+    }
+
+    /**
+     * 标准化患者信息（按 queryTime 解析诊断历史区间）。
+     *
+     * @param patient   原始患者文档
+     * @param queryTime 诊断区间匹配时刻（护理记录单传所选护理日结束-1ms）
+     * @return 标准化后的患者信息Map
+     */
+    public Map<String, String> standardizePatient(Document patient, Instant queryTime) {
         Map<String, String> info = new LinkedHashMap<>();
 
         if (patient == null) {
@@ -115,9 +127,15 @@ public class HljldPatientResolver {
         String sex = getFirstNonEmpty(patient, "sex", "gender");
         info.put("sex", mapGender(sex));
 
-        // 诊断: diagnosis → clinicalDiagnosis → admissionDiagnosis
-        String diagnosis = getFirstNonEmpty(patient, "diagnosis", "clinicalDiagnosis", "admissionDiagnosis");
-        info.put("diagnosis", truncateDiagnosis(diagnosis));
+        // 诊断：
+        // - 旧逻辑（截止点前已出科）：diagnosis → clinicalDiagnosis → admissionDiagnosis，旧截断（不含 |）
+        // - 新逻辑：按 diagnosisHistoryList 时间区间取诊断，再取第一诊断（含 | 拆分）
+        if (DiagnosisHistoryResolver.useNewLogic(patient)) {
+            info.put("diagnosis", DiagnosisHistoryResolver.resolveDiagnosis(patient, queryTime));
+        } else {
+            String diagnosis = getFirstNonEmpty(patient, "diagnosis", "clinicalDiagnosis", "admissionDiagnosis");
+            info.put("diagnosis", truncateDiagnosis(diagnosis));
+        }
 
         return info;
     }
@@ -130,7 +148,19 @@ public class HljldPatientResolver {
      * @return 格式化的患者信息字符串
      */
     public String buildPatientInfo(Document patient, String age) {
-        Map<String, String> info = standardizePatient(patient);
+        return buildPatientInfo(patient, age, Instant.now());
+    }
+
+    /**
+     * 构建患者信息字符串（按 queryTime 解析诊断历史区间）。
+     *
+     * @param patient   患者文档
+     * @param age       年龄
+     * @param queryTime 诊断区间匹配时刻
+     * @return 格式化的患者信息字符串
+     */
+    public String buildPatientInfo(Document patient, String age, Instant queryTime) {
+        Map<String, String> info = standardizePatient(patient, queryTime);
 
         StringBuilder sb = new StringBuilder();
         sb.append("床号：").append(info.get("bedNo"));
@@ -178,6 +208,7 @@ public class HljldPatientResolver {
 
     /**
      * 截断诊断文本，只保留第一个诊断。
+     * 旧逻辑专用（分隔符仅 ; ； , ，，不含 |），输出与改造前逐字一致。
      */
     private String truncateDiagnosis(String diagnosis) {
         if (diagnosis == null || diagnosis.trim().isEmpty()) {

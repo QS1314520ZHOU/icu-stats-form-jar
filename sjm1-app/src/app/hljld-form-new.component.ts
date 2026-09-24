@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
-import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval } from 'rxjs';
+import { Subject, ReplaySubject, EMPTY, firstValueFrom, interval, of } from 'rxjs';
 import { distinctUntilChanged, filter, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { HljldFormNewService } from './hljld-form-new.service';
@@ -7,6 +7,8 @@ import { HljldDisplayRow, HljldPageState, HljldSourceData, HljldSummary, HljldTi
 import { buildDisplayGroups, buildTimeline, buildRows, buildSummary, collectDrainNames, DEFAULT_REMARK_LINES, endOfNursingDay, minuteInstant, parsePatientDateTime, resolveActiveStayRange, startOfNursingDay } from './hljld-form-new.utils';
 import { getSmartCarePatientPid } from './models/smartcare-host-message.model';
 import { printHljldRecord, printAllViaIframe } from './hljld-print-new.util';
+import { firstDiagnosisSegment, resolveDiagnosisDisplay } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 @Component({
   standalone: false,
@@ -20,6 +22,8 @@ export class HljldFormNewComponent implements OnInit, OnDestroy {
   private readonly dateChange$ = new ReplaySubject<void>(1);
 
   patient: PatientContext = { pid: '' };
+  /** 原始患者负载（含 diagnosisHistoryList/status/出科时间），供按日期解析诊断 */
+  private rawPatient: any = null;
   selectedDate = new Date();
   dateInput = this.toDateString(this.selectedDate);
   loading = false;
@@ -42,6 +46,7 @@ export class HljldFormNewComponent implements OnInit, OnDestroy {
     private hostPatient: HostPatientService,
     private cdr: ChangeDetectorRef,
     private elementRef: ElementRef<HTMLElement>,
+    private diagHistory: DiagnosisHistoryService,
   ) {}
 
   ngOnInit(): void {
@@ -119,8 +124,12 @@ export class HljldFormNewComponent implements OnInit, OnDestroy {
       },
     });
 
-    this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p => {
+    this.hostPatient.patient$.pipe(
+      switchMap(p => p ? this.diagHistory.ensurePatient(p) : of(p)),
+      takeUntil(this.destroy$),
+    ).subscribe(p => {
       if (!p) {
+        this.rawPatient = null;
         this.resetPatientData();
         this.pageState = 'waiting-patient';
         this.cdr.markForCheck();
@@ -135,6 +144,7 @@ export class HljldFormNewComponent implements OnInit, OnDestroy {
         return;
       }
       const previousPid = this.patient.pid;
+      this.rawPatient = p;
       this.patient = this.toPatientContext(p);
       if (nextPid !== previousPid) {
         this.clearClinicalData();
@@ -562,7 +572,15 @@ export class HljldFormNewComponent implements OnInit, OnDestroy {
     );
 
     return {
-      patient: this.patient,
+      patient: {
+        ...this.patient,
+        // 按所选护理日解析诊断（整日共用）；旧逻辑患者透传 formatDiagnosis 原输出
+        diagnosis: resolveDiagnosisDisplay(
+          this.rawPatient ?? this.patient,
+          endOfNursingDay(this.selectedDate).getTime() - 1,
+          this.patient.diagnosis ?? '',
+        ),
+      },
       selectedDate: this.selectedDate,
       rangeStart,
       rangeEnd,
@@ -649,14 +667,7 @@ export class HljldFormNewComponent implements OnInit, OnDestroy {
   }
 
   private formatDiagnosis(diagnosis?: string): string {
-    const value = String(diagnosis ?? '').trim();
-    if (!value) { return ''; }
-    let idx = -1;
-    for (const sep of [';', '；', ',', '，']) {
-      const cur = value.indexOf(sep);
-      if (cur >= 0 && (idx < 0 || cur < idx)) { idx = cur; }
-    }
-    return idx >= 0 ? value.substring(0, idx).trim() : value;
+    return firstDiagnosisSegment(diagnosis, 'legacy');
   }
 
   /**

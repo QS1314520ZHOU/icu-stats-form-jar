@@ -21,6 +21,8 @@ import { HostPatientService } from './services/host-patient.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 /* ============================= 配置区 ============================= */
 
@@ -163,6 +165,7 @@ interface RenderPage {
   index: number;
   cols: EvalColumn[];
   isSecondPage: boolean;
+  diagnosis?: string;
 }
 
 type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
@@ -214,7 +217,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
           <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
           <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
-          <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+          <span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
         </div>
 
         <table class="record-table assessment-table">
@@ -353,7 +356,7 @@ type ScoreField = 'ssd' | 'gthz' | 'xwhz' | 'dgsl' | 'dggd';
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
           <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
           <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
-          <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+          <span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
         </div>
 
         <table class="record-table second-page-table">
@@ -673,6 +676,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
     private contextService: IcuFormViewerContextService,
+    private diagHistory: DiagnosisHistoryService,
   ) {}
 
   ngOnInit(): void {
@@ -690,6 +694,7 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
       filter(({ pid }) => !!pid),
       tap(({ pid }) => { if (pid !== this.__lastPid) this.__lastPid = pid; }),
       distinctUntilChanged((a, b) => a.pid === b.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       tap(({ p, pid }) => {
         this.resetForm();
         this.patient = p;
@@ -856,14 +861,15 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
     const per = this.colsPerPage;
     const pages: RenderPage[] = [];
     if (!this.columns.length) {
-      pages.push({ index: 1, cols: [], isSecondPage: false });
-      pages.push({ index: 2, cols: [], isSecondPage: true });
+      pages.push({ index: 1, cols: [], isSecondPage: false, diagnosis: this.diagnosisDisplay });
+      pages.push({ index: 2, cols: [], isSecondPage: true, diagnosis: this.diagnosisDisplay });
     } else {
       for (let i = 0; i < this.columns.length; i += per) {
         const cols = this.columns.slice(i, i + per);
+        const diagnosis = this.diagnosisForPage(cols[0]);
         const baseIndex = pages.length + 1;
-        pages.push({ index: baseIndex, cols, isSecondPage: false });
-        pages.push({ index: baseIndex + 1, cols, isSecondPage: true });
+        pages.push({ index: baseIndex, cols, isSecondPage: false, diagnosis });
+        pages.push({ index: baseIndex + 1, cols, isSecondPage: true, diagnosis });
       }
     }
     this.pages = pages;
@@ -958,14 +964,12 @@ export class UnplannedExtubationComponent implements OnInit, AfterViewInit, OnDe
   }
 
   private formatDiagnosis(diagnosis?: string): string {
-    if (!diagnosis) return '';
-    let index = -1;
-    const seps = [';', '；', ',', '，'];
-    for (const s of seps) {
-      const i = diagnosis.indexOf(s);
-      if (i >= 0 && (index < 0 || i < index)) index = i;
-    }
-    return index >= 0 ? diagnosis.substring(0, index).trim() : diagnosis.trim();
+    return firstDiagnosisSegment(diagnosis, 'legacy');
+  }
+
+  /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
+  private diagnosisForPage(firstRecord: any): string {
+    return resolvePageDiagnosis(this.patient, firstRecord, ['time'], this.diagnosisDisplay);
   }
 
   isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {

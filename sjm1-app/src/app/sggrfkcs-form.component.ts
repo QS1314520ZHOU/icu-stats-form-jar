@@ -5,6 +5,8 @@ import { catchError, distinctUntilChanged, filter, finalize, map, switchMap, tak
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { HostPatientService } from './services/host-patient.service';
+import { endOfShanghaiDayMs, firstDiagnosisSegment, resolveDiagnosisDisplay } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 type ComplianceMark = '' | '√' | '×';
 type MeasureCode =
@@ -38,7 +40,7 @@ interface SggrfkcsRecord {
   updatedBy?: string;
 }
 interface AccountOption { accountId: string; accountName: string; profession?: string; username?: string; code?: string; }
-interface RenderPage { index: number; records: Array<SggrfkcsRecord | null>; }
+interface RenderPage { index: number; records: Array<SggrfkcsRecord | null>; diagnosis?: string; }
 
 const NECESSITY_GROUP: MeasureGroup = {
   code: 'NECESSITY', name: '患者及导管留置必要性评估', shortName: '必要性评估',
@@ -143,6 +145,7 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     private readonly cdr: ChangeDetectorRef,
     private readonly host: ElementRef<HTMLElement>,
     private readonly contextService: IcuFormViewerContextService,
+    private readonly diagHistory: DiagnosisHistoryService,
   ) {}
 
   ngOnInit(): void {
@@ -157,6 +160,7 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
       map(patient => ({ patient, pid: this.patientId(patient) })),
       filter(({ pid }) => !!pid),
       distinctUntilChanged((a, b) => a.pid === b.pid),
+      switchMap(({ patient, pid }) => this.diagHistory.ensurePatient(patient).pipe(map(ep => ({ patient: ep, pid })))),
       tap(({ patient, pid }) => {
         this.closeDialogs();
         this.patient = patient;
@@ -429,7 +433,14 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     for (let i = 0; i < source.length; i += this.rowsPerPage) {
       const rows = source.slice(i, i + this.rowsPerPage);
       while (rows.length < this.rowsPerPage) rows.push(null);
-      output.push({ index: output.length + 1, records: rows });
+      const first = rows.find(r => !!r);
+      output.push({
+        index: output.length + 1,
+        records: rows,
+        diagnosis: first
+          ? resolveDiagnosisDisplay(this.patient, endOfShanghaiDayMs(first.recordDate), this.diagnosisDisplay)
+          : this.diagnosisDisplay,
+      });
     }
     this.pages = output;
     const normalized = normalizePrintPages(this.selectedPrintPages, this.pages.length);
@@ -493,10 +504,6 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
     return age >= 0 ? age : null;
   }
   private formatDiagnosis(value?: string): string {
-    if (!value) return ''; let index = -1;
-    for (const separator of [';', '；', ',', '，']) {
-      const current = value.indexOf(separator); if (current >= 0 && (index < 0 || current < index)) index = current;
-    }
-    return index >= 0 ? value.substring(0, index).trim() : value.trim();
+    return firstDiagnosisSegment(value, 'legacy');
   }
 }

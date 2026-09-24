@@ -1,6 +1,7 @@
 package com.smartcare.backend.controller;
 
 import com.smartcare.backend.entity.patient.Patient;
+import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -23,7 +24,23 @@ public class PatientController {
 
     @GetMapping({""})
     public ResponseEntity<Patient> getById(@RequestParam String id) {
-        Query query = new Query(Criteria.where("_id").is(id));
+        // _id 可能是 ObjectId（BSON）或字符串；同时兼容 pid/hisPid 作为标识
+        Criteria criteria;
+        if (ObjectId.isValid(id)) {
+            criteria = new Criteria().orOperator(
+                Criteria.where("_id").is(new ObjectId(id)),
+                Criteria.where("_id").is(id),
+                Criteria.where("pid").is(id),
+                Criteria.where("hisPid").is(id)
+            );
+        } else {
+            criteria = new Criteria().orOperator(
+                Criteria.where("_id").is(id),
+                Criteria.where("pid").is(id),
+                Criteria.where("hisPid").is(id)
+            );
+        }
+        Query query = new Query(criteria);
         Patient patient = this.mongoTemplate.findOne(query, Patient.class, "patient");
         return (patient != null) ? ResponseEntity.ok(patient) : ResponseEntity.notFound().build();
     }

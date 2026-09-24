@@ -15,6 +15,8 @@ import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiDate, formatShanghaiTime } from './form-date.util';
 import { measureRowCapacity } from './form-measure.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 /* ============================= 配置区 ============================= */
 
@@ -64,7 +66,7 @@ interface BarthelRow {
   signUserId?: string;
   signName?: string;
 }
-interface RenderPage { index: number; rows: BarthelRow[]; }
+interface RenderPage { index: number; rows: BarthelRow[]; diagnosis?: string; }
 
 @Component({
   standalone: false,
@@ -111,7 +113,7 @@ interface RenderPage { index: number; rows: BarthelRow[]; }
           <span class="info-item"><b>住院号：</b>{{patient?.mrn || ''}}</span>
           <span class="info-item"><b>年龄：</b>{{age ?? ''}}</span>
           <span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span>
-          <span class="info-item diagnosis-item"><b>诊断：</b>{{diagnosisDisplay}}</span>
+          <span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span>
         </div>
 
         <table class="record-table">
@@ -277,6 +279,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private host: ElementRef,
     private contextService: IcuFormViewerContextService,
+    private diagHistory: DiagnosisHistoryService,
   ) {}
 
   ngOnInit(): void {
@@ -296,6 +299,7 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       filter(({ pid }) => !!pid),
       tap(({ pid }) => { if (pid !== this.__lastPid) this.__lastPid = pid; }),
       distinctUntilChanged((a, b) => a.pid === b.pid),
+      switchMap(({ p, pid }) => this.diagHistory.ensurePatient(p).pipe(map(ep => ({ p: ep, pid })))),
       tap(({ p, pid }) => {
         this.resetForm();
         this.patient = p;
@@ -434,15 +438,15 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
       const reachCount = curRows.length >= MAX_ROWS;
       const exceedHeight = curRows.length > 0 && usedH + rh > available;
       if (reachCount || exceedHeight) {
-        pages.push({ index: pages.length + 1, rows: curRows });
+        pages.push({ index: pages.length + 1, rows: curRows, diagnosis: this.diagnosisForRows(curRows) });
         curRows = [];
         usedH = 0;
       }
       curRows.push(row);
       usedH += rh;
     }
-    if (curRows.length) pages.push({ index: pages.length + 1, rows: curRows });
-    if (!pages.length) pages.push({ index: 1, rows: [] });
+    if (curRows.length) pages.push({ index: pages.length + 1, rows: curRows, diagnosis: this.diagnosisForRows(curRows) });
+    if (!pages.length) pages.push({ index: 1, rows: [], diagnosis: this.diagnosisDisplay });
     this.pages = pages.map((p, i) => ({ ...p, index: i + 1 }));
     this.normalizeSelectedPrintPages(this.pages.length);
   }
@@ -668,14 +672,12 @@ export class BaetheiScoreComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private formatDiagnosis(diagnosis?: string): string {
-    if (!diagnosis) return '';
-    let index = -1;
-    const seps = [';', '；', ',', '，'];
-    for (const s of seps) {
-      const i = diagnosis.indexOf(s);
-      if (i >= 0 && (index < 0 || i < index)) index = i;
-    }
-    return index >= 0 ? diagnosis.substring(0, index).trim() : diagnosis.trim();
+    return firstDiagnosisSegment(diagnosis, 'legacy');
+  }
+
+  /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
+  private diagnosisForRows(rows: BarthelRow[]): string {
+    return resolvePageDiagnosis(this.patient, rows[0], ['time'], this.diagnosisDisplay);
   }
 
   isPrintPageSelected(pageNumber: number, totalPages = this.pages.length): boolean {

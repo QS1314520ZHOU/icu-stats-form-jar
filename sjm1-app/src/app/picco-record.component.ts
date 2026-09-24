@@ -5,11 +5,13 @@ import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { databaseTimeValue, formatShanghaiMonthDay, formatShanghaiHourMinute } from './form-date.util';
 import { normalizePrintPages, shouldPrintPage } from './form-print-pages.util';
+import { firstDiagnosisSegment, resolvePageDiagnosis } from './diagnosis-history.util';
+import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 interface BedsideRecord { pid: string|number; code: string; time: string; strVal?: string; valid: boolean|string|number; }
 interface PiccoMetric { label: string; normal: string; code: string; }
 interface TimePoint { instant: number; rawTime: string; }
-interface RenderPage { index: number; timePoints: TimePoint[]; }
+interface RenderPage { index: number; timePoints: TimePoint[]; diagnosis?: string; }
 interface AccountOption { accountId: string; accountName: string; profession?: string; username?: string; code?: string; }
 interface SignatureValue { accountId: string; accountName: string; }
 type SaveState = 'idle'|'saving'|'saved'|'error';
@@ -46,13 +48,13 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  readonly metricCodes=PICCO_METRICS.map(x=>x.code);
  readonly queryCodes=[...this.metricCodes];
  patient:any=null; account:any=null; pid=''; age:number|null=null; diagnosisDisplay='';
- loading=false; loadError=''; pages:RenderPage[]=[{index:1,timePoints:[]}]; selectedPrintPages:number[]=[]; printing=false;
+ loading=false; loadError=''; pages:RenderPage[]=[{index:1,timePoints:[],diagnosis:''}]; selectedPrintPages:number[]=[]; printing=false;
  insertionSide:''|'RIGHT'|'LEFT'=''; arteryName=''; catheterLengthCm=''; heightCm=''; weightKg=''; extraSaveState:SaveState='idle';
  accounts:AccountOption[]=[]; signFiltered:AccountOption[]=[]; signQuery=''; signDropdownOpen=false; private signEditKey:string|null=null; private signCloseToken=0;
  // Viewer 模式标志
  isViewerMode = false;
 
- constructor(private http:HttpClient,private hostPatient:HostPatientService,private cdr:ChangeDetectorRef,private contextService:IcuFormViewerContextService){}
+ constructor(private http:HttpClient,private hostPatient:HostPatientService,private cdr:ChangeDetectorRef,private contextService:IcuFormViewerContextService,private diagHistory:DiagnosisHistoryService){}
  ngOnInit():void{
   // 检测 viewer 模式
   this.contextService.getContext$().pipe(
@@ -64,11 +66,22 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
 
   this.extraSave$.pipe(debounceTime(500),tap(()=>{this.extraSaveState='saving';this.cdr.detectChanges();}),switchMap(()=>this.http.post(`${this.EXTRA}/save`,{pid:this.pid,insertionSide:this.insertionSide,arteryName:this.arteryName.trim(),catheterLengthCm:this.catheterLengthCm.trim(),heightCm:this.heightCm.trim(),weightKg:this.weightKg.trim(),signatures:[...this.signatures.entries()].map(([timeKey,s])=>({timeKey,accountId:s.accountId,accountName:s.accountName})),updatedBy:String(this.account?.id||this.account?._id||'')}).pipe(map(()=>true),catchError(()=>of(false)))),takeUntil(this.destroy$)).subscribe(ok=>{this.extraSaveState=ok?'saved':'error';this.cdr.detectChanges();});
   this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a=>this.account=a);
-  this.hostPatient.patient$.pipe(takeUntil(this.destroy$)).subscribe(p=>{if(!p?.id){this.reset();return;} const next=String(p.id).trim();this.patient=p;this.pid=next;this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();});
+  this.hostPatient.patient$.pipe(
+   takeUntil(this.destroy$),
+   switchMap(p=>{
+    if(!p?.id)return of(null);
+    const next=String(p.id).trim();
+    return this.diagHistory.ensurePatient(p).pipe(map(ep=>({p:ep,pid:next})));
+   }),
+  ).subscribe(v=>{
+   if(!v){this.reset();return;}
+   const {p,pid:next}=v;
+   this.patient=p;this.pid=next;this.age=this.calcAge(p.birthday);this.diagnosisDisplay=this.formatDiagnosis(p.clinicalDiagnosis);this.load();this.loadExtra();
+  });
   this.loadAccounts();
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
- private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatures.clear();this.signDropdownOpen=false;this.signEditKey=null;this.signQuery='';this.pages=[{index:1,timePoints:[]}];this.selectedPrintPages=[];}
+ private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatures.clear();this.signDropdownOpen=false;this.signEditKey=null;this.signQuery='';this.pages=[{index:1,timePoints:[],diagnosis:''}];this.selectedPrintPages=[];}
  load():void{
   if(!this.pid)return;this.loading=true;this.loadError='';
   const params=new HttpParams().set('pid',this.pid).set('codes',this.queryCodes.join(','));
@@ -95,8 +108,11 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   });
   const timePoints=[...timeMap.values()].sort((a,b)=>a.instant-b.instant);
   this.pages=[];
-  for(let i=0;i<timePoints.length;i+=8)this.pages.push({index:this.pages.length+1,timePoints:timePoints.slice(i,i+8)});
-  if(!this.pages.length)this.pages=[{index:1,timePoints:[]}];
+  for(let i=0;i<timePoints.length;i+=8){
+   const slice=timePoints.slice(i,i+8);
+   this.pages.push({index:this.pages.length+1,timePoints:slice,diagnosis:slice.length?resolvePageDiagnosis(this.patient,slice[0],['instant'],this.diagnosisDisplay):this.diagnosisDisplay});
+  }
+  if(!this.pages.length)this.pages=[{index:1,timePoints:[],diagnosis:this.diagnosisDisplay}];
   this.normalizeSelectedPrintPages(this.pages.length);
  }
  metricValue(m:PiccoMetric,tp:TimePoint|undefined):string{return tp?this.values.get(`${m.code}@@${tp.instant}`)??'':'';}
@@ -134,5 +150,5 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  private normalizeSelectedPrintPages(totalPages:number):void{const normalized=normalizePrintPages(this.selectedPrintPages,totalPages);this.selectedPrintPages=(normalized.length===totalPages&&totalPages>0)?[]:normalized;}
  print():void{this.printing=true;this.cdr.detectChanges();const afterPrint=()=>{this.printing=false;this.cdr.detectChanges();window.removeEventListener('afterprint',afterPrint);};window.addEventListener('afterprint',afterPrint);window.print();}
  private calcAge(b:any):number|null{if(!b)return null;const d=new Date(b);if(isNaN(d.getTime()))return null;const n=new Date();let a=n.getFullYear()-d.getFullYear();if(n.getMonth()<d.getMonth()||(n.getMonth()===d.getMonth()&&n.getDate()<d.getDate()))a--;return a;}
- private formatDiagnosis(d?:string):string{if(!d)return'';return d.split(/[;；,，]/)[0].trim();}
+ private formatDiagnosis(d?:string):string{return firstDiagnosisSegment(d,'legacy');}
 }
