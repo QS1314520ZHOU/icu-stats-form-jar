@@ -99,6 +99,62 @@ function bedsideBeds(
   return bedsFromPids(pids, patients);
 }
 
+/**
+ * 体温≥38℃（展示标签不变）：取数口径为班次内体温 ≥37.5℃。
+ * 展示：1床(39.1℃—37.6℃)，前值为班次内 ≥37.5℃ 的最高体温，后值为班次内最新一次体温；
+ * 两者数值相同时只展示一次：1床(39.1℃)。
+ */
+function temperatureBeds(
+  snapshot: DepartmentDailySnapshot,
+  patients: Map<string, DepartmentPatient>,
+  range: ShiftRange,
+): string {
+  const THRESHOLD = 37.5;
+
+  interface TempReading {
+    value: number;
+    display: string;
+    time: number;
+  }
+
+  const readingsByPid = new Map<string, TempReading[]>();
+  for (const record of snapshot.bedsideRecords) {
+    if (record.valid === false) { continue; }
+    if (record.code !== 'param_T') { continue; }
+    if (!inRange(record.time, range)) { continue; }
+    const value = numberValue(record.strVal);
+    if (!Number.isFinite(value)) { continue; }
+    const list = readingsByPid.get(record.pid) ?? [];
+    list.push({ value, display: text(record.strVal), time: timestamp(record.time) });
+    readingsByPid.set(record.pid, list);
+  }
+
+  const entries: Array<{ bed: string; display: string }> = [];
+  for (const [pid, readings] of readingsByPid) {
+    const feverReadings = readings.filter(item => item.value >= THRESHOLD);
+    if (feverReadings.length === 0) { continue; }
+    const patient = patients.get(text(pid));
+    if (!patient) { continue; }
+    const bed = patientBed(patient);
+    if (!bed) { continue; }
+
+    const peak = feverReadings.reduce((max, item) => (item.value > max.value ? item : max));
+    const latest = readings.reduce((last, item) => (item.time >= last.time ? item : last));
+    const peakText = `${peak.display}℃`;
+    const latestText = `${latest.display}℃`;
+    entries.push({
+      bed,
+      display: `${bed}(${peak.value === latest.value ? peakText : `${peakText}—${latestText}`})`,
+    });
+  }
+
+  entries.sort((left, right) => {
+    const numberDiff = bedNumber(left.bed) - bedNumber(right.bed);
+    return numberDiff !== 0 ? numberDiff : left.bed.localeCompare(right.bed, 'zh-CN');
+  });
+  return entries.map(entry => entry.display).join('、');
+}
+
 function bloodSugarBeds(
   snapshot: DepartmentDailySnapshot,
   patients: Map<string, DepartmentPatient>,
@@ -358,10 +414,7 @@ function calculateAutoMetricValues(
 
   switch (key) {
     case 'temperatureAbove38':
-      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_T', value => {
-        const temperature = numberValue(value);
-        return Number.isFinite(temperature) && temperature >= 38;
-      }));
+      return buildValues(range => temperatureBeds(snapshot, patients, range));
     case 'hypoglycemia':
       return buildValues(range => bloodSugarBeds(snapshot, patients, range));
     case 'bladderIrrigation':
