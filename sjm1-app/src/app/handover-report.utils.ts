@@ -12,6 +12,7 @@ import {
   ShiftStatistics,
 } from './handover-report.models';
 import { buildSafetyMetrics } from './handover-report.metrics';
+import { firstDiagnosisSegment } from './diagnosis-history.util';
 
 const SHIFT_KEYS: ShiftKey[] = ['day', 'evening', 'night'];
 
@@ -70,7 +71,8 @@ function bedNumber(value: string): number {
 }
 
 function diagnosis(patient: DepartmentPatient): string {
-  return String(patient.clinicalDiagnosis || patient.diagnosis || '').trim();
+  // 只展示第一诊断，拆分规则与其它表单一致
+  return firstDiagnosisSegment(patient.clinicalDiagnosis || patient.diagnosis, 'new');
 }
 
 function formatChineseDateTime(value?: string): string {
