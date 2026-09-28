@@ -4,7 +4,7 @@
  */
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit } from '@angular/core';
-import { of, Subject } from 'rxjs';
+import { forkJoin, of, Subject } from 'rxjs';
 import { catchError, filter, finalize, map, retry, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
 import { formatShanghaiDate, formatShanghaiTime } from './form-date.util';
@@ -17,6 +17,8 @@ const SCORE_TYPE = 'bradenScore';
 const FORM_CODE = 'bradenForm';
 const API_EXTRA_LATEST = '/api/v1/icu/fall-danger-extra/latest';
 const API_EXTRA_SAVE = '/api/v1/icu/fall-danger-extra/save';
+/** 压力性损伤评估明细（skinCareInfo.pressureInjuryAssessList），用于填充「其他」列 */
+const API_SKIN_ASSESS = '/api/v1/icu/skin-care/pressure-injury';
 
 interface BradenOption { score: number; label: string; }
 interface BradenItem { field: 'feel'|'damp'|'activityAbility'|'moveAbility'|'nutritionAbility'|'frictionAndShear'; title: string; options: BradenOption[]; }
@@ -107,7 +109,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
               <th rowspan="6" class="date-col">日期　时间</th>
               <th colspan="7" class="group-head">压疮风险评估</th>
               <th rowspan="6" class="total-col">总分</th>
-              <th rowspan="6" class="risk-col">风险等级</th>
+              <th rowspan="6" class="risk-col">风险<br>等级</th>
               <th [attr.colspan]="MEASURE_COLUMNS.length" class="group-head">预防压疮护理措施</th>
               <th rowspan="6" class="other-col">其他</th>
               <th rowspan="6" class="sign-col">签名</th>
@@ -223,12 +225,13 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .score-cell{width:54px;min-width:54px;font-size:12px}
     .total-col{width:28px;min-width:28px}
     .risk-col{width:57px;min-width:57px}
-    .measure-head{width:42px;min-width:42px;height:92px}
-    .measure-cell{width:42px;min-width:42px;font-size:12px}
-    .other-col{width:105px;min-width:105px}
-    .other-cell{width:105px;min-width:105px;text-align:center;padding-left:2px}
+    .measure-head{width:22px;min-width:22px;height:92px}
+    .record-table th.measure-head{padding:1px 0}
+    .measure-cell{width:22px;min-width:22px;font-size:12px}
+    .other-col{width:305px;min-width:305px}
+    .other-cell{width:305px;min-width:305px;text-align:center;padding-left:2px}
     .sign-col{width:44px;min-width:44px}
-    .vtext{display:inline-block;writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:14px;letter-spacing:0;font-family:'SimSun','宋体',serif;font-size:12px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;margin:0 auto}
+    .vtext{display:inline-block;writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:10px;letter-spacing:0;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;margin:0 auto}
     .dt-date,.dt-time{display:block;white-space:nowrap;word-break:normal;text-align:center;line-height:1.2}
     .result-line{display:flex;flex-wrap:wrap;gap:70px;margin-top:6px;align-items:center;font-family:'SimSun','宋体',serif;font-size:12pt}
     .rl-item{display:inline-flex;align-items:center}
@@ -430,6 +433,21 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     return String(v);
   }
 
+  /** 时间值归一为毫秒时间戳，供「完全相等」匹配使用（兼容 ISODate / $date / 字符串 / 毫秒数） */
+  private instant(v: any): number {
+    const n = this.ts(this.normalizeTime(v));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  /** 清理评估描述里的多余标点，如「无红肿、；护理措施」→「无红肿；护理措施」 */
+  private cleanAssessText(text: string): string {
+    return String(text || '')
+      .replace(/[、，,]\s*[；;]/g, '；')
+      .replace(/[；;]{2,}/g, '；')
+      .replace(/[、，,]+$/, '')
+      .trim();
+  }
+
   private getBradenScoreDetail(score: any): any {
     if (!score || score.scoreType !== SCORE_TYPE) return null;
     let detail = score?.[score.scoreType] ?? score?.bradenScore ?? score?.score?.bradenScore ?? score?.data?.bradenScore ?? null;
@@ -465,13 +483,16 @@ export class BradenFormComponent implements OnInit, OnDestroy {
 
   private loadFromServer(pid: string) {
     this.loading = true;
-    return this.http.get<any>(this.API_SCORE, { params: { pid, scoreType: SCORE_TYPE } }).pipe(
-      retry(2),
-      tap(res => {
+    return forkJoin({
+      scores: this.http.get<any>(this.API_SCORE, { params: { pid, scoreType: SCORE_TYPE } }).pipe(retry(2)),
+      // 皮肤护理模块失败不影响 Braden 主表展示
+      assess: this.http.get<any[]>(API_SKIN_ASSESS, { params: { pid } }).pipe(catchError(() => of([] as any[]))),
+    }).pipe(
+      tap(({ scores, assess }) => {
         if (pid !== this.pid) return;
-        const list = this.extractScoreList(res);
+        const list = this.extractScoreList(scores);
         const validRows = list.filter(r => r && (r.valid === true || String(r.valid) === 'true') && r.scoreType === SCORE_TYPE);
-        this.buildRows(validRows);
+        this.buildRows(validRows, Array.isArray(assess) ? assess : []);
       }),
       catchError(err => {
         console.error('[bradenForm] score API failed', { pid, err });
@@ -484,16 +505,30 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     );
   }
 
-  private buildRows(records: ScoreRecord[]): void {
+  private buildRows(records: ScoreRecord[], assessList: any[]): void {
+    // recordTime 时刻 -> 清理后的评估描述；同一 recordTime 只取一次，避免重复同步
+    const assessByInstant = new Map<number, string>();
+    for (const item of assessList) {
+      const instant = this.instant(item?.recordTime);
+      const text = this.cleanAssessText(String(item?.skinMessage ?? ''));
+      if (!instant || !text || assessByInstant.has(instant)) continue;
+      assessByInstant.set(instant, text);
+    }
+    const syncedInstants = new Set<number>();
+
     const rows: BradenRow[] = records
       .map(score => {
         const detail = this.getBradenScoreDetail(score);
+        const instant = this.instant(score.time);
+        // 时间完全一致才算对应上的压力性损伤评估；没有对应数据就保持原有「其他」内容
+        const matched = instant && !syncedInstants.has(instant) ? assessByInstant.get(instant) : '';
+        if (matched) syncedInstants.add(instant);
         return {
           time: this.normalizeTime(score.time),
           bradenScore: this.normalizeBradenScore(detail),
           total: this.num(score.total),
           risk: String(score.conclusion || ''),
-          other: String(score.ohter ?? '').trim(),
+          other: (matched || String(score.ohter ?? '').trim()),
           nurseMeasureList: (score as any).nurseMeasureList || (score as any).measuresList || [],
           signUserId: score.inputUserId,
           signName: score.inputUser || '',
