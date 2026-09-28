@@ -11,11 +11,11 @@ import { DiagnosisHistoryService } from './diagnosis-history.service';
 type ComplianceMark = '' | '√' | '×';
 type MeasureCode =
   | 'EXTUBATION_ASSESSMENT' | 'CENTRAL_LINE_NECESSITY' | 'URINARY_CATHETER_NECESSITY'
-  | 'SEDATION_AWAKENING' | 'EARLY_REHABILITATION'
+  | 'SEDATION_AWAKENING' | 'EARLY_REHABILITATION' | 'HAND_HYGIENE'
   | 'HEAD_ELEVATION' | 'ORAL_CARE' | 'SUCTION_STANDARD' | 'SUBGLOTTIC_SUCTION'
   | 'DAILY_CUFF_PRESSURE'
   | 'CONDENSATE_MANAGEMENT' | 'VENTILATOR_CIRCUIT_REPLACEMENT'
-  | 'MAXIMAL_STERILE_BARRIER' | 'CHLORHEXIDINE_SKIN_ANTISEPSIS'
+  | 'MAXIMAL_STERILE_BARRIER' | 'CHLORHEXIDINE_SKIN_ANTISEPSIS' | 'PREFERRED_SUBCLAVIAN_VEIN_PUNCTURE'
   | 'STERILE_DRESSING' | 'CONNECTOR_DISINFECTION'
   | 'STERILE_CATHETERIZATION' | 'URINE_BAG_POSITION' | 'URINE_BAG_TWO_THIRDS'
   | 'CLOSED_ANTI_REFLUX_DRAINAGE' | 'MEATAL_CARE';
@@ -50,6 +50,7 @@ const NECESSITY_GROUP: MeasureGroup = {
     { code: 'URINARY_CATHETER_NECESSITY', label: '导尿管留置必要性评估' },
     { code: 'SEDATION_AWAKENING', label: '镇静唤醒' },
     { code: 'EARLY_REHABILITATION', label: '早期康复' },
+    { code: 'HAND_HYGIENE', label: '手卫生' },
   ],
 };
 const VAP_GROUP: MeasureGroup = {
@@ -69,6 +70,7 @@ const CRBSI_GROUP: MeasureGroup = {
   items: [
     { code: 'MAXIMAL_STERILE_BARRIER', label: '无菌操作、最大化无菌屏障' },
     { code: 'CHLORHEXIDINE_SKIN_ANTISEPSIS', label: '氯已定皮肤消毒' },
+    { code: 'PREFERRED_SUBCLAVIAN_VEIN_PUNCTURE', label: '首选锁骨下静脉穿刺' },
     { code: 'STERILE_DRESSING', label: '无菌敷料覆盖、更换' },
     { code: 'CONNECTOR_DISINFECTION', label: '无菌接头更换，导管连接端口消毒时间不少于15s' },
   ],
@@ -100,6 +102,10 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
   readonly vapGroup = VAP_GROUP;
   readonly crbsiGroup = CRBSI_GROUP;
   readonly cautiGroup = CAUTI_GROUP;
+  /** 表格总列数：日期 + 各组措施 + 医生/护士/督查者签名 */
+  get totalColumns(): number {
+    return 4 + this.groups.reduce((sum, group) => sum + group.items.length, 0);
+  }
 
   patient: any = null;
   account: any = null;
@@ -365,7 +371,7 @@ export class SggrfkcsFormComponent implements OnInit, OnDestroy {
       .sheet{position:relative;width:297mm;height:210mm;margin:0;padding:5mm 6mm 8mm;overflow:hidden;background:#fff;box-shadow:none}
       h1{margin:0 0 2mm;text-align:center;font-family:SimHei,'Microsoft YaHei',sans-serif;font-size:18pt;line-height:1.15}
       .patient-info{display:grid;grid-template-columns:1.1fr .9fr .8fr 1fr .65fr .65fr 2.5fr;gap:2mm;margin-bottom:2mm;font-family:'SimSun','宋体',serif;font-size:10pt;line-height:1.2;white-space:nowrap}.patient-info span{min-width:0;overflow:hidden;text-overflow:ellipsis}
-      .control-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:8.5pt;line-height:1.18}.control-table col.col-date{width:7.3%}.control-table col.col-measure{width:3.8%}.control-table col.col-signature{width:4.3%}
+      .control-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:8.5pt;line-height:1.18}.control-table col.col-date{width:7.3%}.control-table col.col-measure{width:3.47%}.control-table col.col-signature{width:4.3%}
       .control-table th,.control-table td{border:.25mm solid #000;padding:.7mm .45mm;text-align:center;vertical-align:middle;color:#000;background:#fff}.control-table thead .group-head th{height:8mm;font-size:9.5pt;font-weight:400}.control-table thead .item-head th{height:55mm;padding:1mm .45mm;font-weight:400;word-wrap:break-word;overflow-wrap:break-word;word-break:normal;line-height:1.1}.control-table tbody tr{height:8mm}.control-table td.date-cell{white-space:nowrap;line-height:1.3}.control-table td.mark-cell{font-family:Arial,'SimSun',serif;font-size:11pt;font-weight:700}.control-table td.signature-cell{font-size:8pt;word-break:break-all}.control-table tfoot td{height:7mm;padding:1mm 2mm;text-align:left;font-size:9pt}
       .sheet-pageno{position:absolute;right:0;bottom:3mm;left:0;text-align:center;font-family:'SimSun','宋体',serif;font-size:9pt}.no-print{display:none!important}`;
     const win = window.open('', '_blank', 'width=1200,height=800');
