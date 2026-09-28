@@ -12,7 +12,7 @@ import {
   ShiftStatistics,
 } from './handover-report.models';
 import { buildSafetyMetrics } from './handover-report.metrics';
-import { firstDiagnosisSegment } from './diagnosis-history.util';
+import { firstDiagnosisSegment, resolveNursingDayDiagnosis } from './diagnosis-history.util';
 
 const SHIFT_KEYS: ShiftKey[] = ['day', 'evening', 'night'];
 
@@ -70,9 +70,11 @@ function bedNumber(value: string): number {
   return match ? Number(match[0]) : Number.MAX_SAFE_INTEGER;
 }
 
-function diagnosis(patient: DepartmentPatient): string {
-  // 只展示第一诊断，拆分规则与其它表单一致
-  return firstDiagnosisSegment(patient.clinicalDiagnosis || patient.diagnosis, 'new');
+function diagnosis(patient: DepartmentPatient, selectedDate: Date): string {
+  // 与护理记录单一致：按所选日期匹配诊断历史（整日共用），再取第一诊断；
+  // 旧逻辑患者透传 legacy 拆分结果
+  const legacyText = firstDiagnosisSegment(patient.clinicalDiagnosis || patient.diagnosis, 'legacy');
+  return resolveNursingDayDiagnosis(patient, selectedDate, legacyText);
 }
 
 function formatChineseDateTime(value?: string): string {
@@ -123,6 +125,7 @@ function createRow(
   eventTime: number,
   bedsideRecords: BedsideRecord[],
   ranges: Record<ShiftKey, ShiftRange>,
+  selectedDate: Date,
 ): HandoverPatientRow {
   const id = patientId(patient);
   const editable = ['转入', '入院', '病危', '手术'].includes(status);
@@ -139,7 +142,7 @@ function createRow(
     bedNo: bedNo(patient),
     name: patient.name || '',
     mrn: patient.mrn || '',
-    diagnosis: diagnosis(patient),
+    diagnosis: diagnosis(patient, selectedDate),
     status,
     eventTime,
     eventShift,
@@ -155,34 +158,34 @@ function emptyStatistics(): ShiftStatistics {
   return { total: 0, discharged: 0, transferredOut: 0, death: 0, transferredIn: 0, admission: 0, operation: 0, critical: 0, specialCare: 0 };
 }
 
-function buildPatientRows(snapshot: DepartmentDailySnapshot, ranges: Record<ShiftKey, ShiftRange>): HandoverPatientRow[] {
+function buildPatientRows(snapshot: DepartmentDailySnapshot, ranges: Record<ShiftKey, ShiftRange>, selectedDate: Date): HandoverPatientRow[] {
   const rows: HandoverPatientRow[] = [];
 
   for (const patient of snapshot.patients) {
     const outStatus = dischargeStatus(patient.dischargedType);
     const outShift = resolveShift(patient.icuDischargeTime, ranges);
     if (outStatus && outShift) {
-      rows.push(createRow(patient, outStatus, outShift, timeValue(patient.icuDischargeTime), snapshot.bedsideRecords, ranges));
+      rows.push(createRow(patient, outStatus, outShift, timeValue(patient.icuDischargeTime), snapshot.bedsideRecords, ranges, selectedDate));
     }
 
     const inStatus = admissionStatus(patient.admissionType);
     const inShift = resolveShift(patient.icuAdmissionTime, ranges);
     if (inStatus && inShift) {
-      rows.push(createRow(patient, inStatus, inShift, timeValue(patient.icuAdmissionTime), snapshot.bedsideRecords, ranges));
+      rows.push(createRow(patient, inStatus, inShift, timeValue(patient.icuAdmissionTime), snapshot.bedsideRecords, ranges, selectedDate));
     }
 
     for (const op of patient.patientOperations || []) {
       if (op.valid === false || !op.endTime) continue;
       const opShift = resolveShift(op.endTime, ranges);
       if (!opShift) continue;
-      rows.push(createRow(patient, '手术', opShift, timeValue(op.endTime), snapshot.bedsideRecords, ranges));
+      rows.push(createRow(patient, '手术', opShift, timeValue(op.endTime), snapshot.bedsideRecords, ranges, selectedDate));
     }
   }
 
   for (const selection of snapshot.draft.criticalPatients || []) {
     const patient = snapshot.patients.find(p => patientId(p) === selection.patientId);
     if (!patient) continue;
-    const row = createRow(patient, '病危', 'night', ranges.night.settlementTime.getTime(), snapshot.bedsideRecords, ranges);
+    const row = createRow(patient, '病危', 'night', ranges.night.settlementTime.getTime(), snapshot.bedsideRecords, ranges, selectedDate);
     row.editableShifts = ['night', 'day', 'evening'];
     row.shiftTexts = {};
     rows.push(row);
@@ -229,7 +232,7 @@ function buildStatistics(snapshot: DepartmentDailySnapshot, ranges: Record<Shift
 
 export function buildHandoverReport(snapshot: DepartmentDailySnapshot, selectedDate: Date): HandoverReportViewModel {
   const ranges = buildShiftRanges(selectedDate);
-  const rows = buildPatientRows(snapshot, ranges);
+  const rows = buildPatientRows(snapshot, ranges, selectedDate);
   const statistics = buildStatistics(snapshot, ranges, rows);
   const metrics = buildSafetyMetrics(snapshot, ranges);
   return { ranges, rows, statistics, metrics };

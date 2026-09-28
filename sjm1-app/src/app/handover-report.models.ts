@@ -39,6 +39,15 @@ export interface DepartmentPatient {
   bedNo?: string;
   clinicalDiagnosis?: string;
   diagnosis?: string;
+  admissionDiagnosis?: string;
+
+  /** 诊断历史（后端 patient 文档原样返回），供按日期匹配诊断 */
+  diagnosisHistoryList?: Array<{
+    time?: string;
+    editor?: string;
+    diagnosis?: string;
+    diagnosisCodeList?: string[];
+  }>;
   icuAdmissionTime?: string;
   icuDischargeTime?: string;
   admissionType?: string;
