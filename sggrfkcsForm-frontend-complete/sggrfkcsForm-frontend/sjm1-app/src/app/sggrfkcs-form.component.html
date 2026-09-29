@@ -40,7 +40,7 @@
       <td class="mark-cell" *ngFor="let item of cautiGroup.items">{{mark(record,item.code)}}</td>
       <td class="signature-cell">{{record?.nurseName||''}}</td><td class="signature-cell">{{record?.inspectorName||''}}</td>
     </tr></tbody>
-    <tfoot><tr><td colspan="25">备注：导管留置必要性评估√表示可拔管，×表示需继续留置。</td></tr></tfoot>
+    <!-- <tfoot><tr><td colspan="25">备注：导管留置必要性评估√表示可拔管，×表示需继续留置。</td></tr></tfoot> -->
   </table><div class="sheet-pageno">第 {{page.index}} 页</div>
 </section>
 
@@ -69,6 +69,6 @@
   </div></div><div class="measure-grid"><div class="measure-item" *ngFor="let item of group.items"><span class="measure-label">{{item.label}}</span><div class="mark-switch">
     <button type="button" class="positive" [class.active]="form.measures[item.code]==='√'" (click)="setMark(item.code,'√')">√</button><button type="button" class="negative" [class.active]="form.measures[item.code]==='×'" (click)="setMark(item.code,'×')">×</button><button type="button" class="clear" [class.active]="!form.measures[item.code]" (click)="setMark(item.code,'')">空</button>
   </div></div></div></section>
-  <div class="form-note"><b>填写规则：</b>导管留置必要性评估中，√表示可拔管，×表示需继续留置；其余防控措施按实际执行结果填写。</div><div class="error-panel" *ngIf="errorText">{{errorText}}</div></div>
+  <!-- <div class="form-note"><b>填写规则：</b>导管留置必要性评估中，√表示可拔管，×表示需继续留置；其余防控措施按实际执行结果填写。</div><div class="error-panel" *ngIf="errorText">{{errorText}}</div></div> -->
   <div class="dialog-foot"><button class="dialog-btn cancel-btn" type="button" (click)="formOpen=false" [disabled]="saving">取消</button><button class="dialog-btn save-btn" type="button" (click)="save()" [disabled]="saving">{{saving?'保存中…':'保存'}}</button></div>
 </section></div>

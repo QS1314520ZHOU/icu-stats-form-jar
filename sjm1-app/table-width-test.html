@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>table width test</title>
+<style>
+  body{margin:0;background:#f0f2f5;font-family:'SimSun','宋体',serif}
+  .sheet{box-sizing:border-box;width:297mm;min-height:210mm;margin:16px auto;padding:8mm 10mm;background:#fff;position:relative;color:#000}
+  @media screen{.sheet{width:calc(100vw - 32px);max-width:297mm;min-width:980px}}
+  .record-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:'SimSun','宋体',serif;font-size:12px;color:#000}
+  .record-table th,.record-table td{box-sizing:border-box;border:1px solid #000;text-align:center;vertical-align:middle;padding:1px 2px;overflow:hidden;font-family:'SimSun','宋体',serif;font-size:12px;max-height:35px}
+  .record-table th{height:18px!important;line-height:1.15}
+  .record-table td{line-height:1.15}
+  .group-head{height:18px;font-weight:400}
+  .date-col{width:74px;min-width:74px;white-space:nowrap}
+  .score-index-col{width:24px;min-width:24px}
+  .braden-title-col{width:54px;min-width:54px;font-weight:400}
+  .braden-desc-col{width:54px;min-width:54px;height:18px;line-height:1.1;white-space:normal}
+  .score-cell{width:54px;min-width:54px}
+  .total-col{width:28px;min-width:28px}
+  .risk-col{width:57px;min-width:57px}
+  .measure-head{width:22px;min-width:22px;height:92px}
+  .record-table th.measure-head{padding:1px 0}
+  .measure-cell{width:22px;min-width:22px}
+  .other-col{width:305px;min-width:305px}
+  .other-cell{width:305px;min-width:305px;text-align:center;padding-left:2px}
+  .sign-col{width:44px;min-width:44px}
+  .vtext{display:inline-block;writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:10px;font-size:10px;margin:0 auto}
+  .dt-date,.dt-time{display:block;white-space:nowrap;text-align:center;line-height:1.2}
+
+  /* ===== 新增测试：摩擦力/剪切力独立列宽参数 + 风险等级 46px ===== */
+  .friction-col{width:46px;min-width:46px}
+  .risk-col-46{width:46px;min-width:46px}
+</style>
+</head>
+<body>
+<div class="sheet">
+<table class="record-table" id="t">
+  <colgroup>
+    <col span="7" />
+    <col class="friction-col" />
+    <col span="14" />
+  </colgroup>
+  <thead>
+    <tr>
+      <th rowspan="6" class="date-col">日期　时间</th>
+      <th colspan="7" class="group-head">压疮风险评估</th>
+      <th rowspan="6" class="total-col">总分</th>
+      <th rowspan="6" class="risk-col risk-col-46">风险<br>等级</th>
+      <th colspan="10" class="group-head">预防压疮护理措施</th>
+      <th rowspan="6" class="other-col">其他</th>
+      <th rowspan="6" class="sign-col">签名</th>
+    </tr>
+    <tr>
+      <th class="score-index-col">分值</th>
+      <th class="braden-title-col">感知<br>能力</th>
+      <th class="braden-title-col">潮湿<br>度</th>
+      <th class="braden-title-col">活动<br>能力</th>
+      <th class="braden-title-col">移动<br>能力</th>
+      <th class="braden-title-col">营养<br>摄取</th>
+      <th class="braden-title-col" id="friction-head">摩擦力<br>/剪切力</th>
+      <th rowspan="5" class="measure-head"><span class="vtext">定时翻身</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">床单元整洁干燥</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">使用气垫床或水垫</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">使用敷料</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">营养支持</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">避免拖、拉、推，防剪切力</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">健康教育</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">两便失禁护理</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">避免医疗器械相关性压疮因素</span></th>
+      <th rowspan="5" class="measure-head"><span class="vtext">换药</span></th>
+    </tr>
+    <tr><th class="score-index-col">1</th><th class="braden-desc-col">完全<br>受限</th><th class="braden-desc-col">持续<br>潮湿</th><th class="braden-desc-col">卧床<br>不起</th><th class="braden-desc-col">完全<br>受限</th><th class="braden-desc-col">非常<br>差</th><th class="braden-desc-col">存在<br>问题</th></tr>
+    <tr><th class="score-index-col">2</th><th class="braden-desc-col">非常<br>受限</th><th class="braden-desc-col">非常<br>潮湿</th><th class="braden-desc-col">能坐<br>轮椅</th><th class="braden-desc-col">重度<br>受限</th><th class="braden-desc-col">可能<br>不足</th><th class="braden-desc-col">潜在<br>问题</th></tr>
+    <tr><th class="score-index-col">3</th><th class="braden-desc-col">轻微<br>受限</th><th class="braden-desc-col">偶尔<br>潮湿</th><th class="braden-desc-col">扶助<br>行走</th><th class="braden-desc-col">轻度<br>受限</th><th class="braden-desc-col">充足</th><th class="braden-desc-col">不存在<br>问题</th></tr>
+    <tr><th class="score-index-col">4</th><th class="braden-desc-col">无损<br>害</th><th class="braden-desc-col">罕见<br>潮湿</th><th class="braden-desc-col">活动<br>自如</th><th class="braden-desc-col">不受<br>限</th><th class="braden-desc-col">良好</th><th class="braden-desc-col">不存在<br>问题</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="date-col"><span class="dt-date">2026-09-28</span><span class="dt-time">14:40</span></td>
+      <td class="score-index-col"></td>
+      <td class="score-cell">2</td><td class="score-cell">3</td><td class="score-cell">3</td><td class="score-cell">3</td><td class="score-cell">3</td><td class="score-cell">2</td>
+      <td class="total-col">16</td>
+      <td class="risk-col risk-col-46">极高度<br>危险</td>
+      <td class="measure-cell">√</td><td class="measure-cell">√</td><td class="measure-cell"></td><td class="measure-cell">√</td><td class="measure-cell"></td><td class="measure-cell">√</td><td class="measure-cell">√</td><td class="measure-cell"></td><td class="measure-cell">√</td><td class="measure-cell"></td>
+      <td class="other-cell">无红肿；护理措施</td>
+      <td class="sign-col">张三</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+<div id="textprobe"></div>
+<script>
+window.addEventListener('load', function () {
+  var row = document.querySelector('#t tbody tr');
+  var cells = Array.prototype.slice.call(row.querySelectorAll('td'));
+  var names = ['date','scoreIdx','feel','damp','activity','move','nutrition','FRICTION','total','risk','m1','m2','m3','m4','m5','m6','m7','m8','m9','m10','other','sign'];
+  var parts = cells.map(function (c, i) { return (names[i] || i) + '=' + c.getBoundingClientRect().width.toFixed(1); });
+  var fh = document.getElementById('friction-head');
+  // 表头文字实际排版行数：用 Range 测 client rects
+  function lineCount(el) {
+    var r = document.createRange();
+    r.selectNodeContents(el);
+    return r.getClientRects().length;
+  }
+  var out = 'COLGROUP | table=' + document.getElementById('t').getBoundingClientRect().width.toFixed(1)
+    + ' | frictionHeadW=' + fh.getBoundingClientRect().width.toFixed(1)
+    + ' | frictionHeadLines=' + lineCount(fh)
+    + ' | ' + parts.join(' ');
+  var pre = document.createElement('pre');
+  pre.id = 'measure-colgroup';
+  pre.textContent = out;
+  document.body.appendChild(pre);
+
+  // 文字宽度探针：验证 46px 内容宽能否放下「摩擦力」「/剪切力」「极高度」
+  var probe = document.getElementById('textprobe');
+  ['摩擦力', '/剪切力', '极高度', '危险', '轻度危险', '高度危险'].forEach(function (t) {
+    var s = document.createElement('span');
+    s.style.cssText = 'font-family:SimSun,宋体,serif;font-size:12px;white-space:nowrap;position:absolute;visibility:hidden';
+    s.textContent = t;
+    probe.appendChild(s);
+  });
+  var widths = Array.prototype.slice.call(probe.querySelectorAll('span')).map(function (s, i) {
+    return ['摩擦力','/剪切力','极高度','危险','轻度危险','高度危险'][i] + '=' + s.getBoundingClientRect().width.toFixed(1);
+  });
+  var pre2 = document.createElement('pre');
+  pre2.id = 'measure-text';
+  pre2.textContent = 'TEXT | ' + widths.join(' ') + ' | 46px列内容宽=42.0px';
+  document.body.appendChild(pre2);
+});
+</script>
+</body>
+</html>

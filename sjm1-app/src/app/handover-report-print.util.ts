@@ -312,11 +312,23 @@ function createPrintStyles(): void {
     }
 
     /* 分类单元格 - 黑色文字 */
-    .print-category-cell {
+    .print-table td.print-category-cell {
       text-align: center;
       vertical-align: middle;
       font-weight: 600;
       color: #111;
+      border-bottom: 0;
+    }
+
+    /*
+     * 分类列每行使用独立单元格（不使用 rowspan，保证分页时行可独立断开）。
+     * 通过去掉分类块内部横线来保持合并单元格的外观：
+     * - 首行单元格（print-category-cell）：底边为 0，顶边保留（与表头/上一分类分隔）；
+     * - 续行单元格（print-category-cont）：顶边、底边均为 0；
+     * - 边框合并规则取相邻两边较宽者，因此内部边线消失、分类间分隔线保留。
+     */
+    .print-table td.print-category-cont {
+      border-top: 0;
     }
 
     /* 分类标签 - 黑色文字 */
@@ -823,25 +835,13 @@ function renderSafetyTable(
   const tbody = document.createElement('tbody');
   const shifts: ShiftKey[] = ['day', 'evening', 'night'];
 
-  // 计算每个分类的行跨度（rowspan）
-  const categoryRowSpans = new Map<string, number>();
-  const categoryStartIndices = new Map<string, number>();
+  // 分类列每行渲染独立单元格，不使用 rowspan：
+  // rowspan 分组在打印分页时会被浏览器作为不可拆分的整体处理，
+  // 放不下第一页剩余空间时整组被推到下一页，导致第一页只剩标题和第一行、大片空白。
+  // 仅分类首行显示分类名，其余行留空并由 CSS 隐藏分类块内部横线，保持合并外观。
+  const seenCategories = new Set<string>();
 
-  // 预处理：统计每个分类的行数
-  metrics.forEach((metric, index) => {
-    if (metric.category) {
-      if (!categoryRowSpans.has(metric.category)) {
-        categoryRowSpans.set(metric.category, 0);
-        categoryStartIndices.set(metric.category, index);
-      }
-      categoryRowSpans.set(metric.category, categoryRowSpans.get(metric.category)! + 1);
-    }
-  });
-
-  // 渲染行
-  const processedCategories = new Set<string>();
-
-  metrics.forEach((metric, index) => {
+  metrics.forEach(metric => {
     const tr = document.createElement('tr');
 
     if (!metric.category) {
@@ -851,16 +851,16 @@ function renderSafetyTable(
       th.textContent = metric.label;
       tr.appendChild(th);
     } else {
-      // 分类项目：仅在分类首次出现时渲染分类单元格
-      if (!processedCategories.has(metric.category)) {
-        const categoryTd = document.createElement('td');
-        categoryTd.className = 'print-category-cell';
+      // 分类项目：每行都有分类单元格，首行显示分类名
+      const categoryTd = document.createElement('td');
+      categoryTd.className = 'print-category-cell';
+      if (seenCategories.has(metric.category)) {
+        categoryTd.classList.add('print-category-cont');
+      } else {
         categoryTd.textContent = metric.category;
-        const rowspan = categoryRowSpans.get(metric.category) || 1;
-        categoryTd.rowSpan = rowspan;
-        tr.appendChild(categoryTd);
-        processedCategories.add(metric.category);
+        seenCategories.add(metric.category);
       }
+      tr.appendChild(categoryTd);
 
       const labelTh = document.createElement('th');
       labelTh.className = 'print-metric-label';
