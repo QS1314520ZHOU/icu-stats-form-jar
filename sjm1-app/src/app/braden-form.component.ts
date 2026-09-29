@@ -15,6 +15,8 @@ import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 const SCORE_TYPE = 'bradenScore';
 const FORM_CODE = 'bradenForm';
+/** 行时间与压力性损伤评估 recordTime 相差不超过该值视为同一次评估（取最接近的一对一配对） */
+const ASSESS_MATCH_WINDOW_MS = 5 * 60 * 1000;
 const API_EXTRA_LATEST = '/api/v1/icu/fall-danger-extra/latest';
 const API_EXTRA_SAVE = '/api/v1/icu/fall-danger-extra/save';
 /** 压力性损伤评估明细（skinCareInfo.pressureInjuryAssessList），用于填充「其他」列 */
@@ -104,6 +106,15 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
         </div>
 
         <table class="record-table">
+          <!-- table-layout:fixed 下只有首行单元格与 colgroup 的宽度生效，
+               摩擦力/剪切力（压疮风险评估最后一列）与风险等级列需在此固定为 46px -->
+          <colgroup>
+            <col [attr.span]="BRADEN_ITEMS.length + 1" />
+            <col class="friction-col" />
+            <col class="total-col" />
+            <col class="risk-col" />
+            <col [attr.span]="MEASURE_COLUMNS.length + 2" />
+          </colgroup>
           <thead>
             <tr>
               <th rowspan="6" class="date-col">日期　时间</th>
@@ -116,19 +127,19 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
             </tr>
             <tr>
               <th class="score-index-col">分值</th>
-              <th *ngFor="let item of BRADEN_ITEMS" class="braden-title-col">{{item.title}}</th>
+              <th *ngFor="let item of BRADEN_ITEMS" class="braden-title-col" [class.friction-col]="$last">{{item.title}}</th>
               <ng-container *ngFor="let m of MEASURE_COLUMNS"><th rowspan="5" class="measure-head"><span class="vtext">{{m.title}}</span></th></ng-container>
             </tr>
             <tr *ngFor="let score of [1, 2, 3, 4]">
               <th class="score-index-col">{{score}}</th>
-              <th *ngFor="let item of BRADEN_ITEMS" class="braden-desc-col">{{optionLabel(item, score)}}</th>
+              <th *ngFor="let item of BRADEN_ITEMS" class="braden-desc-col" [class.friction-col]="$last">{{optionLabel(item, score)}}</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of pagePaddedRows(page)" [style.height.px]="currentRowHeight">
+            <tr *ngFor="let r of pagePaddedRows(page)" [attr.data-row-key]="r ? r.time : ''" [style.height.px]="currentRowHeight">
               <td class="date-col"><span class="dt-date">{{r ? fmtDate(r.time) : ''}}</span><span class="dt-time">{{r ? fmtTime(r.time) : ''}}</span></td>
               <td class="score-index-col"></td>
-              <td *ngFor="let item of BRADEN_ITEMS" class="score-cell">{{r ? bradenValue(r, item.field) : ''}}</td>
+              <td *ngFor="let item of BRADEN_ITEMS" class="score-cell" [class.friction-col]="$last">{{r ? bradenValue(r, item.field) : ''}}</td>
               <td class="total-col">{{r && r.total !== null ? r.total : ''}}</td>
               <td class="risk-col">{{r ? r.risk : ''}}</td>
               <ng-container *ngFor="let m of MEASURE_COLUMNS"><td class="measure-cell">{{r ? measureCheck(r, m) : ''}}</td></ng-container>
@@ -223,8 +234,10 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .braden-title-col{width:54px;min-width:54px;font-weight:400}
     .braden-desc-col{width:54px;min-width:54px;height:18px;line-height:1.1;font-size:12px;white-space:normal}
     .score-cell{width:54px;min-width:54px;font-size:12px}
+    .friction-col{width:46px;min-width:46px}
+    .record-table .friction-col{padding-left:0;padding-right:0}
     .total-col{width:28px;min-width:28px}
-    .risk-col{width:57px;min-width:57px}
+    .risk-col{width:46px;min-width:46px;word-break:break-word}
     .measure-head{width:22px;min-width:22px;height:92px}
     .record-table th.measure-head{padding:1px 0}
     .measure-cell{width:22px;min-width:22px;font-size:12px}
@@ -283,14 +296,20 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   readonly MEASURE_COLUMNS = MEASURE_COLUMNS;
   readonly FOOT_NOTES = FOOT_NOTES;
 
-  /** 单页模式最大行数；也是末页补白下限与行高基准（方案B：取消压缩） */
+  /** 单页最大槽位数（也是末页补白下限）：行高正常时的旧行数语义 */
   readonly maxRowsPerPage = 8;
-  /** 多页模式每页容量（中间页与末页数据上限一致，末页可少于 11 但不截断） */
+  /** 每页数据行数上限（中间页满槽 11；末页可少于 11 但不截断） */
   readonly maxRowsPerPageMultiPage = 11;
   /** 末页空白补白目标行数（数据 <8 时补齐） */
   readonly maxRowsLastPage = 8;
+  /** 最小行高（数据行内容超高时按实际高度撑开） */
   readonly baseRowHeight = 35;
   currentRowHeight = 35;
+
+  /** 每行实测高度（key=行 time，px）；未测量到的行按 baseRowHeight */
+  private rowHeights = new Map<string, number>();
+  /** 每页留给数据行的总高度（px）；未测量时为 Infinity，退化为纯行数分页 */
+  private availableRowsPx = Number.POSITIVE_INFINITY;
 
   loading = true;
   patient: any = null;
@@ -433,19 +452,53 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     return String(v);
   }
 
-  /** 时间值归一为毫秒时间戳，供「完全相等」匹配使用（兼容 ISODate / $date / 字符串 / 毫秒数） */
+  /** 时间值归一为毫秒时间戳（绝对时刻），供匹配与排序使用。兼容：
+   *  - "Mon Sep 28 09:00:00 CST 2026"：Java Date.toString()，CST=中国标准时间 UTC+8，须手工解析
+   *    （浏览器会把 CST 当美国中部时间 UTC-6，偏 14 小时，导致与评估时间永远匹配不上）
+   *  - "2026-09-28 09:00:27[.SSS]"：后端 JacksonConfig 以 GMT+8 输出的无时区串，按 UTC+8 解析
+   *  - ISO 带 Z/±HH:mm、毫秒数、Date、$date：原样解析 */
   private instant(v: any): number {
-    const n = this.ts(this.normalizeTime(v));
-    return Number.isFinite(n) && n > 0 ? n : 0;
+    if (v === null || v === undefined) return 0;
+    if (v instanceof Date) return Number.isNaN(v.getTime()) ? 0 : v.getTime();
+    if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? v : 0;
+    if (typeof v === 'object') {
+      if ((v as any).$date) return this.instant((v as any).$date);
+      return this.instant(this.normalizeTime(v));
+    }
+    const raw = String(v).trim();
+    if (!raw) return 0;
+    if (/^\d{13,}$/.test(raw)) return Number(raw);
+    // Java Date.toString()：CST 按 UTC+8 解析
+    const legacy = raw.match(/^[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+[A-Za-z]{2,5}\s+(\d{4})$/);
+    if (legacy) {
+      const months: Record<string, number> = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+      const mi = months[legacy[1]];
+      if (mi === undefined) return 0;
+      return Date.UTC(Number(legacy[6]), mi, Number(legacy[2]), Number(legacy[3]) - 8, Number(legacy[4]), Number(legacy[5]));
+    }
+    // 无时区 yyyy-MM-dd HH:mm:ss：按 GMT+8 解析
+    const wall = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/);
+    if (wall) {
+      return Date.UTC(Number(wall[1]), Number(wall[2]) - 1, Number(wall[3]), Number(wall[4]) - 8, Number(wall[5]), Number(wall[6] || 0));
+    }
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
   }
 
   /** 清理评估描述里的多余标点，如「无红肿、；护理措施」→「无红肿；护理措施」 */
   private cleanAssessText(text: string): string {
-    return String(text || '')
+    const cleaned = String(text || '')
       .replace(/[、，,]\s*[；;]/g, '；')
       .replace(/[；;]{2,}/g, '；')
       .replace(/[、，,]+$/, '')
       .trim();
+    if (!cleaned) return cleaned;
+    // 「分期」前统一用「；」分隔：已有其他标点（，,；;：:）则替换，没有标点则补一个
+    // 例：「深:2cm分期:2期」「深:2cm，分期:2期」→「深:2cm；分期:2期」
+    const staged = cleaned.replace(/([、，,；;：:])?\s*分期/g, (_m, p, offset) => (p || offset > 0 ? '；' : '') + '分期');
+    // 末尾标点统一为「。」（本来就没有标点则补一个）
+    if (staged.endsWith('。')) return staged;
+    return /[、，,；;：:]$/.test(staged) ? staged.replace(/[、，,；;：:]$/, '。') : `${staged}。`;
   }
 
   private getBradenScoreDetail(score: any): any {
@@ -506,23 +559,37 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private buildRows(records: ScoreRecord[], assessList: any[]): void {
-    // recordTime 时刻 -> 清理后的评估描述；同一 recordTime 只取一次，避免重复同步
-    const assessByInstant = new Map<number, string>();
+    // 候选评估条目池：同一 recordTime 只取一次，按时刻升序；每条最多被一行占用
+    const pool: { ms: number; text: string }[] = [];
+    const seen = new Set<number>();
     for (const item of assessList) {
-      const instant = this.instant(item?.recordTime);
+      const ms = this.instant(item?.recordTime);
       const text = this.cleanAssessText(String(item?.skinMessage ?? ''));
-      if (!instant || !text || assessByInstant.has(instant)) continue;
-      assessByInstant.set(instant, text);
+      if (!ms || !text || seen.has(ms)) continue;
+      seen.add(ms);
+      pool.push({ ms, text });
     }
-    const syncedInstants = new Set<number>();
+    pool.sort((a, b) => a.ms - b.ms);
 
     const rows: BradenRow[] = records
       .map(score => {
         const detail = this.getBradenScoreDetail(score);
-        const instant = this.instant(score.time);
-        // 时间完全一致才算对应上的压力性损伤评估；没有对应数据就保持原有「其他」内容
-        const matched = instant && !syncedInstants.has(instant) ? assessByInstant.get(instant) : '';
-        if (matched) syncedInstants.add(instant);
+        const ms = this.instant(score.time);
+        // 与行时间相差不超过 ASSESS_MATCH_WINDOW_MS 的评估视为同一次评估，
+        // 取时刻最接近且未被占用的一条（一对一）；没有对应数据就保持原有「其他」内容
+        let matched = '';
+        if (ms && pool.length) {
+          let bestIdx = -1;
+          let bestDiff = Number.POSITIVE_INFINITY;
+          for (let i = 0; i < pool.length; i++) {
+            const diff = Math.abs(pool[i].ms - ms);
+            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+          }
+          if (bestIdx >= 0 && bestDiff <= ASSESS_MATCH_WINDOW_MS) {
+            matched = pool[bestIdx].text;
+            pool.splice(bestIdx, 1);
+          }
+        }
         return {
           time: this.normalizeTime(score.time),
           bradenScore: this.normalizeBradenScore(detail),
@@ -704,21 +771,16 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     return list.some(m => m && m.value === true && measure.match.some(kw => String(m.code || '').trim().includes(kw))) ? '√' : '';
   }
   pagePaddedRows(page: RenderPage): (BradenRow | null)[] {
-    if (this.pages.length <= 1) {
-      // 仅一页：数据可 0~11 条（9~11 条也会走多页算法但只产出 1 页）；不足 8 行补空白
-      const r: (BradenRow | null)[] = page.rows.slice(0, this.maxRowsPerPageMultiPage);
-      while (r.length < this.maxRowsPerPage) r.push(null);
-      return r;
-    }
-    if (page.index === this.pages.length) {
-      // 末页：有几条画几条（可 9~11），不足 8 行再补空白
-      const r: (BradenRow | null)[] = page.rows.slice();
-      while (r.length < this.maxRowsLastPage) r.push(null);
-      return r;
-    }
-    // 中间页：固定 11 槽位，不足补空白
     const r: (BradenRow | null)[] = page.rows.slice(0, this.maxRowsPerPageMultiPage);
-    while (r.length < this.maxRowsPerPageMultiPage) r.push(null);
+    // 槽位目标：中间页满槽 11、末页/单页至少 8（旧行数语义），行高变高时按剩余高度自动收窄
+    const isLast = page.index === this.pages.length;
+    const minSlots = isLast ? this.maxRowsLastPage : this.maxRowsPerPageMultiPage;
+    let used = 0;
+    for (const row of r) used += this.rowHeight(row);
+    const freeSlots = Math.floor(Math.max(0, this.availableRowsPx - used) / this.baseRowHeight);
+    const fitSlots = Math.min(this.maxRowsPerPageMultiPage, r.length + freeSlots);
+    const target = Math.min(fitSlots, Math.max(minSlots, r.length));
+    while (r.length < target) r.push(null);
     return r;
   }
 
@@ -734,6 +796,25 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     // 行高固定为基础高度，不再按行数压缩（方案B）
     this.currentRowHeight = this.baseRowHeight;
 
+    // 第一遍：按既有行高切页渲染，保证每行都渲染过一次，量得到真实行高
+    this.paginateByHeight();
+    this.cdr.detectChanges();
+    // 第二遍：实测行高（「其他」列文字换行会撑高行）后按高度重切
+    if (this.measureRealHeights()) {
+      this.paginateByHeight();
+      this.cdr.detectChanges();
+    }
+  }
+
+  /** 单行高度：实测值兜底最小行高 */
+  private rowHeight(row: BradenRow): number {
+    const h = this.rowHeights.get(row.time);
+    return h && h > 0 ? Math.max(h, this.baseRowHeight) : this.baseRowHeight;
+  }
+
+  /** 按行高累计切页：放不下就换页；每页数据行不超过 11 条。
+   *  未测量时 availableRowsPx=Infinity、行高=35px，等价于旧行数分页。 */
+  private paginateByHeight(): void {
     if (!this.rows.length) {
       this.pages = [{ index: 1, rows: [], diagnosis: this.diagnosisForRows([]) }];
       this.normalizeSelectedPrintPages(this.pages.length);
@@ -741,34 +822,75 @@ export class BradenFormComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // 单页模式：≤8 行，空白由 pagePaddedRows 补齐
-    if (this.rows.length <= this.maxRowsPerPage) {
-      this.pages = [{ index: 1, rows: this.rows.slice(), diagnosis: this.diagnosisForRows(this.rows) }];
-      this.normalizeSelectedPrintPages(this.pages.length);
-      this.loadFinalExtra();
-      return;
-    }
-
-    // 多页模式：中间页每页 11 条；剩余 1~11 条全部放在末页，避免「上页留白 + 下页只 1 条」
     const pages: RenderPage[] = [];
-    let offset = 0;
-    while (this.rows.length - offset > this.maxRowsPerPageMultiPage) {
-      const chunk = this.rows.slice(offset, offset + this.maxRowsPerPageMultiPage);
-      pages.push({
-        index: pages.length + 1,
-        rows: chunk,
-        diagnosis: this.diagnosisForRows(chunk),
-      });
-      offset += this.maxRowsPerPageMultiPage;
+    let cur: BradenRow[] = [];
+    let used = 0;
+    for (const row of this.rows) {
+      const rh = this.rowHeight(row);
+      const full = cur.length >= this.maxRowsPerPageMultiPage
+        || (cur.length > 0 && used + rh > this.availableRowsPx);
+      if (full) {
+        pages.push({ index: pages.length + 1, rows: cur, diagnosis: this.diagnosisForRows(cur) });
+        cur = [];
+        used = 0;
+      }
+      cur.push(row);
+      used += rh;
     }
-    if (offset < this.rows.length) {
-      const chunk = this.rows.slice(offset);
-      pages.push({ index: pages.length + 1, rows: chunk, diagnosis: this.diagnosisForRows(chunk) });
-    }
-    this.pages = pages;
+    if (cur.length) pages.push({ index: pages.length + 1, rows: cur, diagnosis: this.diagnosisForRows(cur) });
+    this.pages = pages.map((p, i) => ({ ...p, index: i + 1 }));
 
     this.normalizeSelectedPrintPages(this.pages.length);
     this.loadFinalExtra();
+  }
+
+  /** 从已渲染的真实 DOM 实测行高与固定区高度；量不到返回 false（保留上次结果）。
+   *  行高只取决于内容与列宽，与分页无关，所以任意一页量到的行高都有效。 */
+  private measureRealHeights(): boolean {
+    const root = this.host.nativeElement as HTMLElement;
+    const head = root.querySelector('.sheet-head') as HTMLElement | null;
+    const thead = root.querySelector('.record-table thead') as HTMLElement | null;
+    if (!head || !thead) return false;
+
+    const ppm = this.pxPerMm();
+    // 打印页数据行可用高度：A4 横向 209mm - 上下 padding 7mm×2 - 固定区 - 页脚 - 余量
+    const contentPx = (209 - 14) * ppm;
+    const safetyPx = 5 * ppm;
+    const fixedPx = head.getBoundingClientRect().height + thead.getBoundingClientRect().height;
+    const footerPx = ['.result-line', '.footnote', '.review-sign'].reduce((sum, sel) => {
+      const el = root.querySelector(sel) as HTMLElement | null;
+      return sum + (el ? el.getBoundingClientRect().height : 0);
+    }, 0);
+    const available = contentPx - fixedPx - footerPx - safetyPx;
+    if (!(available > 0)) return false;
+
+    const map = new Map<string, number>();
+    root.querySelectorAll('tr[data-row-key]').forEach(tr => {
+      const key = tr.getAttribute('data-row-key');
+      if (!key) return;
+      const h = (tr as HTMLElement).getBoundingClientRect().height;
+      if (h <= 0) return; // 被打印选择隐藏的页量不到，沿用旧值
+      map.set(key, Math.max(h, this.baseRowHeight));
+    });
+    for (const row of this.rows) {
+      if (!map.has(row.time)) {
+        const old = this.rowHeights.get(row.time);
+        map.set(row.time, Math.max(old || this.baseRowHeight, this.baseRowHeight));
+      }
+    }
+    this.rowHeights = map;
+    this.availableRowsPx = available;
+    return true;
+  }
+
+  /** CSS px 每 mm（用探针测量，兼容浏览器缩放/zoom） */
+  private pxPerMm(): number {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;left:-99999px;width:100mm;height:1px;visibility:hidden';
+    document.body.appendChild(probe);
+    const ppm = probe.getBoundingClientRect().width / 100;
+    document.body.removeChild(probe);
+    return ppm > 0 ? ppm : 96 / 25.4;
   }
 
   /** 页诊断 = 该页第一条数据所在时间区间的诊断 */
@@ -893,5 +1015,5 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     }
     return null;
   }
-  private ts(t: string): number { const n = new Date(t).getTime(); return Number.isFinite(n) ? n : 0; }
+  private ts(t: string): number { return this.instant(t); }
 }
