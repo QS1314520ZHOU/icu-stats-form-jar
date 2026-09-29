@@ -366,6 +366,7 @@ export class HealthEducationComponent implements OnInit, OnDestroy {
       .paper-table .group{box-sizing:border-box;width:20px;min-width:20px;max-width:20px;padding:2px 1px;writing-mode:vertical-rl;text-orientation:upright;text-align:center;vertical-align:middle;white-space:normal;word-break:keep-all;font-size:9pt;font-weight:700;line-height:1.05;letter-spacing:0;color:#000}
       .paper-table .content{width:auto;padding:2px 4px;text-align:left;white-space:normal;word-break:normal;overflow-wrap:break-word}
       .paper-table .mark,.paper-table .time-cell,.paper-table .sign-cell{box-sizing:border-box;width:46px;min-width:46px;max-width:46px;padding:1px 2px;text-align:center;vertical-align:middle;white-space:normal;word-break:normal;font-size:9pt;font-weight:400;color:#000}
+      .paper-table .time-cell{height:28px}
       .education-header{text-align:center;vertical-align:middle}
       .bottom-desc{text-align:left!important}
       .bottom-title{text-align:center}
