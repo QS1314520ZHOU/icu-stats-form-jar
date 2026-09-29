@@ -60,7 +60,7 @@ const VAP_GROUP: MeasureGroup = {
     { code: 'ORAL_CARE', label: '口腔护理' },
     { code: 'SUCTION_STANDARD', label: '吸痰操作规范' },
     { code: 'SUBGLOTTIC_SUCTION', label: '声门下吸引' },
-    { code: 'DAILY_CUFF_PRESSURE', label: '每日进行气管导管气囊测压（25-30cmH₂O）' },
+    { code: 'DAILY_CUFF_PRESSURE', label: '进行气管导管气囊测压（25-30cmH₂O）' },
     { code: 'CONDENSATE_MANAGEMENT', label: '积水杯最低位，倾倒冷凝水' },
     { code: 'VENTILATOR_CIRCUIT_REPLACEMENT', label: '呼吸机外部管路更换' },
   ],
