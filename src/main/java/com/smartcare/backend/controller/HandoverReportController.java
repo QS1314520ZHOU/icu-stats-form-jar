@@ -189,17 +189,17 @@ public class HandoverReportController {
     /**
      * 加载医嘱数据。
      * 来源：DataCenter 库 VI_ICU_ZYYZ 表（MongoDB 医嘱集合）。
-     * 查询开始时间或结束时间落在 [windowStart, windowEnd) 内的医嘱，
-     * 以覆盖"新增多重耐药菌感染"（orderTime）和"解除多重耐药菌床旁隔离"（stopTime）。
+     * 加载与 [windowStart, windowEnd) 有交集的医嘱：
+     * orderTime 早于 windowEnd，且未停止（stopTime 为空）或停止时间不早于 windowStart。
+     * 以覆盖跨日在用的长期医嘱（膀胱冲洗等按班次展示）及停止事件（多重耐药菌床旁隔离解除）。
      */
     private List<Document> loadOrders(Date windowStart, Date windowEnd) {
         try {
-            Criteria timeCriteria = new Criteria().orOperator(
-                Criteria.where("orderTime").gte(windowStart).lt(windowEnd),
-                new Criteria().andOperator(
-                    Criteria.where("stopTime").exists(true),
-                    Criteria.where("stopTime").ne(null),
-                    Criteria.where("stopTime").gte(windowStart).lt(windowEnd)
+            Criteria timeCriteria = new Criteria().andOperator(
+                Criteria.where("orderTime").lt(windowEnd),
+                new Criteria().orOperator(
+                    Criteria.where("stopTime").is(null),
+                    Criteria.where("stopTime").gte(windowStart)
                 )
             );
             Query orderQuery = new Query(timeCriteria);

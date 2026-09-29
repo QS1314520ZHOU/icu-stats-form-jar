@@ -245,35 +245,39 @@ function reintubationBeds(
   return bedsFromPids(matchedPids, patients);
 }
 
-function temporaryOrderInRange(order: OrderRecord, range: ShiftRange): boolean {
-  return inRange(order.orderTime, range);
-}
-
-function longOrderOverlapsRange(order: OrderRecord, range: ShiftRange): boolean {
-  const start = timestamp(order.orderTime);
-  const stop = order.stopTime ? timestamp(order.stopTime) : Number.POSITIVE_INFINITY;
-  return Number.isFinite(start) && start < range.end.getTime() && stop >= range.start.getTime();
-}
-
-function orderBeds(
-  snapshot: DepartmentDailySnapshot,
-  range: ShiftRange,
-  keyword: string,
-): string {
+/**
+ * 膀胱冲洗：按 zyyz 频次（freq）与停止时间决定每个班次是否展示。
+ * - freq "1"=仅白班，"2"=白班+中班，"3"=三个班；缺失/非法值按 3 处理；
+ * - 医嘱名称含"持续膀胱冲洗"的忽略频次，只要未停止每个班次都展示；
+ * - 开立时间需早于班次结束（开立时间包含查询时间）；
+ * - 有停止时间的，停止时间所在班次及其之后的班次不再展示。
+ */
+function bladderIrrigationBeds(snapshot: DepartmentDailySnapshot, range: ShiftRange): string {
   const patientByMrn = new Map<string, DepartmentPatient>();
   for (const patient of snapshot.patients) {
     const mrn = text(patient.mrn);
     if (mrn) { patientByMrn.set(mrn, patient); }
   }
 
+  const shiftIndex: Record<ShiftKey, number> = { day: 0, evening: 1, night: 2 };
+  const currentShiftIndex = shiftIndex[range.key];
+  const rangeEnd = range.end.getTime();
+
   const beds: string[] = [];
   for (const order of snapshot.orders) {
-    if (!text(order.orderName).includes(keyword)) { continue; }
-    const orderType = text(order.orderType);
-    const matched = orderType.includes('长期')
-      ? longOrderOverlapsRange(order, range)
-      : temporaryOrderInRange(order, range);
-    if (!matched) { continue; }
+    const name = text(order.orderName);
+    if (!name.includes('膀胱冲洗')) { continue; }
+    const start = timestamp(order.orderTime);
+    if (!Number.isFinite(start) || start >= rangeEnd) { continue; }
+    if (order.stopTime) {
+      const stop = timestamp(order.stopTime);
+      if (Number.isFinite(stop) && stop < rangeEnd) { continue; }
+    }
+    if (!name.includes('持续膀胱冲洗')) {
+      const freq = Number.parseInt(text(order.freq), 10);
+      const freqShifts = Number.isFinite(freq) && freq >= 1 && freq <= 3 ? freq : 3;
+      if (currentShiftIndex >= freqShifts) { continue; }
+    }
     const patient = patientByMrn.get(text(order.mrn));
     if (patient) { beds.push(patientBed(patient)); }
   }
@@ -418,7 +422,7 @@ function calculateAutoMetricValues(
     case 'hypoglycemia':
       return buildValues(range => bloodSugarBeds(snapshot, patients, range));
     case 'bladderIrrigation':
-      return buildValues(range => orderBeds(snapshot, range, '膀胱冲洗'));
+      return buildValues(range => bladderIrrigationBeds(snapshot, range));
     case 'invasiveVentilation':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_XiYangTuJing', value => value === '有创'));
     case 'newNasoentericTube':

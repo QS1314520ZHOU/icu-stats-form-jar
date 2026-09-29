@@ -89,6 +89,8 @@ export interface OrderRecord {
   orderTime?: string;
   stopTime?: string;
   status?: string;
+  /** zyyz 频次（字符串）："1"=仅白班，"2"=白班+中班，"3"=三个班 */
+  freq?: string;
 }
 
 export interface TubeExecution {
