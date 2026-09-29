@@ -69,8 +69,8 @@
               <td>
                 <input
                   class="head-nurse-input"
-                  [value]="snapshot.draft.headNurseSignature || ''"
-                  (input)="snapshot.draft.headNurseSignature = $any($event.target).value; saveHeadNurseSignature()"
+                  [attr.value]="headNurseValue"
+                  (input)="onHeadNurseInput($event)"
                   aria-label="护士长签名"
                 />
               </td>
@@ -201,13 +201,13 @@
               @for (shift of ['day', 'evening', 'night']; track shift) {
                 <td>
                   <span class="screen-only">护士签名：
-                  <select
-                    [value]="snapshot.draft.shiftSignatures[$any(shift)] || ''"
-                    (change)="setShiftSignature($any(shift), $any($event.target).value)"
-                  >
-                    <option value=""></option>
+                  <select (change)="setShiftSignature($any(shift), $any($event.target).value)">
+                    <option value="" [selected]="!snapshot.draft.shiftSignatures[$any(shift)]"></option>
                     @for (account of filteredNurseAccounts; track account.id) {
-                      <option [value]="account.id">{{ account.trueName }}</option>
+                      <option
+                        [value]="account.id"
+                        [selected]="account.id === (snapshot.draft.shiftSignatures[$any(shift)] || '')"
+                      >{{ account.trueName }}</option>
                     }
                   </select>
                   </span>
@@ -287,12 +287,14 @@
                 <td>
                   <select
                     class="signature-select no-print-control"
-                    [value]="snapshot.draft.shiftSignatures[$any(shift)] || ''"
                     (change)="setShiftSignature($any(shift), $any($event.target).value)"
                   >
-                    <option value="">请选择</option>
+                    <option value="" [selected]="!snapshot.draft.shiftSignatures[$any(shift)]">请选择</option>
                     @for (account of filteredNurseAccounts; track account.id) {
-                      <option [value]="account.id">{{ account.trueName }}</option>
+                      <option
+                        [value]="account.id"
+                        [selected]="account.id === (snapshot.draft.shiftSignatures[$any(shift)] || '')"
+                      >{{ account.trueName }}</option>
                     }
                   </select>
                   <span class="signature-print-value">{{ signatureName(shift) }}</span>

@@ -178,7 +178,7 @@ public class HandoverReportController {
         snapshot.put("orders", normalizeDocuments(orderDocs));
         snapshot.put("tubeExecutions", normalizeDocuments(tubeDocs));
         snapshot.put("nurseRecords", normalizeDocuments(nurseDocs));
-        snapshot.put("nurseAccounts", normalizeDocuments(acctDocs));
+        snapshot.put("nurseAccounts", normalizeAccountDocuments(acctDocs));
         snapshot.put("draft", draftDoc != null
             ? normalizeUtcValue(draftDoc)
             : normalizeUtcValue(new Document(defaultDraft(department != null ? department : departmentCode, reportDate))));
@@ -588,6 +588,25 @@ public class HandoverReportController {
     private List<Map<String, Object>> normalizeDocuments(List<Document> docs) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Document doc : docs) result.add((Map<String, Object>) normalizeUtcValue(doc));
+        return result;
+    }
+
+    /**
+     * 标准化账户文档，确保 id 字段可用。
+     * Mongo 原始账户文档只有 _id，前端按 id 查找护士签名姓名，缺 id 会导致打印时查不到姓名。
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> normalizeAccountDocuments(List<Document> docs) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Document doc : docs) {
+            Map<String, Object> normalized = (Map<String, Object>) normalizeUtcValue(doc);
+            String id = firstNonBlank(
+                stringValue(normalized.get("id")),
+                stringValue(normalized.get("_id"))
+            );
+            normalized.put("id", id);
+            result.add(normalized);
+        }
         return result;
     }
 

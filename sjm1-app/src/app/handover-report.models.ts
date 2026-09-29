@@ -125,7 +125,12 @@ export interface NurseRecordOption {
 }
 
 export interface NurseAccount {
-  id: string;
+  /**
+   * 账号ID。后端返回的Mongo原始账户文档只有 _id，
+   * 由服务层/后端归一化补上 id，两者都可能出现在数据里。
+   */
+  id?: string;
+  _id?: string;
   trueName: string;
   profession: string;
 }

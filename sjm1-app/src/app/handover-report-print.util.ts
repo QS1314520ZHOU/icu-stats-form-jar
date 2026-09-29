@@ -11,6 +11,7 @@ import {
   HandoverPatientRow,
   HandoverReportViewModel,
   MetricRow,
+  NurseAccount,
   ShiftKey,
 } from './handover-report.models';
 
@@ -53,6 +54,32 @@ function pxToMm(px: number): number {
 /** mm → px */
 function mmToPx(mm: number): number {
   return mm * 3.7795;
+}
+
+// ==================== 签名解析 ====================
+
+/**
+ * 根据草稿里保存的签名值解析护士姓名。
+ *
+ * 兼容历史数据：
+ * - 账户文档早期缺少 id（Mongo 原始文档只有 _id），界面保存的可能是 "undefined"；
+ * - 或者直接保存成了护士姓名。
+ *
+ * @param accounts 护士账号列表
+ * @param stored 草稿中保存的签名值（账号ID或姓名）
+ * @returns 显示用姓名，无法解析时返回空字符串
+ */
+export function resolveNurseName(accounts: NurseAccount[] | undefined, stored: string | undefined): string {
+  const value = (stored || '').trim();
+  if (!value || value === 'undefined') { return ''; }
+
+  const list = accounts || [];
+  const matched = list.find(account => (account.id && account.id === value) || account.trueName === value);
+  if (matched?.trueName) { return matched.trueName; }
+
+  // 无法匹配时，只展示中文姓名（历史数据可能直接存了姓名）；
+  // ID、账号等一律不展示，避免打印出无意义的标识。
+  return /[一-龥]/.test(value) ? value : '';
 }
 
 // ==================== 主入口 ====================
@@ -612,19 +639,10 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   sigTd1.colSpan = 5;
   signatureRow.appendChild(sigTd1);
 
-  // 构建护士签名查找表
-  const nurseNameMap = new Map<string, string>();
-  if (snapshot.nurseAccounts) {
-    for (const account of snapshot.nurseAccounts) {
-      nurseNameMap.set(account.id, account.trueName);
-    }
-  }
-
   const shifts: ShiftKey[] = ['day', 'evening', 'night'];
   shifts.forEach(shift => {
     const td = document.createElement('td');
-    const accountId = snapshot.draft?.shiftSignatures?.[shift] || '';
-    const nurseName = accountId ? nurseNameMap.get(accountId) || '' : '';
+    const nurseName = resolveNurseName(snapshot.nurseAccounts, snapshot.draft?.shiftSignatures?.[shift]);
     td.textContent = nurseName ? `护士签名：${nurseName}` : '护士签名：';
     signatureRow.appendChild(td);
   });
@@ -805,14 +823,6 @@ function renderSafetyTable(
   const tbody = document.createElement('tbody');
   const shifts: ShiftKey[] = ['day', 'evening', 'night'];
 
-  // 构建护士签名查找表
-  const nurseNameMap = new Map<string, string>();
-  if (snapshot.nurseAccounts) {
-    for (const account of snapshot.nurseAccounts) {
-      nurseNameMap.set(account.id, account.trueName);
-    }
-  }
-
   // 计算每个分类的行跨度（rowspan）
   const categoryRowSpans = new Map<string, number>();
   const categoryStartIndices = new Map<string, number>();
@@ -890,9 +900,7 @@ function renderSafetyTable(
 
   shifts.forEach(shift => {
     const td = document.createElement('td');
-    const accountId = snapshot.draft?.shiftSignatures?.[shift] || '';
-    const nurseName = accountId ? nurseNameMap.get(accountId) || '' : '';
-    td.textContent = nurseName;
+    td.textContent = resolveNurseName(snapshot.nurseAccounts, snapshot.draft?.shiftSignatures?.[shift]);
     signatureRow.appendChild(td);
   });
 

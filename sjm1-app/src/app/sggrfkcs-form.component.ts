@@ -80,7 +80,7 @@ const CAUTI_GROUP: MeasureGroup = {
   items: [
     { code: 'STERILE_CATHETERIZATION', label: '置管执行无菌操作' },
     { code: 'URINE_BAG_POSITION', label: '尿袋低于膀胱水平，高于地面' },
-    { code: 'URINE_BAG_TWO_THIRDS', label: '尿袋2／3满时清空' },
+    { code: 'URINE_BAG_TWO_THIRDS', label: '尿袋3／4满时清空' },
     { code: 'CLOSED_ANTI_REFLUX_DRAINAGE', label: '持续性封闭抗反流引流' },
     { code: 'MEATAL_CARE', label: '尿道口正确清洁，必要时碘伏消毒' },
   ],

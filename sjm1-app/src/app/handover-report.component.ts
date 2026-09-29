@@ -1,12 +1,13 @@
 import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChildren } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { ReplaySubject, Subject, combineLatest, EMPTY } from 'rxjs';
+import { Observable, ReplaySubject, Subject, combineLatest, EMPTY } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, finalize, map, switchMap, takeUntil } from 'rxjs/operators';
 import {
   DepartmentContext,
   DepartmentDailySnapshot,
   DepartmentPatient,
   DraftConflictError,
+  HandoverDraft,
   HandoverPatientRow,
   HandoverReportViewModel,
   MetricRow,
@@ -18,12 +19,29 @@ import { HandoverReportService } from './handover-report.service';
 import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { buildHandoverReport } from './handover-report.utils';
-import { printHandoverReport, cleanupPrintDom } from './handover-report-print.util';
+import { printHandoverReport, cleanupPrintDom, resolveNurseName } from './handover-report-print.util';
 
 /**
  * 保存状态类型。
  */
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
+
+/**
+ * 草稿保存队列操作。
+ */
+interface DraftSaveOp {
+  /** 真正执行时才构造请求，保证 baseVersion 取的是发送时刻的最新版本。 */
+  execute: () => Observable<HandoverDraft>;
+  /** 把本次操作的乐观值重新套到服务端返回的新草稿上，防止被上一次响应覆盖回旧值。 */
+  apply?: (draft: HandoverDraft) => void;
+  /** 保存成功回调（可选）。 */
+  onSuccess?: (draft: HandoverDraft) => void;
+  /** 保存失败回调（可选，未提供时使用默认错误提示）。 */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onError?: (error: any) => void;
+  /** 无论成功失败都会执行（清理 saving 标记等）。 */
+  onSettled?: () => void;
+}
 
 @Component({
   standalone: false,
@@ -56,6 +74,20 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
    * 保存错误信息。
    */
   saveError = '';
+
+  /**
+   * 草稿保存队列：同一时间只允许一个补丁请求在途。
+   * 避免连续操作（如重新选择签名）因版本过期被 409 丢弃，
+   * 或先返回的响应把后一次的乐观值覆盖回旧值。
+   */
+  private draftSaveQueue: DraftSaveOp[] = [];
+  private draftSaveBusy = false;
+
+  /**
+   * 护士长签名输入的最新值（保存响应不应覆盖用户正在输入的内容）。
+   */
+  headNurseValue = '';
+  private headNurseSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * 是否有未保存的修改。
@@ -229,7 +261,10 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
       }),
     ).subscribe({
       next: snapshot => {
+        // 丢弃针对旧草稿的未发出保存与防抖定时器，避免串到新日期/新科室的草稿
+        this.discardPendingSaves();
         this.snapshot = snapshot;
+        this.headNurseValue = snapshot.draft?.headNurseSignature || '';
         this.hasUnsavedChanges = false;
         this.saveStatus = 'idle';
         this.rebuild();
@@ -457,35 +492,29 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
     this.criticalSelectionError = '';
     this.cdr.markForCheck();
 
-    this.service.replaceCriticalPatients({
-      departmentId: this.snapshot.draft.departmentId,
-      reportDate: this.snapshot.draft.reportDate,
-      baseVersion: this.snapshot.draft.version,
-      patientIds,
-      selectedBy: this.currentAccountId,
-    }).pipe(
-      takeUntil(this.destroy$),
-      finalize(() => {
-        this.criticalSelectionSaving = false;
-        this.cdr.markForCheck();
+    this.enqueueDraftSave({
+      execute: () => this.service.replaceCriticalPatients({
+        departmentId: this.snapshot!.draft.departmentId,
+        reportDate: this.snapshot!.draft.reportDate,
+        baseVersion: this.snapshot!.draft.version,
+        patientIds,
+        selectedBy: this.currentAccountId,
       }),
-    ).subscribe({
-      next: draft => {
-        if (!this.snapshot) { return; }
-        this.snapshot.draft = draft;
+      onSuccess: () => {
         this.criticalDialogVisible = false;
         this.pendingCriticalPatientIds.clear();
-        this.hasUnsavedChanges = false;
         this.rebuild();
       },
-      error: error => {
-        if (error?.status === 409 || error?.status === 412) {
+      onError: error => {
+        if (error instanceof DraftConflictError || error?.status === 409 || error?.status === 412) {
           this.criticalSelectionError = '危重患者选择已被其他用户修改，请重新加载后再提交。';
         } else {
           this.criticalSelectionError = error?.error?.message || '危重患者选择保存失败';
         }
         // 不清空pendingCriticalPatientIds，保留用户本次选择
-        this.cdr.markForCheck();
+      },
+      onSettled: () => {
+        this.criticalSelectionSaving = false;
       },
     });
   }
@@ -545,42 +574,19 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
   private doSavePatientText(rowKey: string, shift: ShiftKey, value: string): void {
     if (!this.snapshot) { return; }
 
-    this.saveStatus = 'saving';
-    this.cdr.markForCheck();
-
-    this.service.setPatientText({
-      departmentId: this.snapshot.draft.departmentId,
-      reportDate: this.snapshot.draft.reportDate,
-      baseVersion: this.snapshot.draft.version,
-      rowKey,
-      shift,
-      value,
-    }).pipe(
-      takeUntil(this.destroy$),
-    ).subscribe({
-      next: draft => {
-        if (!this.snapshot) { return; }
-        this.snapshot.draft = draft;
-        this.hasUnsavedChanges = false;
-        this.saveStatus = 'saved';
-        this.cdr.markForCheck();
-        // 3秒后恢复为idle
-        setTimeout(() => {
-          if (this.saveStatus === 'saved') {
-            this.saveStatus = 'idle';
-            this.cdr.markForCheck();
-          }
-        }, 3000);
-      },
-      error: error => {
-        if (error instanceof DraftConflictError) {
-          this.saveStatus = 'conflict';
-          this.saveError = '报告已被其他用户更新，请刷新后合并。';
-        } else {
-          this.saveStatus = 'error';
-          this.saveError = '保存失败';
-        }
-        this.cdr.markForCheck();
+    this.enqueueDraftSave({
+      execute: () => this.service.setPatientText({
+        departmentId: this.snapshot!.draft.departmentId,
+        reportDate: this.snapshot!.draft.reportDate,
+        baseVersion: this.snapshot!.draft.version,
+        rowKey,
+        shift,
+        value,
+      }),
+      apply: draft => {
+        if (!draft.patientTexts) { draft.patientTexts = {}; }
+        if (!draft.patientTexts[rowKey]) { draft.patientTexts[rowKey] = {}; }
+        draft.patientTexts[rowKey][shift] = value;
       },
     });
   }
@@ -737,42 +743,19 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
   private doSaveManualMetric(metricKey: string, shift: ShiftKey, value: string): void {
     if (!this.snapshot) { return; }
 
-    this.saveStatus = 'saving';
-    this.cdr.markForCheck();
-
-    this.service.setManualMetric({
-      departmentId: this.snapshot.draft.departmentId,
-      reportDate: this.snapshot.draft.reportDate,
-      baseVersion: this.snapshot.draft.version,
-      metricKey,
-      shift,
-      value,
-    }).pipe(
-      takeUntil(this.destroy$),
-    ).subscribe({
-      next: draft => {
-        if (!this.snapshot) { return; }
-        this.snapshot.draft = draft;
-        this.hasUnsavedChanges = false;
-        this.saveStatus = 'saved';
-        this.cdr.markForCheck();
-        // 3秒后恢复为idle
-        setTimeout(() => {
-          if (this.saveStatus === 'saved') {
-            this.saveStatus = 'idle';
-            this.cdr.markForCheck();
-          }
-        }, 3000);
-      },
-      error: error => {
-        if (error instanceof DraftConflictError) {
-          this.saveStatus = 'conflict';
-          this.saveError = '报告已被其他用户更新，请刷新后合并。';
-        } else {
-          this.saveStatus = 'error';
-          this.saveError = '保存失败';
-        }
-        this.cdr.markForCheck();
+    this.enqueueDraftSave({
+      execute: () => this.service.setManualMetric({
+        departmentId: this.snapshot!.draft.departmentId,
+        reportDate: this.snapshot!.draft.reportDate,
+        baseVersion: this.snapshot!.draft.version,
+        metricKey,
+        shift,
+        value,
+      }),
+      apply: draft => {
+        if (!draft.manualMetrics) { draft.manualMetrics = {}; }
+        if (!draft.manualMetrics[metricKey]) { draft.manualMetrics[metricKey] = {}; }
+        draft.manualMetrics[metricKey][shift] = value;
       },
     });
   }
@@ -803,33 +786,19 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
   private doSaveRemark(shift: ShiftKey, value: string): void {
     if (!this.snapshot) { return; }
 
-    this.saveStatus = 'saving';
-    this.cdr.markForCheck();
-
-    this.service.setRemark({
-      departmentId: this.snapshot.draft.departmentId,
-      reportDate: this.snapshot.draft.reportDate,
-      baseVersion: this.snapshot.draft.version,
-      shift,
-      value,
-    }).pipe(
-      takeUntil(this.destroy$),
-    ).subscribe({
-      next: draft => {
-        if (!this.snapshot) { return; }
-        this.snapshot.draft = draft;
-        this.hasUnsavedChanges = false;
-        this.saveStatus = 'saved';
-        this.cdr.markForCheck();
-
-        setTimeout(() => {
-          if (this.saveStatus === 'saved') {
-            this.saveStatus = 'idle';
-            this.cdr.markForCheck();
-          }
-        }, 3000);
+    this.enqueueDraftSave({
+      execute: () => this.service.setRemark({
+        departmentId: this.snapshot!.draft.departmentId,
+        reportDate: this.snapshot!.draft.reportDate,
+        baseVersion: this.snapshot!.draft.version,
+        shift,
+        value,
+      }),
+      apply: draft => {
+        if (!draft.remarks) { draft.remarks = {}; }
+        draft.remarks[shift] = value;
       },
-      error: error => {
+      onError: error => {
         if (error instanceof DraftConflictError) {
           this.saveStatus = 'conflict';
           this.saveError = '备注已被其他用户修改，请刷新后重试。';
@@ -837,7 +806,6 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
           this.saveStatus = 'error';
           this.saveError = '备注保存失败';
         }
-        this.cdr.markForCheck();
       },
     });
   }
@@ -863,7 +831,123 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
     return metric.key;
   }
 
+  // ==================== 保存队列 ====================
+
+  /**
+   * 串行执行草稿补丁保存：同一时间只有一个请求在途，
+   * 下一次保存一定基于上一次返回的最新版本号。
+   */
+  private enqueueDraftSave(op: DraftSaveOp): void {
+    this.draftSaveQueue.push(op);
+    this.hasUnsavedChanges = true;
+    this.saveStatus = 'saving';
+    this.cdr.markForCheck();
+    this.drainDraftSaveQueue();
+  }
+
+  private drainDraftSaveQueue(): void {
+    if (this.draftSaveBusy) { return; }
+
+    const op = this.draftSaveQueue.shift();
+    if (!op) { return; }
+    if (!this.snapshot) { op.onSettled?.(); return; }
+
+    this.draftSaveBusy = true;
+    this.cdr.markForCheck();
+
+    op.execute().pipe(takeUntil(this.destroy$)).subscribe({
+      next: draft => {
+        const current = this.snapshot;
+        // 请求在途期间切换了日期/科室：本响应属于旧草稿，不能覆盖本地新草稿
+        const sameDraft = !!current
+          && draft.departmentId === current.draft.departmentId
+          && String(draft.reportDate) === String(current.draft.reportDate);
+
+        if (current && sameDraft) {
+          current.draft = draft;
+          // 当前操作与队列中尚未发出操作的乐观值重新套用，防止被本次响应回滚成旧值
+          op.apply?.(draft);
+          for (const pending of this.draftSaveQueue) {
+            pending.apply?.(draft);
+          }
+          op.onSuccess?.(draft);
+        }
+        this.settleDraftSave(op, true);
+      },
+      error: error => {
+        this.reportDraftSaveError(op, error);
+        this.settleDraftSave(op, false);
+      },
+    });
+  }
+
+  private settleDraftSave(op: DraftSaveOp, success: boolean): void {
+    op.onSettled?.();
+    this.draftSaveBusy = false;
+
+    if (success && this.draftSaveQueue.length === 0) {
+      this.hasUnsavedChanges = false;
+      this.saveStatus = 'saved';
+      setTimeout(() => {
+        if (this.saveStatus === 'saved') {
+          this.saveStatus = 'idle';
+          this.cdr.markForCheck();
+        }
+      }, 3000);
+    }
+
+    this.cdr.markForCheck();
+    if (this.draftSaveQueue.length > 0) {
+      this.drainDraftSaveQueue();
+    }
+  }
+
+  private reportDraftSaveError(op: DraftSaveOp, error: unknown): void {
+    if (op.onError) {
+      op.onError(error);
+      // 自定义错误回调可能只更新弹窗等局部状态，避免工具栏卡在“保存中…”
+      if (this.saveStatus === 'saving') {
+        const status = (error as { status?: number } | null)?.status;
+        if (error instanceof DraftConflictError || status === 409 || status === 412) {
+          this.saveStatus = 'conflict';
+          this.saveError = '数据已被其他用户修改';
+        } else {
+          this.saveStatus = 'error';
+          this.saveError = '保存失败';
+        }
+      }
+      return;
+    }
+    if (error instanceof DraftConflictError) {
+      this.saveStatus = 'conflict';
+      this.saveError = '报告已被其他用户更新，请刷新后合并。';
+    } else {
+      this.saveStatus = 'error';
+      this.saveError = '保存失败';
+    }
+  }
+
   // ==================== 签名 ====================
+
+  /**
+   * 护士长签名输入，防抖保存（原实现每敲一个字就发一次补丁，
+   * 请求并发时会互相顶掉版本号，导致后续保存全部 409）。
+   */
+  onHeadNurseInput(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    if (!this.snapshot || !input) { return; }
+
+    this.headNurseValue = input.value;
+    this.snapshot.draft.headNurseSignature = input.value;
+    this.hasUnsavedChanges = true;
+    this.cdr.markForCheck();
+
+    if (this.headNurseSaveTimer) { clearTimeout(this.headNurseSaveTimer); }
+    this.headNurseSaveTimer = setTimeout(() => {
+      this.headNurseSaveTimer = null;
+      this.saveHeadNurseSignature();
+    }, 500);
+  }
 
   /**
    * 保存护士长签名。
@@ -871,30 +955,15 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
   saveHeadNurseSignature(): void {
     if (!this.snapshot) { return; }
 
-    this.hasUnsavedChanges = true;
-
-    this.service.setHeadNurseSignature({
-      departmentId: this.snapshot.draft.departmentId,
-      reportDate: this.snapshot.draft.reportDate,
-      baseVersion: this.snapshot.draft.version,
-      accountId: this.snapshot.draft.headNurseSignature || '',
-    }).pipe(
-      takeUntil(this.destroy$),
-    ).subscribe({
-      next: draft => {
-        if (!this.snapshot) { return; }
-        this.snapshot.draft = draft;
-        this.hasUnsavedChanges = false;
-        this.saveStatus = 'saved';
-        this.cdr.markForCheck();
-        setTimeout(() => {
-          if (this.saveStatus === 'saved') {
-            this.saveStatus = 'idle';
-            this.cdr.markForCheck();
-          }
-        }, 3000);
-      },
-      error: error => {
+    this.enqueueDraftSave({
+      execute: () => this.service.setHeadNurseSignature({
+        departmentId: this.snapshot!.draft.departmentId,
+        reportDate: this.snapshot!.draft.reportDate,
+        baseVersion: this.snapshot!.draft.version,
+        accountId: this.headNurseValue,
+      }),
+      apply: draft => { draft.headNurseSignature = this.headNurseValue; },
+      onError: error => {
         if (error instanceof DraftConflictError) {
           this.saveStatus = 'conflict';
           this.saveError = '签名已被其他用户修改，请刷新后重试。';
@@ -902,43 +971,36 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
           this.saveStatus = 'error';
           this.saveError = '签名保存失败';
         }
-        this.cdr.markForCheck();
       },
     });
   }
 
   /**
-   * 设置班次护士签名。
+   * 设置班次护士签名（白班/中班/夜班各存各的字段）。
    */
   setShiftSignature(shift: ShiftKey, accountId: string): void {
     if (!this.snapshot) { return; }
 
+    if (!this.snapshot.draft.shiftSignatures) {
+      this.snapshot.draft.shiftSignatures = {};
+    }
     this.snapshot.draft.shiftSignatures[shift] = accountId;
     this.hasUnsavedChanges = true;
+    this.cdr.markForCheck();
 
-    this.service.setShiftSignature({
-      departmentId: this.snapshot.draft.departmentId,
-      reportDate: this.snapshot.draft.reportDate,
-      baseVersion: this.snapshot.draft.version,
-      shift,
-      accountId,
-    }).pipe(
-      takeUntil(this.destroy$),
-    ).subscribe({
-      next: draft => {
-        if (!this.snapshot) { return; }
-        this.snapshot.draft = draft;
-        this.hasUnsavedChanges = false;
-        this.saveStatus = 'saved';
-        this.cdr.markForCheck();
-        setTimeout(() => {
-          if (this.saveStatus === 'saved') {
-            this.saveStatus = 'idle';
-            this.cdr.markForCheck();
-          }
-        }, 3000);
+    this.enqueueDraftSave({
+      execute: () => this.service.setShiftSignature({
+        departmentId: this.snapshot!.draft.departmentId,
+        reportDate: this.snapshot!.draft.reportDate,
+        baseVersion: this.snapshot!.draft.version,
+        shift,
+        accountId,
+      }),
+      apply: draft => {
+        if (!draft.shiftSignatures) { draft.shiftSignatures = {}; }
+        draft.shiftSignatures[shift] = accountId;
       },
-      error: error => {
+      onError: error => {
         if (error instanceof DraftConflictError) {
           this.saveStatus = 'conflict';
           this.saveError = '签名已被其他用户修改，请刷新后重试。';
@@ -946,16 +1008,12 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
           this.saveStatus = 'error';
           this.saveError = '签名保存失败';
         }
-        this.cdr.markForCheck();
       },
     });
   }
 
   signatureName(shift: ShiftKey): string {
-    const accountId = this.snapshot?.draft.shiftSignatures[shift];
-    if (!accountId) { return ''; }
-    const account = this.snapshot?.nurseAccounts.find(item => item.id === accountId);
-    return account?.trueName ?? '';
+    return resolveNurseName(this.snapshot?.nurseAccounts, this.snapshot?.draft.shiftSignatures[shift]);
   }
 
   // ==================== 打印 ====================
@@ -1015,10 +1073,29 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
    * 重新加载草稿（解决冲突时使用）。
    */
   reloadDraft(): void {
+    this.discardPendingSaves();
     this.hasUnsavedChanges = false;
     this.saveStatus = 'idle';
     this.saveError = '';
     this.reload$.next();
+  }
+
+  /**
+   * 丢弃尚未发出的保存（排队中的补丁 + 各字段防抖定时器）。
+   * 切换日期/科室/重新加载后，旧草稿上的待保存内容不应写入新草稿。
+   */
+  private discardPendingSaves(): void {
+    this.draftSaveQueue.length = 0;
+    for (const timer of this.savePatientTextTimers.values()) { clearTimeout(timer); }
+    this.savePatientTextTimers.clear();
+    for (const timer of this.saveManualMetricTimers.values()) { clearTimeout(timer); }
+    this.saveManualMetricTimers.clear();
+    for (const timer of this.saveRemarkTimers.values()) { clearTimeout(timer); }
+    this.saveRemarkTimers.clear();
+    if (this.headNurseSaveTimer) {
+      clearTimeout(this.headNurseSaveTimer);
+      this.headNurseSaveTimer = null;
+    }
   }
 
   private resolveDepartmentContext(patient: any, account: any): DepartmentContext | null {

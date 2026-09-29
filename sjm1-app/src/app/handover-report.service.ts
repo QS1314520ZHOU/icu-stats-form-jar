@@ -20,7 +20,50 @@ export class HandoverReportService {
     let params = new HttpParams().set('reportDate', condition.reportDate);
     if (condition.department) { params = params.set('department', condition.department); }
     if (condition.departmentCode) { params = params.set('departmentCode', condition.departmentCode); }
-    return this.http.get<DepartmentDailySnapshot>(`${this.baseUrl}/daily`, { params });
+    return this.http.get<DepartmentDailySnapshot>(`${this.baseUrl}/daily`, { params }).pipe(
+      map(snapshot => this.normalizeSnapshot(snapshot)),
+    );
+  }
+
+  /**
+   * 归一化快照：
+   * 1. 账户文档补 id（Mongo 原始文档只有 _id，否则界面上选中的护士签名
+   *    在打印时按 id 查不到姓名）。
+   * 2. 清洗历史脏签名值（"undefined"），并把误存成姓名的值换回账号 id。
+   */
+  private normalizeSnapshot(snapshot: DepartmentDailySnapshot): DepartmentDailySnapshot {
+    const accounts = (snapshot.nurseAccounts || []).map(account => ({
+      ...account,
+      id: account.id || account._id || '',
+    }));
+
+    const idByName = new Map<string, string>();
+    const idSet = new Set<string>();
+    for (const account of accounts) {
+      if (!account.id) { continue; }
+      idSet.add(account.id);
+      if (account.trueName && !idByName.has(account.trueName)) {
+        idByName.set(account.trueName, account.id);
+      }
+    }
+
+    const shiftSignatures = snapshot.draft?.shiftSignatures || {};
+    for (const shift of ['day', 'evening', 'night'] as const) {
+      const value = (shiftSignatures[shift] || '').trim();
+      if (!value || value === 'undefined') {
+        if (value) { shiftSignatures[shift] = ''; }
+        continue;
+      }
+      if (!idSet.has(value) && idByName.has(value)) {
+        shiftSignatures[shift] = idByName.get(value)!;
+      }
+    }
+
+    return {
+      ...snapshot,
+      nurseAccounts: accounts,
+      draft: snapshot.draft ? { ...snapshot.draft, shiftSignatures } : snapshot.draft,
+    };
   }
 
   /**
@@ -53,14 +96,31 @@ export class HandoverReportService {
   /**
    * 字段级补丁保存，支持并发修改。
    * 不再使用整份PUT覆盖。
+   *
+   * 版本过期（同一份草稿在另一个页面/标签页被保存过，或本页请求并发）
+   * 返回409时，取服务端返回的最新版本号重放一次：字段级补丁只会覆盖
+   * 本次修改的字段，其余字段保持服务端最新值，避免用户自己的保存被丢弃。
    */
   patchDraft(request: DraftPatchRequest): Observable<HandoverDraft> {
+    return this.sendPatch(request, true);
+  }
+
+  /**
+   * @param allowRebase 版本过期时是否允许按最新版本重放（仅一次，防止死循环）
+   */
+  private sendPatch(request: DraftPatchRequest, allowRebase: boolean): Observable<HandoverDraft> {
     return this.http.patch<HandoverDraft>(`${this.baseUrl}/draft`, request).pipe(
       catchError((error: HttpErrorResponse) => {
-        if (error.status === 409 || error.status === 412) {
-          return throwError(() => new DraftConflictError(error.error?.latestDraft));
+        if (error.status !== 409 && error.status !== 412) {
+          return throwError(() => error);
         }
-        return throwError(() => error);
+
+        const latestDraft: HandoverDraft | undefined = error.error?.latestDraft;
+        const latestVersion = latestDraft?.version;
+        if (allowRebase && latestDraft && typeof latestVersion === 'number' && latestVersion !== request.baseVersion) {
+          return this.sendPatch({ ...request, baseVersion: latestVersion }, false);
+        }
+        return throwError(() => new DraftConflictError(latestDraft!));
       }),
     );
   }

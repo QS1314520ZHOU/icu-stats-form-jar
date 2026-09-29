@@ -1,5 +1,5 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
+import { AfterViewChecked, ChangeDetectorRef, Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { of, Subject } from 'rxjs';
 import { map, switchMap, takeUntil } from 'rxjs/operators';
 import { HostPatientService } from './services/host-patient.service';
@@ -70,13 +70,26 @@ const CRRT_GROUPS: CrrtGroup[] = [
   ]},
 ];
 
-const CRRT_BUILD_MARKER = 'crrt-metric-map-20260806-v2';
+/* =========================================================
+   行高自适应：按当前可见数据行数撑开/收窄行高，让表格接近满页
+   数据少时取上限，数据多时按剩余空间均分，下限即原固定行高 5.3mm。
+   屏幕与打印按 96dpi 换算，保持同一比例（5.3mm ≈ 20px）。
+   ========================================================= */
+const PX_PER_MM = 96 / 25.4;
+/** 行高下限(px)，即原固定行高 5.3mm */
+const ROW_MIN_PX = 20;
+/** 行高上限(px)，数据过少时不再继续撑高 */
+const ROW_MAX_PX = 41;
+/** 表格底边与页码顶端的留白(px)：34 行得 27.3px、22 行得 41px */
+const ROW_GAP_PX = 21;
+/** 测不到表头时的兜底可用高度(px)，约等于 240mm */
+const ROW_BAND_FALLBACK_PX = 900;
 
 @Component({
   standalone: false, selector: 'app-crrt-record',
   templateUrl: './crrt-record.component.html', styleUrls: ['./crrt-record.component.css'],
 })
-export class CrrtRecordComponent implements OnInit, OnDestroy {
+export class CrrtRecordComponent implements OnInit, OnDestroy, AfterViewChecked {
   private readonly API = '/api/v1/icu/bedside';
   private readonly destroy$ = new Subject<void>();
   private readonly values = new Map<string, string>();
@@ -92,6 +105,8 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   selectedSession: CrrtSession | null = null;
   selectedSessionId: number | null = null;
   visibleGroupsForSession: CrrtGroup[] = [];
+  /** 表格可用高度(px)，0 = 待测量。见 measureRowBand() */
+  private rowBandPx = 0;
 
   get sessionOptions(): Array<{ id: number; label: string }> {
     return this.sessions.map(s => ({
@@ -108,7 +123,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   // Viewer 模式标志
   isViewerMode = false;
 
-  constructor(private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private contextService: IcuFormViewerContextService, private diagHistory: DiagnosisHistoryService) {}
+  constructor(private host: ElementRef<HTMLElement>, private http: HttpClient, private hostPatient: HostPatientService, private cdr: ChangeDetectorRef, private contextService: IcuFormViewerContextService, private diagHistory: DiagnosisHistoryService) {}
 
   ngOnInit(): void {
     // 检测 viewer 模式
@@ -119,8 +134,6 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     });
 
-    console.info(`%c[CRRT BUILD] ${CRRT_BUILD_MARKER}`, 'color:#1677c8;font-weight:bold');
-    console.table(CRRT_GROUPS.flatMap(g => g.metrics.map(m => ({ group: g.name, label: m.label, code: m.code }))));
     this.hostPatient.account$.pipe(takeUntil(this.destroy$)).subscribe(a => this.account = a);
     this.hostPatient.patient$.pipe(
       takeUntil(this.destroy$),
@@ -142,6 +155,62 @@ export class CrrtRecordComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
+
+  /** 可见数据行数 = 各组指标数之和 + 签名行 */
+  private get visibleRowCount(): number {
+    return this.visibleGroupsForSession.reduce((n, g) => n + g.metrics.length, 0) + 1;
+  }
+
+  /**
+   * 作废已测得的可用高度，让下一轮变更检测按最新表头重测。
+   * 诊断可能换行，表头高度随之变化，不能一直沿用旧值。
+   * 本方法只清缓存，不碰 DOM，因此不会触发 ExpressionChangedAfterItHasBeenChecked。
+   */
+  ngAfterViewChecked(): void {
+    this.rowBandPx = 0;
+  }
+
+  /**
+   * 表格可用高度(px) = 页码上沿 − 留白 − 表格顶边 − 表头行高。
+   * 页码是绝对定位在 bottom:35px 的一条带子，表格底边不得越过它的顶端，
+   * 否则「全部展示」时签名行会压到「第 N 页」上。
+   * 多页时取最紧的一页，避免某页诊断换行把表头撑高后溢出。
+   */
+  private measureRowBand(): number {
+    let tightest = 0;
+    this.host.nativeElement.querySelectorAll<HTMLElement>('.sheet').forEach(sheet => {
+      const table = sheet.querySelector<HTMLElement>('.crrt-table');
+      if (!table) return;
+      const sheetRect = sheet.getBoundingClientRect();
+      // 消除祖先缩放，还原为 CSS 像素后再换算 mm
+      const scale = sheet.offsetHeight > 0 ? sheetRect.height / sheet.offsetHeight : 1;
+      const tableTop = table.getBoundingClientRect().top - sheetRect.top;
+      const headRow = table.querySelector('thead tr');
+      const headHeight = headRow ? headRow.getBoundingClientRect().height : 0;
+      const pageno = sheet.querySelector<HTMLElement>('.sheet-pageno');
+      const padBottom = parseFloat(getComputedStyle(sheet).paddingBottom) || 0;
+      const floor = pageno
+        ? pageno.getBoundingClientRect().top - sheetRect.top
+        : sheetRect.height - padBottom;
+      const band = (floor - ROW_GAP_PX - tableTop - headHeight) / (scale || 1);
+      if (band > 0 && (!tightest || band < tightest)) tightest = band;
+    });
+    return tightest;
+  }
+
+  /**
+   * 行高写成 <table> 的内联样式，由模板绑定维护。
+   * pages 是 getter，每次变更检测返回新数组，*ngFor 无 trackBy 会重建整个表格 DOM，
+   * 命令式写入的内联变量会被清空；绑定则在元素创建时就套用，克隆/打印稿也能拿到。
+   * 取值受 ROW_MIN_PX / ROW_MAX_PX 夹逼。
+   */
+  get rowStyle(): string {
+    if (this.rowBandPx <= 0) this.rowBandPx = this.measureRowBand();
+    const rows = Math.max(1, this.visibleRowCount);
+    const band = this.rowBandPx > 0 ? this.rowBandPx : ROW_BAND_FALLBACK_PX;
+    const perPx = Math.min(ROW_MAX_PX, Math.max(ROW_MIN_PX, band / rows));
+    return `--crrt-row-px:${perPx.toFixed(1)}px;--crrt-row-mm:${(perPx / PX_PER_MM).toFixed(3)}mm`;
+  }
   private reset(): void { this.pid = ''; this.patient = null; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionId = null; this.visibleGroupsForSession = []; this.selectedPrintPages = []; }
 
   load(): void {

@@ -899,3 +899,42 @@ h1 {
     line-height: 20px !important;
   }
 }
+
+/* =========================================================
+   行高自适应（最终覆盖）
+
+   单行高度由 TS 按可见数据行数计算后写在 <table> 的内联变量上：
+     --crrt-row-mm  打印行高
+     --crrt-row-px  屏幕行高
+   数据少时行高撑开、数据多时收窄，使表格始终接近满页，
+   避免数据少时只占页面一角。表头行不参与拉伸，保持固定高度。
+   取值区间见 crrt-record.component.ts 的 ROW_MIN_PX / ROW_MAX_PX / ROW_GAP_PX。
+   ========================================================= */
+
+.crrt-table .group-cell,
+.crrt-table .metric-cell,
+.crrt-table .value-cell,
+.crrt-table .signature-row td {
+  height: var(--crrt-row-mm, 5.3mm) !important;
+}
+
+@media screen {
+  .crrt-table .group-cell,
+  .crrt-table .metric-cell,
+  .crrt-table .value-cell,
+  .crrt-table .signature-row td {
+    height: var(--crrt-row-px, 20px) !important;
+    min-height: 20px !important;
+    line-height: 20px !important;
+  }
+}
+
+@media print {
+  .crrt-table .group-cell,
+  .crrt-table .metric-cell,
+  .crrt-table .value-cell,
+  .crrt-table .signature-row td {
+    height: var(--crrt-row-mm, 5.3mm) !important;
+    line-height: 20px !important;
+  }
+}

@@ -61,7 +61,7 @@
       </div>
     </div>
 
-    <table class="crrt-table">
+    <table class="crrt-table" [attr.style]="rowStyle">
       <colgroup>
         <col class="group-col" /><col class="metric-col" />
         <col *ngFor="let i of columnIndexes" class="value-col" />
