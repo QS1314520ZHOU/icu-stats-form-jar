@@ -1,4 +1,4 @@
-<div class="toolbar no-print" *ngIf="!isViewerMode"><app-print-page-multi-select [totalPages]="pages.length" [(selectedPages)]="selectedPrintPages" [disabled]="loading"></app-print-page-multi-select><button class="btn primary" (click)="print()">打印</button></div>
+<div class="toolbar no-print" *ngIf="!isViewerMode"><button class="btn" type="button" (click)="openCreateParam()" [disabled]="!patient">新增</button><button class="btn" type="button" (click)="openEditParamList()" [disabled]="!patient">编辑</button><app-print-page-multi-select [totalPages]="pages.length" [(selectedPages)]="selectedPrintPages" [disabled]="loading"></app-print-page-multi-select><button class="btn primary" (click)="print()">打印</button></div>
 <div *ngIf="loading" class="status">加载中…</div><div *ngIf="loadError" class="status error">{{loadError}} <button (click)="load()">重试</button></div>
 <section class="print-page" *ngFor="let page of pages" [class.print-hidden]="printing && !isPrintPageSelected(page.index)">
  <div class="sheet">
@@ -31,3 +31,23 @@
   </table><div class="page-no">第 {{page.index}} 页</div>
  </div>
 </section>
+
+<div class="overlay no-print" *ngIf="recordListOpen" (click)="recordListOpen=false"><section class="dialog list-dialog" (click)="$event.stopPropagation()">
+ <div class="dialog-head"><h2>编辑参数记录</h2><button class="icon-btn" (click)="recordListOpen=false">×</button></div>
+ <div class="record-list"><table><thead><tr><th>No</th><th>记录时间</th><th>参数项</th><th>操作</th></tr></thead>
+  <tbody><tr *ngFor="let r of records;let i=index"><td>{{i+1}}</td><td>{{fmtRecordTime(r.recordTime)}}</td><td>{{paramCount(r)}} 项</td>
+   <td><button class="text-btn" (click)="editParam(r)">编辑</button><button class="text-btn danger" (click)="invalidateParam(r)" [disabled]="deletingId===r.id">{{deletingId===r.id?'删除中…':'删除'}}</button></td></tr>
+  <tr *ngIf="!records.length"><td colspan="4" class="empty">暂无参数记录</td></tr></tbody></table></div>
+</section></div>
+
+<div class="overlay no-print" *ngIf="recordFormOpen" (click)="recordFormOpen=false"><section class="dialog form-dialog" (click)="$event.stopPropagation()">
+ <div class="dialog-head"><h2>{{recordEditing?'编辑参数记录':'新增参数记录'}}</h2><button class="icon-btn" (click)="recordFormOpen=false" [disabled]="recordSaving">×</button></div>
+ <div class="form-body">
+  <div class="record-time-row"><label>记录时间</label><input type="datetime-local" [(ngModel)]="recordForm.recordTime"></div>
+  <div class="param-grid">
+   <div class="param-item" *ngFor="let m of metrics"><label>{{m.label}}<small *ngIf="m.normal">（{{m.normal}}）</small></label><input type="text" placeholder="请输入" [(ngModel)]="recordForm.values[m.code]"></div>
+  </div>
+  <div class="form-error" *ngIf="recordError">{{recordError}}</div>
+ </div>
+ <div class="dialog-foot"><button class="dialog-btn cancel-btn" (click)="recordFormOpen=false" [disabled]="recordSaving">取消</button><button class="dialog-btn save-btn" (click)="saveParam()" [disabled]="recordSaving">{{recordSaving?'保存中…':'保存'}}</button></div>
+</section></div>
