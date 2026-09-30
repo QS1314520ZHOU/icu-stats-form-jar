@@ -317,7 +317,7 @@ export const SAFETY_REPORT_SCHEMA: SafetyMetricDefinition[] = [
   {
     key: 'temperatureAbove38',
     category: '患者安全',
-    label: '体温≥37.5℃',
+    label: '体温≥38℃',
     mode: 'auto',
     valueType: 'beds',
     emphasize: true,

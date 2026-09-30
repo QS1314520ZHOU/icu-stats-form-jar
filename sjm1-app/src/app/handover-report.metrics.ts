@@ -100,8 +100,8 @@ function bedsideBeds(
 }
 
 /**
- * 体温≥38℃（展示标签不变）：取数口径为班次内体温 ≥37.5℃。
- * 展示：1床(39.1℃—37.6℃)，前值为班次内 ≥37.5℃ 的最高体温，后值为班次内最新一次体温；
+ * 体温≥38℃：取数口径为班次内体温 ≥38℃。
+ * 展示：1床(39.1℃—37.6℃)，前值为班次内 ≥38℃ 的最高体温，后值为班次内最新一次体温；
  * 两者数值相同时只展示一次：1床(39.1℃)。
  */
 function temperatureBeds(
@@ -109,7 +109,7 @@ function temperatureBeds(
   patients: Map<string, DepartmentPatient>,
   range: ShiftRange,
 ): string {
-  const THRESHOLD = 37.5;
+  const THRESHOLD = 38;
 
   interface TempReading {
     value: number;
