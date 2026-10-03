@@ -177,26 +177,45 @@ export class CrrtRecordComponent implements OnInit, OnDestroy, AfterViewChecked 
   }
 
   /**
-   * 表格可用高度(px) = 底部封顶线 − 留白 − 表格顶边 − 表头行高。
-   * 封顶线固定为 sheet 底边往上 SHEET_BOTTOM_PX（35px），不再实测页码位置：
-   * 页码挪动 bottom 只影响页码自己，不会牵动行高/表格高度；
-   * 页码固定在 bottom:30px，与封顶线之间由 ROW_GAP_PX 兜底，
-   * 「全部展示」时签名行不会压到「第 N 页」。
+   * 表格数据区可用高度(px) = 底部封顶线 − 留白 − 表格顶边 − 表头行高，
+   * 并用「实测渲染高度」做反馈修正。
+   *
+   * 封顶线固定为 sheet 底边往上 SHEET_BOTTOM_PX（35px），不实测页码位置：
+   * 页码挪动 bottom 只影响页码自己；页码固定在 bottom:30px，
+   * 与封顶线之间由 ROW_GAP_PX 兜底，签名行不会压到「第 N 页」。
+   *
+   * 理论均分看不到内容撑出来的高度（单元格换行、表头实测偏差等），
+   * 实际表格会比理论值高出一截，签名行被顶进页码区。
+   * 因此每轮拿当前实际渲染高度与目标高度求差额，回摊到每行扣掉，
+   * 下一轮表格底边就精确落回目标线；收敛后差额≈0，值保持稳定。
    * 多页时取最紧的一页，避免某页诊断换行把表头撑高后溢出。
    */
   private measureRowBand(): number {
     let tightest = 0;
+    const rows = Math.max(1, this.visibleRowCount);
     this.host.nativeElement.querySelectorAll<HTMLElement>('.sheet').forEach(sheet => {
       const table = sheet.querySelector<HTMLElement>('.crrt-table');
       if (!table) return;
       const sheetRect = sheet.getBoundingClientRect();
+      // 打印多选时未选中的页是 print-hidden（display:none），零尺寸不参与计算
+      if (sheetRect.height <= 0) return;
       // 消除祖先缩放，还原为 CSS 像素后再换算 mm
       const scale = sheet.offsetHeight > 0 ? sheetRect.height / sheet.offsetHeight : 1;
       const tableTop = table.getBoundingClientRect().top - sheetRect.top;
       const headRow = table.querySelector('thead tr');
       const headHeight = headRow ? headRow.getBoundingClientRect().height : 0;
       const floor = sheetRect.height - SHEET_BOTTOM_PX;
-      const band = (floor - ROW_GAP_PX - tableTop - headHeight) / (scale || 1);
+      // 目标：表格总高（含表头）不得超过 封顶线 − 留白 − 表格顶边
+      const targetTableHeight = floor - ROW_GAP_PX - tableTop;
+      const perPx = parseFloat(table.style.getPropertyValue('--crrt-row-px')) || 0;
+      const actual = table.getBoundingClientRect().height;
+      let band: number;
+      if (perPx > 0 && actual > 0) {
+        const overshoot = (actual - targetTableHeight) / (scale || 1);
+        band = perPx * rows - overshoot;
+      } else {
+        band = (targetTableHeight - headHeight) / (scale || 1);
+      }
       if (band > 0 && (!tightest || band < tightest)) tightest = band;
     });
     return tightest;
