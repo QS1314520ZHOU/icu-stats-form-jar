@@ -80,8 +80,14 @@ const PX_PER_MM = 96 / 25.4;
 const ROW_MIN_PX = 20;
 /** 行高上限(px)，数据过少时不再继续撑高 */
 const ROW_MAX_PX = 41;
-/** 表格底边与页码顶端的留白(px)：34 行得 27.3px、22 行得 41px */
+/** 表格底边与底部封顶线之间的留白(px)：34 行得 27.3px、22 行得 41px */
 const ROW_GAP_PX = 21;
+/**
+ * 表格封顶线：距 sheet 底边的距离(px)，表格底边不得越过。
+ * 与页码位置解耦（页码固定 bottom:30px，见 crrt-record.component.css），
+ * 页码文字占 30~46px，封顶线 35 + 留白 21 → 表格实际停在 56px，压不到页码。
+ */
+const SHEET_BOTTOM_PX = 35;
 /** 测不到表头时的兜底可用高度(px)，约等于 240mm */
 const ROW_BAND_FALLBACK_PX = 900;
 
@@ -171,9 +177,11 @@ export class CrrtRecordComponent implements OnInit, OnDestroy, AfterViewChecked 
   }
 
   /**
-   * 表格可用高度(px) = 页码上沿 − 留白 − 表格顶边 − 表头行高。
-   * 页码是绝对定位在 bottom:35px 的一条带子，表格底边不得越过它的顶端，
-   * 否则「全部展示」时签名行会压到「第 N 页」上。
+   * 表格可用高度(px) = 底部封顶线 − 留白 − 表格顶边 − 表头行高。
+   * 封顶线固定为 sheet 底边往上 SHEET_BOTTOM_PX（35px），不再实测页码位置：
+   * 页码挪动 bottom 只影响页码自己，不会牵动行高/表格高度；
+   * 页码固定在 bottom:30px，与封顶线之间由 ROW_GAP_PX 兜底，
+   * 「全部展示」时签名行不会压到「第 N 页」。
    * 多页时取最紧的一页，避免某页诊断换行把表头撑高后溢出。
    */
   private measureRowBand(): number {
@@ -187,11 +195,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy, AfterViewChecked 
       const tableTop = table.getBoundingClientRect().top - sheetRect.top;
       const headRow = table.querySelector('thead tr');
       const headHeight = headRow ? headRow.getBoundingClientRect().height : 0;
-      const pageno = sheet.querySelector<HTMLElement>('.sheet-pageno');
-      const padBottom = parseFloat(getComputedStyle(sheet).paddingBottom) || 0;
-      const floor = pageno
-        ? pageno.getBoundingClientRect().top - sheetRect.top
-        : sheetRect.height - padBottom;
+      const floor = sheetRect.height - SHEET_BOTTOM_PX;
       const band = (floor - ROW_GAP_PX - tableTop - headHeight) / (scale || 1);
       if (band > 0 && (!tightest || band < tightest)) tightest = band;
     });
