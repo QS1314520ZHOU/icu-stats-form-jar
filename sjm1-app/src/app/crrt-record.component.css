@@ -148,7 +148,8 @@ label {
   width: 210mm;
   height: 297mm;
   margin: 0 auto;
-  padding: 5mm 6mm 9mm;
+  /* 与 @media screen/print 同值（96dpi 等价契约：19/21/34px = 5/6/9mm） */
+  padding: 19px 21px 34px;
   overflow: hidden;
   background: #fff;
   box-shadow: none !important;
@@ -257,7 +258,8 @@ h1 {
   box-sizing: border-box;
   height: 5.3mm;
   min-height: 0;
-  padding: 0.35mm 0.45mm;
+  /* 与两介质同值：行地板一致（96dpi 等价契约） */
+  padding: 1px 2px;
   border: 1px solid #000 !important;
   overflow: hidden;
   background: #fff;
@@ -307,7 +309,7 @@ h1 {
 }
 
 .group-cell {
-  padding: 0.3mm !important;
+  padding: 1px 2px !important;
   font-size: 7.3pt;
   font-weight: 600 !important;
   line-height: 20px;
@@ -315,7 +317,7 @@ h1 {
 }
 
 .metric-cell {
-  padding: 0.3mm 0.4mm !important;
+  padding: 1px 2px !important;
   font-size: 7.2pt;
   line-height: 20px;
   text-align: center;
@@ -323,15 +325,16 @@ h1 {
 }
 
 .value-cell {
-  padding: 0.2mm 0.3mm !important;
+  padding: 1px 2px !important;
   font-size: 7.1pt;
   line-height: 20px;
   white-space: normal;
 }
 
+/* 表头行高统一由下方「最终字体覆盖」段的 24px 决定（屏幕/打印同值，HEAD_PX=24），
+   此处不再写 mm 高度，避免两介质不一致。 */
 .time-header {
   box-sizing: border-box;
-  height: 5.8mm !important;
   padding: 0.3mm 0.2mm !important;
   overflow: hidden;
   line-height: 1 !important;
@@ -376,7 +379,8 @@ h1 {
 .sheet-pageno {
   position: absolute;
   right: 0;
-  /* 页码位置固定，不参与行高实测（见 crrt-record.component.ts measureRowBand） */
+  /* 页码位置固定；行高走纯数值公式（SHEET_BOTTOM_PX/ROW_GAP_PX），与页码解耦
+     （见 crrt-record.component.ts rowStyle） */
   bottom: 30px;
   left: 0;
   margin: 0;
@@ -619,10 +623,35 @@ h1 {
     page-break-after: auto;
   }
 
+  /*
+   * 96dpi 等价契约：打印侧固定区（标题/场次摘要/患者信息/表格几何）必须与
+   * @media screen 取完全相同的 px 值——屏幕测得的固定区高度（table.offsetTop）
+   * 才能对打印逐像素成立，行高纯数值公式（crrt-record.component.ts rowStyle）
+   * 在两介质得到同一结果。px 在打印中是绝对单位（1/96 英寸），两介质等价。
+   * 改动这里必须同步 @media screen 对应规则。
+   */
+  h1 {
+    margin: 0 0 6px !important;
+    font-size: 21px !important;
+    line-height: 26px !important;
+  }
+
   .session-summary {
-    margin: 1mm 0 2mm !important;
-    font-size: 13pt !important;
-    gap: 12px !important;
+    margin: 2px 0 4px !important;
+    font-size: 17px !important;
+    line-height: 21px !important;
+    gap: 18px !important;
+  }
+
+  .patient-info {
+    margin: 2px 0 4px !important;
+    font-size: 17px !important;
+    line-height: 21px !important;
+  }
+
+  .patient-info-row {
+    margin: 2px 0 !important;
+    line-height: 21px !important;
   }
 
   .sheet {
@@ -635,7 +664,7 @@ h1 {
     min-height: 297mm !important;
     max-height: 297mm !important;
     margin: 0 !important;
-    padding: 5mm 6mm 9mm !important;
+    padding: 19px 21px 34px !important;
     overflow: hidden !important;
     background: #fff !important;
     box-shadow: none !important;
@@ -670,11 +699,12 @@ h1 {
     page-break-inside: avoid !important;
   }
 
+  /* padding 与 @media screen 同值（1px 2px）：行地板两介质一致 */
   .crrt-table th,
   .crrt-table td {
     height: 5.3mm !important;
     min-height: 0 !important;
-    padding: 0.35mm 0.45mm !important;
+    padding: 1px 2px !important;
     border: 1px solid #000 !important;
     background: #fff !important;
     color: #000 !important;
@@ -682,23 +712,18 @@ h1 {
     line-height: 20px !important;
   }
 
-  .crrt-table .time-header {
-    height: 5.8mm !important;
-    padding: 0.3mm 0.2mm !important;
-  }
-
   .crrt-table .group-cell {
-    padding: 0.3mm !important;
+    padding: 1px 2px !important;
     font-size: 7.3pt !important;
   }
 
   .crrt-table .metric-cell {
-    padding: 0.3mm 0.4mm !important;
+    padding: 1px 2px !important;
     font-size: 7.2pt !important;
   }
 
   .crrt-table .value-cell {
-    padding: 0.2mm 0.3mm !important;
+    padding: 1px 2px !important;
     font-size: 7.1pt !important;
   }
 
@@ -857,19 +882,21 @@ h1 {
     font-size: inherit !important;
   }
 
+  /* padding/行高与 @media screen 完全同值：行地板一致，纯数值行高才成立 */
   .crrt-table th,
   .crrt-table td,
   .crrt-table .group-cell,
   .crrt-table .metric-cell,
   .crrt-table .value-cell {
     height: 5.3mm !important;
-    padding: 0.35mm 0.45mm !important;
+    padding: 1px 2px !important;
     line-height: 20px !important;
   }
 
+  /* 表头行 24px = HEAD_PX，屏幕/打印同值（6.35mm 也等于 24px@96dpi） */
   .time-header {
-    height: 6.5mm !important;
-    min-height: 6.5mm !important;
+    height: 24px !important;
+    min-height: 24px !important;
     padding: 0.3mm 0.2mm !important;
   }
 
@@ -904,11 +931,13 @@ h1 {
 /* =========================================================
    行高自适应（最终覆盖）
 
-   单行高度由 TS 按可见数据行数计算后写在 <table> 的内联变量上：
-     --crrt-row-mm  打印行高
+   单行高度由 TS 按纯数值公式计算后写在 <table> 的内联变量上
+   （无 DOM 反馈回路，见 crrt-record.component.ts rowStyle）：
+     行高 = (A4 高 − 封顶线 − 留白 − 上方固定区实测 − 表头) ÷ 可见行数
+     --crrt-row-mm  打印行高（由 px 按 96dpi 换算）
      --crrt-row-px  屏幕行高
-   数据少时行高撑开、数据多时收窄，使表格始终接近满页，
-   避免数据少时只占页面一角。表头行不参与拉伸，保持固定高度。
+   数据少时行高撑开、数据多时收窄，使表格始终接近满页。
+   表头行不参与拉伸，保持固定 24px（HEAD_PX）。
    取值区间见 crrt-record.component.ts 的 ROW_MIN_PX / ROW_MAX_PX / ROW_GAP_PX。
    ========================================================= */
 
@@ -924,8 +953,8 @@ h1 {
   .crrt-table .metric-cell,
   .crrt-table .value-cell,
   .crrt-table .signature-row td {
-    height: var(--crrt-row-px, 20px) !important;
-    min-height: 20px !important;
+    height: var(--crrt-row-px, 24px) !important;
+    min-height: 24px !important;
     line-height: 20px !important;
   }
 }

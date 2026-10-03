@@ -71,16 +71,23 @@ const CRRT_GROUPS: CrrtGroup[] = [
 ];
 
 /* =========================================================
-   行高自适应：按当前可见数据行数撑开/收窄行高，让表格接近满页
-   数据少时取上限，数据多时按剩余空间均分，下限即原固定行高 5.3mm。
-   屏幕与打印按 96dpi 换算，保持同一比例（5.3mm ≈ 20px）。
+   行高纯数值确定性计算（无 DOM 反馈回路）：
+   行高 = (A4 高 − 上方固定区 − 底部封顶线 − 留白 − 表头高) ÷ 可见行数，
+   夹逼 [ROW_MIN_PX, ROW_MAX_PX]；屏幕 px 与打印 mm 按 96dpi 同源换算。
+   上方固定区（标题/场次/患者信息/诊断）由渲染后单次测量 table.offsetTop 取得
+   （诊断可换行，不能用常数）；打印与屏幕的固定区 CSS 按 96dpi 等价契约统一，
+   见 crrt-record.component.css 打印段注释。
    ========================================================= */
 const PX_PER_MM = 96 / 25.4;
-/** 行高下限(px)，即原固定行高 5.3mm */
-const ROW_MIN_PX = 20;
+/** A4 屏幕高度(px)，96dpi 下 297mm ≈ 1123px */
+const SHEET_H_PX = 1123;
+/** 表头行(time-header)高度(px)：内容 nowrap 不换行，可用常数 */
+const HEAD_PX = 24;
+/** 行高下限(px)：单元格行地板 ≈23px（20px 行高 + 上下 padding + 边框），必须 ≥ 地板 */
+const ROW_MIN_PX = 24;
 /** 行高上限(px)，数据过少时不再继续撑高 */
 const ROW_MAX_PX = 41;
-/** 表格底边与底部封顶线之间的留白(px)：34 行得 27.3px、22 行得 41px */
+/** 表格底边与底部封顶线之间的留白(px) */
 const ROW_GAP_PX = 21;
 /**
  * 表格封顶线：距 sheet 底边的距离(px)，表格底边不得越过。
@@ -88,8 +95,8 @@ const ROW_GAP_PX = 21;
  * 页码文字占 30~46px，封顶线 35 + 留白 21 → 表格实际停在 56px，压不到页码。
  */
 const SHEET_BOTTOM_PX = 35;
-/** 测不到表头时的兜底可用高度(px)，约等于 240mm */
-const ROW_BAND_FALLBACK_PX = 900;
+/** 首帧未测得上方固定区时的兜底值(px)：取偏大 → 首帧行高偏小（不满页），不会溢出 */
+const TABLE_TOP_FALLBACK_PX = 180;
 
 @Component({
   standalone: false, selector: 'app-crrt-record',
@@ -111,8 +118,14 @@ export class CrrtRecordComponent implements OnInit, OnDestroy, AfterViewChecked 
   selectedSession: CrrtSession | null = null;
   selectedSessionId: number | null = null;
   visibleGroupsForSession: CrrtGroup[] = [];
-  /** 表格可用高度(px)，0 = 待测量。见 measureRowBand() */
-  private rowBandPx = 0;
+  /** 表格上方固定区实测高度(px)，0 = 未测量。见 ngAfterViewChecked() */
+  private tableTopPx = 0;
+  /** 防止微任务重检堆积 */
+  private topCheckScheduled = false;
+  /** 组件已销毁时跳过微任务重检 */
+  private destroyed = false;
+  /** 行数溢出告警只发一次 */
+  private overflowWarned = false;
 
   get sessionOptions(): Array<{ id: number; label: string }> {
     return this.sessions.map(s => ({
@@ -160,7 +173,7 @@ export class CrrtRecordComponent implements OnInit, OnDestroy, AfterViewChecked 
     });
   }
 
-  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
+  ngOnDestroy(): void { this.destroyed = true; this.destroy$.next(); this.destroy$.complete(); }
 
   /** 可见数据行数 = 各组指标数之和 + 签名行 */
   private get visibleRowCount(): number {
@@ -168,70 +181,60 @@ export class CrrtRecordComponent implements OnInit, OnDestroy, AfterViewChecked 
   }
 
   /**
-   * 作废已测得的可用高度，让下一轮变更检测按最新表头重测。
-   * 诊断可能换行，表头高度随之变化，不能一直沿用旧值。
-   * 本方法只清缓存，不碰 DOM，因此不会触发 ExpressionChangedAfterItHasBeenChecked。
+   * 渲染后单次测量表格上方固定区（标题/场次/患者信息/诊断）的高度。
+   * offsetTop 是布局像素，不受祖先缩放影响；print-hidden(display:none) 页
+   * 测得 0，天然跳过。多页取最大值（诊断最长的页最紧），全页共用同一行高。
    */
-  ngAfterViewChecked(): void {
-    this.rowBandPx = 0;
-  }
-
-  /**
-   * 表格数据区可用高度(px) = 底部封顶线 − 留白 − 表格顶边 − 表头行高，
-   * 并用「实测渲染高度」做反馈修正。
-   *
-   * 封顶线固定为 sheet 底边往上 SHEET_BOTTOM_PX（35px），不实测页码位置：
-   * 页码挪动 bottom 只影响页码自己；页码固定在 bottom:30px，
-   * 与封顶线之间由 ROW_GAP_PX 兜底，签名行不会压到「第 N 页」。
-   *
-   * 理论均分看不到内容撑出来的高度（单元格换行、表头实测偏差等），
-   * 实际表格会比理论值高出一截，签名行被顶进页码区。
-   * 因此每轮拿当前实际渲染高度与目标高度求差额，回摊到每行扣掉，
-   * 下一轮表格底边就精确落回目标线；收敛后差额≈0，值保持稳定。
-   * 多页时取最紧的一页，避免某页诊断换行把表头撑高后溢出。
-   */
-  private measureRowBand(): number {
-    let tightest = 0;
-    const rows = Math.max(1, this.visibleRowCount);
+  private measureTableTopPx(): number {
+    let max = 0;
     this.host.nativeElement.querySelectorAll<HTMLElement>('.sheet').forEach(sheet => {
       const table = sheet.querySelector<HTMLElement>('.crrt-table');
-      if (!table) return;
-      const sheetRect = sheet.getBoundingClientRect();
-      // 打印多选时未选中的页是 print-hidden（display:none），零尺寸不参与计算
-      if (sheetRect.height <= 0) return;
-      // 消除祖先缩放，还原为 CSS 像素后再换算 mm
-      const scale = sheet.offsetHeight > 0 ? sheetRect.height / sheet.offsetHeight : 1;
-      const tableTop = table.getBoundingClientRect().top - sheetRect.top;
-      const headRow = table.querySelector('thead tr');
-      const headHeight = headRow ? headRow.getBoundingClientRect().height : 0;
-      const floor = sheetRect.height - SHEET_BOTTOM_PX;
-      // 目标：表格总高（含表头）不得超过 封顶线 − 留白 − 表格顶边
-      const targetTableHeight = floor - ROW_GAP_PX - tableTop;
-      const perPx = parseFloat(table.style.getPropertyValue('--crrt-row-px')) || 0;
-      const actual = table.getBoundingClientRect().height;
-      let band: number;
-      if (perPx > 0 && actual > 0) {
-        const overshoot = (actual - targetTableHeight) / (scale || 1);
-        band = perPx * rows - overshoot;
-      } else {
-        band = (targetTableHeight - headHeight) / (scale || 1);
-      }
-      if (band > 0 && (!tightest || band < tightest)) tightest = band;
+      const top = table ? table.offsetTop : 0;
+      if (top > max) max = top;
     });
-    return tightest;
+    return max;
   }
 
   /**
-   * 行高写成 <table> 的内联样式，由模板绑定维护。
+   * 测量上方固定区，变化 ≥1px 时更新字段并延迟到微任务重检。
+   * rowStyle 是纯函数 getter（只读字段），若在本轮 CD 内同步改字段，
+   * 紧随其后的 checkNoChanges 会读到新值 → ExpressionChangedAfterItHasBeenChecked，
+   * 因此必须把 detectChanges 推迟到微任务；flag 防止连续变更堆积重检。
+   * tableTop 只取决于表格上方元素、与行高无因果，故一轮收敛不震荡。
+   */
+  ngAfterViewChecked(): void {
+    const next = this.measureTableTopPx();
+    if (next > 0 && Math.abs(next - this.tableTopPx) >= 1) {
+      this.tableTopPx = next;
+      if (!this.topCheckScheduled) {
+        this.topCheckScheduled = true;
+        Promise.resolve().then(() => {
+          this.topCheckScheduled = false;
+          if (!this.destroyed) this.cdr.detectChanges();
+        });
+      }
+    }
+  }
+
+  /**
+   * 行高纯数值计算，写成 <table> 的内联样式，由模板绑定维护。
    * pages 是 getter，每次变更检测返回新数组，*ngFor 无 trackBy 会重建整个表格 DOM，
    * 命令式写入的内联变量会被清空；绑定则在元素创建时就套用，克隆/打印稿也能拿到。
-   * 取值受 ROW_MIN_PX / ROW_MAX_PX 夹逼。
+   *
+   * 可行高度 = A4 高 − 封顶线 − 留白 − 上方固定区实测 − 表头；
+   * 行高 = 可行高度 ÷ 可见行数，夹逼 [ROW_MIN_PX, ROW_MAX_PX]；
+   * 打印 mm 由 px 按 96dpi 同源换算，屏幕与打印几何一致（CSS 等价契约）。
    */
   get rowStyle(): string {
-    if (this.rowBandPx <= 0) this.rowBandPx = this.measureRowBand();
     const rows = Math.max(1, this.visibleRowCount);
-    const band = this.rowBandPx > 0 ? this.rowBandPx : ROW_BAND_FALLBACK_PX;
-    const perPx = Math.min(ROW_MAX_PX, Math.max(ROW_MIN_PX, band / rows));
+    const top = this.tableTopPx > 0 ? this.tableTopPx : TABLE_TOP_FALLBACK_PX;
+    const avail = SHEET_H_PX - SHEET_BOTTOM_PX - ROW_GAP_PX - top - HEAD_PX;
+    const perPx = Math.min(ROW_MAX_PX, Math.max(ROW_MIN_PX, avail / rows));
+    // 纯算术预检：行多到夹到下限仍装不下时告警（只告警不修正，不引入反馈回路）
+    if (!this.overflowWarned && ROW_MIN_PX * rows + HEAD_PX + top > SHEET_H_PX - SHEET_BOTTOM_PX - ROW_GAP_PX) {
+      this.overflowWarned = true;
+      console.warn(`CRRT记录单内容超出可用高度（可见行数=${rows}），行高已夹到下限，表格可能被裁切`);
+    }
     return `--crrt-row-px:${perPx.toFixed(1)}px;--crrt-row-mm:${(perPx / PX_PER_MM).toFixed(3)}mm`;
   }
   private reset(): void { this.pid = ''; this.patient = null; this.values.clear(); this.yishiRecords = []; this.accountNameMap.clear(); this.sessions = []; this.selectedSession = null; this.selectedSessionId = null; this.visibleGroupsForSession = []; this.selectedPrintPages = []; }
@@ -512,8 +515,26 @@ export class CrrtRecordComponent implements OnInit, OnDestroy, AfterViewChecked 
   print(): void {
     this.printing = true;
     this.cdr.detectChanges();
+    this.warnIfTableCrossesCeiling();
     const afterPrint = () => { this.printing = false; this.cdr.detectChanges(); window.removeEventListener('afterprint', afterPrint); };
     window.addEventListener('afterprint', afterPrint);
     window.print();
+  }
+
+  /**
+   * 打印前一次性只读校验：表格底边越过封顶线时告警点名页码。
+   * 只告警不修正行高——任何"测了再改"的修正都会把反馈回路引回来。
+   */
+  private warnIfTableCrossesCeiling(): void {
+    this.host.nativeElement.querySelectorAll<HTMLElement>('.sheet').forEach((sheet, idx) => {
+      if (sheet.offsetHeight <= 0) return;
+      const table = sheet.querySelector<HTMLElement>('.crrt-table');
+      if (!table) return;
+      const bottom = table.offsetTop + table.offsetHeight;
+      const ceiling = sheet.clientHeight - SHEET_BOTTOM_PX;
+      if (bottom > ceiling) {
+        console.warn(`CRRT记录单第 ${idx + 1} 页表格底边 ${Math.round(bottom)}px 超过封顶线 ${ceiling}px，打印可能压到页码`);
+      }
+    });
   }
 }
