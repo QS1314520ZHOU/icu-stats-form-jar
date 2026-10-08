@@ -85,6 +85,7 @@ export interface OrderRecord {
   pid?: string;
   mrn?: string;
   orderName?: string;
+  /** 医嘱类型：含"临时"→仅开立班次展示；否则按长期医嘱（频次+停止时间）处理 */
   orderType?: string;
   orderTime?: string;
   stopTime?: string;

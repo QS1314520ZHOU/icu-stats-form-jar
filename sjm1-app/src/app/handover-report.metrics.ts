@@ -63,9 +63,20 @@ function formatBeds(values: Iterable<string>): string {
   return beds.join('、');
 }
 
-function patientMap(snapshot: DepartmentDailySnapshot): Map<string, DepartmentPatient> {
+/**
+ * 出科排除（出科当天整日排除）：icuDischargeTime 早于报表窗口结束（报表日次日08:00）
+ * 的患者，本报表三个班次均不再统计；出科时间在窗口结束之后（含窗口内未出科）的正常统计。
+ * 快照为重返ICU比对会回溯48h带出已出科患者，需按此口径剔除。
+ */
+function dischargedFromReport(patient: DepartmentPatient, reportEnd: number): boolean {
+  const discharge = timestamp(patient.icuDischargeTime);
+  return Number.isFinite(discharge) && discharge < reportEnd;
+}
+
+function patientMap(snapshot: DepartmentDailySnapshot, reportEnd: number): Map<string, DepartmentPatient> {
   const result = new Map<string, DepartmentPatient>();
   for (const patient of snapshot.patients) {
+    if (dischargedFromReport(patient, reportEnd)) { continue; }
     const id = patientId(patient);
     if (id) { result.set(id, patient); }
   }
@@ -246,21 +257,30 @@ function reintubationBeds(
 }
 
 /**
- * 膀胱冲洗：按 zyyz 频次（freq）与停止时间决定每个班次是否展示。
- * - freq "1"=仅白班，"2"=白班+中班，"3"=三个班；缺失/非法值按 3 处理；
- * - 医嘱名称含"持续膀胱冲洗"的忽略频次，只要未停止每个班次都展示；
- * - 开立时间需早于班次结束（开立时间包含查询时间）；
- * - 有停止时间的，停止时间所在班次及其之后的班次不再展示。
+ * 膀胱冲洗：按 orderType（临时/长期）、zyyz 频次（freq）与停止时间决定每个班次是否展示。
+ * - 出科排除：已出科患者（出科时间早于报表窗口结束）不再统计，见 dischargedFromReport；
+ * - 临时医嘱：仅在开立时间所在的班次展示，不看频次与停止时间；
+ * - 长期医嘱（orderType 缺失按长期处理）：
+ *   - freq "1"=仅白班，"2"=白班+中班，"3"=三个班；缺失/非法值按 3 处理；
+ *   - 医嘱名称含"持续膀胱冲洗"的忽略频次，只要未停止每个班次都展示；
+ *   - 开立时间需早于班次结束（开立时间包含查询时间）；
+ *   - 有停止时间的，停止时间所在班次及其之后的班次不再展示。
  */
-function bladderIrrigationBeds(snapshot: DepartmentDailySnapshot, range: ShiftRange): string {
+function bladderIrrigationBeds(
+  snapshot: DepartmentDailySnapshot,
+  range: ShiftRange,
+  reportEnd: number,
+): string {
   const patientByMrn = new Map<string, DepartmentPatient>();
   for (const patient of snapshot.patients) {
+    if (dischargedFromReport(patient, reportEnd)) { continue; }
     const mrn = text(patient.mrn);
     if (mrn) { patientByMrn.set(mrn, patient); }
   }
 
   const shiftIndex: Record<ShiftKey, number> = { day: 0, evening: 1, night: 2 };
   const currentShiftIndex = shiftIndex[range.key];
+  const rangeStart = range.start.getTime();
   const rangeEnd = range.end.getTime();
 
   const beds: string[] = [];
@@ -268,18 +288,26 @@ function bladderIrrigationBeds(snapshot: DepartmentDailySnapshot, range: ShiftRa
     const name = text(order.orderName);
     if (!name.includes('膀胱冲洗')) { continue; }
     const start = timestamp(order.orderTime);
-    if (!Number.isFinite(start) || start >= rangeEnd) { continue; }
-    if (order.stopTime) {
-      const stop = timestamp(order.stopTime);
-      if (Number.isFinite(stop) && stop < rangeEnd) { continue; }
-    }
-    if (!name.includes('持续膀胱冲洗')) {
-      const freq = Number.parseInt(text(order.freq), 10);
-      const freqShifts = Number.isFinite(freq) && freq >= 1 && freq <= 3 ? freq : 3;
-      if (currentShiftIndex >= freqShifts) { continue; }
-    }
+    if (!Number.isFinite(start)) { continue; }
     const patient = patientByMrn.get(text(order.mrn));
-    if (patient) { beds.push(patientBed(patient)); }
+    if (!patient) { continue; }
+    if (text(order.orderType).includes('临时')) {
+      // 临时医嘱：开立时间落在本班次内才展示
+      if (start < rangeStart || start >= rangeEnd) { continue; }
+    } else {
+      // 长期医嘱：开立早于班次结束 + 停止时间 + 频次
+      if (start >= rangeEnd) { continue; }
+      if (order.stopTime) {
+        const stop = timestamp(order.stopTime);
+        if (Number.isFinite(stop) && stop < rangeEnd) { continue; }
+      }
+      if (!name.includes('持续膀胱冲洗')) {
+        const freq = Number.parseInt(text(order.freq), 10);
+        const freqShifts = Number.isFinite(freq) && freq >= 1 && freq <= 3 ? freq : 3;
+        if (currentShiftIndex >= freqShifts) { continue; }
+      }
+    }
+    beds.push(patientBed(patient));
   }
   return formatBeds(beds);
 }
@@ -293,9 +321,11 @@ function isolationOrderBeds(
   patients: Map<string, DepartmentPatient>,
   range: ShiftRange,
   timeField: 'orderTime' | 'stopTime',
+  reportEnd: number,
 ): string {
   const patientByMrn = new Map<string, DepartmentPatient>();
   for (const patient of snapshot.patients) {
+    if (dischargedFromReport(patient, reportEnd)) { continue; }
     const mrn = text(patient.mrn);
     if (mrn) { patientByMrn.set(mrn, patient); }
   }
@@ -314,11 +344,13 @@ function isolationOrderBeds(
 function nonPlannedAdmissionBeds(
   snapshot: DepartmentDailySnapshot,
   range: ShiftRange,
+  reportEnd: number,
 ): string {
   return formatBeds(
     snapshot.patients
       .filter(patient => text(patient.admissionPlan) === '非计划转入')
       .filter(patient => inRange(patient.icuAdmissionTime, range))
+      .filter(patient => !dischargedFromReport(patient, reportEnd))
       .map(patient => patientBed(patient)),
   );
 }
@@ -331,12 +363,14 @@ const HOUR_MS = 60 * 60 * 1000;
  *   24小时重返 → 间隔 0～24h（含）
  *   48小时重返 → 间隔 24h～48h（含 48h，不含 24h，避免与 24h 档重复）
  * 当次入科时间落在班次内则计入当班。status 为 invalid 的记录排除。
+ * 出科排除只作用于展示的当次记录（上一次出科记录仅用于间隔计算，须保留分组）。
  */
 function returnIcuBeds(
   snapshot: DepartmentDailySnapshot,
   range: ShiftRange,
   bandMinHours: number,
   bandMaxHours: number,
+  reportEnd: number,
 ): string {
   const grouped = new Map<string, DepartmentPatient[]>();
   for (const patient of snapshot.patients) {
@@ -368,6 +402,7 @@ function returnIcuBeds(
         : gap > minGap && gap <= maxGap;
       if (!inBand) { continue; }
       if (!inRange(current.icuAdmissionTime, range)) { continue; }
+      if (dischargedFromReport(current, reportEnd)) { continue; }
       const bed = patientBed(current);
       if (bed) { beds.push(bed); }
     }
@@ -412,6 +447,7 @@ function calculateAutoMetricValues(
   snapshot: DepartmentDailySnapshot,
   patients: Map<string, DepartmentPatient>,
   ranges: Record<ShiftKey, ShiftRange>,
+  reportEnd: number,
 ): Record<ShiftKey, string> | null {
   const buildValues = (calculate: (range: ShiftRange) => string) =>
     buildAutoMetricValues(snapshot, patients, ranges, (range) => calculate(range));
@@ -422,7 +458,7 @@ function calculateAutoMetricValues(
     case 'hypoglycemia':
       return buildValues(range => bloodSugarBeds(snapshot, patients, range));
     case 'bladderIrrigation':
-      return buildValues(range => bladderIrrigationBeds(snapshot, range));
+      return buildValues(range => bladderIrrigationBeds(snapshot, range, reportEnd));
     case 'invasiveVentilation':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_XiYangTuJing', value => value === '有创'));
     case 'newNasoentericTube':
@@ -450,9 +486,9 @@ function calculateAutoMetricValues(
     case 'ecmoTreatment':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ECMOMoShi', value => value.length > 0));
     case 'newMultidrugResistantInfection':
-      return buildValues(range => isolationOrderBeds(snapshot, patients, range, 'orderTime'));
+      return buildValues(range => isolationOrderBeds(snapshot, patients, range, 'orderTime', reportEnd));
     case 'removeIsolation':
-      return buildValues(range => isolationOrderBeds(snapshot, patients, range, 'stopTime'));
+      return buildValues(range => isolationOrderBeds(snapshot, patients, range, 'stopTime', reportEnd));
     case 'pressureInjuryHighRisk':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_yaChuang_score', value => value.includes('高')));
     case 'fallHighRisk':
@@ -464,11 +500,11 @@ function calculateAutoMetricValues(
     case 'incontinenceDermatitis':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_score_incontinenceScore', value => value.includes('高度危险')));
     case 'unplannedPostoperativeAdmission':
-      return buildValues(range => nonPlannedAdmissionBeds(snapshot, range));
+      return buildValues(range => nonPlannedAdmissionBeds(snapshot, range, reportEnd));
     case 'returnIcuWithin24Hours':
-      return buildValues(range => returnIcuBeds(snapshot, range, 0, 24));
+      return buildValues(range => returnIcuBeds(snapshot, range, 0, 24, reportEnd));
     case 'returnIcuWithin48Hours':
-      return buildValues(range => returnIcuBeds(snapshot, range, 24, 48));
+      return buildValues(range => returnIcuBeds(snapshot, range, 24, 48, reportEnd));
     default:
       return null;
   }
@@ -518,7 +554,9 @@ export function buildSafetyMetrics(
   snapshot: DepartmentDailySnapshot,
   ranges: Record<ShiftKey, ShiftRange>,
 ): MetricRow[] {
-  const patients = patientMap(snapshot);
+  // 报表窗口结束时刻（报表日次日08:00，即夜班 end）：出科早于此时刻的患者整日排除
+  const reportEnd = ranges.night.end.getTime();
+  const patients = patientMap(snapshot, reportEnd);
 
   const metrics: MetricRow[] = SAFETY_REPORT_SCHEMA.map(definition => {
     let values: Record<ShiftKey, string>;
@@ -537,6 +575,7 @@ export function buildSafetyMetrics(
         snapshot,
         patients,
         ranges,
+        reportEnd,
       );
       values = calculatedValues ?? { day: '', evening: '', night: '' };
     }
