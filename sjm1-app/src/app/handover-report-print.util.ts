@@ -82,6 +82,17 @@ export function resolveNurseName(accounts: NurseAccount[] | undefined, stored: s
   return /[一-龥]/.test(value) ? value : '';
 }
 
+/**
+ * 把日期输入值（YYYY-MM-DD）转成中文写法（YYYY年M月D日）。
+ * 非标准格式时原样返回，避免打印出空日期。
+ * @param dateInput 日期输入值
+ */
+export function formatChineseDate(dateInput: string): string {
+  const matched = /^(\d{4})-(\d{2})-(\d{2})$/.exec((dateInput || '').trim());
+  if (!matched) { return (dateInput || '').trim(); }
+  return `${matched[1]}年${parseInt(matched[2], 10)}月${parseInt(matched[3], 10)}日`;
+}
+
 // ==================== 主入口 ====================
 
 /**
@@ -113,7 +124,7 @@ export async function printHandoverReport(
     renderReport1(root, snapshot, vm, dateInput);
   }
   if (reportType === 'report2' || reportType === 'all') {
-    renderReport2(root, vm, snapshot);
+    renderReport2(root, vm, snapshot, dateInput);
   }
 
   // 5. 挂载到 body
@@ -275,6 +286,29 @@ function createPrintStyles(): void {
       letter-spacing: 2px;
       padding: 3mm 0;
       background: #fff;
+    }
+
+    /* 报告2 标题行：标题居中，右侧同一行写日期（年 月 日） */
+    .print-report-header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: baseline;
+      /* 上边距收紧，标题整体上移 */
+      padding: 1mm 0 3mm;
+    }
+
+    .print-report-header .print-report-title {
+      grid-column: 2;
+      margin: 0;
+      padding: 0;
+    }
+
+    .print-report-date {
+      grid-column: 3;
+      justify-self: end;
+      font-size: 12pt;
+      letter-spacing: 1px;
+      white-space: nowrap;
     }
 
     /* 报告元数据行 */
@@ -783,17 +817,30 @@ function buildFluidSummaryText(summary: any, fluidHours?: number): string {
 
 // ==================== 报告2：重症医学科病区交班报告 ====================
 
-function renderReport2(root: HTMLDivElement, vm: HandoverReportViewModel, snapshot: DepartmentDailySnapshot): void {
+function renderReport2(
+  root: HTMLDivElement,
+  vm: HandoverReportViewModel,
+  snapshot: DepartmentDailySnapshot,
+  dateInput: string,
+): void {
   const report = document.createElement('div');
   report.className = 'print-report';
 
-  // 标题
+  // 标题行：标题居中，右侧同一行写日期（年 月 日）
+  const header = document.createElement('div');
+  header.className = 'print-report-header';
+
   const title = document.createElement('h2');
   title.className = 'print-report-title';
   title.textContent = '重症医学科病区交班报告';
-  title.style.margin = '0';
-  title.style.padding = '3mm 0';
-  report.appendChild(title);
+  header.appendChild(title);
+
+  const date = document.createElement('span');
+  date.className = 'print-report-date';
+  date.textContent = formatChineseDate(dateInput);
+  header.appendChild(date);
+
+  report.appendChild(header);
 
   // 安全指标表格（无 rowspan，支持分页）
   renderSafetyTable(report, vm.metrics, snapshot);

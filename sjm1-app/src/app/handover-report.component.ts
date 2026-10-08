@@ -19,7 +19,7 @@ import { HandoverReportService } from './handover-report.service';
 import { HostPatientService } from './services/host-patient.service';
 import { IcuFormViewerContextService } from './icu-form-viewer-context.service';
 import { buildHandoverReport } from './handover-report.utils';
-import { printHandoverReport, cleanupPrintDom, resolveNurseName } from './handover-report-print.util';
+import { printHandoverReport, cleanupPrintDom, resolveNurseName, formatChineseDate } from './handover-report-print.util';
 
 /**
  * 保存状态类型。
@@ -1174,6 +1174,11 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
     queueMicrotask(() => {
       this.resizeAllTextareas();
     });
+  }
+
+  /** 报告日期的中文写法（2026年10月7日），用于病区交班报告抬头右侧 */
+  get reportDateText(): string {
+    return formatChineseDate(this.dateInput);
   }
 
   private moveDate(days: number): void {

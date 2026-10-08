@@ -223,7 +223,10 @@
       <!-- 报告二：重症医学科病区交班报告 -->
       @if (reportType === 'report2') {
       <section class="safety-report-section" aria-labelledby="safety-report-title">
-        <h2 id="safety-report-title">重症医学科病区交班报告</h2>
+        <div class="safety-report-header">
+          <h2 id="safety-report-title">重症医学科病区交班报告</h2>
+          <span class="safety-report-date">{{ reportDateText }}</span>
+        </div>
 
         <table class="safety-report-table">
           <thead>
