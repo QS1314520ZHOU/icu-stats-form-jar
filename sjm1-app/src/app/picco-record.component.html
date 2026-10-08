@@ -6,8 +6,8 @@
   <div class="patient-info"><div class="patient-info-row"><span class="info-item"><b>科室：</b>{{patient?.dept||''}}</span><span class="info-item"><b>姓名：</b>{{patient?.name||''}}</span><span class="info-item"><b>床号：</b>{{patient?.hisBed ? (patient.hisBed.endsWith('床') ? patient.hisBed : patient.hisBed + '床') : ''}}</span><span class="info-item"><b>住院号：</b>{{patient?.mrn||''}}</span><span class="info-item"><b>年龄：</b>{{age??''}}</span><span class="info-item"><b>性别：</b>{{genderText(patient?.gender)}}</span></div><div class="patient-info-row diagnosis-row"><span class="info-item diagnosis-item"><b>诊断：</b>{{page.diagnosis || diagnosisDisplay}}</span></div></div>
   <div class="insertion-row">
    <strong>穿刺部位：</strong>
-   <label><input type="radio" name="side-{{page.index}}" value="RIGHT" [(ngModel)]="insertionSide" (change)="onExtraChanged()">右侧</label>
-   <label><input type="radio" name="side-{{page.index}}" value="LEFT" [(ngModel)]="insertionSide" (change)="onExtraChanged()">左侧</label>
+   <label><input type="radio" name="side-{{page.index}}" value="RIGHT" [ngModel]="insertionSide" (click)="onSideToggle('RIGHT',$event)">右侧</label>
+   <label><input type="radio" name="side-{{page.index}}" value="LEFT" [ngModel]="insertionSide" (click)="onSideToggle('LEFT',$event)">左侧</label>
    <input class="artery-input" [(ngModel)]="arteryName" (input)="onExtraChanged()" (blur)="saveExtraNow()" aria-label="动脉名称"><span>动脉</span>
    <strong>导管置入长度(cm)：</strong><input class="length-input" type="text" [(ngModel)]="catheterLengthCm" (input)="onExtraChanged()" (blur)="saveExtraNow()">
    <span class="hw-item"><strong>身高</strong><input class="hw-input" type="text" [(ngModel)]="heightCm" (input)="onExtraChanged()" (blur)="saveExtraNow()"><span>cm</span></span>
@@ -18,14 +18,6 @@
    <thead><tr><th>项目</th><th>正常值（单位）</th><th *ngFor="let i of [0,1,2,3,4,5,6,7]"><span>{{displayDate(timeAt(page,i))}}</span><span>{{displayClock(timeAt(page,i))}}</span></th></tr></thead>
    <tbody><tr *ngFor="let metric of metrics"><td [attr.colspan]="metric.normal ? null : 2">{{metric.label}}</td><td *ngIf="metric.normal">{{metric.normal}}</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">{{metricValue(metric,timeAt(page,i))}}</td></tr>
    <tr><td colspan="2">签名</td><td *ngFor="let i of [0,1,2,3,4,5,6,7]">
-    <div class="sign-picker no-print" *ngIf="hasColumnData(timeAt(page,i))">
-     <input class="sign-search-input" type="text" autocomplete="off" [ngModel]="signInputAt(timeAt(page,i))" (ngModelChange)="onSignSearch(timeAt(page,i),$event)" (focus)="openSignDropdown(timeAt(page,i))" (blur)="closeSignDropdownLater()" placeholder="检索医生">
-     <div class="sign-dropdown" *ngIf="signDropdownOpen && isSignEditing(timeAt(page,i))">
-      <button type="button" class="sign-option" *ngFor="let a of signFiltered" (mousedown)="$event.preventDefault()" (click)="selectSignDoctor(timeAt(page,i),a)"><span>{{a.accountName}}</span><small>{{a.username||a.code}}</small></button>
-      <div class="sign-empty" *ngIf="!signFiltered.length">未找到匹配的医生</div>
-      <button type="button" class="sign-clear" (mousedown)="$event.preventDefault()" (click)="clearSign(timeAt(page,i))">清空签名</button>
-     </div>
-    </div>
     <span class="sign-text">{{signatureNameAt(timeAt(page,i))}}</span>
    </td></tr></tbody>
   </table><div class="page-no">第 {{page.index}} 页</div>
@@ -44,6 +36,12 @@
  <div class="dialog-head"><h2>{{recordEditing?'编辑参数记录':'新增参数记录'}}</h2><button class="icon-btn" (click)="recordFormOpen=false" [disabled]="recordSaving">×</button></div>
  <div class="form-body">
   <div class="record-time-row"><label>记录时间</label><input type="datetime-local" [(ngModel)]="recordForm.recordTime"></div>
+  <div class="record-time-row"><label>签名</label>
+   <select [(ngModel)]="recordForm.signatureId">
+    <option value="">（空）</option>
+    <option *ngFor="let a of accounts" [value]="a.accountId">{{a.accountName}}</option>
+   </select>
+  </div>
   <div class="param-grid">
    <div class="param-item" *ngFor="let m of metrics"><label>{{m.label}}<small *ngIf="m.normal">（{{m.normal}}）</small></label><input type="text" placeholder="请输入" [(ngModel)]="recordForm.values[m.code]"></div>
   </div>

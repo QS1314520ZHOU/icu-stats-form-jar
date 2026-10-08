@@ -51,9 +51,9 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  patient:any=null; account:any=null; pid=''; age:number|null=null; diagnosisDisplay='';
  loading=false; loadError=''; pages:RenderPage[]=[{index:1,timePoints:[]}]; selectedPrintPages:number[]=[]; printing=false;
  records:PiccoParamRecord[]=[]; recordListOpen=false; recordFormOpen=false; recordEditing=false; recordSaving=false; recordError=''; deletingId='';
- recordForm:{id?:string;recordTime:string;values:Record<string,string>}={recordTime:'',values:{}};
+ recordForm:{id?:string;recordTime:string;values:Record<string,string>;signatureId:string}={recordTime:'',values:{},signatureId:''};
  insertionSide:''|'RIGHT'|'LEFT'=''; arteryName=''; catheterLengthCm=''; heightCm=''; weightKg=''; extraSaveState:SaveState='idle';
- accounts:AccountOption[]=[]; signFiltered:AccountOption[]=[]; signQuery=''; signDropdownOpen=false; private signEditKey:string|null=null; private signCloseToken=0;
+ accounts:AccountOption[]=[];
  // Viewer 模式标志
  isViewerMode = false;
 
@@ -73,7 +73,7 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   this.loadAccounts();
  }
  ngOnDestroy():void{this.destroy$.next();this.destroy$.complete();}
- private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatures.clear();this.signDropdownOpen=false;this.signEditKey=null;this.signQuery='';this.pages=[{index:1,timePoints:[]}];this.selectedPrintPages=[];this.records=[];this.closeParamDialogs();}
+ private reset():void{this.pid='';this.patient=null;this.values.clear();this.signatures.clear();this.pages=[{index:1,timePoints:[]}];this.selectedPrintPages=[];this.records=[];this.closeParamDialogs();}
  load():void{
   if(!this.pid)return;this.loading=true;this.loadError='';
   this.http.get<PiccoParamRecord[]|{data:PiccoParamRecord[]}>(`${this.PARAMS}/listByPid`,{params:{pid:this.pid}}).pipe(takeUntil(this.destroy$)).subscribe({
@@ -103,20 +103,16 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  }
  metricValue(m:PiccoMetric,tp:TimePoint|undefined):string{return tp?this.values.get(`${m.code}@@${tp.instant}`)??'':'';}
  timeAt(p:RenderPage,i:number):TimePoint|undefined{return p.timePoints[i];}
- hasColumnData(tp:TimePoint|undefined):boolean{
-  if(!tp)return false;
-  for(const m of this.metrics){const v=this.values.get(`${m.code}@@${tp.instant}`);if(v!=null&&v!=='')return true;}
-  return false;
- }
- signKey(tp:TimePoint|undefined):string{return tp?String(tp.instant):'';}
- isSignEditing(tp:TimePoint|undefined):boolean{return !!tp&&this.signEditKey===String(tp.instant);}
- signInputAt(tp:TimePoint|undefined):string{return this.isSignEditing(tp)?this.signQuery:this.signatureNameAt(tp);}
  signatureNameAt(tp:TimePoint|undefined):string{return tp?(this.signatures.get(String(tp.instant))?.accountName||''):'';}
- openSignDropdown(tp:TimePoint|undefined):void{if(!tp)return;this.signCloseToken++;this.signEditKey=String(tp.instant);this.signQuery=this.signatureNameAt(tp);this.signFiltered=this.accounts.slice(0,20);this.signDropdownOpen=true;}
- onSignSearch(tp:TimePoint|undefined,value:string):void{if(!tp)return;this.signEditKey=String(tp.instant);this.signQuery=value;const keyword=value.trim().toLowerCase();this.signFiltered=this.accounts.filter(a=>!keyword||[a.accountName,a.username,a.code].some(f=>String(f||'').toLowerCase().includes(keyword))).slice(0,20);this.signDropdownOpen=true;}
- selectSignDoctor(tp:TimePoint|undefined,account:AccountOption):void{if(!tp)return;this.signatures.set(String(tp.instant),{accountId:account.accountId,accountName:account.accountName});this.signQuery=account.accountName;this.signDropdownOpen=false;this.signEditKey=null;this.onExtraChanged();}
- clearSign(tp:TimePoint|undefined):void{if(!tp)return;this.signatures.delete(String(tp.instant));this.signQuery='';this.signDropdownOpen=false;this.signEditKey=null;this.onExtraChanged();}
- closeSignDropdownLater():void{const token=++this.signCloseToken;window.setTimeout(()=>{if(token!==this.signCloseToken)return;this.signDropdownOpen=false;this.signEditKey=null;},150);}
+ /**
+  * 穿刺部位 单选再点一次取消：
+  * radio 原生不支持反选，preventDefault 拦掉原生选中，由模型驱动视觉状态。
+  */
+ onSideToggle(side:'RIGHT'|'LEFT',e:Event):void{
+  e.preventDefault();
+  this.insertionSide=this.insertionSide===side?'':side;
+  this.onExtraChanged();
+ }
  displayDate(tp:TimePoint|undefined):string{return tp?formatShanghaiMonthDay(tp.instant):'';}
  displayClock(tp:TimePoint|undefined):string{return tp?formatShanghaiHourMinute(tp.instant):'';}
  genderText(v:any):string{return['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
@@ -128,18 +124,32 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   this.http.get<any[]>('/api/v1/icu/accounts').pipe(takeUntil(this.destroy$),catchError(()=>of([]))).subscribe(rows=>{
    const all=(Array.isArray(rows)?rows:[]).map(r=>({accountId:String(r?.accountId??r?._id??r?.id??'').trim(),accountName:String(r?.accountName??r?.trueName??r?.name??'').trim(),profession:String(r?.profession??'').trim(),username:String(r?.username??r?.loginName??'').trim(),code:String(r?.code??r?.jobNumber??'').trim()})).filter(a=>!!a.accountId&&!!a.accountName);
    this.accounts=all.filter(a=>DOCTOR_PROFS.includes((a.profession||'').toLowerCase()));
-   this.signFiltered=this.accounts.slice(0,20);
+   // 账号列表晚于新增弹窗打开时，补一次默认签名（当前账号）
+   if(this.recordFormOpen&&!this.recordEditing&&!this.recordForm.signatureId)this.recordForm.signatureId=this.defaultSignId();
    this.cdr.detectChanges();
   });
  }
  // ── 参数记录新增/编辑（仅 Doctor/Admin/Director 可点击，其他账号提示无权限） ──
  private canEditParams():boolean{return EDIT_PROFS.includes(String(this.account?.profession??'').trim().toLowerCase());}
  private ensureParamPermission():boolean{if(this.canEditParams())return true;alert('没有权限，仅医生账号可新增或编辑参数记录');return false;}
+ /** 默认签名 = 当前账号；当前账号不在医生下拉列表里时返回空（展示空） */
+ private defaultSignId():string{
+  const cur=String(this.account?.accountId??this.account?.id??this.account?._id??'').trim();
+  return cur&&this.accounts.some(a=>a.accountId===cur)?cur:'';
+ }
+ /** 按记录时间键写入/清除签名（签名经 picco-extra 持久化，随参数记录保存） */
+ private applyRecordSignature(ms:number,signatureId:string):void{
+  const key=String(ms);
+  const id=String(signatureId??'').trim();
+  if(!id){this.signatures.delete(key);return;}
+  const acc=this.accounts.find(a=>a.accountId===id);
+  if(acc)this.signatures.set(key,{accountId:acc.accountId,accountName:acc.accountName});
+ }
  openCreateParam():void{
   if(!this.ensureParamPermission())return;
   if(!this.pid)return;
   this.recordEditing=false;this.recordError='';
-  this.recordForm={recordTime:this.toLocalInput(new Date()),values:{}};
+  this.recordForm={recordTime:this.toLocalInput(new Date()),values:{},signatureId:this.defaultSignId()};
   this.recordFormOpen=true;
  }
  openEditParamList():void{
@@ -150,7 +160,9 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  editParam(r:PiccoParamRecord):void{
   if(!this.ensureParamPermission())return;
   this.recordListOpen=false;this.recordEditing=true;this.recordError='';
-  this.recordForm={id:r.id,recordTime:this.toLocalInput(new Date(r.recordTime)),values:{...(r.values||{})}};
+  const ms=databaseTimeValue(r.recordTime);
+  const existing=Number.isFinite(ms)?this.signatures.get(String(ms))?.accountId??'':'';
+  this.recordForm={id:r.id,recordTime:this.toLocalInput(new Date(r.recordTime)),values:{...(r.values||{})},signatureId:existing||this.defaultSignId()};
   this.recordFormOpen=true;
  }
  saveParam():void{
@@ -170,7 +182,17 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
    {pid:this.pid,recordTime:new Date(ms).toISOString(),values,updatedBy:String(this.account?.id??this.account?._id??'')};
   if(this.recordForm.id)body.id=this.recordForm.id;
   this.http.post<any>(`${this.PARAMS}/save`,body).pipe(finalize(()=>this.recordSaving=false),takeUntil(this.destroy$)).subscribe({
-   next:()=>{this.recordFormOpen=false;this.load();},
+   next:()=>{
+    // 编辑时记录时间被改动：签名从旧时间键迁走
+    if(this.recordForm.id){
+     const old=this.records.find(r=>r.id===this.recordForm.id);
+     if(old){const oldMs=databaseTimeValue(old.recordTime);if(Number.isFinite(oldMs)&&oldMs!==ms)this.signatures.delete(String(oldMs));}
+    }
+    // 签名在弹窗里选择，随记录一起落库（走 picco-extra 的 signatures）
+    this.applyRecordSignature(ms,this.recordForm.signatureId);
+    this.extraSaveState='idle';this.extraSave$.next();
+    this.recordFormOpen=false;this.load();
+   },
    error:e=>{this.recordError=e?.error?.message||'保存失败，请稍后重试';}});
  }
  invalidateParam(r:PiccoParamRecord):void{
@@ -181,7 +203,13 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   const operationPid=this.pid;
   this.http.patch(`${this.PARAMS}/${r.id}/invalidate`,null,{params:{operatorId:String(this.account?.id??this.account?._id??'')}}).pipe(
    finalize(()=>this.deletingId=''),takeUntil(this.destroy$)).subscribe({
-   next:()=>{if(operationPid===this.pid)this.load();},
+   next:()=>{
+    if(operationPid!==this.pid)return;
+    // 记录删除后同时清掉该时间点的签名，避免残留
+    const ms=databaseTimeValue(r.recordTime);
+    if(Number.isFinite(ms)&&this.signatures.delete(String(ms))){this.extraSaveState='idle';this.extraSave$.next();}
+    this.load();
+   },
    error:()=>alert('删除失败')});
  }
  closeParamDialogs():void{this.recordListOpen=false;this.recordFormOpen=false;this.recordError='';this.recordSaving=false;this.recordEditing=false;}
