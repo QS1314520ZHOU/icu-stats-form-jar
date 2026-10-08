@@ -393,11 +393,21 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
 
   /**
    * 检查患者是否可选为危重患者。
-   * 排除当日入院/转入/出院/转出/死亡的患者。
+   * 排除出科时间早于报表覆盖窗口（当天08:00）的患者——快照为重返ICU比对
+   * 会回溯48h带出已出科患者，这些患者已不在本科，不可再选为危重。
+   * 同时排除当日入院/转入/出院/转出/死亡的患者。
    */
   isCriticalSelectable(patient: DepartmentPatient): boolean {
     const ranges = this.vm?.ranges;
     if (!ranges) return false;
+
+    // 出科早于报表窗口开始（当天08:00）：报表期间已不在本科
+    if (patient.icuDischargeTime) {
+      const dischargeTs = new Date(patient.icuDischargeTime).getTime();
+      if (Number.isFinite(dischargeTs) && dischargeTs < ranges.day.start.getTime()) {
+        return false;
+      }
+    }
 
     const admissionShift = this.resolvePatientEventShift(patient.icuAdmissionTime, ranges);
     const dischargeShift = this.resolvePatientEventShift(patient.icuDischargeTime, ranges);
@@ -442,7 +452,7 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
 
   /**
    * 获取可选为危重患者的患者列表。
-   * 排除当日入院/转入/出院/转出/死亡的患者。
+   * 排除已出科（出科时间早于报表窗口）及当日入院/转入/出院/转出/死亡的患者。
    */
   get criticalCandidatePatients(): DepartmentPatient[] {
     return this.snapshot?.patients?.filter(p => this.isCriticalSelectable(p)) ?? [];
