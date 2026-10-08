@@ -106,7 +106,7 @@ export function measurePatientRowHeights(
   for (const row of rows) {
     const tr = doc.createElement('tr');
     tr.className = 'measure-row';
-    const statusDisplay = ['死亡', '转入', '入院', '手术'].includes(row.status)
+    const statusDisplay = ['死亡', '转入', '入院', '手术'].some(k => row.status.includes(k))
       ? `"${row.status}"`
       : row.status;
 
@@ -408,7 +408,7 @@ function measureCandidateHeight(texts: Record<ShiftKey, string>): number {
 // ==================== 片段创建 ====================
 
 function createFullFragment(row: HandoverPatientRow, isFirst: boolean): HandoverPatientPrintFragment {
-  const statusDisplay = ['死亡', '转入', '入院', '手术'].includes(row.status)
+  const statusDisplay = ['死亡', '转入', '入院', '手术'].some(k => row.status.includes(k))
     ? `"${row.status}"`
     : row.status;
 
@@ -434,7 +434,7 @@ function createFragment(
   isLast: boolean,
   shiftTexts: Record<ShiftKey, string>,
 ): HandoverPatientPrintFragment {
-  const statusDisplay = ['死亡', '转入', '入院', '手术'].includes(row.status)
+  const statusDisplay = ['死亡', '转入', '入院', '手术'].some(k => row.status.includes(k))
     ? `"${row.status}"`
     : row.status;
 

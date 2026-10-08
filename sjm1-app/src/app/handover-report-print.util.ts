@@ -596,7 +596,7 @@ function measurePatientRowHeights(rows: HandoverPatientRow[]): number[] {
     const tr = document.createElement('tr');
     tr.style.cssText = 'break-inside:auto;page-break-inside:auto;';
 
-    const statusDisplay = ['死亡', '转入', '入院', '手术'].includes(row.status)
+    const statusDisplay = ['死亡', '转入', '入院', '手术'].some(k => row.status.includes(k))
       ? `"${row.status}"` : row.status;
 
     const cells = [
@@ -732,7 +732,7 @@ function createPatientRow(row: HandoverPatientRow, vm: HandoverReportViewModel):
     td.textContent = row.shiftTexts[shift] || '';
 
     // 夜班列添加生命体征和出入量总结（仅入院、转入、病危患者）
-    if (shift === 'night' && ['转入', '入院', '病危'].includes(row.status)) {
+    if (shift === 'night' && ['转入', '入院', '病危'].some(k => row.status.includes(k))) {
       // 生命体征
       if (row.nightVitalSigns && hasVitalSignsData(row.nightVitalSigns)) {
         const vitalDiv = document.createElement('div');

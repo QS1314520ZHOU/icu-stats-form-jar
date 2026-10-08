@@ -1077,7 +1077,10 @@ export class HandoverReportComponent implements OnInit, AfterViewInit, OnDestroy
   // ==================== 其他工具方法 ====================
 
   trackRow(_: number, row: HandoverPatientRow): string { return row.key; }
-  statusText(status: string): string { return ['死亡', '转入', '入院', '手术'].includes(status) ? `"${status}"` : status; }
+  statusText(status: string): string {
+    // 合并状态（如“转入、手术”）命中任一组件词即整体加引号
+    return ['死亡', '转入', '入院', '手术'].some(k => status.includes(k)) ? `"${status}"` : status;
+  }
 
   /**
    * 重新加载草稿（解决冲突时使用）。

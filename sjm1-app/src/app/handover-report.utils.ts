@@ -18,6 +18,8 @@ const SHIFT_KEYS: ShiftKey[] = ['day', 'evening', 'night'];
 
 const STATUS_ORDER: Record<HandoverStatus, number> = {
   '出院': 1, '转出': 2, '死亡': 3, '转入': 4, '入院': 5, '病危': 6, '手术': 7,
+  // 转入/入院与当日手术合并行：排位跟随转入/入院事件
+  '转入、手术': 4, '入院、手术': 5,
 };
 
 export function buildShiftRanges(selectedDate: Date): Record<ShiftKey, ShiftRange> {
@@ -126,9 +128,11 @@ function createRow(
   bedsideRecords: BedsideRecord[],
   ranges: Record<ShiftKey, ShiftRange>,
   selectedDate: Date,
+  keyStatus: HandoverStatus = status,
 ): HandoverPatientRow {
   const id = patientId(patient);
-  const editable = ['转入', '入院', '病危', '手术'].includes(status);
+  // 合并状态（如“转入、手术”）按“、”拆分后逐项判断
+  const editable = status.split('、').some(s => ['转入', '入院', '病危', '手术'].includes(s));
   const isCritical = status === '病危';
 
   // 为每个患者计算生命体征和出入量总结
@@ -136,7 +140,8 @@ function createRow(
   const { summary: nightFluidSummary, hours: fluidHours } = calculatePatientNightFluidSummary(patient, bedsideRecords, ranges, isCritical);
 
   return {
-    key: `${status}:${id}:${eventTime}`,
+    // key 可指定为组成事件（转入/入院），兼容合并前已保存的草稿文本
+    key: `${keyStatus}:${id}:${eventTime}`,
     patientId: id,
     nurseRecordPid: nurseRecordPid(patient),
     bedNo: bedNo(patient),
@@ -158,27 +163,86 @@ function emptyStatistics(): ShiftStatistics {
   return { total: 0, discharged: 0, transferredOut: 0, death: 0, transferredIn: 0, admission: 0, operation: 0, critical: 0, specialCare: 0 };
 }
 
+/** 单个患者在本报表日窗口内的事件集合。 */
+interface PatientDayEvents {
+  out?: { status: '出院' | '转出' | '死亡'; shift: ShiftKey; time: number };
+  in?: { status: '转入' | '入院'; shift: ShiftKey; time: number };
+  ops: { shift: ShiftKey; time: number }[];
+}
+
+/**
+ * 收集单个患者的出科/入科/手术事件。
+ * 展示行与班次统计共用此函数，保证口径一致。
+ */
+function collectPatientDayEvents(patient: DepartmentPatient, ranges: Record<ShiftKey, ShiftRange>): PatientDayEvents {
+  const events: PatientDayEvents = { ops: [] };
+
+  const outStatus = dischargeStatus(patient.dischargedType);
+  const outShift = resolveShift(patient.icuDischargeTime, ranges);
+  if (outStatus && outShift) {
+    events.out = { status: outStatus, shift: outShift, time: timeValue(patient.icuDischargeTime) };
+  }
+
+  const inStatus = admissionStatus(patient.admissionType);
+  const inShift = resolveShift(patient.icuAdmissionTime, ranges);
+  if (inStatus && inShift) {
+    events.in = { status: inStatus, shift: inShift, time: timeValue(patient.icuAdmissionTime) };
+  }
+
+  for (const op of patient.patientOperations || []) {
+    if (op.valid === false || !op.endTime) continue;
+    const opShift = resolveShift(op.endTime, ranges);
+    if (!opShift) continue;
+    events.ops.push({ shift: opShift, time: timeValue(op.endTime) });
+  }
+
+  return events;
+}
+
 function buildPatientRows(snapshot: DepartmentDailySnapshot, ranges: Record<ShiftKey, ShiftRange>, selectedDate: Date): HandoverPatientRow[] {
   const rows: HandoverPatientRow[] = [];
 
   for (const patient of snapshot.patients) {
-    const outStatus = dischargeStatus(patient.dischargedType);
-    const outShift = resolveShift(patient.icuDischargeTime, ranges);
-    if (outStatus && outShift) {
-      rows.push(createRow(patient, outStatus, outShift, timeValue(patient.icuDischargeTime), snapshot.bedsideRecords, ranges, selectedDate));
+    const events = collectPatientDayEvents(patient, ranges);
+
+    if (events.out) {
+      rows.push(createRow(patient, events.out.status, events.out.shift, events.out.time, snapshot.bedsideRecords, ranges, selectedDate));
     }
 
-    const inStatus = admissionStatus(patient.admissionType);
-    const inShift = resolveShift(patient.icuAdmissionTime, ranges);
-    if (inStatus && inShift) {
-      rows.push(createRow(patient, inStatus, inShift, timeValue(patient.icuAdmissionTime), snapshot.bedsideRecords, ranges, selectedDate));
+    if (events.in && events.ops.length > 0) {
+      // 转入/入院 + 当日手术合并为一条数据，状态展示为“转入、手术”
+      const mergedStatus: HandoverStatus = `${events.in.status}、手术`;
+      const earliestOp = events.ops.reduce((a, b) => (a.time <= b.time ? a : b));
+      const eventShift = SHIFT_KEYS.indexOf(events.in.shift) <= SHIFT_KEYS.indexOf(earliestOp.shift)
+        ? events.in.shift
+        : earliestOp.shift;
+      const row = createRow(
+        patient,
+        mergedStatus,
+        eventShift,
+        events.in.time,
+        snapshot.bedsideRecords,
+        ranges,
+        selectedDate,
+        events.in.status,
+      );
+      // 兜底读取合并前“手术:患者ID:时间”键下已保存的交班文本（转入键未覆盖的班次）
+      for (const op of events.ops) {
+        const opTexts = snapshot.draft.patientTexts[`手术:${patientId(patient)}:${op.time}`];
+        if (!opTexts) continue;
+        for (const shift of SHIFT_KEYS) {
+          if (opTexts[shift] !== undefined) row.shiftTexts[shift] = opTexts[shift];
+        }
+      }
+      rows.push(row);
+    } else if (events.in) {
+      rows.push(createRow(patient, events.in.status, events.in.shift, events.in.time, snapshot.bedsideRecords, ranges, selectedDate));
     }
 
-    for (const op of patient.patientOperations || []) {
-      if (op.valid === false || !op.endTime) continue;
-      const opShift = resolveShift(op.endTime, ranges);
-      if (!opShift) continue;
-      rows.push(createRow(patient, '手术', opShift, timeValue(op.endTime), snapshot.bedsideRecords, ranges, selectedDate));
+    for (const op of events.ops) {
+      // 已与入科事件合并的手术不再单独成行
+      if (events.in) continue;
+      rows.push(createRow(patient, '手术', op.shift, op.time, snapshot.bedsideRecords, ranges, selectedDate));
     }
   }
 
@@ -209,22 +273,31 @@ function buildPatientRows(snapshot: DepartmentDailySnapshot, ranges: Record<Shif
   });
 }
 
-function buildStatistics(snapshot: DepartmentDailySnapshot, ranges: Record<ShiftKey, ShiftRange>, rows: HandoverPatientRow[]): Record<ShiftKey, ShiftStatistics> {
+function buildStatistics(snapshot: DepartmentDailySnapshot, ranges: Record<ShiftKey, ShiftRange>): Record<ShiftKey, ShiftStatistics> {
   const result: Record<ShiftKey, ShiftStatistics> = { night: emptyStatistics(), day: emptyStatistics(), evening: emptyStatistics() };
   for (const shift of SHIFT_KEYS) {
     const s = result[shift];
     s.total = snapshot.patients.filter(p => isInDepartmentAt(p, ranges[shift].settlementTime)).length;
     s.critical = s.total;
     s.specialCare = s.total;
-    for (const row of rows.filter(r => r.eventShift === shift)) {
-      switch (row.status) {
+  }
+  // 按事件而非展示行统计：合并行（如“转入、手术”）的两个事件仍分别计入各自班次
+  for (const patient of snapshot.patients) {
+    const events = collectPatientDayEvents(patient, ranges);
+    if (events.out) {
+      const s = result[events.out.shift];
+      switch (events.out.status) {
         case '出院': s.discharged++; break;
         case '转出': s.transferredOut++; break;
         case '死亡': s.death++; break;
-        case '转入': s.transferredIn++; break;
-        case '入院': s.admission++; break;
-        case '手术': s.operation++; break;
       }
+    }
+    if (events.in) {
+      const s = result[events.in.shift];
+      if (events.in.status === '转入') s.transferredIn++; else s.admission++;
+    }
+    for (const op of events.ops) {
+      result[op.shift].operation++;
     }
   }
   return result;
@@ -233,7 +306,7 @@ function buildStatistics(snapshot: DepartmentDailySnapshot, ranges: Record<Shift
 export function buildHandoverReport(snapshot: DepartmentDailySnapshot, selectedDate: Date): HandoverReportViewModel {
   const ranges = buildShiftRanges(selectedDate);
   const rows = buildPatientRows(snapshot, ranges, selectedDate);
-  const statistics = buildStatistics(snapshot, ranges, rows);
+  const statistics = buildStatistics(snapshot, ranges);
   const metrics = buildSafetyMetrics(snapshot, ranges);
   return { ranges, rows, statistics, metrics };
 }

@@ -7,7 +7,7 @@ export interface DepartmentContext {
   source: 'patient.dept' | 'patient.deptCode' | 'account.departmentCode';
 }
 
-export type HandoverStatus = '出院' | '转出' | '死亡' | '转入' | '入院' | '病危' | '手术';
+export type HandoverStatus = '出院' | '转出' | '死亡' | '转入' | '入院' | '病危' | '手术' | '转入、手术' | '入院、手术';
 
 export interface ShiftRange {
   key: ShiftKey;
