@@ -15,6 +15,7 @@ import java.util.List;
  * <ol>
  *   <li>旧逻辑门槛：status == "discharged" 且出科时间 &lt; 2026-09-24 13:00+08:00 → 调用方保持原输出不动。</li>
  *   <li>新逻辑：按 diagnosisHistoryList[].time 时间区间取诊断，再取第一诊断。
+ *       过滤 editor == "数据导入" 的条目（入科导入的诊断串不全）；过滤后为空 → 回退 clinicalDiagnosis。
  *       匹配：取 time ≤ queryTime 的最后一条；都晚于则取第一条；仅 1 条时不判时间。
  *       第一诊断：按 ; ； , ， | ｜ 拆分取第一段。</li>
  * </ol>
@@ -100,6 +101,8 @@ public final class DiagnosisHistoryResolver {
         for (Object item : (List<Object>) raw) {
             if (!(item instanceof Document)) continue;
             Document doc = (Document) item;
+            // 过滤入科时"数据导入"写入的条目（诊断串不全，如缺第一诊断）
+            if ("数据导入".equals(stringValue(doc.get("editor")).trim())) continue;
             Instant t = parseTime(doc.get("time"));
             if (t == null) continue;
             Document copy = new Document(doc);

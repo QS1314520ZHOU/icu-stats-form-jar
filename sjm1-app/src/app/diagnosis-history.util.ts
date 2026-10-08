@@ -6,6 +6,7 @@ import { parseDatabaseUtcTime } from './form-date.util';
  * 规则（2026-09-24 改造）：
  * 1. 旧逻辑门槛：status === 'discharged' 且出科时间 < 2026-09-24 13:00+08:00 → 保持各表单原输出（legacyText）不动。
  * 2. 新逻辑：按 patient.diagnosisHistoryList[].time 时间区间取诊断，再取第一诊断。
+ *    - 过滤 editor === '数据导入' 的条目（入科导入的诊断串不全）；过滤后为空 → 回退 clinicalDiagnosis。
  *    - 匹配：取 time ≤ queryTime 的最后一条；都晚于则取第一条；仅 1 条时不判时间。
  *    - 第一诊断：按 ; ； , ， | ｜ 拆分取第一段。
  *    - 历史为空 → 回退 clinicalDiagnosis → diagnosis → admissionDiagnosis，用新拆分。
@@ -189,6 +190,8 @@ function normalizeHistory(history: any): DiagnosisHistoryEntry[] {
   const list: DiagnosisHistoryEntry[] = [];
   for (const item of history) {
     if (!item || typeof item !== 'object') continue;
+    // 过滤入科时"数据导入"写入的条目（诊断串不全，如缺第一诊断）
+    if (String((item as any).editor ?? '').trim() === '数据导入') continue;
     const t = toTimeMs((item as any).time);
     if (!Number.isFinite(t)) continue;
     list.push({ ...(item as DiagnosisHistoryEntry), time: t });
