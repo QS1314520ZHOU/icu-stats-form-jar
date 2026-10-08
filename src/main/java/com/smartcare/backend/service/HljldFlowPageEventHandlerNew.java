@@ -15,6 +15,7 @@ import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.smartcare.backend.hljld.HljldPdfFooterPolicyNew;
 import com.smartcare.backend.hljld.HljldPdfLayoutConstantsNew;
+import com.smartcare.backend.hljld.HljldTableLayoutNew;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,9 +42,7 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
     private static final float PW = HljldPdfLayoutConstantsNew.PAGE_WIDTH;
     private static final float PH = HljldPdfLayoutConstantsNew.PAGE_HEIGHT;
     private static final float ML = HljldPdfLayoutConstantsNew.MARGIN_LEFT;
-    private static final float[] COL_W = HljldPdfLayoutConstantsNew.COL_WIDTHS_PT;
     private static final float TABLE_W = HljldPdfLayoutConstantsNew.TABLE_WIDTH;
-    private static final String[] REMARKS = HljldPdfLayoutConstantsNew.REMARK_LINES;
 
     // ── 构造参数 ──
     private final HljldPdfFontBundle fonts;
@@ -56,6 +55,8 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
     private final int totalPages;
     /** 页脚渲染策略 */
     private final HljldPdfFooterPolicyNew policy;
+    /** 表格/备注布局变体（由患者出科时间决定，见 {@link HljldTableLayoutNew}） */
+    private final HljldTableLayoutNew layout;
 
     /**
      * @param fonts                       字体包（支持 Unicode 下标/上标回退）
@@ -64,10 +65,12 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
      * @param dynamicRemarkTopByLocalPage 动态备注位置映射（可变，由 DayEndMarker 在 draw 阶段更新）
      * @param totalPages                  本次输出的总物理页数
      * @param policy                      页脚渲染策略（决定是否在最终页绘制备注和签名）
+     * @param layout                      表格/备注布局变体（决定备注行数与列宽）
      */
     public HljldFlowPageEventHandlerNew(HljldPdfFontBundle fonts, String patientInfo, int startPageNo,
                                         Map<Integer, Float> dynamicRemarkTopByLocalPage,
-                                        int totalPages, HljldPdfFooterPolicyNew policy) {
+                                        int totalPages, HljldPdfFooterPolicyNew policy,
+                                        HljldTableLayoutNew layout) {
         this.fonts = fonts;
         this.font = fonts.getPrimaryFont();
         this.patientInfo = patientInfo == null ? "" : patientInfo;
@@ -75,6 +78,7 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
         this.dynamicRemarkTopByLocalPage = dynamicRemarkTopByLocalPage;
         this.totalPages = totalPages;
         this.policy = policy;
+        this.layout = layout != null ? layout : HljldTableLayoutNew.LEGACY;
     }
 
     @Override
@@ -115,6 +119,9 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
         float remarksBottom = HljldPdfLayoutConstantsNew.REMARK_BOTTOM;
         float remarkRowHeight = HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
         float remarkFontSize = HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE;
+        // 备注行数与总高度随布局变体变化（旧版 4 行 / 精简版 3 行）
+        final int remarkRowCount = layout.getRemarkRowCount();
+        final float remarkTotalHeight = remarkRowCount * HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
 
         if (drawRemark) {
             Float dynamicContentEndY = dynamicRemarkTopByLocalPage.get(localPageNumber);
@@ -127,21 +134,21 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
                     + HljldPdfLayoutConstantsNew.PAGE_NUMBER_REMARK_GAP;
                 float availableSpace = dynamicContentEndY - safeBottom;
 
-                if (availableSpace >= HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT) {
+                if (availableSpace >= remarkTotalHeight) {
                     remarkRowHeight = HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT;
                     remarkFontSize = HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE;
-                    remarksBottom = dynamicContentEndY - HljldPdfLayoutConstantsNew.REMARK_TOTAL_HEIGHT;
+                    remarksBottom = dynamicContentEndY - remarkTotalHeight;
                     log.debug("[hljld-new] 备注正常贴靠: localPage={}, contentEndY={}, remarksBottom={}",
                         localPageNumber, dynamicContentEndY, remarksBottom);
                 } else if (availableSpace >= HljldPdfLayoutConstantsNew.MIN_SPACE_FOR_REMARKS) {
                     remarkRowHeight = Math.max(
                         HljldPdfLayoutConstantsNew.REMARK_MIN_ROW_HEIGHT,
-                        availableSpace / HljldPdfLayoutConstantsNew.REMARK_ROWS);
+                        availableSpace / remarkRowCount);
                     remarkFontSize = Math.max(
                         HljldPdfLayoutConstantsNew.REMARK_MIN_FONT_SIZE,
                         HljldPdfLayoutConstantsNew.REMARK_FONT_SIZE
                             * remarkRowHeight / HljldPdfLayoutConstantsNew.REMARK_ROW_HEIGHT);
-                    remarksBottom = dynamicContentEndY - remarkRowHeight * HljldPdfLayoutConstantsNew.REMARK_ROWS;
+                    remarksBottom = dynamicContentEndY - remarkRowHeight * remarkRowCount;
                     log.info("[hljld-new] 备注压缩贴靠: localPage={}, available={}, rowH={}, fontSize={}",
                         localPageNumber, String.format("%.1f", availableSpace), remarkRowHeight, remarkFontSize);
                 } else {
@@ -211,12 +218,13 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
 
     private void drawRemarksText(Canvas canvas, PdfCanvas pdfCanvas, float pw, float remarksBottom,
                                   float rowHeight, float fontSize) {
+        String[] remarks = layout.getRemarkLines();
         float leftX = ML;
-        float col0Width = COL_W[0];
+        float col0Width = layout.getColWidths()[0];
         float contentX = leftX + col0Width;
 
         // "备注"文字：水平居中、垂直居中于所有行
-        float remarkTotalHeight = rowHeight * REMARKS.length;
+        float remarkTotalHeight = rowHeight * remarks.length;
         float labelCenterY = remarksBottom + remarkTotalHeight / 2f;
         canvas.showTextAligned(
             new Paragraph("备注")
@@ -226,12 +234,12 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
             leftX + col0Width / 2f, labelCenterY,
             TextAlignment.CENTER, VerticalAlignment.MIDDLE);
 
-        // 备注内容文字（从上到下：检查、治疗、基础护理、健康教育）
+        // 备注内容文字（从上到下，行内容随布局变体变化）
         float textX = contentX + 4f;
 
-        for (int i = 0; i < REMARKS.length; i++) {
-            // 从上到下绘制：第一行在最上面，第四行在最下面
-            float rowBottom = remarksBottom + (REMARKS.length - 1 - i) * rowHeight;
+        for (int i = 0; i < remarks.length; i++) {
+            // 从上到下绘制：第一行在最上面，最后一行在最下面
+            float rowBottom = remarksBottom + (remarks.length - 1 - i) * rowHeight;
             float textY = rowBottom + rowHeight / 2f - 1f;
 
             pdfCanvas.saveState();
@@ -239,7 +247,7 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
             pdfCanvas.beginText();
             pdfCanvas.setFontAndSize(font, fontSize);
             pdfCanvas.moveText(textX, textY);
-            pdfCanvas.showText(REMARKS[i]);
+            pdfCanvas.showText(remarks[i]);
             pdfCanvas.endText();
             pdfCanvas.restoreState();
         }
@@ -281,10 +289,11 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
     // ══════════════════════════════════════════════════════════
 
     private void drawRemarksBorders(PdfCanvas pdfCanvas, float pw, float remarksBottom, float rowHeight) {
-        float remarkTotalHeight = rowHeight * REMARKS.length;
+        String[] remarks = layout.getRemarkLines();
+        float remarkTotalHeight = rowHeight * remarks.length;
         float remarksTop = remarksBottom + remarkTotalHeight;
         float leftX = ML;
-        float col0Width = COL_W[0];
+        float col0Width = layout.getColWidths()[0];
         float contentX = leftX + col0Width;
 
         pdfCanvas.setStrokeColor(ColorConstants.BLACK);
@@ -301,7 +310,7 @@ public class HljldFlowPageEventHandlerNew implements IEventHandler {
         pdfCanvas.stroke();
 
         // ── 右侧备注内容的横线（从第一列右边界开始，不穿过左侧"备注"单元格） ──
-        for (int i = 1; i < REMARKS.length; i++) {
+        for (int i = 1; i < remarks.length; i++) {
             float lineY = remarksBottom + i * rowHeight;
             pdfCanvas.setLineWidth(HljldPdfLayoutConstantsNew.BORDER_REMARK);
             pdfCanvas.moveTo(contentX, lineY);

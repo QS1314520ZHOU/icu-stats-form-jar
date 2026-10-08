@@ -208,6 +208,53 @@ public final class HljldPdfLayoutConstantsNew {
     public static final float TABLE_WIDTH = 786f;
 
     // ══════════════════════════════════════════════════════════
+    //  精简版布局（出科时间 ≥ 2026-10-08 17:00:00 的患者，见 HljldTableLayoutNew）
+    //  - 表格去掉“检查”列，其 28pt 宽度并入“护理记录”列（101 → 129）
+    //  - 备注去掉“检查”行，治疗行只保留 A：机械辅助排痰 B：气压治疗
+    //  总宽仍为 786pt
+    // ══════════════════════════════════════════════════════════
+    /** 精简版 18 列宽度（pt） */
+    public static final float[] COL_WIDTHS_PT_SLIM = {
+        43f,        // 0: 日期时间
+        85f,        // 1: 药物治疗-名称
+        30f,        // 2: 药物治疗-量
+        30f,        // 3: 药物治疗-途径
+        85f,        // 4: 胃肠摄入-名称
+        30f,        // 5: 胃肠摄入-量
+        30f,        // 6: 胃肠摄入-途径
+        33f,        // 7: 尿量
+        48f,        // 8: 净超滤量
+        28f,        // 9:  排出物-名称
+        28f,        // 10: 排出物-量
+        28f,        // 11: 引流液-名称
+        28f,        // 12: 引流液-量
+        28f,        // 13: 治疗（原“检查”列已移除）
+        33f,        // 14: 基础护理
+        33f,        // 15: 健康教育
+        129f,       // 16: 护理记录（原 101 + 检查列 28）
+        37f         // 17: 签名
+    };
+
+    /** 精简版数据字段键名（无 examination） */
+    public static final String[] DATA_KEYS_SLIM = {
+        "timeText",                      // 0
+        "medName", "medAmount", "medRoute", // 1,2,3
+        "enteralName", "enteralAmount", "enteralRoute", // 4,5,6
+        "urine",                         // 7
+        "ultrafiltration",               // 8
+        "outputName", "outputAmount",    // 9,10
+        "drainName", "drainAmount",      // 11,12
+        "treatment",                     // 13
+        "basicCare",                     // 14
+        "healthEducation",               // 15
+        "nursingRecord",                 // 16
+        "signature"                      // 17
+    };
+
+    /** 精简版护理记录列索引 */
+    public static final int NURSING_RECORD_COLUMN_INDEX_SLIM = 16;
+
+    // ══════════════════════════════════════════════════════════
     //  边框粗细
     // ══════════════════════════════════════════════════════════
     /** 外边框 */
@@ -227,6 +274,13 @@ public final class HljldPdfLayoutConstantsNew {
     public static final String[] REMARK_LINES = {
         "检查：A：CT B：核磁共振 C：胃镜 D：肠镜 E：超声检查 F：床旁胸片 G：心电图",
         "治疗：A：机械辅助排痰B：气压治疗C：支气管镜灌洗D：TDP照射E：针灸治疗F：运动治疗G：肺复张",
+        "基础护理：A：口腔护理B：动/静脉置管护理C：擦浴D：肛周护理E：压疮护理F：床上洗头",
+        "健康教育：A：入院指导 B：入科指导 C：疾病知识 D：药物指导 E：饮食指导 F：肢体活动指导 G：检查指导 H：安全指导 I：心理指导 J：术前指导 K：术后指导 L：转科/出院指导 M：用氧注意事项 N：通气配合指导 O：康复指导 P：VTE预防指导"
+    };
+
+    /** 精简版备注内容（3 行：去掉检查行，治疗行只保留 A/B 两项） */
+    public static final String[] REMARK_LINES_SLIM = {
+        "治疗：A：机械辅助排痰B：气压治疗",
         "基础护理：A：口腔护理B：动/静脉置管护理C：擦浴D：肛周护理E：压疮护理F：床上洗头",
         "健康教育：A：入院指导 B：入科指导 C：疾病知识 D：药物指导 E：饮食指导 F：肢体活动指导 G：检查指导 H：安全指导 I：心理指导 J：术前指导 K：术后指导 L：转科/出院指导 M：用氧注意事项 N：通气配合指导 O：康复指导 P：VTE预防指导"
     };
@@ -278,6 +332,16 @@ public final class HljldPdfLayoutConstantsNew {
         for (float w : COL_WIDTHS_PT) colSum += w;
         assert Math.abs(colSum - TABLE_WIDTH) < 0.01f
             : "Sum of column widths must equal TABLE_WIDTH";
+
+        // 验证精简版表格宽度与键名数量
+        float slimSum = 0;
+        for (float w : COL_WIDTHS_PT_SLIM) slimSum += w;
+        assert Math.abs(slimSum - TABLE_WIDTH) < 0.01f
+            : "Sum of slim column widths must equal TABLE_WIDTH";
+        assert COL_WIDTHS_PT_SLIM.length == DATA_KEYS_SLIM.length
+            : "Slim column widths must match slim data keys";
+        assert COL_WIDTHS_PT.length == DATA_KEYS.length
+            : "Column widths must match data keys";
 
         // 验证表格不超出页面
         assert MARGIN_LEFT + TABLE_WIDTH <= PAGE_WIDTH - MARGIN_RIGHT
