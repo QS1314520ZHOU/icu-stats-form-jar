@@ -110,13 +110,14 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
   */
  onSideToggle(side:'RIGHT'|'LEFT',e:Event):void{
   e.preventDefault();
+  if(!this.ensureExtraPermission())return;
   this.insertionSide=this.insertionSide===side?'':side;
   this.onExtraChanged();
  }
  displayDate(tp:TimePoint|undefined):string{return tp?formatShanghaiMonthDay(tp.instant):'';}
  displayClock(tp:TimePoint|undefined):string{return tp?formatShanghaiHourMinute(tp.instant):'';}
  genderText(v:any):string{return['Male','M','男','1'].includes(String(v))?'男':['Female','F','女','2'].includes(String(v))?'女':String(v??'');}
- onExtraChanged():void{if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
+ onExtraChanged():void{if(!this.canEditExtra)return;if(this.pid){this.extraSaveState='idle';this.extraSave$.next();}}
  saveExtraNow():void{this.onExtraChanged();}
  private loadExtra():void{this.insertionSide='';this.arteryName='';this.catheterLengthCm='';this.heightCm='';this.weightKg='';this.signatures.clear();this.http.get<any>(`${this.EXTRA}/latest`,{params:{pid:this.pid}}).pipe(takeUntil(this.destroy$),catchError(()=>of(null))).subscribe(d=>{if(d?.valid===true){this.insertionSide=d.insertionSide||'';this.arteryName=d.arteryName||'';this.catheterLengthCm=d.catheterLengthCm!=null?String(d.catheterLengthCm):'';this.heightCm=d.heightCm||'';this.weightKg=d.weightKg||'';(Array.isArray(d.signatures)?d.signatures:[]).forEach((s:any)=>{const key=String(s?.timeKey??'').trim();const accountId=String(s?.accountId??'').trim();if(key&&accountId)this.signatures.set(key,{accountId,accountName:String(s?.accountName??'')});});}this.cdr.detectChanges();});}
  private loadAccounts():void{
@@ -132,6 +133,9 @@ export class PiccoRecordComponent implements OnInit, OnDestroy {
  // ── 参数记录新增/编辑（仅 Doctor/Admin/Director 可点击，其他账号提示无权限） ──
  private canEditParams():boolean{return EDIT_PROFS.includes(String(this.account?.profession??'').trim().toLowerCase());}
  private ensureParamPermission():boolean{if(this.canEditParams())return true;alert('没有权限，仅医生账号可新增或编辑参数记录');return false;}
+ // ── 穿刺部位/动脉名称/置管长度/身高体重（同参数记录权限；调阅模式一律只读） ──
+ get canEditExtra():boolean{return !this.isViewerMode&&EDIT_PROFS.includes(String(this.account?.profession??'').trim().toLowerCase());}
+ private ensureExtraPermission():boolean{if(this.canEditExtra)return true;if(!this.isViewerMode)alert('没有权限，仅医生账号可编辑穿刺部位等信息');return false;}
  /** 默认签名 = 当前账号；当前账号不在医生下拉列表里时返回空（展示空） */
  private defaultSignId():string{
   const cur=String(this.account?.accountId??this.account?.id??this.account?._id??'').trim();

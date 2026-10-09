@@ -8,10 +8,10 @@
    <strong>穿刺部位：</strong>
    <label><input type="radio" name="side-{{page.index}}" value="RIGHT" [ngModel]="insertionSide" (click)="onSideToggle('RIGHT',$event)">右侧</label>
    <label><input type="radio" name="side-{{page.index}}" value="LEFT" [ngModel]="insertionSide" (click)="onSideToggle('LEFT',$event)">左侧</label>
-   <input class="artery-input" [(ngModel)]="arteryName" (input)="onExtraChanged()" (blur)="saveExtraNow()" aria-label="动脉名称"><span>动脉</span>
-   <strong>导管置入长度(cm)：</strong><input class="length-input" type="text" [(ngModel)]="catheterLengthCm" (input)="onExtraChanged()" (blur)="saveExtraNow()">
-   <span class="hw-item"><strong>身高</strong><input class="hw-input" type="text" [(ngModel)]="heightCm" (input)="onExtraChanged()" (blur)="saveExtraNow()"><span>cm</span></span>
-   <span class="hw-item"><strong>体重</strong><input class="hw-input" type="text" [(ngModel)]="weightKg" (input)="onExtraChanged()" (blur)="saveExtraNow()"><span>kg</span></span>
+   <input class="artery-input" [(ngModel)]="arteryName" [readonly]="!canEditExtra" (input)="onExtraChanged()" (blur)="saveExtraNow()" aria-label="动脉名称"><span>动脉</span>
+   <strong>导管置入长度(cm)：</strong><input class="length-input" type="text" [(ngModel)]="catheterLengthCm" [readonly]="!canEditExtra" (input)="onExtraChanged()" (blur)="saveExtraNow()">
+   <span class="hw-item"><strong>身高</strong><input class="hw-input" type="text" [(ngModel)]="heightCm" [readonly]="!canEditExtra" (input)="onExtraChanged()" (blur)="saveExtraNow()"><span>cm</span></span>
+   <span class="hw-item"><strong>体重</strong><input class="hw-input" type="text" [(ngModel)]="weightKg" [readonly]="!canEditExtra" (input)="onExtraChanged()" (blur)="saveExtraNow()"><span>kg</span></span>
    <small class="save-state" [class.bad]="extraSaveState==='error'">{{extraSaveState==='saving'?'保存中…':extraSaveState==='saved'?'已保存':extraSaveState==='error'?'保存失败':''}}</small>
   </div>
   <table class="picco-table"><colgroup><col class="item-col"><col class="normal-col"><col *ngFor="let i of [0,1,2,3,4,5,6,7]" class="value-col"></colgroup>
