@@ -62,3 +62,9 @@ logs/
 package-lock.json
 yarn.lock
 .history/
+# --- 本地私有：切勿提交（含明文数据库密码 / 本机绝对路径 / 本地记忆）---
+application.yml
+application-*.yml
+.workbuddy/
+build.bat
+build(1).bat
