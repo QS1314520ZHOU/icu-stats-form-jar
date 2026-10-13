@@ -196,6 +196,27 @@ function tubeBeds(
   return bedsFromPids(pids, patients);
 }
 
+/**
+ * 气管导管拔管：以气管插管的**结束时间（endTime）**判定，而不是开始时间。
+ * - endTime 为空字符串或字段缺失 ⇒ 视为该导管尚未拔除，不计入本指标
+ *   （这是与「新增气管插管」的关键区别：后者按 startTime 判定置管事件）；
+ * - 拔管时刻（endTime）落在哪个班次，就计入哪个班次；
+ * - endTime 非法（无法解析为时间）同样不计入。
+ */
+function tubeRemovalBeds(
+  snapshot: DepartmentDailySnapshot,
+  patients: Map<string, DepartmentPatient>,
+  range: ShiftRange,
+): string {
+  const pids = snapshot.tubeExecutions
+    .filter(item => item.valid !== false)
+    .filter(item => text(item.type) === '气管插管')
+    .filter(item => text(item.endTime).length > 0)
+    .filter(item => inRange(item.endTime, range))
+    .map(item => item.pid);
+  return bedsFromPids(pids, patients);
+}
+
 function ventilatorWeaningBeds(
   snapshot: DepartmentDailySnapshot,
   patients: Map<string, DepartmentPatient>,
@@ -470,7 +491,7 @@ function calculateAutoMetricValues(
     case 'ventilatorWeaning':
       return buildValues(range => ventilatorWeaningBeds(snapshot, patients, range));
     case 'trachealTubeRemoval':
-      return buildValues(range => tubeBeds(snapshot, patients, range, '气管插管'));
+      return buildValues(range => tubeRemovalBeds(snapshot, patients, range));
     case 'reintubationWithin48Hours':
       return buildValues(range => reintubationBeds(snapshot, patients, range));
     case 'invasiveBloodPressure':

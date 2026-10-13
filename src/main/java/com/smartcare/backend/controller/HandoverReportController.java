@@ -88,7 +88,16 @@ public class HandoverReportController {
             Criteria.where("icuDischargeTime").gte(returnLookbackStart)
         );
 
-        Query patientQuery = new Query(new Criteria().andOperator(departmentCriteria, admissionCriteria, dischargeCriteria));
+        // 作废记录（status=invalid）必须排除：patient 集合没有 valid 字段，
+        // 有效性统一由 status 表达（admitted / discharged / invalid）。
+        // 之前漏了这条过滤，导致被作废的入科记录（如误录入）照常出现在报表与统计里。
+        // 注：$ne 对「缺失 status 字段」的文档是放行的（undefined != "invalid"），不会误杀历史数据。
+        Query patientQuery = new Query(new Criteria().andOperator(
+            departmentCriteria,
+            admissionCriteria,
+            dischargeCriteria,
+            Criteria.where("status").ne("invalid")
+        ));
         patientQuery.with(Sort.by(Sort.Direction.ASC, "hisBed"));
         List<Document> patientDocs = mongoTemplate.find(patientQuery, Document.class, "patient");
 
@@ -136,16 +145,21 @@ public class HandoverReportController {
             .and("valid").ne("invalid"));
         List<Document> acctDocs = mongoTemplate.find(acctQuery, Document.class, "account");
 
-        // tube executions (48h window for reintubation indicators)
+        // tube executions：置管事件按 startTime 取（48h 回溯供「拔管后48h再插管」比对）
+        // 拔管事件（气管导管拔管）按 endTime 取，因此必须同时放行 endTime 落在报表窗口内的记录；
+        // 否则「48h 之前置管、报表当天拔除」的导管会因 startTime 超出回溯窗口而取不到，
+        // 导致拔管指标漏统。endTime 字段缺失的记录不会匹配 endTime 窗口（$gte 不匹配缺失字段）。
         Calendar tubeCal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
         tubeCal.setTime(dayStart);
         tubeCal.add(Calendar.HOUR_OF_DAY, -48);
         Date tubeStart = tubeCal.getTime();
 
-        Query tubeQuery = new Query();
-        tubeQuery.addCriteria(Criteria.where("startTime").gte(tubeStart).lt(dayEnd)
-            .and("valid").ne(false)
-            .and("status").ne("invalid"));
+        Criteria tubeStartWindow = Criteria.where("startTime").gte(tubeStart).lt(dayEnd);
+        Criteria tubeEndWindow = Criteria.where("endTime").gte(dayStart).lt(nightEnd);
+        Query tubeQuery = new Query(new Criteria().andOperator(
+            new Criteria().orOperator(tubeStartWindow, tubeEndWindow),
+            Criteria.where("valid").ne(false),
+            Criteria.where("status").ne("invalid")));
         tubeQuery.with(Sort.by(Sort.Direction.ASC, "startTime"));
         List<Document> tubeDocs = mongoTemplate.find(tubeQuery, Document.class, "tubeExe");
 
