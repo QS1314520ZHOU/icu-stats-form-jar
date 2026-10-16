@@ -11,7 +11,7 @@ import { DiagnosisHistoryService } from './diagnosis-history.service';
 type ComplianceMark = '' | '√' | '×';
 type MeasureCode =
   | 'EXTUBATION_ASSESSMENT' | 'CENTRAL_LINE_NECESSITY' | 'URINARY_CATHETER_NECESSITY'
-  | 'SEDATION_AWAKENING' | 'EARLY_REHABILITATION' | 'HAND_HYGIENE'
+  | 'EARLY_REHABILITATION' | 'HAND_HYGIENE'
   | 'HEAD_ELEVATION' | 'ORAL_CARE' | 'SUCTION_STANDARD' | 'SUBGLOTTIC_SUCTION'
   | 'DAILY_CUFF_PRESSURE'
   | 'CONDENSATE_MANAGEMENT' | 'VENTILATOR_CIRCUIT_REPLACEMENT'
@@ -48,7 +48,6 @@ const NECESSITY_GROUP: MeasureGroup = {
     { code: 'EXTUBATION_ASSESSMENT', label: '撤机或人工气道拔管评估' },
     { code: 'CENTRAL_LINE_NECESSITY', label: '深静脉导管留置的必要性评估' },
     { code: 'URINARY_CATHETER_NECESSITY', label: '导尿管留置必要性评估' },
-    { code: 'SEDATION_AWAKENING', label: '镇静唤醒' },
     { code: 'EARLY_REHABILITATION', label: '早期康复' },
     { code: 'HAND_HYGIENE', label: '手卫生' },
   ],
