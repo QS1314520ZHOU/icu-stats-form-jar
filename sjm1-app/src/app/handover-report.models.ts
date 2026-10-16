@@ -92,6 +92,8 @@ export interface OrderRecord {
   status?: string;
   /** zyyz 频次（字符串）："1"=仅白班，"2"=白班+中班，"3"=三个班 */
   freq?: string;
+  /** 嘱托（zyyz 嘱托列）：存在时用于过滤多重耐药菌隔离医嘱，见 isolationOrderBeds */
+  notes?: string;
 }
 
 export interface TubeExecution {

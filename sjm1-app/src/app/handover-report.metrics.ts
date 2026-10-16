@@ -336,6 +336,8 @@ function bladderIrrigationBeds(
 /**
  * 多重耐药菌床旁隔离医嘱：医嘱名称包含"接触隔离"。
  * 开始时间（orderTime）→ 新增多重耐药菌感染；结束时间（stopTime）→ 解除多重耐药菌床旁隔离。
+ * 嘱托（notes）过滤：数据中存在带嘱托的隔离医嘱时，仅保留有嘱托的；
+ * 数据里完全没有嘱托（源库未同步该字段）时不过滤，保持原口径。
  */
 function isolationOrderBeds(
   snapshot: DepartmentDailySnapshot,
@@ -351,9 +353,13 @@ function isolationOrderBeds(
     if (mrn) { patientByMrn.set(mrn, patient); }
   }
 
+  const isolationOrders = snapshot.orders.filter(order => text(order.orderName).includes('接触隔离'));
+  // 嘱托判定按整份数据（不限班次），保证三个班次过滤口径一致
+  const hasNotes = isolationOrders.some(order => text(order.notes) !== '');
+
   const beds: string[] = [];
-  for (const order of snapshot.orders) {
-    if (!text(order.orderName).includes('接触隔离')) { continue; }
+  for (const order of isolationOrders) {
+    if (hasNotes && text(order.notes) === '') { continue; }
     const eventTime = timeField === 'orderTime' ? order.orderTime : order.stopTime;
     if (!inRange(eventTime, range)) { continue; }
     const patient = patientByMrn.get(text(order.mrn));
