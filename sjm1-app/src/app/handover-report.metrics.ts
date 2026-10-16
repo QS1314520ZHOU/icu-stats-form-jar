@@ -279,6 +279,7 @@ function reintubationBeds(
 
 /**
  * 膀胱冲洗：按 orderType（临时/长期）、zyyz 频次（freq）与停止时间决定每个班次是否展示。
+ * - status 为"作废"的医嘱不计入；
  * - 出科排除：已出科患者（出科时间早于报表窗口结束）不再统计，见 dischargedFromReport；
  * - 临时医嘱：仅在开立时间所在的班次展示，不看频次与停止时间；
  * - 长期医嘱（orderType 缺失按长期处理）：
@@ -306,6 +307,8 @@ function bladderIrrigationBeds(
 
   const beds: string[] = [];
   for (const order of snapshot.orders) {
+    // 作废医嘱不计入
+    if (text(order.status) === '作废') { continue; }
     const name = text(order.orderName);
     if (!name.includes('膀胱冲洗')) { continue; }
     const start = timestamp(order.orderTime);
@@ -336,8 +339,9 @@ function bladderIrrigationBeds(
 /**
  * 多重耐药菌床旁隔离医嘱：医嘱名称包含"接触隔离"。
  * 开始时间（orderTime）→ 新增多重耐药菌感染；结束时间（stopTime）→ 解除多重耐药菌床旁隔离。
- * 嘱托（notes）过滤：数据中存在带嘱托的隔离医嘱时，仅保留有嘱托的；
- * 数据里完全没有嘱托（源库未同步该字段）时不过滤，保持原口径。
+ * 嘱托（notes）过滤：数据中有嘱托的隔离医嘱时，过滤掉有嘱托的，只保留没有嘱托的；
+ * 数据里没有嘱托（源库未同步该字段）时无医嘱可过滤，自然保持原口径。
+ * status 为"作废"的医嘱不计入。
  */
 function isolationOrderBeds(
   snapshot: DepartmentDailySnapshot,
@@ -354,12 +358,13 @@ function isolationOrderBeds(
   }
 
   const isolationOrders = snapshot.orders.filter(order => text(order.orderName).includes('接触隔离'));
-  // 嘱托判定按整份数据（不限班次），保证三个班次过滤口径一致
-  const hasNotes = isolationOrders.some(order => text(order.notes) !== '');
 
   const beds: string[] = [];
   for (const order of isolationOrders) {
-    if (hasNotes && text(order.notes) === '') { continue; }
+    // 作废医嘱不计入
+    if (text(order.status) === '作废') { continue; }
+    // 有嘱托的过滤掉，只保留没有嘱托的
+    if (text(order.notes) !== '') { continue; }
     const eventTime = timeField === 'orderTime' ? order.orderTime : order.stopTime;
     if (!inRange(eventTime, range)) { continue; }
     const patient = patientByMrn.get(text(order.mrn));
