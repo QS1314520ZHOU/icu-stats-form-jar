@@ -15,8 +15,6 @@ import { DiagnosisHistoryService } from './diagnosis-history.service';
 
 const SCORE_TYPE = 'bradenScore';
 const FORM_CODE = 'bradenForm';
-/** 行时间与压力性损伤评估 recordTime 相差不超过该值视为同一次评估（取最接近的一对一配对） */
-const ASSESS_MATCH_WINDOW_MS = 5 * 60 * 1000;
 const API_EXTRA_LATEST = '/api/v1/icu/fall-danger-extra/latest';
 const API_EXTRA_SAVE = '/api/v1/icu/fall-danger-extra/save';
 /** 压力性损伤评估明细（skinCareInfo.pressureInjuryAssessList），用于填充「其他」列 */
@@ -242,7 +240,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .record-table th.measure-head{padding:1px 0}
     .measure-cell{width:22px;min-width:22px;font-size:12px}
     .other-col{width:305px;min-width:305px}
-    .other-cell{width:305px;min-width:305px;text-align:center;padding-left:2px}
+    .other-cell{width:305px;min-width:305px;text-align:left;padding-left:2px;white-space:pre-wrap;word-break:break-word}
     .sign-col{width:44px;min-width:44px}
     .vtext{display:inline-block;writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:10px;letter-spacing:0;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;margin:0 auto}
     .dt-date,.dt-time{display:block;white-space:nowrap;word-break:normal;text-align:center;line-height:1.2}
@@ -559,7 +557,7 @@ export class BradenFormComponent implements OnInit, OnDestroy {
   }
 
   private buildRows(records: ScoreRecord[], assessList: any[]): void {
-    // 候选评估条目池：同一 recordTime 只取一次，按时刻升序；每条最多被一行占用
+    // 候选评估条目池：同一 recordTime 只取一次，按时刻升序
     const pool: { ms: number; text: string }[] = [];
     const seen = new Set<number>();
     for (const item of assessList) {
@@ -571,38 +569,45 @@ export class BradenFormComponent implements OnInit, OnDestroy {
     }
     pool.sort((a, b) => a.ms - b.ms);
 
-    const rows: BradenRow[] = records
-      .map(score => {
-        const detail = this.getBradenScoreDetail(score);
-        const ms = this.instant(score.time);
-        // 与行时间相差不超过 ASSESS_MATCH_WINDOW_MS 的评估视为同一次评估，
-        // 取时刻最接近且未被占用的一条（一对一）；没有对应数据就保持原有「其他」内容
-        let matched = '';
-        if (ms && pool.length) {
-          let bestIdx = -1;
-          let bestDiff = Number.POSITIVE_INFINITY;
-          for (let i = 0; i < pool.length; i++) {
-            const diff = Math.abs(pool[i].ms - ms);
-            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
-          }
-          if (bestIdx >= 0 && bestDiff <= ASSESS_MATCH_WINDOW_MS) {
-            matched = pool[bestIdx].text;
-            pool.splice(bestIdx, 1);
-          }
-        }
-        return {
-          time: this.normalizeTime(score.time),
-          bradenScore: this.normalizeBradenScore(detail),
-          total: this.num(score.total),
-          risk: String(score.conclusion || ''),
-          other: (matched || String(score.ohter ?? '').trim()),
-          nurseMeasureList: (score as any).nurseMeasureList || (score as any).measuresList || [],
-          signUserId: score.inputUserId,
-          signName: score.inputUser || '',
-        };
-      })
+    // 先按时间升序得到有效行（含毫秒时间戳），供评估条目按「最近一行」归属；
+    // ms 解析失败(=0)的行仍保留展示，只是不参与评估条目归属
+    const ordered = records
+      .map(score => ({ score, ms: this.instant(score.time), time: this.normalizeTime(score.time) }))
       .filter(r => !!r.time)
-      .sort((a, b) => this.ts(a.time) - this.ts(b.time));
+      .sort((a, b) => a.ms - b.ms);
+
+    // 一次评估常同时录入多个部位（recordTime 相差数秒）。旧的一对一配对只给每行
+    // 取时刻最近的一条，其余部位的明细滞留池中无人认领而被丢弃（如同一分钟内
+    // 骶尾部/左侧臀部/右侧腰背部三条只显示第一条）。改为：明细只归「同一分钟」
+    // （行时间所在分钟 HH:MM:00~HH:MM:59）的行，同一行合并多条（按时刻升序换行拼接）。
+    const textsByRow = new Map<number, string[]>();
+    for (const entry of pool) {
+      const entryMinute = Math.floor(entry.ms / 60000);
+      for (let i = 0; i < ordered.length; i++) {
+        if (ordered[i].ms && Math.floor(ordered[i].ms / 60000) === entryMinute) {
+          const texts = textsByRow.get(i);
+          if (texts) texts.push(entry.text);
+          else textsByRow.set(i, [entry.text]);
+          break;
+        }
+      }
+    }
+
+    const rows: BradenRow[] = ordered.map(({ score, time }, idx) => {
+      const detail = this.getBradenScoreDetail(score);
+      // 没有窗口内对应数据就保持原有「其他」内容
+      const matched = (textsByRow.get(idx) || []).join('\n');
+      return {
+        time,
+        bradenScore: this.normalizeBradenScore(detail),
+        total: this.num(score.total),
+        risk: String(score.conclusion || ''),
+        other: (matched || String(score.ohter ?? '').trim()),
+        nurseMeasureList: (score as any).nurseMeasureList || (score as any).measuresList || [],
+        signUserId: score.inputUserId,
+        signName: score.inputUser || '',
+      };
+    });
 
     this.rows = rows;
     this.paginate();
