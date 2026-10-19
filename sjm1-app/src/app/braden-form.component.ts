@@ -240,7 +240,7 @@ interface FinalExtraData { id: string | null; result: string; resultDate: string
     .record-table th.measure-head{padding:1px 0}
     .measure-cell{width:22px;min-width:22px;font-size:12px}
     .other-col{width:305px;min-width:305px}
-    .other-cell{width:305px;min-width:305px;text-align:left;padding-left:2px;white-space:pre-wrap;word-break:break-word}
+    .record-table td.other-cell{width:305px;min-width:305px;text-align:left;padding-left:2px;white-space:pre-wrap;word-break:break-word}
     .sign-col{width:44px;min-width:44px}
     .vtext{display:inline-block;writing-mode:vertical-lr;text-orientation:upright;white-space:normal;line-height:10px;letter-spacing:0;font-family:'SimSun','宋体',serif;font-size:10px;font-weight:400;font-style:normal;color:#000;text-shadow:none;text-rendering:auto;-webkit-font-smoothing:auto;transform:none;filter:none;opacity:1;margin:0 auto}
     .dt-date,.dt-time{display:block;white-space:nowrap;word-break:normal;text-align:center;line-height:1.2}
