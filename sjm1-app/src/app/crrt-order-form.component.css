@@ -2057,13 +2057,13 @@ label {
     display: none !important;
   }
 
-  /* 机型耗材：隐藏原生 checkbox，显示黑白方框 */
-  .machine-options .checkbox-option > input[type="checkbox"],
+  /* 所有选择框（血管通路/治疗模式/抗凝方式/机型耗材）：隐藏原生 checkbox，显示黑白方框 */
+  .checkbox-option > input[type="checkbox"],
   .custom-consumable-option > input[type="checkbox"] {
     display: none !important;
   }
 
-  .machine-options .print-checkbox,
+  .checkbox-option .print-checkbox,
   .custom-consumable-option .print-checkbox {
     box-sizing: border-box;
     display: inline-flex !important;
@@ -2083,7 +2083,7 @@ label {
     vertical-align: middle;
   }
 
-  .machine-options .print-checkmark,
+  .checkbox-option .print-checkmark,
   .custom-consumable-option .print-checkmark {
     display: block;
     width: 100%;
