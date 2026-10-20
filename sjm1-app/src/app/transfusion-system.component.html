@@ -1,0 +1,15 @@
+<div class="transfusion-system-page">
+  <iframe
+    *ngIf="iframeUrl"
+    class="transfusion-system-frame"
+    [src]="iframeUrl"
+    title="输血系统调阅"
+  ></iframe>
+
+  <div
+    *ngIf="!iframeUrl"
+    class="transfusion-system-empty"
+  >
+    暂无可调阅的输血系统
+  </div>
+</div>

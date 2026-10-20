@@ -15,6 +15,7 @@ import { HealthEducationComponent } from './health-education.component';
 import { WpgmFormComponent } from './wpgm-form.component';
 import { EcmoRecordComponent } from './ecmo-record.component';
 import { TransfusionRecordComponent } from './transfusion-record.component';
+import { TransfusionSystemComponent } from './transfusion-system.component';
 import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
 import { TemperatureRecordComponent } from './temperature-record.component';
@@ -53,6 +54,7 @@ import { routes } from './app.routes';
     WpgmFormComponent,
     EcmoRecordComponent,
     TransfusionRecordComponent,
+    TransfusionSystemComponent,
     PiccoRecordComponent,
     IabpRecordComponent,
     BradenFormComponent,

@@ -5,7 +5,7 @@ import { IcuFormViewerFormDef } from './icu-form-viewer.models';
  * 仅包含允许在统一调阅页面展示的业务表单。
  *
  * 排除项：
- * - transfusionForm：输血记录单
+ * - transfusionForm：输血记录单（第三方输血系统 iframe 调阅）
  * - temperatureRecord：体温单（第三方）
  * - bloodSugar：血糖单（第三方）
  * - printCenter：打印工具，不是患者业务表单

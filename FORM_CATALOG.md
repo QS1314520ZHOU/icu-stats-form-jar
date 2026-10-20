@@ -15,7 +15,7 @@
 | 健康教育记录单 | /form/jkjyForm | HealthEducationComponent | /api/v1/icu/health-education | HealthEducationRecord | 是 |
 | 住院患者物品管理表 | /form/wpgmForm | WpgmFormComponent | 无（仅浏览器 localStorage） | 无 | 否 |
 | ECMO 运行护理记录单 | /form/ecmoForm | EcmoRecordComponent | /api/v1/icu/bedside/listByPid, /api/v1/icu/ecmo-extra | Bedside, EcmoRecordExtra | 是 |
-| 输血记录单 | /form/transfusionForm | TransfusionRecordComponent | /api/v1/icu/transfusion-record | TransfusionRecord | 是 |
+| 输血记录单（第三方输血系统调阅） | /form/transfusionForm | TransfusionSystemComponent | 无（iframe 调阅输血系统，sign 由 SM4-ECB 生成） | — | 否 |
 | 非计划拔管风险评估及护理措施记录单 | /form/unPlannedCGZYYForm | UnplannedExtubationComponent | /api/v1/icu/score/listByPid | Score | 是 |
 | 一键批量打印中心 | /form/printCenter | PrintCenterComponent | 聚合探测各表单 API | — | 否（只读） |
 
@@ -37,5 +37,6 @@
 - "直接保存" = 该页面/系统包含用户触发的写入操作（新建/编辑/保存/删除）。
 - "Bedside" 实体在 ECMO 和亚低温表单中作为只读数据源使用（GET /listByPid），不通过表单本身写入。
 - `/form/wpgmForm`（住院患者物品管理表）仅使用 `localStorage` 存储已选物品 ID，无后端持久化。
+- `/form/transfusionForm` 已改为第三方输血系统 iframe 调阅（sign = SM4-ECB(登录参数) Hex，login_id 取登录账号 username）；本地 `TransfusionRecordComponent` 与 `/api/v1/icu/transfusion-record` 保留，仅供打印中心使用。
 - SmartCare 治疗记录系统的前端代码不在本仓库的 `sjm1-app` 中，由 SmartCare 宿主 SPA 提供。
 - 同名字段 `pid` 表示患者 ID，跨集合关联患者数据。

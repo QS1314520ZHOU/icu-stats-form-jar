@@ -8,7 +8,7 @@ import { PatientFallDangerComponent } from './patient-fall-danger.component';
 import { HealthEducationComponent } from './health-education.component';
 import { WpgmFormComponent } from './wpgm-form.component';
 import { EcmoRecordComponent } from './ecmo-record.component';
-import { TransfusionRecordComponent } from './transfusion-record.component';
+import { TransfusionSystemComponent } from './transfusion-system.component';
 import { PiccoRecordComponent } from './picco-record.component';
 import { IabpRecordComponent } from './iabp-record.component';
 import { TemperatureRecordComponent } from './temperature-record.component';
@@ -36,7 +36,7 @@ export const routes: Routes = [
   { path: 'wpgmForm', component: WpgmFormComponent },
   { path: 'ecmoForm', component: EcmoRecordComponent },
   { path: 'bradenForm', component: BradenFormComponent },
-  { path: 'transfusionForm', component: TransfusionRecordComponent },
+  { path: 'transfusionForm', component: TransfusionSystemComponent },
   { path: 'piccoForm', component: PiccoRecordComponent },
   { path: 'iabpForm', component: IabpRecordComponent },
   { path: 'crrtForm', component: CrrtRecordComponent },
