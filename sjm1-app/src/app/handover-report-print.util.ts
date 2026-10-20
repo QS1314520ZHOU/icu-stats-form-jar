@@ -849,11 +849,11 @@ function splitReport1PatientTable(
   metaRow.className = 'print-meta-row';
   const metaCells: Array<{ tag: 'th' | 'td'; text: string; colSpan: number }> = [
     { tag: 'th', text: '科室', colSpan: 1 },
-    { tag: 'td', text: snapshot.departmentName || snapshot.departmentId, colSpan: 2 },
+    { tag: 'td', text: snapshot.departmentName || snapshot.departmentId, colSpan: 3 },
     { tag: 'th', text: '日期', colSpan: 1 },
     { tag: 'td', text: dateInput, colSpan: 1 },
     { tag: 'th', text: '护士长签名', colSpan: 1 },
-    { tag: 'td', text: snapshot.draft.headNurseSignature || '', colSpan: 2 },
+    { tag: 'td', text: snapshot.draft.headNurseSignature || '', colSpan: 1 },
   ];
   metaCells.forEach(cell => {
     // 分支字面量调用，确保拿到 HTMLTableCellElement 类型
