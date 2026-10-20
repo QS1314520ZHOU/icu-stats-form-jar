@@ -113,7 +113,7 @@ export async function printHandoverReport(
   // 1. 清理旧的打印 DOM
   cleanupPrintDom();
 
-  // 2. 创建打印样式
+  // 2. 创建打印样式（页脚统一输出页码，报告1/2 通用）
   createPrintStyles();
 
   // 3. 创建打印根节点
@@ -127,11 +127,20 @@ export async function printHandoverReport(
     renderReport2(root, vm, snapshot, dateInput);
   }
 
-  // 5. 挂载到 body
+  // 5. 挂载到 body（测量态：离屏可见，供报告1分页拆分测量真实行高）
   document.body.appendChild(root);
+  root.classList.add('is-measuring');
 
   // 6. 等待渲染稳定
   await waitForRender();
+
+  // 6.5 报告1：第一页放不下的患者行拆到续表，续表每页重复"科室/日期/护士长签名"单头行
+  try {
+    splitReport1PatientTable(root, snapshot, dateInput);
+  } catch (err) {
+    console.warn('[HANDOVER] 报告1分页拆分失败，保持整表由浏览器分页', err);
+  }
+  root.classList.remove('is-measuring');
 
   // 7. 生命周期管理：beforeprint / afterprint
   let resolved = false;
@@ -183,6 +192,10 @@ function cleanupPrintDom(): void {
   if (style) style.remove();
 }
 
+/**
+ * 创建打印样式。
+ * 页脚统一输出页码（第X页），报告1/2 通用。
+ */
 function createPrintStyles(): void {
   const style = document.createElement('style');
   style.id = PRINT_STYLE_ID;
@@ -190,6 +203,11 @@ function createPrintStyles(): void {
     @page {
       size: A4 landscape;
       margin: ${MARGIN_MM}mm;
+      @bottom-center {
+        content: "第" counter(page) "页";
+        font-size: 9pt;
+        color: #111;
+      }
     }
 
     @media print {
@@ -214,6 +232,14 @@ function createPrintStyles(): void {
       }
     }
 
+    /* 测量态：离屏可见，供报告1分页拆分测量真实行高 */
+    #${PRINT_ROOT_ID}.is-measuring {
+      display: block !important;
+      position: absolute !important;
+      left: -10000px !important;
+      top: 0 !important;
+    }
+
     #${PRINT_ROOT_ID} {
       position: relative;
       left: 0;
@@ -236,6 +262,12 @@ function createPrintStyles(): void {
     }
 
     .print-report + .print-report {
+      page-break-before: always;
+      break-before: page;
+    }
+
+    /* 报告1续表：从新页开始；thead（元数据行+列头行）打印时每页顶部重复 */
+    .print-continuation-page {
       page-break-before: always;
       break-before: page;
     }
@@ -288,7 +320,8 @@ function createPrintStyles(): void {
       background: #fff;
     }
 
-    /* 报告2 标题行：标题居中，右侧同一行写日期（年 月 日） */
+    /* 报告2 标题行：标题居中，右侧同一行写日期（年 月 日）
+       作为 thead 首行放入表格，打印分页时每页重复（第二页右上角也有时间） */
     .print-report-header {
       display: grid;
       grid-template-columns: 1fr auto 1fr;
@@ -309,6 +342,12 @@ function createPrintStyles(): void {
       font-size: 12pt;
       letter-spacing: 1px;
       white-space: nowrap;
+    }
+
+    /* 标题行单元格去边框：保持标题浮于表格上方的外观，列头行的顶边线作为分隔 */
+    .print-table thead tr.print-report-header-row > th {
+      border: none;
+      padding: 0;
     }
 
     /* 报告元数据行 */
@@ -363,6 +402,21 @@ function createPrintStyles(): void {
      */
     .print-table td.print-category-cont {
       border-top: 0;
+    }
+
+    /*
+     * 预分页（仅报告2安全表，打印前由脚本测量后打标）：
+     * - 分段末行分类单元格恢复底边，在分页处封住分类列；
+     * - 分段起始行强制换页，避免浏览器自然分页落在分类块中间。
+     * 两条规则均声明在 print-category-cell 之后，同特异性时以后者为准。
+     */
+    .print-table td.print-category-seal {
+      border-bottom: 1px solid #2b2b2b;
+    }
+
+    .print-table tr.print-force-break {
+      page-break-before: always;
+      break-before: page;
     }
 
     /* 分类标签 - 黑色文字 */
@@ -460,7 +514,7 @@ function renderReport1Header(
   const table = document.createElement('table');
   table.className = 'print-table';
 
-  // 元数据行
+  // 元数据行（第一页顶部，布局保持不变）
   const metaRow = document.createElement('tr');
   metaRow.className = 'print-meta-row';
 
@@ -629,9 +683,14 @@ function measurePatientRowHeights(rows: HandoverPatientRow[]): number[] {
   return heights;
 }
 
-function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[], snapshot: DepartmentDailySnapshot, vm: HandoverReportViewModel): void {
+function renderPatientTable(
+  container: HTMLDivElement,
+  rows: HandoverPatientRow[],
+  snapshot: DepartmentDailySnapshot,
+  vm: HandoverReportViewModel,
+): void {
   const table = document.createElement('table');
-  table.className = 'print-table';
+  table.className = 'print-table print-patient-table';
 
   // 设置列宽
   const colWidths = ['5%', '6%', '5%', '10%', '22%', '17%', '17%', '18%'];
@@ -643,7 +702,7 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   });
   table.appendChild(colgroup);
 
-  // 表头
+  // 表头（第一页布局保持原样；续表的每页单头在 splitReport1PatientTable 中追加）
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   const headers = ['床号', '姓名', '状态', '住院号', '诊断', '白班', '中班', '夜班'];
@@ -697,6 +756,125 @@ function renderPatientTable(container: HTMLDivElement, rows: HandoverPatientRow[
   table.appendChild(tfoot);
 
   container.appendChild(table);
+}
+
+/**
+ * 报告1分页拆分：第一页放不下的患者行移入续表，续表 thead 重复
+ * "科室 / 日期 / 护士长签名"元数据行 —— 打印时 thead 每页顶部重复，
+ * 因此从第二页起每页开头都有这一行；第一页布局保持原样。
+ *
+ * 续表通过 page-break-before: always 从新页开始；签名行（tfoot）随
+ * 续表走，仍只在最终页显示。
+ *
+ * 调用前提：root 处于 is-measuring（离屏可见）状态、字体已加载、
+ * 渲染已稳定。测量失败时抛错，由调用方兜底保持整表由浏览器分页。
+ */
+function splitReport1PatientTable(
+  root: HTMLElement,
+  snapshot: DepartmentDailySnapshot,
+  dateInput: string,
+): void {
+  const patientTable = root.querySelector('.print-patient-table') as HTMLTableElement | null;
+  if (!patientTable) { return; } // 仅打印报告2时不存在患者表
+
+  const tbody = patientTable.tBodies[0];
+  if (!tbody) { return; }
+
+  const rows = Array.from(tbody.rows);
+  if (rows.length === 0) { return; }
+
+  // 第一页在患者表之前已占用的高度（标题+统计表及其上边距，从打印根量起）
+  const rootRect = root.getBoundingClientRect();
+  const tableRect = patientTable.getBoundingClientRect();
+  const usedHeight = pxToMm(tableRect.top - rootRect.top);
+
+  const theadHeight = patientTable.tHead
+    ? pxToMm(patientTable.tHead.getBoundingClientRect().height)
+    : 0;
+  const tfootHeight = patientTable.tFoot
+    ? pxToMm(patientTable.tFoot.getBoundingClientRect().height)
+    : 0;
+
+  const rowHeights = rows.map(tr => pxToMm(tr.getBoundingClientRect().height));
+  const totalRowsHeight = rowHeights.reduce((sum, h) => sum + h, 0);
+
+  // 第一页患者表可用高度（签名行随续表走，不占第一页）
+  const available = CONTENT_HEIGHT_MM - usedHeight - theadHeight - SAFETY_GAP_MM;
+
+  // 全部行 + 签名行都放得下：不拆分，保持现状
+  if (totalRowsHeight + tfootHeight <= available + 0.5) { return; }
+
+  // 贪心累加第一页能完整放下的行数
+  let splitIndex = 0;
+  let acc = 0;
+  for (const h of rowHeights) {
+    if (acc + h <= available + 0.5) {
+      acc += h;
+      splitIndex += 1;
+    } else {
+      break;
+    }
+  }
+  // 行全部放得下、只是签名行放不下（或仅 1 行）：
+  // 最后一行随续表走，避免第一页结尾被签名行挤爆/续表为空
+  if (splitIndex === rows.length) {
+    splitIndex = rows.length - 1;
+  }
+
+  // ---- 构建续表（外包一层 div，page-break 在块级元素上更可靠） ----
+  const contWrap = document.createElement('div');
+  contWrap.className = 'print-continuation-page';
+
+  const contTable = document.createElement('table');
+  contTable.className = 'print-table print-patient-table';
+
+  const colgroup = patientTable.querySelector('colgroup');
+  if (colgroup) { contTable.appendChild(colgroup.cloneNode(true)); }
+
+  const contThead = document.createElement('thead');
+
+  // 元数据行（8 列布局：科室 | 科室名 | 日期 | 日期值 | 护士长签名 | 签名）
+  const metaRow = document.createElement('tr');
+  metaRow.className = 'print-meta-row';
+  const metaCells: Array<{ tag: 'th' | 'td'; text: string; colSpan: number }> = [
+    { tag: 'th', text: '科室', colSpan: 1 },
+    { tag: 'td', text: snapshot.departmentName || snapshot.departmentId, colSpan: 2 },
+    { tag: 'th', text: '日期', colSpan: 1 },
+    { tag: 'td', text: dateInput, colSpan: 1 },
+    { tag: 'th', text: '护士长签名', colSpan: 1 },
+    { tag: 'td', text: snapshot.draft.headNurseSignature || '', colSpan: 2 },
+  ];
+  metaCells.forEach(cell => {
+    // 分支字面量调用，确保拿到 HTMLTableCellElement 类型
+    const el = cell.tag === 'th' ? document.createElement('th') : document.createElement('td');
+    el.colSpan = cell.colSpan;
+    el.textContent = cell.text;
+    metaRow.appendChild(el);
+  });
+  contThead.appendChild(metaRow);
+
+  // 列头行（床号/姓名/…，克隆原表头）
+  const headRow = patientTable.tHead?.rows[0];
+  if (headRow) { contThead.appendChild(headRow.cloneNode(true) as HTMLTableRowElement); }
+  contTable.appendChild(contThead);
+
+  // 剩余患者行移入续表（appendChild 移动节点而非复制）
+  const contTbody = document.createElement('tbody');
+  rows.slice(splitIndex).forEach(tr => contTbody.appendChild(tr));
+  contTable.appendChild(contTbody);
+
+  // 签名行移到续表末尾（仍只在最终页显示）
+  if (patientTable.tFoot) { contTable.appendChild(patientTable.tFoot); }
+
+  contWrap.appendChild(contTable);
+
+  // 续表插在原表位置（报告1容器内），再移除空壳原表，
+  // 保证打印"全部"时代续表不会落到报告2之后
+  patientTable.insertAdjacentElement('afterend', contWrap);
+  if (splitIndex === 0) {
+    // 第一页一行都放不下：移除空壳原表，第一页只保留标题+统计表
+    patientTable.remove();
+  }
 }
 
 function createPatientRow(row: HandoverPatientRow, vm: HandoverReportViewModel): HTMLTableRowElement {
@@ -826,32 +1004,66 @@ function renderReport2(
   const report = document.createElement('div');
   report.className = 'print-report';
 
-  // 标题行：标题居中，右侧同一行写日期（年 月 日）
-  const header = document.createElement('div');
-  header.className = 'print-report-header';
-
-  const title = document.createElement('h2');
-  title.className = 'print-report-title';
-  title.textContent = '重症医学科病区交班报告';
-  header.appendChild(title);
-
-  const date = document.createElement('span');
-  date.className = 'print-report-date';
-  date.textContent = formatChineseDate(dateInput);
-  header.appendChild(date);
-
-  report.appendChild(header);
-
-  // 安全指标表格（无 rowspan，支持分页）
-  renderSafetyTable(report, vm.metrics, snapshot);
+  // 安全指标表格（无 rowspan，支持分页）；标题+日期作为 thead 首行随每页重复
+  renderSafetyTable(report, vm.metrics, snapshot, dateInput);
 
   root.appendChild(report);
+}
+
+/**
+ * 安全表预分页：
+ * 打印前用同一渲染引擎离屏测量表头与各行高度，按内容区可用高度预分配分页，
+ * 并在分段边界打标：
+ * - 分段末行分类单元格加 print-category-seal（恢复底边），封住分页处的分类列；
+ * - 分段起始行加 print-force-break（break-before: page），避免浏览器自然分页
+ *   落在分类块中间导致合并外观断裂。
+ * 测量与预览同引擎同会话，漂移极小；若仍有偏差，浏览器自然分页兜底
+ * （该页分类列封口缺失，thead 照常重复）。
+ */
+function paginateSafetyTable(table: HTMLTableElement): void {
+  const theadRows = table.tHead ? Array.from(table.tHead.rows) : [];
+  const bodyRows = table.tBodies[0] ? Array.from(table.tBodies[0].rows) : [];
+  if (bodyRows.length === 0) {
+    return;
+  }
+
+  const measureHost = document.createElement('div');
+  measureHost.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;width:${CONTENT_WIDTH_MM}mm;`;
+  document.body.appendChild(measureHost);
+  measureHost.appendChild(table);
+
+  try {
+    const headerMm = theadRows.reduce((sum, row) => sum + pxToMm(row.getBoundingClientRect().height), 0);
+    const available = CONTENT_HEIGHT_MM - headerMm - SAFETY_GAP_MM;
+    const heights = bodyRows.map(row => pxToMm(row.getBoundingClientRect().height));
+
+    let used = 0;
+    let endIndex = -1;
+    heights.forEach((height, index) => {
+      if (used + height > available && endIndex >= 0) {
+        const sealCell = bodyRows[endIndex].querySelector('td.print-category-cell');
+        if (sealCell) {
+          sealCell.classList.add('print-category-seal');
+        }
+        bodyRows[index].classList.add('print-force-break');
+        used = height;
+        endIndex = index;
+      } else {
+        used += height;
+        endIndex = index;
+      }
+    });
+  } finally {
+    measureHost.removeChild(table);
+    document.body.removeChild(measureHost);
+  }
 }
 
 function renderSafetyTable(
   container: HTMLDivElement,
   metrics: MetricRow[],
   snapshot: DepartmentDailySnapshot,
+  dateInput: string,
 ): void {
   const table = document.createElement('table');
   table.className = 'print-table';
@@ -866,16 +1078,42 @@ function renderSafetyTable(
   });
   table.appendChild(colgroup);
 
-  // 表头
   const thead = document.createElement('thead');
-  const headerRow = document.createElement('tr');
+
+  // 标题行：标题居中，右侧同一行写日期（年 月 日）。
+  // 放入 thead 首行后随表头每页重复，第二页右上角同样展示时间。
+  const reportHeaderRow = document.createElement('tr');
+  reportHeaderRow.className = 'print-report-header-row';
+
+  const reportHeaderTh = document.createElement('th');
+  reportHeaderTh.colSpan = 5;
+
+  const header = document.createElement('div');
+  header.className = 'print-report-header';
+
+  const title = document.createElement('h2');
+  title.className = 'print-report-title';
+  title.textContent = '重症医学科病区交班报告';
+  header.appendChild(title);
+
+  const date = document.createElement('span');
+  date.className = 'print-report-date';
+  date.textContent = formatChineseDate(dateInput);
+  header.appendChild(date);
+
+  reportHeaderTh.appendChild(header);
+  reportHeaderRow.appendChild(reportHeaderTh);
+  thead.appendChild(reportHeaderRow);
+
+  // 列头
+  const columnHeaderRow = document.createElement('tr');
   const headers = ['分类', '项目', '白班', '中班', '夜班'];
   headers.forEach(text => {
     const th = document.createElement('th');
     th.textContent = text;
-    headerRow.appendChild(th);
+    columnHeaderRow.appendChild(th);
   });
-  thead.appendChild(headerRow);
+  thead.appendChild(columnHeaderRow);
   table.appendChild(thead);
 
   // 表体
@@ -954,6 +1192,10 @@ function renderSafetyTable(
   tbody.appendChild(signatureRow);
 
   table.appendChild(tbody);
+
+  // 预分页：分段末行封住分类列 + 分段起始行强制换页（见 paginateSafetyTable）
+  paginateSafetyTable(table);
+
   container.appendChild(table);
 }
 

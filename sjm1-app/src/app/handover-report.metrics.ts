@@ -64,6 +64,15 @@ function formatBeds(values: Iterable<string>): string {
 }
 
 /**
+ * 「总人数（床列表）」展示：空串保持为空；有值时 1床、2床 → 2人（1床、2床）。
+ * 用于有创机械通气人数、有创血压监测、膀胱冲洗三个指标。
+ */
+function formatCountedBeds(beds: string): string {
+  if (!beds) { return ''; }
+  return `${beds.split('、').length}人（${beds}）`;
+}
+
+/**
  * 出科排除（出科当天整日排除）：icuDischargeTime 早于报表窗口结束（报表日次日08:00）
  * 的患者，本报表三个班次均不再统计；出科时间在窗口结束之后（含窗口内未出科）的正常统计。
  * 快照为重返ICU比对会回溯48h带出已出科患者，需按此口径剔除。
@@ -490,9 +499,9 @@ function calculateAutoMetricValues(
     case 'hypoglycemia':
       return buildValues(range => bloodSugarBeds(snapshot, patients, range));
     case 'bladderIrrigation':
-      return buildValues(range => bladderIrrigationBeds(snapshot, range, reportEnd));
+      return buildValues(range => formatCountedBeds(bladderIrrigationBeds(snapshot, range, reportEnd)));
     case 'invasiveVentilation':
-      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_XiYangTuJing', value => value === '有创'));
+      return buildValues(range => formatCountedBeds(bedsideBeds(snapshot, patients, range, 'param_XiYangTuJing', value => value === '有创')));
     case 'newNasoentericTube':
       return buildValues(range => tubeBeds(snapshot, patients, range, '鼻肠管'));
     case 'newTrachealIntubation':
@@ -506,7 +515,7 @@ function calculateAutoMetricValues(
     case 'reintubationWithin48Hours':
       return buildValues(range => reintubationBeds(snapshot, patients, range));
     case 'invasiveBloodPressure':
-      return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_ibp_d', value => value.length > 0));
+      return buildValues(range => formatCountedBeds(bedsideBeds(snapshot, patients, range, 'param_ibp_d', value => value.length > 0)));
     case 'crrtTreatment':
       return buildValues(range => bedsideBeds(snapshot, patients, range, 'param_CBP_Mode', value => value.length > 0));
     case 'proneVentilation':
