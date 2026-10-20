@@ -4,7 +4,11 @@
  * 创建临时只读打印 DOM，支持 A4 横向自动分页。
  * 两份报告按顺序打印，第二份从新页开始。
  *
- * A4 横向：297mm × 210mm，四边 7mm → 有效区 283mm × 196mm。
+ * A4 横向：297mm × 210mm，四边 7mm（底边 12mm）→ 有效区 283mm × 191mm。
+ *
+ * 页码经 @page @bottom-center 绘制，位于底部页边距内并上移 6mm：
+ * 打印机距纸边约 3~6mm 为不可打印区，页码贴底会在纸面上被裁掉
+ * （预览含页边距所以看得到），上移后文字底边距纸边约 7.6mm，可打印。
  */
 import {
   DepartmentDailySnapshot,
@@ -23,14 +27,20 @@ const PAGE_WIDTH_MM = 297;
 /** A4 横向高度 mm */
 const PAGE_HEIGHT_MM = 210;
 
-/** 四边边距 mm */
+/** 上/左/右边距 mm */
 const MARGIN_MM = 7;
+
+/** 底边距 mm（比三边大：给页码留出可打印空间，避开打印机不可打印区） */
+const BOTTOM_MARGIN_MM = 12;
+
+/** 页码在底边距内上移量 mm（页码文字底边距纸边 ≈ 1.5 + 上移量，须 ≥ 打印机不可打印边宽） */
+const PAGE_NUMBER_LIFT_MM = 6;
 
 /** 有效打印宽度 mm */
 const CONTENT_WIDTH_MM = PAGE_WIDTH_MM - 2 * MARGIN_MM;
 
 /** 有效打印高度 mm */
-const CONTENT_HEIGHT_MM = PAGE_HEIGHT_MM - 2 * MARGIN_MM;
+const CONTENT_HEIGHT_MM = PAGE_HEIGHT_MM - MARGIN_MM - BOTTOM_MARGIN_MM;
 
 /** 安全间距 mm */
 const SAFETY_GAP_MM = 2;
@@ -202,11 +212,12 @@ function createPrintStyles(): void {
   style.textContent = `
     @page {
       size: A4 landscape;
-      margin: ${MARGIN_MM}mm;
+      margin: ${MARGIN_MM}mm ${MARGIN_MM}mm ${BOTTOM_MARGIN_MM}mm ${MARGIN_MM}mm;
       @bottom-center {
         content: "第" counter(page) "页";
         font-size: 9pt;
         color: #111;
+        margin-bottom: ${PAGE_NUMBER_LIFT_MM}mm;
       }
     }
 
