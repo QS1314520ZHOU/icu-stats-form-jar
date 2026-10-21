@@ -9,6 +9,7 @@
  * 页码经 @page @bottom-center 绘制，位于底部页边距内并上移 6mm：
  * 打印机距纸边约 3~6mm 为不可打印区，页码贴底会在纸面上被裁掉
  * （预览含页边距所以看得到），上移后文字底边距纸边约 7.6mm，可打印。
+ * 注意：@page 页边距盒需要 Chrome/Edge 131+ 内核，老内核会整块忽略。
  */
 import {
   DepartmentDailySnapshot,
